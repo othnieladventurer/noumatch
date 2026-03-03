@@ -24,9 +24,9 @@ export default function Dashboard() {
   const [matchesList, setMatchesList] = useState([]);
   const [blockedList, setBlockedList] = useState([]);
 
+  // Modals
   const [likeModalOpen, setLikeModalOpen] = useState(false);
   const [selectedLike, setSelectedLike] = useState(null);
-
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
 
@@ -65,7 +65,6 @@ export default function Dashboard() {
     fetchUser();
   }, [navigate]);
 
-  // Helper functions
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/150";
     if (path.startsWith('http')) return path;
@@ -105,14 +104,21 @@ export default function Dashboard() {
         const data = await response.json();
         console.log("✅ Received likes:", data);
         
-        const likes = data.map(like => ({
-          id: like.from_user.id,
-          name: like.from_user.username,
-          age: like.from_user.age,
-          bio: like.from_user.bio || "No bio yet",
-          photo: getProfilePhotoUrl(like.from_user.profile_photo),
-          gender: like.from_user.gender,
-        }));
+        const likes = data.map(like => {
+          let age = like.from_user.age;
+          if (!age && like.from_user.birth_date) {
+            age = calculateAge(like.from_user.birth_date);
+          }
+          
+          return {
+            id: like.from_user.id,
+            name: like.from_user.username,
+            age: age,
+            bio: like.from_user.bio || "No bio yet",
+            photo: getProfilePhotoUrl(like.from_user.profile_photo),
+            gender: like.from_user.gender,
+          };
+        });
         
         setLikesList(likes);
       }
@@ -140,6 +146,96 @@ export default function Dashboard() {
     }
   };
 
+  // Fetch matches
+  const fetchMatches = async () => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/matches/matches/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Matches fetched:", data);
+        
+        const matches = data.map(match => {
+          const otherUser = match.user1.id === user.id ? match.user2 : match.user1;
+          return {
+            id: otherUser.id,
+            name: otherUser.username,
+            age: otherUser.age,
+            bio: otherUser.bio || "No bio yet",
+            photo: otherUser.profile_photo_url || getProfilePhotoUrl(otherUser.profile_photo),
+            gender: otherUser.gender,
+            match_id: match.id,
+            created_at: match.created_at
+          };
+        });
+        
+        setMatchesList(matches);
+      }
+    } catch (error) {
+      console.error("Error fetching matches:", error);
+    }
+  };
+
+  // Create match in database
+  const createMatch = async (otherUserId) => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/matches/match/create/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          user1_id: user.id,
+          user2_id: otherUserId
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.status === 201 || response.status === 200) {
+        console.log("✅ Match created/exists:", data);
+        return true;
+      } else {
+        console.error("Failed to create match:", data);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error creating match:", error);
+      return false;
+    }
+  };
+
+  // Check for mutual like and create match
+  const checkForMatch = async (likedUserId) => {
+    // Check if the person we just liked already likes us
+    const theyLikeMe = likesList.some(like => like.id === likedUserId);
+    
+    if (theyLikeMe) {
+      console.log("🎉 Mutual like detected! Creating match...");
+      
+      // Create match in backend
+      const matchCreated = await createMatch(likedUserId);
+      
+      if (matchCreated) {
+        // Refresh matches list
+        await fetchMatches();
+        
+        // Find the profile that matched
+        const matchedProfile = likesList.find(like => like.id === likedUserId);
+        
+        // Show match modal
+        setMatchedProfile(matchedProfile);
+        setMatchModalOpen(true);
+        document.body.style.overflow = 'hidden';
+      }
+    }
+  };
+
   // Fetch profiles from database
   useEffect(() => {
     const token = localStorage.getItem("access");
@@ -153,12 +249,8 @@ export default function Dashboard() {
         let genderFilter = '';
         if (user.interested_in === 'male') {
           genderFilter = 'male';
-          console.log("🔍 User is interested in males, fetching male profiles");
         } else if (user.interested_in === 'female') {
           genderFilter = 'female';
-          console.log("🔍 User is interested in females, fetching female profiles");
-        } else if (user.interested_in === 'everyone') {
-          console.log("🔍 User is interested in everyone, fetching all profiles");
         }
 
         const queryParams = new URLSearchParams();
@@ -167,7 +259,6 @@ export default function Dashboard() {
         }
         
         const apiUrl = `http://127.0.0.1:8000/api/users/profiles/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-        console.log("🔍 Fetching profiles from:", apiUrl);
         
         const response = await fetch(apiUrl, {
           headers: { Authorization: `Bearer ${token}` },
@@ -178,7 +269,6 @@ export default function Dashboard() {
         }
 
         const data = await response.json();
-        console.log("🔍 Raw API Response:", data);
 
         let profilesArray = [];
         if (Array.isArray(data)) {
@@ -200,8 +290,6 @@ export default function Dashboard() {
         if (sentLikesIds.length > 0) {
           finalProfiles = finalProfiles.filter(profile => !sentLikesIds.includes(profile.id));
         }
-
-        console.log(`🔍 After all filters: ${finalProfiles.length} profiles remain`);
 
         const transformedProfiles = finalProfiles.map(profile => ({
           id: profile.id,
@@ -239,11 +327,12 @@ export default function Dashboard() {
     }
   }, [user, sentLikesIds]);
 
-  // Fetch likes when user loads
+  // Fetch likes and matches when user loads
   useEffect(() => {
     if (user) {
       fetchLikesReceived();
       fetchSentLikes();
+      fetchMatches();
     }
   }, [user]);
 
@@ -252,7 +341,6 @@ export default function Dashboard() {
     if (profileIndex >= profiles.length) return null;
     
     if (user && profiles[profileIndex] && profiles[profileIndex].id === user.id) {
-      console.log(`🚨 Emergency: Found current user in profiles! Skipping...`);
       setTimeout(() => goNextProfile(), 0);
       return null;
     }
@@ -336,13 +424,15 @@ export default function Dashboard() {
       if (response.ok) {
         const data = await response.json();
         console.log("✅ Like sent successfully:", data);
+        
         setSentLikesIds(prev => [...prev, currentProfile.id]);
+        
+        // Check if this creates a match
+        await checkForMatch(currentProfile.id);
+        
       } else {
         const error = await response.json();
         console.error("❌ Like failed:", error);
-        if (error.to_user_id && error.to_user_id.includes("already liked")) {
-          setSentLikesIds(prev => [...prev, currentProfile.id]);
-        }
       }
     } catch (error) {
       console.error("Error liking profile:", error);
@@ -386,19 +476,24 @@ export default function Dashboard() {
       if (response.ok) {
         console.log("✅ Liked back successfully");
         setSentLikesIds(prev => [...prev, selectedLike.id]);
+        
+        // Check if this creates a match
+        await checkForMatch(selectedLike.id);
+        
+        closeLikeModal();
       } else {
         const error = await response.json();
         console.error("❌ Like back failed:", error);
+        closeLikeModal();
       }
     } catch (error) {
       console.error("Error liking back:", error);
+      closeLikeModal();
     }
-
-    closeLikeModal();
   };
 
-  const openMatchModalFor = (p) => {
-    setMatchedProfile(p);
+  const openMatchModalFor = (profile) => {
+    setMatchedProfile(profile);
     setMatchModalOpen(true);
     document.body.style.overflow = 'hidden';
   };
