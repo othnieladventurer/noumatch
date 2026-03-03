@@ -18,8 +18,9 @@ export default function Dashboard() {
   const [slideDirection, setSlideDirection] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Initialize ALL lists as empty arrays
+  // Lists
   const [likesList, setLikesList] = useState([]);
+  const [sentLikesIds, setSentLikesIds] = useState([]);
   const [matchesList, setMatchesList] = useState([]);
   const [blockedList, setBlockedList] = useState([]);
 
@@ -64,6 +65,7 @@ export default function Dashboard() {
     fetchUser();
   }, [navigate]);
 
+  // Helper functions
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/150";
     if (path.startsWith('http')) return path;
@@ -83,7 +85,6 @@ export default function Dashboard() {
     return age;
   };
 
-  // Shuffle array function for random ordering
   const shuffleArray = (array) => {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -93,7 +94,53 @@ export default function Dashboard() {
     return shuffled;
   };
 
-  // Fetch REAL profiles from database based on user's interests
+  // Fetch likes received (people who liked me)
+  const fetchLikesReceived = async () => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/received/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Received likes:", data);
+        
+        const likes = data.map(like => ({
+          id: like.from_user.id,
+          name: like.from_user.username,
+          age: like.from_user.age,
+          bio: like.from_user.bio || "No bio yet",
+          photo: getProfilePhotoUrl(like.from_user.profile_photo),
+          gender: like.from_user.gender,
+        }));
+        
+        setLikesList(likes);
+      }
+    } catch (error) {
+      console.error("Error fetching received likes:", error);
+    }
+  };
+
+  // Fetch likes sent (people I liked)
+  const fetchSentLikes = async () => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/sent/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Sent likes:", data);
+        
+        const likedUserIds = data.map(like => like.to_user.id);
+        setSentLikesIds(likedUserIds);
+      }
+    } catch (error) {
+      console.error("Error fetching sent likes:", error);
+    }
+  };
+
+  // Fetch profiles from database
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (!token || !user) return;
@@ -103,7 +150,6 @@ export default function Dashboard() {
       setApiError(null);
       
       try {
-        // Determine gender filter based on user's interests
         let genderFilter = '';
         if (user.interested_in === 'male') {
           genderFilter = 'male';
@@ -134,53 +180,29 @@ export default function Dashboard() {
         const data = await response.json();
         console.log("🔍 Raw API Response:", data);
 
-        // Handle different response formats
         let profilesArray = [];
-        
         if (Array.isArray(data)) {
           profilesArray = data;
-          console.log("🔍 API returned direct array with", profilesArray.length, "profiles");
         } else if (data.results && Array.isArray(data.results)) {
           profilesArray = data.results;
-          console.log("🔍 API returned paginated results with", profilesArray.length, "profiles");
         }
 
-        // LAYER 1 FILTER: Remove the current user by ID (ABSOLUTE MUST)
-        console.log("🔍 Current user ID to filter out:", user.id);
-        
-        const filteredById = profilesArray.filter(profile => {
-          // NEVER show the current user - this is non-negotiable
-          if (profile.id === user.id) {
-            console.log(`🚨 LAYER 1: Removed current user: ${profile.username} (ID: ${profile.id})`);
-            return false;
-          }
-          return true;
-        });
+        // Filter out current user
+        const filteredById = profilesArray.filter(profile => profile.id !== user.id);
 
-        console.log(`🔍 After Layer 1 filter: ${filteredById.length} profiles remain`);
-
-        // LAYER 2 FILTER: Ensure gender matches if we have a filter
+        // Filter by gender if needed
         let finalProfiles = filteredById;
         if (genderFilter) {
-          finalProfiles = filteredById.filter(profile => {
-            if (profile.gender !== genderFilter) {
-              console.log(`🚨 LAYER 2: Removed ${profile.username} because gender ${profile.gender} != ${genderFilter}`);
-              return false;
-            }
-            return true;
-          });
+          finalProfiles = filteredById.filter(profile => profile.gender === genderFilter);
         }
 
-        console.log(`🔍 After Layer 2 filter: ${finalProfiles.length} profiles remain`);
-        
-        if (finalProfiles.length > 0) {
-          console.log("✅ FINAL PROFILES:");
-          finalProfiles.forEach(p => console.log(`  - ID: ${p.id}, Name: ${p.username}, Gender: ${p.gender}`));
-        } else {
-          console.log("⚠️ No profiles left after all filters");
+        // Filter out profiles the user has already liked
+        if (sentLikesIds.length > 0) {
+          finalProfiles = finalProfiles.filter(profile => !sentLikesIds.includes(profile.id));
         }
 
-        // Transform the profiles
+        console.log(`🔍 After all filters: ${finalProfiles.length} profiles remain`);
+
         const transformedProfiles = finalProfiles.map(profile => ({
           id: profile.id,
           name: profile.username,
@@ -199,9 +221,7 @@ export default function Dashboard() {
           birth_date: profile.birth_date,
         }));
 
-        // Shuffle for random order
         const shuffledProfiles = shuffleArray(transformedProfiles);
-        
         setProfiles(shuffledProfiles);
         setProfileIndex(0);
 
@@ -217,16 +237,22 @@ export default function Dashboard() {
     if (user) {
       fetchProfiles();
     }
+  }, [user, sentLikesIds]);
+
+  // Fetch likes when user loads
+  useEffect(() => {
+    if (user) {
+      fetchLikesReceived();
+      fetchSentLikes();
+    }
   }, [user]);
 
   const currentProfile = useMemo(() => {
     if (!profiles || profiles.length === 0) return null;
     if (profileIndex >= profiles.length) return null;
     
-    // LAYER 3 FILTER: Emergency check in case any current user slipped through
     if (user && profiles[profileIndex] && profiles[profileIndex].id === user.id) {
-      console.log(`🚨🚨🚨 EMERGENCY: Found current user in profiles at index ${profileIndex}! Skipping...`);
-      // Automatically skip to next profile
+      console.log(`🚨 Emergency: Found current user in profiles! Skipping...`);
       setTimeout(() => goNextProfile(), 0);
       return null;
     }
@@ -238,7 +264,6 @@ export default function Dashboard() {
     if (profileIndex < profiles.length - 1) {
       setProfileIndex((prev) => prev + 1);
     } else {
-      // No more profiles - set index to length to show "No more profiles" message
       setProfileIndex(profiles.length);
     }
   };
@@ -292,11 +317,37 @@ export default function Dashboard() {
 
   const handlePass = () => triggerSlide("left");
   
-  const handleLike = () => {
-    if (currentProfile) {
-      console.log("Liked profile:", currentProfile.id, currentProfile.name);
-      // TODO: Send like to backend when ready
+  const handleLike = async () => {
+    if (!currentProfile || isAnimating) return;
+    
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/interactions/like/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          to_user_id: currentProfile.id 
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Like sent successfully:", data);
+        setSentLikesIds(prev => [...prev, currentProfile.id]);
+      } else {
+        const error = await response.json();
+        console.error("❌ Like failed:", error);
+        if (error.to_user_id && error.to_user_id.includes("already liked")) {
+          setSentLikesIds(prev => [...prev, currentProfile.id]);
+        }
+      }
+    } catch (error) {
+      console.error("Error liking profile:", error);
     }
+
     triggerSlide("right");
   };
 
@@ -316,12 +367,33 @@ export default function Dashboard() {
     closeLikeModal();
   };
 
-  const handleLikeBack = () => {
+  const handleLikeBack = async () => {
     if (!selectedLike) return;
 
-    addToMatches(selectedLike);
-    setMatchedProfile(selectedLike);
-    setMatchModalOpen(true);
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/interactions/like/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          to_user_id: selectedLike.id 
+        }),
+      });
+
+      if (response.ok) {
+        console.log("✅ Liked back successfully");
+        setSentLikesIds(prev => [...prev, selectedLike.id]);
+      } else {
+        const error = await response.json();
+        console.error("❌ Like back failed:", error);
+      }
+    } catch (error) {
+      console.error("Error liking back:", error);
+    }
+
     closeLikeModal();
   };
 
@@ -838,7 +910,6 @@ export default function Dashboard() {
                     </div>
                   </>
                 ) : (
-                  /* "No more profiles" message - RESTORED! */
                   <div className="p-5 text-center" style={{ minHeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <div>
                       <div
@@ -990,7 +1061,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* ===== Likes Modal ===== */}
+            {/* Likes Modal */}
             <ModalShell
               open={likeModalOpen}
               onClose={closeLikeModal}
@@ -1043,7 +1114,7 @@ export default function Dashboard() {
               )}
             </ModalShell>
 
-            {/* ===== It's a Match Modal ===== */}
+            {/* Match Modal */}
             <ModalShell
               open={matchModalOpen}
               onClose={closeMatchModal}
