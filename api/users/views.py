@@ -126,7 +126,6 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 
 
-
 # Add this new view for profile discovery
 class UserProfileListView(generics.ListAPIView):
     """
@@ -173,6 +172,9 @@ class UserProfileListView(generics.ListAPIView):
                 ).exclude(id=user.id)
                 print(f"🔍 Filtering for all users")
             
+            # 👇 ADD THIS ONE LINE - EXCLUDE ALL SUPERUSERS (ADMINS)
+            queryset = queryset.filter(is_superuser=False)
+            
             # ALSO apply gender filter from query param if provided (double filter)
             if gender and gender in ['male', 'female']:
                 queryset = queryset.filter(gender=gender)
@@ -201,7 +203,7 @@ class UserProfileListView(generics.ListAPIView):
         return Response(serializer.data)
 
 
-
+        
 
         
 

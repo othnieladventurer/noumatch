@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User
 
+
+
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     model = User
@@ -10,14 +12,16 @@ class UserAdmin(BaseUserAdmin):
     list_display = (
         "email",
         "username",
+        "first_name",
+        "last_name",
         "is_verified",
         "is_staff",
         "is_active",
         "date_joined",
     )
 
-    # Add search capability for email and username
-    search_fields = ("email", "username")
+    # Add search capability for email and username, plus first/last name
+    search_fields = ("email", "username", "first_name", "last_name")
 
     # Filters in sidebar
     list_filter = ("is_verified", "is_staff", "is_active", "gender", "interested_in")
@@ -27,6 +31,8 @@ class UserAdmin(BaseUserAdmin):
         ("Login Info", {"fields": ("email", "username", "password")}),
         ("Personal Info", {
             "fields": (
+                "first_name",
+                "last_name",
                 "bio",
                 "birth_date",
                 "gender",
@@ -51,10 +57,22 @@ class UserAdmin(BaseUserAdmin):
             None,
             {
                 "classes": ("wide",),
-                "fields": ("email", "username", "password1", "password2", "is_active", "is_staff"),
+                "fields": (
+                    "email",
+                    "username",
+                    "first_name",
+                    "last_name",
+                    "password1",
+                    "password2",
+                    "is_active",
+                    "is_staff"
+                ),
             },
         ),
     )
 
     ordering = ("email",)
     filter_horizontal = ("groups", "user_permissions")
+
+
+    

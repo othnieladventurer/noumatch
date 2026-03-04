@@ -6,7 +6,8 @@ export default function Register() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    username: "",
+    first_name: "",
+    last_name: "",
     email: "",
     birth_date: "",
     gender: "",
@@ -39,7 +40,8 @@ export default function Register() {
     }
 
     const data = new FormData();
-    data.append("username", formData.username);
+    data.append("first_name", formData.first_name);
+    data.append("last_name", formData.last_name);
     data.append("email", formData.email);
     data.append("birth_date", formData.birth_date);
     data.append("gender", formData.gender);
@@ -68,6 +70,9 @@ export default function Register() {
         localStorage.setItem("access", result.access);
         localStorage.setItem("refresh", result.refresh);
 
+        // Show success message with generated username (optional)
+        console.log("Your username is:", result.user.username);
+        
         // Redirect to dashboard
         navigate("/dashboard");
       } else {
@@ -136,25 +141,40 @@ export default function Register() {
           <form onSubmit={handleSubmit} encType="multipart/form-data">
             <div className="row">
 
-              {/* Username */}
+              {/* First Name */}
               <div className="col-12 col-md-6 mb-3">
-                <label className="form-label">Username</label>
+                <label className="form-label">First Name</label>
                 <input
                   type="text"
-                  name="username"
+                  name="first_name"
                   className="form-control form-control-lg"
+                  placeholder="Enter your first name"
+                  required
+                  onChange={handleChange}
+                />
+              </div>
+
+              {/* Last Name */}
+              <div className="col-12 col-md-6 mb-3">
+                <label className="form-label">Last Name</label>
+                <input
+                  type="text"
+                  name="last_name"
+                  className="form-control form-control-lg"
+                  placeholder="Enter your last name"
                   required
                   onChange={handleChange}
                 />
               </div>
 
               {/* Email */}
-              <div className="col-12 col-md-6 mb-3">
+              <div className="col-12 mb-3">
                 <label className="form-label">Email</label>
                 <input
                   type="email"
                   name="email"
                   className="form-control form-control-lg"
+                  placeholder="Enter your email address"
                   required
                   onChange={handleChange}
                 />
@@ -177,11 +197,12 @@ export default function Register() {
                 <label className="form-label">Gender</label>
                 <select
                   name="gender"
-                  className="form-control"
+                  className="form-control form-control-lg"
                   required
                   onChange={handleChange}
+                  defaultValue=""
                 >
-                  <option value="">Select gender</option>
+                  <option value="" disabled>Select your gender</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="other">Other</option>
@@ -193,11 +214,12 @@ export default function Register() {
                 <label className="form-label">Interested In</label>
                 <select
                   name="interested_in"
-                  className="form-control"
+                  className="form-control form-control-lg"
                   required
                   onChange={handleChange}
+                  defaultValue=""
                 >
-                  <option value="">Select preference</option>
+                  <option value="" disabled>Select your preference</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
                   <option value="everyone">Everyone</option>
@@ -210,11 +232,12 @@ export default function Register() {
                 <input
                   type="file"
                   name="profile_photo"
-                  className="form-control"
+                  className="form-control form-control-lg"
                   accept="image/*"
                   required
                   onChange={handleChange}
                 />
+                <small className="text-muted">Upload a clear photo of yourself</small>
               </div>
 
               {/* Password */}
@@ -224,6 +247,7 @@ export default function Register() {
                   type="password"
                   name="password"
                   className="form-control form-control-lg"
+                  placeholder="Create a password"
                   required
                   onChange={handleChange}
                 />
@@ -236,6 +260,7 @@ export default function Register() {
                   type="password"
                   name="password2"
                   className="form-control form-control-lg"
+                  placeholder="Confirm your password"
                   required
                   onChange={handleChange}
                 />
@@ -269,3 +294,5 @@ export default function Register() {
     </div>
   );
 }
+
+

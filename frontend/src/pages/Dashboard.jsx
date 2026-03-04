@@ -30,6 +30,22 @@ export default function Dashboard() {
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
 
+  // Helper function to get display name - priority: first+last > username
+  const getDisplayName = (profile) => {
+    if (!profile) return "";
+    
+    if (profile.firstName && profile.lastName) {
+      return `${profile.firstName} ${profile.lastName}`;
+    }
+    if (profile.firstName) {
+      return profile.firstName;
+    }
+    if (profile.lastName) {
+      return profile.lastName;
+    }
+    return profile.username || "";
+  };
+
   // Fetch authenticated user on mount
   useEffect(() => {
     const token = localStorage.getItem("access");
@@ -66,7 +82,7 @@ export default function Dashboard() {
   }, [navigate]);
 
   const getProfilePhotoUrl = (path) => {
-    if (!path) return "https://via.placeholder.com/150";
+    if (!path) return null;
     if (path.startsWith('http')) return path;
     if (path.startsWith('/media')) return `http://127.0.0.1:8000${path}`;
     return `http://127.0.0.1:8000${path}`;
@@ -112,9 +128,11 @@ export default function Dashboard() {
           
           return {
             id: like.from_user.id,
-            name: like.from_user.username,
+            firstName: like.from_user.first_name || "",
+            lastName: like.from_user.last_name || "",
+            username: like.from_user.username,
             age: age,
-            bio: like.from_user.bio || "No bio yet",
+            bio: like.from_user.bio || "",
             photo: getProfilePhotoUrl(like.from_user.profile_photo),
             gender: like.from_user.gender,
           };
@@ -148,6 +166,8 @@ export default function Dashboard() {
 
   // Fetch matches
   const fetchMatches = async () => {
+    if (!user) return;
+    
     try {
       const token = localStorage.getItem("access");
       const response = await fetch("http://127.0.0.1:8000/api/matches/matches/", {
@@ -162,9 +182,11 @@ export default function Dashboard() {
           const otherUser = match.user1.id === user.id ? match.user2 : match.user1;
           return {
             id: otherUser.id,
-            name: otherUser.username,
+            firstName: otherUser.first_name || "",
+            lastName: otherUser.last_name || "",
+            username: otherUser.username,
             age: otherUser.age,
-            bio: otherUser.bio || "No bio yet",
+            bio: otherUser.bio || "",
             photo: otherUser.profile_photo_url || getProfilePhotoUrl(otherUser.profile_photo),
             gender: otherUser.gender,
             match_id: match.id,
@@ -212,23 +234,16 @@ export default function Dashboard() {
 
   // Check for mutual like and create match
   const checkForMatch = async (likedUserId) => {
-    // Check if the person we just liked already likes us
     const theyLikeMe = likesList.some(like => like.id === likedUserId);
     
     if (theyLikeMe) {
       console.log("🎉 Mutual like detected! Creating match...");
       
-      // Create match in backend
       const matchCreated = await createMatch(likedUserId);
       
       if (matchCreated) {
-        // Refresh matches list
         await fetchMatches();
-        
-        // Find the profile that matched
         const matchedProfile = likesList.find(like => like.id === likedUserId);
-        
-        // Show match modal
         setMatchedProfile(matchedProfile);
         setMatchModalOpen(true);
         document.body.style.overflow = 'hidden';
@@ -236,7 +251,7 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch profiles from database
+  // Fetch profiles from database - WITH STRICT SUPERUSER FILTER
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (!token || !user) return;
@@ -249,8 +264,12 @@ export default function Dashboard() {
         let genderFilter = '';
         if (user.interested_in === 'male') {
           genderFilter = 'male';
+          console.log("🔍 Fetching male profiles");
         } else if (user.interested_in === 'female') {
           genderFilter = 'female';
+          console.log("🔍 Fetching female profiles");
+        } else if (user.interested_in === 'everyone') {
+          console.log("🔍 Fetching all profiles");
         }
 
         const queryParams = new URLSearchParams();
@@ -259,6 +278,7 @@ export default function Dashboard() {
         }
         
         const apiUrl = `http://127.0.0.1:8000/api/users/profiles/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        console.log("🔍 Fetching profiles from:", apiUrl);
         
         const response = await fetch(apiUrl, {
           headers: { Authorization: `Bearer ${token}` },
@@ -277,27 +297,66 @@ export default function Dashboard() {
           profilesArray = data.results;
         }
 
+        console.log(`📊 Raw profiles count: ${profilesArray.length}`);
+
         // Filter out current user
         const filteredById = profilesArray.filter(profile => profile.id !== user.id);
+        console.log(`📊 After removing current user: ${filteredById.length}`);
 
-        // Filter by gender if needed
-        let finalProfiles = filteredById;
+        // STRICT SUPERUSER FILTER - NEVER show admin accounts
+        const filteredNoSuperuser = filteredById.filter(profile => {
+          // Check if this is the superuser (has is_superuser flag)
+          if (profile.is_superuser === true) {
+            console.log(`🚫 Strictly excluding superuser: ${profile.username} (ID: ${profile.id})`);
+            return false;
+          }
+          // Additional safety: filter common admin patterns
+          if (profile.id === 1 && profile.username === 'admin') {
+            console.log(`🚫 Strictly excluding admin user: ${profile.username} (ID: ${profile.id})`);
+            return false;
+          }
+          return true;
+        });
+
+        console.log(`📊 After strict superuser filter: ${filteredNoSuperuser.length} profiles`);
+
+        // Apply gender filter if needed
+        let genderFilteredProfiles = filteredNoSuperuser;
         if (genderFilter) {
-          finalProfiles = filteredById.filter(profile => profile.gender === genderFilter);
+          genderFilteredProfiles = filteredNoSuperuser.filter(profile => profile.gender === genderFilter);
+          console.log(`📊 After gender filter: ${genderFilteredProfiles.length} profiles`);
         }
 
-        // Filter out profiles the user has already liked
+        // Filter out already liked profiles
+        let finalProfiles = genderFilteredProfiles;
         if (sentLikesIds.length > 0) {
-          finalProfiles = finalProfiles.filter(profile => !sentLikesIds.includes(profile.id));
+          finalProfiles = genderFilteredProfiles.filter(profile => !sentLikesIds.includes(profile.id));
+          console.log(`📊 After removing liked profiles: ${finalProfiles.length} profiles`);
         }
 
-        const transformedProfiles = finalProfiles.map(profile => ({
+        // STRICT DUPLICATE REMOVAL - ensure each user appears only once
+        const uniqueProfilesMap = new Map();
+        finalProfiles.forEach(profile => {
+          if (!uniqueProfilesMap.has(profile.id)) {
+            uniqueProfilesMap.set(profile.id, profile);
+          } else {
+            console.log(`🚫 Strictly removing duplicate: ${profile.username} (ID: ${profile.id})`);
+          }
+        });
+        
+        const uniqueProfiles = Array.from(uniqueProfilesMap.values());
+        console.log(`✅ Final unique profiles after strict filtering: ${uniqueProfiles.length}`);
+
+        // Transform profiles
+        const transformedProfiles = uniqueProfiles.map(profile => ({
           id: profile.id,
-          name: profile.username,
+          firstName: profile.first_name || "",
+          lastName: profile.last_name || "",
+          username: profile.username,
           age: profile.age || calculateAge(profile.birth_date),
-          bio: profile.bio || "No bio yet",
+          bio: profile.bio || "",
           photo: getProfilePhotoUrl(profile.profile_photo),
-          location: profile.location || "Location not specified",
+          location: profile.location || "",
           gender: profile.gender,
           interested_in: profile.interested_in,
           height: profile.height,
@@ -340,7 +399,9 @@ export default function Dashboard() {
     if (!profiles || profiles.length === 0) return null;
     if (profileIndex >= profiles.length) return null;
     
+    // Extra safety: double-check current user isn't in profiles
     if (user && profiles[profileIndex] && profiles[profileIndex].id === user.id) {
+      console.log(`🚨 Emergency: Found current user in profiles! Skipping...`);
       setTimeout(() => goNextProfile(), 0);
       return null;
     }
@@ -426,8 +487,6 @@ export default function Dashboard() {
         console.log("✅ Like sent successfully:", data);
         
         setSentLikesIds(prev => [...prev, currentProfile.id]);
-        
-        // Check if this creates a match
         await checkForMatch(currentProfile.id);
         
       } else {
@@ -476,10 +535,7 @@ export default function Dashboard() {
       if (response.ok) {
         console.log("✅ Liked back successfully");
         setSentLikesIds(prev => [...prev, selectedLike.id]);
-        
-        // Check if this creates a match
         await checkForMatch(selectedLike.id);
-        
         closeLikeModal();
       } else {
         const error = await response.json();
@@ -634,8 +690,8 @@ export default function Dashboard() {
         >
           <div className="position-relative">
             <img
-              src={p.photo}
-              alt={p.name || ""}
+              src={p.photo || "https://via.placeholder.com/42"}
+              alt={getDisplayName(p) || "User"}
               className="rounded-circle"
               width="42"
               height="42"
@@ -790,6 +846,45 @@ export default function Dashboard() {
             text-overflow: ellipsis;
             max-width: 100%;
           }
+
+          .image-container {
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            min-height: 420px;
+          }
+
+          .image-container img {
+            max-width: 100%;
+            max-height: 420px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            margin: 0 auto;
+            display: block;
+          }
+
+          .modal-image-container {
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            min-height: 360px;
+            border-radius: 16px;
+          }
+
+          .modal-image-container img {
+            max-width: 100%;
+            max-height: 360px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            margin: 0 auto;
+            display: block;
+          }
         `}
       </style>
 
@@ -813,7 +908,7 @@ export default function Dashboard() {
                 <div className="d-flex align-items-center gap-3">
                   <div className="position-relative flex-shrink-0">
                     <img
-                      src={getProfilePhotoUrl(user.profile_photo)}
+                      src={getProfilePhotoUrl(user.profile_photo) || "https://via.placeholder.com/70"}
                       alt="profile"
                       className="rounded-circle shadow-sm"
                       width="70"
@@ -823,7 +918,11 @@ export default function Dashboard() {
                     <div className="position-absolute bottom-0 end-0 bg-success rounded-circle p-2" style={{ width: 14, height: 14, border: "2px solid #fff" }} />
                   </div>
                   <div className="text-start flex-grow-1" style={{ minWidth: 0 }}>
-                    <div className="fw-bold fs-5 text-truncate-custom">{user.username}</div>
+                    <div className="fw-bold fs-5 text-truncate-custom">
+                      {user.first_name && user.last_name 
+                        ? `${user.first_name} ${user.last_name}` 
+                        : user.first_name || user.last_name || user.username}
+                    </div>
                     <div className="small text-secondary text-truncate-custom" title={user.email}>{user.email}</div>
                   </div>
                 </div>
@@ -905,29 +1004,26 @@ export default function Dashboard() {
                   </div>
                 ) : profiles.length > 0 && profileIndex < profiles.length ? (
                   <>
-                    <div className="position-relative">
-                      <img
-                        src={currentProfile.photo}
-                        alt={currentProfile.name}
-                        className="w-100"
-                        style={{ 
-                          height: "420px", 
-                          objectFit: "cover",
-                          objectPosition: "top center"
-                        }}
-                        onError={(e) => {
-                          e.target.src = "https://via.placeholder.com/400x500?text=No+Photo";
-                        }}
-                      />
-                      <div className="position-absolute bottom-0 start-0 end-0 p-4" style={{ background: "linear-gradient(transparent, rgba(0,0,0,0.7))" }}>
-                        <h2 className="text-white fw-bold mb-0">
-                          {currentProfile.name}<span className="fw-light ms-2">{currentProfile.age}</span>
-                        </h2>
-                      </div>
+                    <div className="image-container">
+                      {currentProfile.photo ? (
+                        <img
+                          src={currentProfile.photo}
+                          alt={getDisplayName(currentProfile)}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
+                          }}
+                        />
+                      ) : (
+                        <div className="p-5 text-secondary">No photo available</div>
+                      )}
                     </div>
 
                     <div className="p-4">
-                      <p className="text-secondary mb-4" style={{ fontSize: "1.1rem", lineHeight: 1.6 }}>{currentProfile.bio}</p>
+                      <h2 className="fw-bold mb-0">
+                        {getDisplayName(currentProfile)}{currentProfile.age ? `, ${currentProfile.age}` : ''}
+                      </h2>
+                      <p className="text-secondary mb-4" style={{ fontSize: "1.1rem", lineHeight: 1.6 }}>{currentProfile.bio || "No bio yet"}</p>
 
                       <div className="d-flex justify-content-center gap-4 mt-4">
                         <button
@@ -1046,21 +1142,18 @@ export default function Dashboard() {
                   <>
                     <div className="d-flex align-items-center gap-3 mb-4">
                       <img
-                        src={currentProfile.photo}
-                        alt={currentProfile.name}
+                        src={currentProfile.photo || "https://via.placeholder.com/60"}
+                        alt={getDisplayName(currentProfile)}
                         className="rounded-circle shadow-sm"
                         width="60"
                         height="60"
                         style={{ objectFit: "cover", border: "3px solid #fff" }}
-                        onError={(e) => {
-                          e.target.src = "https://via.placeholder.com/60";
-                        }}
                       />
                       <div>
-                        <h5 className="fw-bold mb-1">{currentProfile.name}, {currentProfile.age}</h5>
+                        <h5 className="fw-bold mb-1">{getDisplayName(currentProfile)}{currentProfile.age ? `, ${currentProfile.age}` : ''}</h5>
                         <div className="small text-secondary">
                           <i className="fas fa-map-marker-alt me-1" style={{ fontSize: "0.8rem" }} />
-                          {currentProfile.location}
+                          {currentProfile.location || "Location not specified"}
                         </div>
                       </div>
                     </div>
@@ -1073,25 +1166,25 @@ export default function Dashboard() {
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-venus-mars text-secondary flex-shrink-0" style={{ width: 20 }} />
                           <span className="text-secondary small text-truncate-custom">
-                            {currentProfile.gender ? currentProfile.gender.charAt(0).toUpperCase() + currentProfile.gender.slice(1) : "—"}
+                            {currentProfile.gender ? currentProfile.gender.charAt(0).toUpperCase() + currentProfile.gender.slice(1) : "Not specified"}
                           </span>
                         </div>
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-heart text-secondary flex-shrink-0" style={{ width: 20 }} />
                           <span className="text-secondary small text-truncate-custom">
-                            Interested in: {currentProfile.interested_in ? currentProfile.interested_in.charAt(0).toUpperCase() + currentProfile.interested_in.slice(1) : "—"}
+                            Interested in: {currentProfile.interested_in ? currentProfile.interested_in.charAt(0).toUpperCase() + currentProfile.interested_in.slice(1) : "Not specified"}
                           </span>
                         </div>
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-cake-candles text-secondary flex-shrink-0" style={{ width: 20 }} />
                           <span className="text-secondary small text-truncate-custom">
-                            {currentProfile.birth_date ? calculateAge(currentProfile.birth_date) + " years old" : "—"}
+                            {currentProfile.birth_date ? calculateAge(currentProfile.birth_date) + " years old" : "Age not specified"}
                           </span>
                         </div>
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-ruler text-secondary flex-shrink-0" style={{ width: 20 }} />
                           <span className="text-secondary small text-truncate-custom">
-                            {currentProfile.height ? `${currentProfile.height} cm` : "—"}
+                            {currentProfile.height ? `${currentProfile.height} cm` : "Height not specified"}
                           </span>
                         </div>
                       </div>
@@ -1104,11 +1197,11 @@ export default function Dashboard() {
                       <div className="d-flex flex-column gap-2">
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-briefcase text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom">{currentProfile.career || "—"}</span>
+                          <span className="text-secondary small text-truncate-custom">{currentProfile.career || "Not specified"}</span>
                         </div>
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-graduation-cap text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom">{currentProfile.education || "—"}</span>
+                          <span className="text-secondary small text-truncate-custom">{currentProfile.education || "Not specified"}</span>
                         </div>
                       </div>
                     </div>
@@ -1121,13 +1214,13 @@ export default function Dashboard() {
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-fire text-secondary flex-shrink-0" style={{ width: 20 }} />
                           <span className="text-secondary small text-truncate-custom" title={currentProfile.passions}>
-                            {currentProfile.passions || "—"}
+                            {currentProfile.passions || "Not specified"}
                           </span>
                         </div>
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-pencil text-secondary flex-shrink-0" style={{ width: 20 }} />
                           <span className="text-secondary small text-truncate-custom" title={currentProfile.hobbies}>
-                            {currentProfile.hobbies || "—"}
+                            {currentProfile.hobbies || "Not specified"}
                           </span>
                         </div>
                       </div>
@@ -1140,7 +1233,7 @@ export default function Dashboard() {
                       <div className="d-flex align-items-center gap-2">
                         <i className="fas fa-headphones text-secondary flex-shrink-0" style={{ width: 20 }} />
                         <span className="text-secondary small text-truncate-custom" title={currentProfile.favorite_music}>
-                          {currentProfile.favorite_music || "—"}
+                          {currentProfile.favorite_music || "Not specified"}
                         </span>
                       </div>
                     </div>
@@ -1160,24 +1253,27 @@ export default function Dashboard() {
             <ModalShell
               open={likeModalOpen}
               onClose={closeLikeModal}
-              title={selectedLike ? `${selectedLike.name}, ${selectedLike.age}` : "Profile"}
+              title={selectedLike ? getDisplayName(selectedLike) : "Profile"}
               overlay="rgba(0,0,0,0.60)"
             >
               {selectedLike && (
                 <>
-                  <div className="rounded-4 overflow-hidden shadow-sm mb-4">
-                    <img 
-                      src={selectedLike.photo} 
-                      alt={selectedLike.name} 
-                      className="w-100" 
-                      style={{ height: 360, objectFit: "cover" }}
-                      onError={(e) => {
-                        e.target.src = "https://via.placeholder.com/400x500?text=No+Photo";
-                      }}
-                    />
+                  <div className="modal-image-container mb-4">
+                    {selectedLike.photo ? (
+                      <img 
+                        src={selectedLike.photo} 
+                        alt={getDisplayName(selectedLike)}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
+                        }}
+                      />
+                    ) : (
+                      <div className="p-5 text-secondary">No photo available</div>
+                    )}
                   </div>
 
-                  <p className="text-secondary mb-4" style={{ fontSize: "1rem", lineHeight: 1.6 }}>{selectedLike.bio}</p>
+                  <p className="text-secondary mb-4" style={{ fontSize: "1rem", lineHeight: 1.6 }}>{selectedLike.bio || "No bio yet"}</p>
 
                   <div className="d-flex justify-content-center gap-3">
                     <RoundActionBtn
@@ -1243,24 +1339,24 @@ export default function Dashboard() {
                     </h2>
 
                     <p className="text-secondary mb-4">
-                      You and <span className="fw-semibold text-dark">{matchedProfile.name}</span> liked each other
+                      You and <span className="fw-semibold text-dark">{getDisplayName(matchedProfile)}</span> liked each other
                     </p>
 
                     <div className="d-flex align-items-center justify-content-center gap-4 mb-4">
-                      <img 
-                        src={matchedProfile.photo} 
-                        alt={matchedProfile.name} 
-                        className="rounded-circle shadow" 
-                        width="100" 
-                        height="100" 
-                        style={{ objectFit: "cover", border: "4px solid #fff" }}
-                        onError={(e) => {
-                          e.target.src = "https://via.placeholder.com/100";
-                        }}
-                      />
+                      <div style={{ width: "100px", height: "100px", borderRadius: "50%", overflow: "hidden", backgroundColor: "#f8f9fa", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <img 
+                          src={matchedProfile.photo || "https://via.placeholder.com/100"} 
+                          alt={getDisplayName(matchedProfile)}
+                          style={{ 
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover"
+                          }}
+                        />
+                      </div>
                       <div className="text-start" style={{ minWidth: 0 }}>
-                        <h4 className="fw-bold mb-1 text-truncate-custom">{matchedProfile.name}, {matchedProfile.age}</h4>
-                        <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio}</p>
+                        <h4 className="fw-bold mb-1 text-truncate-custom">{getDisplayName(matchedProfile)}{matchedProfile.age ? `, ${matchedProfile.age}` : ''}</h4>
+                        <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio || "No bio yet"}</p>
                       </div>
                     </div>
                   </div>

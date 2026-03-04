@@ -4,9 +4,10 @@ from .models import User
 from django.utils import timezone
 from datetime import timedelta, date
 from django.contrib.auth.password_validation import validate_password
-
-
-
+from django.utils.text import slugify
+import random
+import string
+import time
 
 
 
@@ -32,15 +33,17 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 
-
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    first_name = serializers.CharField(required=True)
+    last_name = serializers.CharField(required=True)
 
     class Meta:
         model = User
         fields = (
             "email",
-            "username",
+            "first_name",
+            "last_name",
             "birth_date",
             "gender",
             "interested_in",
@@ -53,13 +56,53 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This email is already registered.")
         return value
 
+    def generate_unique_username(self, first_name, last_name):
+        """Generate a unique username from first and last name"""
+        # Create base username
+        base_username = f"{first_name.lower()}.{last_name.lower()}"
+        base_username = slugify(base_username.replace('.', '-'))
+        
+        username = base_username
+        counter = 1
+        
+        # Keep trying until we find a unique username
+        while User.objects.filter(username=username).exists():
+            # Add random suffix if base username is taken
+            random_suffix = ''.join(random.choices(string.digits, k=4))
+            username = f"{base_username}_{random_suffix}"
+            counter += 1
+            if counter > 10:  # Prevent infinite loop
+                # Final fallback with timestamp
+                timestamp = str(int(time.time()))[-6:]
+                username = f"{base_username}_{timestamp}"
+                break
+        
+        return username
+
     def create(self, validated_data):
         password = validated_data.pop("password")
+        first_name = validated_data.pop("first_name")
+        last_name = validated_data.pop("last_name")
+        
+        # Auto-generate username from first and last name
+        username = self.generate_unique_username(first_name, last_name)
+        
+        # Create user with all fields
         user = User.objects.create_user(
+            email=validated_data["email"],
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
             password=password,
-            **validated_data
+            birth_date=validated_data.get("birth_date"),
+            gender=validated_data.get("gender", ""),
+            interested_in=validated_data.get("interested_in", ""),
+            profile_photo=validated_data.get("profile_photo"),
         )
+        
         return user
+
+
 
 
 
