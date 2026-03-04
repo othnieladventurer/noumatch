@@ -31,20 +31,15 @@ export default function Dashboard() {
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
 
-  // Helper function to get display name - priority: first+last > username
-  const getDisplayName = (profile) => {
+  // Helper function to format name for main card and sidebar (keep for those)
+  const formatName = (profile) => {
     if (!profile) return "";
-    
-    if (profile.firstName && profile.lastName) {
-      return `${profile.firstName} ${profile.lastName}`;
+    if (profile.first_name && profile.last_name) {
+      return `${profile.first_name} ${profile.last_name}`;
     }
-    if (profile.firstName) {
-      return profile.firstName;
-    }
-    if (profile.lastName) {
-      return profile.lastName;
-    }
-    return profile.username || "";
+    if (profile.first_name) return profile.first_name;
+    if (profile.last_name) return profile.last_name;
+    return "";
   };
 
   // Check if user is matched with a profile
@@ -139,9 +134,8 @@ export default function Dashboard() {
           
           return {
             id: like.from_user.id,
-            firstName: like.from_user.first_name || "",
-            lastName: like.from_user.last_name || "",
-            username: like.from_user.username,
+            first_name: like.from_user.first_name || "",
+            last_name: like.from_user.last_name || "",
             age: age,
             bio: like.from_user.bio || "",
             photo: getProfilePhotoUrl(like.from_user.profile_photo),
@@ -193,9 +187,8 @@ export default function Dashboard() {
           const otherUser = match.user1.id === user.id ? match.user2 : match.user1;
           return {
             id: otherUser.id,
-            firstName: otherUser.first_name || "",
-            lastName: otherUser.last_name || "",
-            username: otherUser.username,
+            first_name: otherUser.first_name || "",
+            last_name: otherUser.last_name || "",
             age: otherUser.age,
             bio: otherUser.bio || "",
             photo: otherUser.profile_photo_url || getProfilePhotoUrl(otherUser.profile_photo),
@@ -326,9 +319,8 @@ export default function Dashboard() {
         // Transform profiles
         const transformedProfiles = genderFilteredProfiles.map(profile => ({
           id: profile.id,
-          firstName: profile.first_name || "",
-          lastName: profile.last_name || "",
-          username: profile.username,
+          first_name: profile.first_name || "",
+          last_name: profile.last_name || "",
           age: profile.age || calculateAge(profile.birth_date),
           bio: profile.bio || "",
           photo: getProfilePhotoUrl(profile.profile_photo),
@@ -656,38 +648,44 @@ export default function Dashboard() {
 
   const AvatarRow = ({ items, onClickAvatar }) => (
     <div className="d-flex align-items-center gap-2 flex-wrap mt-3">
-      {items.slice(0, 8).map((p) => (
-        <button
-          key={p.id}
-          type="button"
-          className="p-0 border-0 bg-transparent"
-          onClick={() => onClickAvatar?.(p)}
-          style={{ lineHeight: 0 }}
-          aria-label="Open profile"
-        >
-          <div className="position-relative">
-            <img
-              src={p.photo || "https://via.placeholder.com/42"}
-              alt={getDisplayName(p) || "User"}
-              className="rounded-circle"
-              width="42"
-              height="42"
-              style={{
-                objectFit: "cover",
-                border: "2px solid #fff",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                cursor: onClickAvatar ? "pointer" : "default",
-                transition: "transform 0.2s",
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-            />
-            {onClickAvatar && (
-              <div className="position-absolute bottom-0 end-0 bg-primary rounded-circle p-1" style={{ width: 8, height: 8 }} />
-            )}
-          </div>
-        </button>
-      ))}
+      {items.slice(0, 8).map((p) => {
+        const displayName = p.first_name && p.last_name 
+          ? `${p.first_name} ${p.last_name}` 
+          : p.first_name || p.last_name || "";
+        
+        return (
+          <button
+            key={p.id}
+            type="button"
+            className="p-0 border-0 bg-transparent"
+            onClick={() => onClickAvatar?.(p)}
+            style={{ lineHeight: 0 }}
+            aria-label={displayName ? `Open ${displayName}'s profile` : "Open profile"}
+          >
+            <div className="position-relative">
+              <img
+                src={p.photo || "https://via.placeholder.com/42"}
+                alt={displayName || "User"}
+                className="rounded-circle"
+                width="42"
+                height="42"
+                style={{
+                  objectFit: "cover",
+                  border: "2px solid #fff",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  cursor: onClickAvatar ? "pointer" : "default",
+                  transition: "transform 0.2s",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+                onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              />
+              {onClickAvatar && (
+                <div className="position-absolute bottom-0 end-0 bg-primary rounded-circle p-1" style={{ width: 8, height: 8 }} />
+              )}
+            </div>
+          </button>
+        );
+      })}
 
       {items.length > 8 && (
         <span className="badge bg-light text-dark rounded-pill px-3 py-2" style={{ fontSize: "0.85rem" }}>
@@ -917,7 +915,7 @@ export default function Dashboard() {
                     <div className="fw-bold fs-5 text-truncate-custom">
                       {user.first_name && user.last_name 
                         ? `${user.first_name} ${user.last_name}` 
-                        : user.first_name || user.last_name || user.username}
+                        : user.first_name || user.last_name || ""}
                     </div>
                     <div className="small text-secondary text-truncate-custom" title={user.email}>{user.email}</div>
                   </div>
@@ -1004,7 +1002,7 @@ export default function Dashboard() {
                       {currentProfile.photo ? (
                         <img
                           src={currentProfile.photo}
-                          alt={getDisplayName(currentProfile)}
+                          alt={formatName(currentProfile) || "Profile"}
                           onError={(e) => {
                             e.target.style.display = 'none';
                             e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
@@ -1018,7 +1016,8 @@ export default function Dashboard() {
                     <div className="p-4">
                       <div className="d-flex align-items-center mb-2">
                         <h2 className="fw-bold mb-0">
-                          {getDisplayName(currentProfile)}{currentProfile.age ? `, ${currentProfile.age}` : ''}
+                          {formatName(currentProfile)}
+                          {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
                         </h2>
                         {isMatched(currentProfile.id) && (
                           <span className="status-badge matched-badge">Matched</span>
@@ -1031,7 +1030,6 @@ export default function Dashboard() {
 
                       {isMatched(currentProfile.id) ? (
                         <div className="d-flex justify-content-center gap-3 flex-wrap mt-4">
-                          {/* Pass button - always show to go to next profile */}
                           <button
                             onClick={handlePass}
                             disabled={isAnimating}
@@ -1215,7 +1213,7 @@ export default function Dashboard() {
                     <div className="d-flex align-items-center gap-3 mb-4">
                       <img
                         src={currentProfile.photo || "https://via.placeholder.com/60"}
-                        alt={getDisplayName(currentProfile)}
+                        alt={formatName(currentProfile) || "Profile"}
                         className="rounded-circle shadow-sm"
                         width="60"
                         height="60"
@@ -1223,7 +1221,10 @@ export default function Dashboard() {
                       />
                       <div>
                         <div className="d-flex align-items-center">
-                          <h5 className="fw-bold mb-1">{getDisplayName(currentProfile)}{currentProfile.age ? `, ${currentProfile.age}` : ''}</h5>
+                          <h5 className="fw-bold mb-1">
+                            {formatName(currentProfile)}
+                            {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
+                          </h5>
                           {isMatched(currentProfile.id) && (
                             <span className="status-badge matched-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Matched</span>
                           )}
@@ -1329,11 +1330,11 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Likes Modal */}
+            {/* LIKES MODAL - FIXED */}
             <ModalShell
               open={likeModalOpen}
               onClose={closeLikeModal}
-              title=""  // Empty title to remove name from header
+              title=""
               overlay="rgba(0,0,0,0.60)"
               maxWidth={480}>
               {selectedLike && (
@@ -1342,7 +1343,7 @@ export default function Dashboard() {
                     {selectedLike.photo ? (
                       <img 
                         src={selectedLike.photo} 
-                        alt={getDisplayName(selectedLike)}
+                        alt={formatName(selectedLike) || "Profile"}
                         onError={(e) => {
                           e.target.style.display = 'none';
                           e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
@@ -1354,7 +1355,7 @@ export default function Dashboard() {
                   </div>
 
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <h4 className="fw-bold mb-0">{getDisplayName(selectedLike)}</h4>
+                    <h4 className="fw-bold mb-0">{formatName(selectedLike)}</h4>
                     {isMatched(selectedLike.id) && (
                       <span className="status-badge matched-badge">Matched</span>
                     )}
@@ -1443,14 +1444,13 @@ export default function Dashboard() {
             </ModalShell>
 
 
-            {/* Match Modal */}
+            {/* MATCH MODAL - FIXED */}
             <ModalShell
               open={matchModalOpen}
               onClose={closeMatchModal}
               title=""
               maxWidth={640}
-              overlay="rgba(0,0,0,0.60)"
-            >
+              overlay="rgba(0,0,0,0.60)">
               {matchedProfile && (
                 <>
                   <div
@@ -1477,14 +1477,14 @@ export default function Dashboard() {
                     </h2>
 
                     <p className="text-secondary mb-4">
-                      You and <span className="fw-semibold text-dark">{getDisplayName(matchedProfile)}</span> liked each other
+                      You and <span className="fw-semibold text-dark">{formatName(matchedProfile) || "this user"}</span> liked each other
                     </p>
 
                     <div className="d-flex align-items-center justify-content-center gap-4 mb-4">
                       <div style={{ width: "100px", height: "100px", borderRadius: "50%", overflow: "hidden", backgroundColor: "#f8f9fa", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <img 
                           src={matchedProfile.photo || "https://via.placeholder.com/100"} 
-                          alt={getDisplayName(matchedProfile)}
+                          alt={formatName(matchedProfile) || "Profile"}
                           style={{ 
                             width: "100%",
                             height: "100%",
@@ -1493,7 +1493,10 @@ export default function Dashboard() {
                         />
                       </div>
                       <div className="text-start" style={{ minWidth: 0 }}>
-                        <h4 className="fw-bold mb-1 text-truncate-custom">{getDisplayName(matchedProfile)}{matchedProfile.age ? `, ${matchedProfile.age}` : ''}</h4>
+                        <h4 className="fw-bold mb-1 text-truncate-custom">
+                          {formatName(matchedProfile)}
+                          {formatName(matchedProfile) && matchedProfile.age ? `, ${matchedProfile.age}` : matchedProfile.age || ''}
+                        </h4>
                         <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio || "No bio yet"}</p>
                       </div>
                     </div>
@@ -1549,6 +1552,8 @@ export default function Dashboard() {
                 </>
               )}
             </ModalShell>
+
+
           </div>
         ) : (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "80vh" }}>

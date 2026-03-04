@@ -19,6 +19,8 @@ class UserSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "username",
+            "first_name",      # 👈 ADD THIS
+            "last_name",       # 👈 ADD THIS
             "birth_date",
             "gender",
             "interested_in",
@@ -29,7 +31,6 @@ class UserSerializer(serializers.ModelSerializer):
             "date_joined",
         ]
         read_only_fields = ["id", "date_joined", "is_verified"]
-
 
 
 
@@ -163,13 +164,12 @@ class MeSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "username",
+            "first_name",      # 👈 ADD THIS
+            "last_name",       # 👈 ADD THIS
             "bio",
             "birth_date",
             "profile_photo",
         ]
-
-
-
 
 
 
@@ -180,7 +180,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'bio', 'birth_date', 'age',
+            'id', 'username', 'email', 'first_name', 'last_name',  # 👈 ADD THESE
+            'bio', 'birth_date', 'age',
             'gender', 'interested_in', 'location', 'profile_photo',
             'height', 'passions', 'career', 'education', 'hobbies',
             'favorite_music', 'is_verified', 'is_active'
@@ -197,3 +198,4 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
         
+                
