@@ -4,14 +4,13 @@ from .models import Like
 from datetime import date
 
 User = get_user_model()
-
 class UserMinimalSerializer(serializers.ModelSerializer):
     # Add age as a calculated field
     age = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ('id', 'username', 'profile_photo', 'birth_date', 'bio', 'gender', 'age')
+        fields = ('id', 'username', 'first_name', 'last_name', 'profile_photo', 'birth_date', 'bio', 'gender', 'age')
     
     def get_age(self, obj):
         """Calculate age from birth_date"""
@@ -21,6 +20,7 @@ class UserMinimalSerializer(serializers.ModelSerializer):
                 (today.month, today.day) < (obj.birth_date.month, obj.birth_date.day)
             )
         return None
+
 
 class LikeSerializer(serializers.ModelSerializer):
     from_user = UserMinimalSerializer(read_only=True)

@@ -9,6 +9,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   const [profiles, setProfiles] = useState([]);
   const [profileIndex, setProfileIndex] = useState(0);
@@ -31,7 +32,7 @@ export default function Dashboard() {
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
 
-  // Helper function to format name for main card and sidebar (keep for those)
+  // Helper function to format name for main card and sidebar
   const formatName = (profile) => {
     if (!profile) return "";
     if (profile.first_name && profile.last_name) {
@@ -66,11 +67,15 @@ export default function Dashboard() {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!response.ok) {
+        if (response.status === 401) {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
           navigate("/login");
           return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch user: ${response.status}`);
         }
 
         const data = await response.json();
@@ -81,6 +86,7 @@ export default function Dashboard() {
         navigate("/login");
       } finally {
         setLoading(false);
+        setInitialLoadComplete(true);
       }
     };
 
@@ -122,6 +128,15 @@ export default function Dashboard() {
       const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/received/", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      if (response.status === 401) {
+        console.error("Token expired in fetchLikesReceived");
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
+      
       if (response.ok) {
         const data = await response.json();
         console.log("✅ Received likes:", data);
@@ -157,6 +172,15 @@ export default function Dashboard() {
       const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/sent/", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      if (response.status === 401) {
+        console.error("Token expired in fetchSentLikes");
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
+      
       if (response.ok) {
         const data = await response.json();
         console.log("✅ Sent likes:", data);
@@ -178,6 +202,14 @@ export default function Dashboard() {
       const response = await fetch("http://127.0.0.1:8000/api/matches/matches/", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      if (response.status === 401) {
+        console.error("Token expired in fetchMatches");
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
       
       if (response.ok) {
         const data = await response.json();
@@ -223,6 +255,13 @@ export default function Dashboard() {
         }),
       });
       
+      if (response.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return false;
+      }
+      
       const data = await response.json();
       
       if (response.status === 201 || response.status === 200) {
@@ -257,16 +296,21 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch profiles from database
+  // Fetch profiles only after user is loaded
   useEffect(() => {
-    const token = localStorage.getItem("access");
-    if (!token || !user) return;
+    if (!user || !user.id) return;
 
     const fetchProfiles = async () => {
       setProfilesLoading(true);
       setApiError(null);
       
       try {
+        const token = localStorage.getItem("access");
+        if (!token) {
+          navigate("/login");
+          return;
+        }
+
         let genderFilter = '';
         if (user.interested_in === 'male') {
           genderFilter = 'male';
@@ -289,6 +333,14 @@ export default function Dashboard() {
         const response = await fetch(apiUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
+
+        if (response.status === 401) {
+          console.error("Token expired in fetchProfiles");
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          navigate("/login");
+          return;
+        }
 
         if (!response.ok) {
           throw new Error(`API error: ${response.status}`);
@@ -349,18 +401,22 @@ export default function Dashboard() {
       }
     };
 
-    if (user) {
-      fetchProfiles();
-    }
-  }, [user]);
+    fetchProfiles();
+  }, [user, navigate]);
 
-  // Fetch likes and matches when user loads
+  // Fetch likes and matches only after user is loaded
   useEffect(() => {
-    if (user) {
-      fetchLikesReceived();
-      fetchSentLikes();
-      fetchMatches();
-    }
+    if (!user || !user.id) return;
+    
+    const fetchAllInteractions = async () => {
+      await Promise.all([
+        fetchLikesReceived(),
+        fetchSentLikes(),
+        fetchMatches()
+      ]);
+    };
+    
+    fetchAllInteractions();
   }, [user]);
 
   const currentProfile = useMemo(() => {
@@ -451,6 +507,13 @@ export default function Dashboard() {
         }),
       });
 
+      if (response.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         console.log("✅ Like sent successfully:", data);
@@ -500,6 +563,13 @@ export default function Dashboard() {
           to_user_id: selectedLike.id 
         }),
       });
+
+      if (response.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
 
       if (response.ok) {
         console.log("✅ Liked back successfully");
@@ -1330,7 +1400,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* LIKES MODAL - FIXED */}
+            {/* LIKES MODAL - UPDATED to show first and last name */}
             <ModalShell
               open={likeModalOpen}
               onClose={closeLikeModal}
@@ -1343,7 +1413,7 @@ export default function Dashboard() {
                     {selectedLike.photo ? (
                       <img 
                         src={selectedLike.photo} 
-                        alt={formatName(selectedLike) || "Profile"}
+                        alt={selectedLike.first_name + " " + selectedLike.last_name || "Profile"}
                         onError={(e) => {
                           e.target.style.display = 'none';
                           e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
@@ -1355,7 +1425,10 @@ export default function Dashboard() {
                   </div>
 
                   <div className="d-flex align-items-center justify-content-between mb-2">
-                    <h4 className="fw-bold mb-0">{formatName(selectedLike)}</h4>
+                    <h4 className="fw-bold mb-0">
+                      {selectedLike.first_name} {selectedLike.last_name}
+                      {selectedLike.age ? `, ${selectedLike.age}` : ''}
+                    </h4>
                     {isMatched(selectedLike.id) && (
                       <span className="status-badge matched-badge">Matched</span>
                     )}
@@ -1443,8 +1516,7 @@ export default function Dashboard() {
               )}
             </ModalShell>
 
-
-            {/* MATCH MODAL - FIXED */}
+            {/* MATCH MODAL - UPDATED to show first and last name */}
             <ModalShell
               open={matchModalOpen}
               onClose={closeMatchModal}
@@ -1477,14 +1549,14 @@ export default function Dashboard() {
                     </h2>
 
                     <p className="text-secondary mb-4">
-                      You and <span className="fw-semibold text-dark">{formatName(matchedProfile) || "this user"}</span> liked each other
+                      You and <span className="fw-semibold text-dark">{matchedProfile.first_name} {matchedProfile.last_name}</span> liked each other
                     </p>
 
                     <div className="d-flex align-items-center justify-content-center gap-4 mb-4">
                       <div style={{ width: "100px", height: "100px", borderRadius: "50%", overflow: "hidden", backgroundColor: "#f8f9fa", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <img 
                           src={matchedProfile.photo || "https://via.placeholder.com/100"} 
-                          alt={formatName(matchedProfile) || "Profile"}
+                          alt={matchedProfile.first_name + " " + matchedProfile.last_name || "Profile"}
                           style={{ 
                             width: "100%",
                             height: "100%",
@@ -1494,8 +1566,8 @@ export default function Dashboard() {
                       </div>
                       <div className="text-start" style={{ minWidth: 0 }}>
                         <h4 className="fw-bold mb-1 text-truncate-custom">
-                          {formatName(matchedProfile)}
-                          {formatName(matchedProfile) && matchedProfile.age ? `, ${matchedProfile.age}` : matchedProfile.age || ''}
+                          {matchedProfile.first_name} {matchedProfile.last_name}
+                          {matchedProfile.age ? `, ${matchedProfile.age}` : ''}
                         </h4>
                         <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio || "No bio yet"}</p>
                       </div>
@@ -1552,8 +1624,6 @@ export default function Dashboard() {
                 </>
               )}
             </ModalShell>
-
-
           </div>
         ) : (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "80vh" }}>

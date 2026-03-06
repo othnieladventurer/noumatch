@@ -5,13 +5,15 @@ from datetime import date
 
 User = get_user_model()
 
+
+
 class UserMatchSerializer(serializers.ModelSerializer):
     age = serializers.SerializerMethodField()
     profile_photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'profile_photo', 'profile_photo_url', 'bio', 'gender', 'age')
+        fields = ('id', 'username', 'first_name', 'last_name', 'profile_photo', 'profile_photo_url', 'bio', 'gender', 'age')
 
     def get_age(self, obj):
         if obj.birth_date:
@@ -28,6 +30,9 @@ class UserMatchSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.profile_photo.url)
             return obj.profile_photo.url
         return None
+
+
+
 
 
 
