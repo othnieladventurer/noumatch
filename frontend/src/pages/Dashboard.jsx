@@ -9,7 +9,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   const [profiles, setProfiles] = useState([]);
   const [profileIndex, setProfileIndex] = useState(0);
@@ -23,14 +22,19 @@ export default function Dashboard() {
   const [likesList, setLikesList] = useState([]);
   const [sentLikesIds, setSentLikesIds] = useState([]);
   const [matchesList, setMatchesList] = useState([]);
-  const [blockedList, setBlockedList] = useState([]);
   const [matchesIds, setMatchesIds] = useState([]);
+  
+  // Block list
+  const [blockedList, setBlockedList] = useState([]);
+  const [blockedIds, setBlockedIds] = useState([]);
 
   // Modals
   const [likeModalOpen, setLikeModalOpen] = useState(false);
   const [selectedLike, setSelectedLike] = useState(null);
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
+  const [unblockModalOpen, setUnblockModalOpen] = useState(false);
+  const [selectedBlocked, setSelectedBlocked] = useState(null);
 
   // Helper function to format name for main card and sidebar
   const formatName = (profile) => {
@@ -51,6 +55,11 @@ export default function Dashboard() {
   // Check if user has liked a profile
   const isLiked = (profileId) => {
     return sentLikesIds.includes(profileId);
+  };
+
+  // Check if user is blocked
+  const isBlocked = (profileId) => {
+    return blockedIds.includes(profileId);
   };
 
   // Fetch authenticated user on mount
@@ -86,7 +95,6 @@ export default function Dashboard() {
         navigate("/login");
       } finally {
         setLoading(false);
-        setInitialLoadComplete(true);
       }
     };
 
@@ -121,8 +129,52 @@ export default function Dashboard() {
     return shuffled;
   };
 
+  // Fetch blocked users
+  const fetchBlockedUsers = async () => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/blocked/blocks/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (response.status === 401) {
+        console.error("Token expired in fetchBlockedUsers");
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Blocked users:", data);
+        
+        const blocked = data.map(block => ({
+          id: block.blocked,
+          first_name: block.blocked_user.first_name || "",
+          last_name: block.blocked_user.last_name || "",
+          age: block.blocked_user.age,
+          bio: block.blocked_user.bio || "",
+          photo: getProfilePhotoUrl(block.blocked_user.profile_photo),
+          gender: block.blocked_user.gender,
+          block_id: block.id,
+          created_at: block.created_at
+        }));
+        
+        setBlockedList(blocked);
+        const blockedIdsArray = blocked.map(b => b.id);
+        setBlockedIds(blockedIdsArray);
+        
+        return blockedIdsArray;
+      }
+    } catch (error) {
+      console.error("Error fetching blocked users:", error);
+      return [];
+    }
+  };
+
   // Fetch likes received (people who liked me)
-  const fetchLikesReceived = async () => {
+  const fetchLikesReceived = async (currentBlockedIds = blockedIds) => {
     try {
       const token = localStorage.getItem("access");
       const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/received/", {
@@ -158,7 +210,9 @@ export default function Dashboard() {
           };
         });
         
-        setLikesList(likes);
+        // Filter out blocked users AFTER getting all likes
+        const filteredLikes = likes.filter(like => !currentBlockedIds.includes(like.id));
+        setLikesList(filteredLikes);
       }
     } catch (error) {
       console.error("Error fetching received likes:", error);
@@ -194,7 +248,7 @@ export default function Dashboard() {
   };
 
   // Fetch matches
-  const fetchMatches = async () => {
+  const fetchMatches = async (currentBlockedIds = blockedIds) => {
     if (!user) return;
     
     try {
@@ -230,8 +284,11 @@ export default function Dashboard() {
           };
         });
         
-        setMatchesList(matches);
-        const matchedIdsArray = matches.map(m => m.id);
+        // Filter out blocked users AFTER getting all matches
+        const filteredMatches = matches.filter(match => !currentBlockedIds.includes(match.id));
+        setMatchesList(filteredMatches);
+        
+        const matchedIdsArray = filteredMatches.map(m => m.id);
         setMatchesIds(matchedIdsArray);
       }
     } catch (error) {
@@ -277,8 +334,96 @@ export default function Dashboard() {
     }
   };
 
+  // Delete like from database
+  const deleteLike = async (profileId) => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch(`http://127.0.0.1:8000/api/interactions/unlike/${profileId}/`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return false;
+      }
+
+      if (response.ok || response.status === 204) {
+        console.log("✅ Like deleted from database:", profileId);
+        return true;
+      } else {
+        console.error("❌ Failed to delete like");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error deleting like:", error);
+      return false;
+    }
+  };
+
+  // Delete match from database
+  const deleteMatch = async (matchId) => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch(`http://127.0.0.1:8000/api/matches/unmatch/${matchId}/`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return false;
+      }
+
+      if (response.ok || response.status === 204) {
+        console.log("✅ Match deleted from database:", matchId);
+        return true;
+      } else {
+        console.error("❌ Failed to delete match");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error deleting match:", error);
+      return false;
+    }
+  };
+
+  // Unlike a profile
+  const handleUnlike = async (profileId) => {
+    const success = await deleteLike(profileId);
+    if (success) {
+      setSentLikesIds(prev => prev.filter(id => id !== profileId));
+      // Also remove from matches if exists
+      if (matchesIds.includes(profileId)) {
+        removeFromMatches(profileId);
+      }
+    }
+    return success;
+  };
+
+  // Unmatch a profile
+  const handleUnmatch = async () => {
+    if (!matchedProfile) return;
+    
+    const success = await deleteMatch(matchedProfile.match_id);
+    if (success) {
+      removeFromMatches(matchedProfile.id);
+      closeMatchModal();
+    }
+  };
+
   // Check for mutual like and create match
   const checkForMatch = async (likedUserId) => {
+    if (isBlocked(likedUserId)) return;
+    
     const theyLikeMe = likesList.some(like => like.id === likedUserId);
     
     if (theyLikeMe) {
@@ -287,7 +432,7 @@ export default function Dashboard() {
       const matchCreated = await createMatch(likedUserId);
       
       if (matchCreated) {
-        await fetchMatches();
+        await fetchMatches(blockedIds);
         const matchedProfile = likesList.find(like => like.id === likedUserId);
         setMatchedProfile(matchedProfile);
         setMatchModalOpen(true);
@@ -296,123 +441,257 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch profiles only after user is loaded
-  useEffect(() => {
-    if (!user || !user.id) return;
+  // Block a user - deletes likes and matches from database
+  const handleBlock = async (profile) => {
+    if (!profile) return;
+    
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/blocked/blocks/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ 
+          blocked: profile.id 
+        }),
+      });
 
-    const fetchProfiles = async () => {
-      setProfilesLoading(true);
-      setApiError(null);
-      
-      try {
-        const token = localStorage.getItem("access");
-        if (!token) {
-          navigate("/login");
-          return;
-        }
-
-        let genderFilter = '';
-        if (user.interested_in === 'male') {
-          genderFilter = 'male';
-          console.log("🔍 Fetching male profiles");
-        } else if (user.interested_in === 'female') {
-          genderFilter = 'female';
-          console.log("🔍 Fetching female profiles");
-        } else if (user.interested_in === 'everyone') {
-          console.log("🔍 Fetching all profiles");
-        }
-
-        const queryParams = new URLSearchParams();
-        if (genderFilter) {
-          queryParams.append('gender', genderFilter);
-        }
-        
-        const apiUrl = `http://127.0.0.1:8000/api/users/profiles/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-        console.log("🔍 Fetching profiles from:", apiUrl);
-        
-        const response = await fetch(apiUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (response.status === 401) {
-          console.error("Token expired in fetchProfiles");
-          localStorage.removeItem("access");
-          localStorage.removeItem("refresh");
-          navigate("/login");
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        let profilesArray = [];
-        if (Array.isArray(data)) {
-          profilesArray = data;
-        } else if (data.results && Array.isArray(data.results)) {
-          profilesArray = data.results;
-        }
-
-        console.log(`📊 Raw profiles count: ${profilesArray.length}`);
-
-        // Filter out current user
-        const filteredById = profilesArray.filter(profile => profile.id !== user.id);
-        console.log(`📊 After removing current user: ${filteredById.length}`);
-
-        // Apply gender filter if needed
-        let genderFilteredProfiles = filteredById;
-        if (genderFilter) {
-          genderFilteredProfiles = filteredById.filter(profile => profile.gender === genderFilter);
-          console.log(`📊 After gender filter: ${genderFilteredProfiles.length} profiles`);
-        }
-
-        // Transform profiles
-        const transformedProfiles = genderFilteredProfiles.map(profile => ({
-          id: profile.id,
-          first_name: profile.first_name || "",
-          last_name: profile.last_name || "",
-          age: profile.age || calculateAge(profile.birth_date),
-          bio: profile.bio || "",
-          photo: getProfilePhotoUrl(profile.profile_photo),
-          location: profile.location || "",
-          gender: profile.gender,
-          interested_in: profile.interested_in,
-          height: profile.height,
-          passions: profile.passions,
-          career: profile.career,
-          education: profile.education,
-          hobbies: profile.hobbies,
-          favorite_music: profile.favorite_music,
-          birth_date: profile.birth_date,
-        }));
-
-        const shuffledProfiles = shuffleArray(transformedProfiles);
-        setProfiles(shuffledProfiles);
-        setProfileIndex(0);
-
-      } catch (error) {
-        console.error("Error fetching profiles:", error);
-        setApiError(error.message);
-        setProfiles([]);
-      } finally {
-        setProfilesLoading(false);
+      if (response.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
       }
-    };
 
-    fetchProfiles();
-  }, [user, navigate]);
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ User blocked:", data);
+        
+        // Delete like from database if exists
+        if (sentLikesIds.includes(profile.id)) {
+          await deleteLike(profile.id);
+        }
+        
+        // Delete match from database if exists
+        if (matchesIds.includes(profile.id)) {
+          const match = matchesList.find(m => m.id === profile.id);
+          if (match && match.match_id) {
+            await deleteMatch(match.match_id);
+          }
+        }
+        
+        // Update blocked IDs first
+        const newBlockedIds = [...blockedIds, profile.id];
+        setBlockedIds(newBlockedIds);
+        
+        // Add to blocked list
+        const blockedProfile = {
+          id: profile.id,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          age: profile.age,
+          bio: profile.bio,
+          photo: profile.photo,
+          gender: profile.gender,
+          block_id: data.id
+        };
+        
+        setBlockedList(prev => {
+          if (prev.some(b => b.id === profile.id)) return prev;
+          return [blockedProfile, ...prev];
+        });
+        
+        // Remove from all lists in UI
+        removeFromMatches(profile.id);
+        removeFromLikes(profile.id);
+        removeFromDiscover(profile.id);
+        
+        // Close any open modals
+        if (likeModalOpen) closeLikeModal();
+        if (matchModalOpen) closeMatchModal();
+        
+      } else {
+        const error = await response.json();
+        console.error("❌ Block failed:", error);
+      }
+    } catch (error) {
+      console.error("Error blocking user:", error);
+    }
+  };
 
-  // Fetch likes and matches only after user is loaded
+  // Unblock a user
+  const handleUnblock = async (profile) => {
+    if (!profile) return;
+    
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch(`http://127.0.0.1:8000/api/blocked/blocks/${profile.id}/unblock/`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
+
+      if (response.ok || response.status === 204) {
+        console.log("✅ User unblocked:", profile.id);
+        
+        // Update blocked IDs first
+        const newBlockedIds = blockedIds.filter(id => id !== profile.id);
+        setBlockedIds(newBlockedIds);
+        
+        // Remove from blocked list
+        setBlockedList(prev => prev.filter(b => b.id !== profile.id));
+        
+        // Close unblock modal
+        setUnblockModalOpen(false);
+        setSelectedBlocked(null);
+        
+        // Refresh profiles with new blocked IDs
+        if (user) {
+          fetchProfilesBasedOnUser(newBlockedIds);
+          // Refresh likes and matches with new blocked IDs
+          fetchLikesReceived(newBlockedIds);
+          fetchMatches(newBlockedIds);
+        }
+        
+      } else {
+        console.error("❌ Unblock failed");
+      }
+    } catch (error) {
+      console.error("Error unblocking user:", error);
+    }
+  };
+
+  // Fetch profiles from database
+  const fetchProfilesBasedOnUser = async (currentBlockedIds = blockedIds) => {
+    if (!user || !user.id) return;
+    
+    setProfilesLoading(true);
+    setApiError(null);
+    
+    try {
+      const token = localStorage.getItem("access");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      let genderFilter = '';
+      if (user.interested_in === 'male') {
+        genderFilter = 'male';
+        console.log("🔍 Fetching male profiles");
+      } else if (user.interested_in === 'female') {
+        genderFilter = 'female';
+        console.log("🔍 Fetching female profiles");
+      } else if (user.interested_in === 'everyone') {
+        console.log("🔍 Fetching all profiles");
+      }
+
+      const queryParams = new URLSearchParams();
+      if (genderFilter) {
+        queryParams.append('gender', genderFilter);
+      }
+      
+      const apiUrl = `http://127.0.0.1:8000/api/users/profiles/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      console.log("🔍 Fetching profiles from:", apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.status === 401) {
+        console.error("Token expired in fetchProfiles");
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      let profilesArray = [];
+      if (Array.isArray(data)) {
+        profilesArray = data;
+      } else if (data.results && Array.isArray(data.results)) {
+        profilesArray = data.results;
+      }
+
+      console.log(`📊 Raw profiles count: ${profilesArray.length}`);
+
+      // Filter out current user and blocked users
+      const filteredById = profilesArray.filter(profile => 
+        profile.id !== user.id && !currentBlockedIds.includes(profile.id)
+      );
+      console.log(`📊 After removing current user and blocked: ${filteredById.length}`);
+
+      // Apply gender filter if needed
+      let genderFilteredProfiles = filteredById;
+      if (genderFilter) {
+        genderFilteredProfiles = filteredById.filter(profile => profile.gender === genderFilter);
+        console.log(`📊 After gender filter: ${genderFilteredProfiles.length} profiles`);
+      }
+
+      // Transform profiles
+      const transformedProfiles = genderFilteredProfiles.map(profile => ({
+        id: profile.id,
+        first_name: profile.first_name || "",
+        last_name: profile.last_name || "",
+        age: profile.age || calculateAge(profile.birth_date),
+        bio: profile.bio || "",
+        photo: getProfilePhotoUrl(profile.profile_photo),
+        location: profile.location || "",
+        gender: profile.gender,
+        interested_in: profile.interested_in,
+        height: profile.height,
+        passions: profile.passions,
+        career: profile.career,
+        education: profile.education,
+        hobbies: profile.hobbies,
+        favorite_music: profile.favorite_music,
+        birth_date: profile.birth_date,
+      }));
+
+      const shuffledProfiles = shuffleArray(transformedProfiles);
+      setProfiles(shuffledProfiles);
+      setProfileIndex(0);
+
+    } catch (error) {
+      console.error("Error fetching profiles:", error);
+      setApiError(error.message);
+      setProfiles([]);
+    } finally {
+      setProfilesLoading(false);
+    }
+  };
+
+  // Fetch profiles when user or blockedIds change
+  useEffect(() => {
+    fetchProfilesBasedOnUser();
+  }, [user, blockedIds]);
+
+  // Fetch all interactions when user loads
   useEffect(() => {
     if (!user || !user.id) return;
     
     const fetchAllInteractions = async () => {
+      const blockedIdsArray = await fetchBlockedUsers();
       await Promise.all([
-        fetchLikesReceived(),
+        fetchLikesReceived(blockedIdsArray),
         fetchSentLikes(),
-        fetchMatches()
+        fetchMatches(blockedIdsArray)
       ]);
     };
     
@@ -459,10 +738,6 @@ export default function Dashboard() {
     setMatchesIds((prev) => [...prev, profile.id]);
   };
 
-  const addToBlocked = (profile) => {
-    setBlockedList((prev) => (existsById(prev, profile.id) ? prev : [profile, ...prev]));
-  };
-
   const removeFromMatches = (id) => {
     setMatchesList((prev) => prev.filter((x) => x.id !== id));
     setMatchesIds((prev) => prev.filter(mId => mId !== id));
@@ -470,6 +745,7 @@ export default function Dashboard() {
 
   const removeFromLikes = (id) => {
     setLikesList((prev) => prev.filter((x) => x.id !== id));
+    setSentLikesIds((prev) => prev.filter(likedId => likedId !== id));
   };
 
   const removeFromDiscover = (id) => {
@@ -492,7 +768,7 @@ export default function Dashboard() {
   const handlePass = () => triggerSlide("left");
   
   const handleLike = async () => {
-    if (!currentProfile || isAnimating) return;
+    if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;
     
     try {
       const token = localStorage.getItem("access");
@@ -587,6 +863,16 @@ export default function Dashboard() {
     }
   };
 
+  const handleUnlikeFromModal = async () => {
+    if (!selectedLike) return;
+    
+    const success = await handleUnlike(selectedLike.id);
+    if (success) {
+      removeFromLikes(selectedLike.id);
+      closeLikeModal();
+    }
+  };
+
   const openMatchModalFor = (profile) => {
     setMatchedProfile(profile);
     setMatchModalOpen(true);
@@ -599,21 +885,16 @@ export default function Dashboard() {
     document.body.style.overflow = 'unset';
   };
 
-  const handleUnmatch = async () => {
-    if (!matchedProfile) return;
-    
-    removeFromMatches(matchedProfile.id);
-    closeMatchModal();
+  const openUnblockModal = (profile) => {
+    setSelectedBlocked(profile);
+    setUnblockModalOpen(true);
+    document.body.style.overflow = 'hidden';
   };
 
-  const handleBlock = (profile) => {
-    if (!profile) return;
-
-    removeFromMatches(profile.id);
-    removeFromLikes(profile.id);
-    removeFromDiscover(profile.id);
-
-    addToBlocked(profile);
+  const closeUnblockModal = () => {
+    setUnblockModalOpen(false);
+    setSelectedBlocked(null);
+    document.body.style.overflow = 'unset';
   };
 
   const centerCardStyle = {
@@ -1001,9 +1282,6 @@ export default function Dashboard() {
                       <div className="text-secondary small">
                         <i className="far fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
                         <div>No likes yet</div>
-                        <div className="mt-1" style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                          When someone likes you, they'll appear here
-                        </div>
                       </div>
                     </div>
                   )}
@@ -1017,9 +1295,6 @@ export default function Dashboard() {
                       <div className="text-secondary small">
                         <i className="fas fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
                         <div>No matches yet</div>
-                        <div className="mt-1" style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-                          Start liking profiles to get matches
-                        </div>
                       </div>
                     </div>
                   )}
@@ -1027,7 +1302,7 @@ export default function Dashboard() {
 
                 <SectionCard title="Blocked" count={blockedList.length}>
                   {blockedList.length > 0 ? (
-                    <AvatarRow items={blockedList} />
+                    <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} />
                   ) : (
                     <div className="text-center py-4">
                       <div className="text-secondary small">
@@ -1400,7 +1675,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* LIKES MODAL - UPDATED to show first and last name */}
+            {/* LIKES MODAL */}
             <ModalShell
               open={likeModalOpen}
               onClose={closeLikeModal}
@@ -1503,6 +1778,14 @@ export default function Dashboard() {
                         label="Like back"
                       />
                       <RoundActionBtn
+                        onClick={handleUnlikeFromModal}
+                        bg="#dc3545"
+                        border="none"
+                        icon="fas fa-heart-broken"
+                        iconColor="#ffffff"
+                        label="Unlike"
+                      />
+                      <RoundActionBtn
                         onClick={() => navigate(`/profile/${selectedLike.id}`)}
                         bg="#ffffff"
                         border="1px solid #e9ecef"
@@ -1510,13 +1793,24 @@ export default function Dashboard() {
                         iconColor="#6f42c1"
                         label="See profile"
                       />
+                      <RoundActionBtn
+                        onClick={() => {
+                          handleBlock(selectedLike);
+                          closeLikeModal();
+                        }}
+                        bg="#1a1a1a"
+                        border="none"
+                        icon="fas fa-ban"
+                        iconColor="#ffffff"
+                        label="Block"
+                      />
                     </div>
                   )}
                 </>
               )}
             </ModalShell>
 
-            {/* MATCH MODAL - UPDATED to show first and last name */}
+            {/* MATCH MODAL */}
             <ModalShell
               open={matchModalOpen}
               onClose={closeMatchModal}
@@ -1624,6 +1918,62 @@ export default function Dashboard() {
                 </>
               )}
             </ModalShell>
+
+            {/* UNBLOCK MODAL */}
+            <ModalShell
+              open={unblockModalOpen}
+              onClose={closeUnblockModal}
+              title=""
+              maxWidth={480}
+              overlay="rgba(0,0,0,0.60)">
+              {selectedBlocked && (
+                <>
+                  <div className="modal-image-container mb-3" style={{ minHeight: "200px", maxHeight: "200px" }}>
+                    {selectedBlocked.photo ? (
+                      <img 
+                        src={selectedBlocked.photo} 
+                        alt={selectedBlocked.first_name + " " + selectedBlocked.last_name || "Profile"}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
+                        }}
+                      />
+                    ) : (
+                      <div className="p-5 text-secondary">No photo available</div>
+                    )}
+                  </div>
+
+                  <div className="text-center mb-4">
+                    <h4 className="fw-bold mb-2">
+                      {selectedBlocked.first_name} {selectedBlocked.last_name}
+                      {selectedBlocked.age ? `, ${selectedBlocked.age}` : ''}
+                    </h4>
+                    <p className="text-secondary mb-3">{selectedBlocked.bio || "No bio yet"}</p>
+                    <p className="text-muted small">This user is currently blocked</p>
+                  </div>
+
+                  <div className="d-flex justify-content-center gap-3">
+                    <RoundActionBtn
+                      onClick={() => handleUnblock(selectedBlocked)}
+                      bg="#28a745"
+                      border="none"
+                      icon="fas fa-check"
+                      iconColor="#ffffff"
+                      label="Unblock"
+                    />
+                    <RoundActionBtn
+                      onClick={closeUnblockModal}
+                      bg="#6c757d"
+                      border="none"
+                      icon="fas fa-times"
+                      iconColor="#ffffff"
+                      label="Cancel"
+                    />
+                  </div>
+                </>
+              )}
+            </ModalShell>
+
           </div>
         ) : (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "80vh" }}>
