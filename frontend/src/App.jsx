@@ -19,18 +19,29 @@ import ResetPassword from "./pages/ResetPassword.jsx";
 import ResetPasswordDone from "./pages/ResetSuccess.jsx";
 
 import Dashboard from "./pages/Dashboard.jsx";
+import Profile from './pages/Profile';
+import ProfileDetail from './pages/ProfileDetail'; // Add this import
 
 export default function App() {
   const location = useLocation();
 
   // Routes where public navbar/footer should NOT appear
-  const hideLayoutRoutes = [
+  const hidePublicLayoutRoutes = [
+    "/dashboard",
+    "/profile",
+    "/profile/", // Add this for profile detail pages
     "/login",
     "/register",
-    "/dashboard",
+    "/verify-email",
+    "/email-verified",
+    "/forgot-password",
+    "/reset-password",
+    "/reset-password-done",
   ];
 
-  const shouldHideLayout = hideLayoutRoutes.includes(location.pathname);
+  const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
+    location.pathname.startsWith(route)
+  );
 
   return (
     <div className="App">
@@ -51,8 +62,10 @@ export default function App() {
           <Route path="/reset-password/:token" element={<ResetPassword />} />
           <Route path="/reset-password-done" element={<ResetPasswordDone />} />
 
-          {/* Dashboard */}
+          {/* Dashboard Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/profile/:id" element={<ProfileDetail />} /> {/* Add this route */}
         </Routes>
       </main>
 

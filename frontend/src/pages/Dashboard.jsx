@@ -1663,6 +1663,18 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </div>
+                    
+                    {/* View Full Profile Button - Now redirects to ProfileDetail page */}
+                    <div className="mt-4 text-center">
+                      <button
+                        onClick={() => navigate(`/profile/${currentProfile.id}`)}
+                        className="btn btn-outline-primary w-100 py-2"
+                        style={{ borderRadius: "30px" }}
+                      >
+                        <i className="fas fa-user me-2"></i>
+                        View Full Profile
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <div className="text-center py-4">
@@ -1675,7 +1687,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* LIKES MODAL */}
+            {/* LIKES MODAL - Updated to redirect to ProfileDetail */}
             <ModalShell
               open={likeModalOpen}
               onClose={closeLikeModal}
@@ -1786,7 +1798,10 @@ export default function Dashboard() {
                         label="Unlike"
                       />
                       <RoundActionBtn
-                        onClick={() => navigate(`/profile/${selectedLike.id}`)}
+                        onClick={() => {
+                          closeLikeModal();
+                          navigate(`/profile/${selectedLike.id}`);
+                        }}
                         bg="#ffffff"
                         border="1px solid #e9ecef"
                         icon="fas fa-user"
@@ -1810,7 +1825,7 @@ export default function Dashboard() {
               )}
             </ModalShell>
 
-            {/* MATCH MODAL */}
+            {/* MATCH MODAL - Updated to redirect to ProfileDetail */}
             <ModalShell
               open={matchModalOpen}
               onClose={closeMatchModal}
@@ -1825,25 +1840,12 @@ export default function Dashboard() {
                       background: "linear-gradient(145deg, #fff5f7, #fff)",
                     }}
                   >
-                    <div
-                      className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle shadow"
-                      style={{
-                        width: 100,
-                        height: 100,
-                        background: "linear-gradient(145deg, #ff4d6d20, #ff4d6d10)",
-                        border: "3px solid #ff4d6d30",
-                        animation: "pulse 1.8s infinite",
-                      }}
-                    >
-                      <i className="fas fa-heart" style={{ color: "#ff4d6d", fontSize: "2.5rem" }} />
-                    </div>
-
                     <h2 className="fw-bold mb-2" style={{ fontSize: "2.5rem", background: "linear-gradient(145deg, #ff4d6d, #ff3355)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                      It's a Match!
+                      🎉Nou Match!🎉
                     </h2>
 
                     <p className="text-secondary mb-4">
-                      You and <span className="fw-semibold text-dark">{matchedProfile.first_name} {matchedProfile.last_name}</span> liked each other
+                      You and <span className="fw-semibold text-dark">{matchedProfile.first_name} {matchedProfile.last_name}</span> liked each other, starting a conversation is just a click away!
                     </p>
 
                     <div className="d-flex align-items-center justify-content-center gap-4 mb-4">

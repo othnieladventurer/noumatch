@@ -217,3 +217,45 @@ class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.filter(is_active=True)
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+
+
+
+
+class ProfileUpdateView(generics.RetrieveUpdateAPIView):
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_object(self):
+        return self.request.user
+    
+    def put(self, request, *args, **kwargs):
+        # Log the request data for debugging
+        print("🔍 Request data:", request.data)
+        print("🔍 Request FILES:", request.FILES)
+        
+        # Try to parse as partial update first
+        return self.partial_update(request, *args, **kwargs)
+    
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', True)  # Set partial to True by default
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as e:
+            print("❌ Validation errors:", serializer.errors)
+            raise e
+            
+        self.perform_update(serializer)
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+
