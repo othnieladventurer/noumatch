@@ -20,7 +20,9 @@ import ResetPasswordDone from "./pages/ResetSuccess.jsx";
 
 import Dashboard from "./pages/Dashboard.jsx";
 import Profile from './pages/Profile';
-import ProfileDetail from './pages/ProfileDetail'; // Add this import
+import ProfileDetail from './pages/ProfileDetail';
+import Messages from './pages/Messages'; // IMPORT Messages
+import Conversation from './pages/Conversation'; // IMPORT Conversation
 
 export default function App() {
   const location = useLocation();
@@ -29,7 +31,9 @@ export default function App() {
   const hidePublicLayoutRoutes = [
     "/dashboard",
     "/profile",
-    "/profile/", // Add this for profile detail pages
+    "/profile/",
+    "/messages", // ADD messages routes
+    "/messages/", // ADD messages routes
     "/login",
     "/register",
     "/verify-email",
@@ -65,7 +69,11 @@ export default function App() {
           {/* Dashboard Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/profile/:id" element={<ProfileDetail />} /> {/* Add this route */}
+          <Route path="/profile/:id" element={<ProfileDetail />} />
+
+          {/* MESSAGES ROUTES - ADD THESE */}
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/messages/:id" element={<Conversation />} />
         </Routes>
       </main>
 

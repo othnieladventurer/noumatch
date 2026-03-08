@@ -28,6 +28,9 @@ export default function Dashboard() {
   const [blockedList, setBlockedList] = useState([]);
   const [blockedIds, setBlockedIds] = useState([]);
 
+  // Conversations for message linking
+  const [conversations, setConversations] = useState([]);
+
   // Modals
   const [likeModalOpen, setLikeModalOpen] = useState(false);
   const [selectedLike, setSelectedLike] = useState(null);
@@ -60,6 +63,99 @@ export default function Dashboard() {
   // Check if user is blocked
   const isBlocked = (profileId) => {
     return blockedIds.includes(profileId);
+  };
+
+  // Get conversation ID for a matched user
+  const getConversationId = (userId) => {
+    const conversation = conversations.find(conv => 
+      conv.other_user?.id === userId
+    );
+    return conversation?.id;
+  };
+
+  // Navigate to conversation - create if doesn't exist
+  const goToConversation = async (profileId) => {
+    // First check if conversation exists
+    const conversationId = getConversationId(profileId);
+    
+    if (conversationId) {
+      // If exists, go directly to it
+      navigate(`/messages/${conversationId}`);
+    } else {
+      // If not, find the match and create a conversation
+      try {
+        const token = localStorage.getItem("access");
+        
+        // Find the match for this user
+        const match = matchesList.find(m => m.id === profileId);
+        
+        if (!match) {
+          console.error("No match found for this user");
+          navigate('/messages');
+          return;
+        }
+        
+        // Create conversation for this match
+        const response = await fetch("http://127.0.0.1:8000/api/chat/conversations/create/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ match_id: match.match_id }),
+        });
+
+        if (response.status === 401) {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          navigate("/login");
+          return;
+        }
+
+        if (response.ok) {
+          const newConversation = await response.json();
+          console.log("✅ Conversation created:", newConversation);
+          
+          // Refresh conversations list
+          await fetchConversations();
+          
+          // Navigate to the new conversation
+          navigate(`/messages/${newConversation.id}`);
+        } else {
+          const error = await response.json();
+          console.error("❌ Failed to create conversation:", error);
+          navigate('/messages');
+        }
+      } catch (error) {
+        console.error("Error creating conversation:", error);
+        navigate('/messages');
+      }
+    }
+  };
+
+  // Fetch conversations
+  const fetchConversations = async () => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/chat/conversations/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Conversations fetched:", data);
+        setConversations(data);
+      }
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+    }
   };
 
   // Fetch authenticated user on mount
@@ -417,6 +513,8 @@ export default function Dashboard() {
     if (success) {
       removeFromMatches(matchedProfile.id);
       closeMatchModal();
+      // Refresh conversations after unmatch
+      fetchConversations();
     }
   };
 
@@ -433,6 +531,7 @@ export default function Dashboard() {
       
       if (matchCreated) {
         await fetchMatches(blockedIds);
+        await fetchConversations(); // Refresh conversations after match
         const matchedProfile = likesList.find(like => like.id === likedUserId);
         setMatchedProfile(matchedProfile);
         setMatchModalOpen(true);
@@ -512,6 +611,9 @@ export default function Dashboard() {
         if (likeModalOpen) closeLikeModal();
         if (matchModalOpen) closeMatchModal();
         
+        // Refresh conversations
+        fetchConversations();
+        
       } else {
         const error = await response.json();
         console.error("❌ Block failed:", error);
@@ -561,6 +663,7 @@ export default function Dashboard() {
           // Refresh likes and matches with new blocked IDs
           fetchLikesReceived(newBlockedIds);
           fetchMatches(newBlockedIds);
+          fetchConversations(); // Refresh conversations
         }
         
       } else {
@@ -691,7 +794,8 @@ export default function Dashboard() {
       await Promise.all([
         fetchLikesReceived(blockedIdsArray),
         fetchSentLikes(),
-        fetchMatches(blockedIdsArray)
+        fetchMatches(blockedIdsArray),
+        fetchConversations() // Fetch conversations
       ]);
     };
     
@@ -1409,7 +1513,7 @@ export default function Dashboard() {
                           />
 
                           <RoundActionBtn
-                            onClick={() => navigate(`/messages/${currentProfile.id}`)}
+                            onClick={() => goToConversation(currentProfile.id)}
                             bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
                             border="none"
                             icon="fas fa-comment-dots"
@@ -1664,7 +1768,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     
-                    {/* View Full Profile Button - Now redirects to ProfileDetail page */}
+                    {/* View Full Profile Button */}
                     <div className="mt-4 text-center">
                       <button
                         onClick={() => navigate(`/profile/${currentProfile.id}`)}
@@ -1675,6 +1779,25 @@ export default function Dashboard() {
                         View Full Profile
                       </button>
                     </div>
+                    
+                    {/* Message Button for Matched Users in Sidebar */}
+                    {isMatched(currentProfile.id) && (
+                      <div className="mt-2 text-center">
+                        <button
+                          onClick={() => goToConversation(currentProfile.id)}
+                          className="btn w-100 py-2"
+                          style={{ 
+                            borderRadius: "30px", 
+                            background: "linear-gradient(145deg, #6f42c1, #5a32a3)",
+                            color: "white",
+                            border: "none"
+                          }}
+                        >
+                          <i className="fas fa-comment-dots me-2"></i>
+                          Send Message
+                        </button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-4">
@@ -1687,7 +1810,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* LIKES MODAL - Updated to redirect to ProfileDetail */}
+            {/* LIKES MODAL */}
             <ModalShell
               open={likeModalOpen}
               onClose={closeLikeModal}
@@ -1739,7 +1862,7 @@ export default function Dashboard() {
                       <RoundActionBtn
                         onClick={() => {
                           closeLikeModal();
-                          navigate(`/messages/${selectedLike.id}`);
+                          goToConversation(selectedLike.id);
                         }}
                         bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
                         border="none"
@@ -1825,7 +1948,7 @@ export default function Dashboard() {
               )}
             </ModalShell>
 
-            {/* MATCH MODAL - Updated to redirect to ProfileDetail */}
+            {/* MATCH MODAL */}
             <ModalShell
               open={matchModalOpen}
               onClose={closeMatchModal}
@@ -1886,7 +2009,7 @@ export default function Dashboard() {
                     <RoundActionBtn
                       onClick={() => {
                         closeMatchModal();
-                        navigate(`/messages/${matchedProfile.id}`);
+                        goToConversation(matchedProfile.id);
                       }}
                       bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
                       border="none"
