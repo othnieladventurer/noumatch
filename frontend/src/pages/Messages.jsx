@@ -20,6 +20,31 @@ export default function Messages() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Heartbeat to keep user online
+  useEffect(() => {
+    const sendHeartbeat = async () => {
+      const token = localStorage.getItem("access");
+      if (token && user) {
+        try {
+          await fetch("http://127.0.0.1:8000/api/users/heartbeat/", {
+            method: "POST",
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+          });
+        } catch (error) {
+          console.error("Heartbeat error:", error);
+        }
+      }
+    };
+
+    const interval = setInterval(sendHeartbeat, 120000);
+    sendHeartbeat();
+
+    return () => clearInterval(interval);
+  }, [user]);
+
   // Check screen size for responsive design
   useEffect(() => {
     const checkScreenSize = () => {
@@ -236,6 +261,21 @@ export default function Messages() {
     return date.toLocaleDateString();
   };
 
+  const getOnlineStatusColor = (status) => {
+    if (status === "online") return "#4ade80";
+    if (status?.includes("Just now")) return "#4ade80";
+    if (status?.includes("m ago") && parseInt(status) < 5) return "#4ade80";
+    return "#adb5bd";
+  };
+
+  const getOnlineStatusText = (isOnline, onlineStatus) => {
+    if (isOnline) return "Online";
+    if (onlineStatus === "online") return "Online";
+    if (onlineStatus?.includes("Just now")) return "Online";
+    if (onlineStatus) return onlineStatus;
+    return "Offline";
+  };
+
   const goBackToSidebar = () => {
     setActiveConversation(null);
     setMessages([]);
@@ -322,6 +362,7 @@ export default function Messages() {
             transition: all 0.3s;
             margin-bottom: 0.5rem;
             border: 1px solid transparent;
+            position: relative;
           }
           
           .conversation-item:hover {
@@ -338,6 +379,11 @@ export default function Messages() {
             background: #fff0f2;
           }
           
+          .conversation-avatar-container {
+            position: relative;
+            display: inline-block;
+          }
+          
           .conversation-avatar {
             width: 50px;
             height: 50px;
@@ -345,6 +391,28 @@ export default function Messages() {
             object-fit: cover;
             border: 2px solid white;
             box-shadow: 0 2px 8px rgba(255, 77, 109, 0.2);
+          }
+          
+          .online-indicator {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background-color: #4ade80;
+          }
+          
+          .offline-indicator {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background-color: #adb5bd;
           }
           
           .conversation-info {
@@ -385,6 +453,11 @@ export default function Messages() {
             font-size: 0.7rem;
             font-weight: 600;
             margin-left: 0.5rem;
+          }
+          
+          .online-status-text {
+            font-size: 0.65rem;
+            margin-top: 0.25rem;
           }
           
           /* Chat Area Styles */
@@ -434,12 +507,39 @@ export default function Messages() {
             cursor: pointer;
           }
           
+          .chat-header-avatar-container {
+            position: relative;
+            display: inline-block;
+          }
+          
           .chat-header-avatar {
             width: 45px;
             height: 45px;
             border-radius: 50%;
             border: 2px solid white;
             object-fit: cover;
+          }
+          
+          .chat-header-online {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background-color: #4ade80;
+          }
+          
+          .chat-header-offline {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background-color: #adb5bd;
           }
           
           .chat-header-name {
@@ -650,44 +750,59 @@ export default function Messages() {
             )}
 
             {conversations.length > 0 ? (
-              conversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  onClick={() => selectConversation(conv)}
-                  className={`conversation-item ${activeConversation?.id === conv.id ? 'active' : ''} ${conv.unread_count > 0 ? 'unread' : ''}`}
-                >
-                  <img
-                    src={getProfilePhotoUrl(conv.other_user?.profile_photo_url)}
-                    alt={conv.other_user?.full_name || "User"}
-                    className="conversation-avatar"
-                    onError={(e) => e.target.src = "https://via.placeholder.com/50"}
-                  />
-                  <div className="conversation-info">
-                    <div className="conversation-name">
-                      <span>{conv.other_user?.full_name || "User"}</span>
-                      <span className="conversation-time">
-                        {formatMessageTime(conv.last_message?.created_at || conv.created_at)}
-                      </span>
+              conversations.map((conv) => {
+                const isOnline = conv.other_user?.is_online || false;
+                const onlineStatus = conv.other_user?.online_status || "offline";
+                const statusColor = getOnlineStatusColor(onlineStatus);
+                
+                return (
+                  <div
+                    key={conv.id}
+                    onClick={() => selectConversation(conv)}
+                    className={`conversation-item ${activeConversation?.id === conv.id ? 'active' : ''} ${conv.unread_count > 0 ? 'unread' : ''}`}
+                  >
+                    <div className="conversation-avatar-container">
+                      <img
+                        src={getProfilePhotoUrl(conv.other_user?.profile_photo_url)}
+                        alt={conv.other_user?.full_name || "User"}
+                        className="conversation-avatar"
+                        onError={(e) => e.target.src = "https://via.placeholder.com/50"}
+                      />
+                      <span 
+                        className={isOnline ? 'online-indicator' : 'offline-indicator'}
+                        style={{ backgroundColor: statusColor }}
+                      ></span>
                     </div>
-                    <div className="conversation-last-message">
-                      <span>
-                        {conv.last_message?.is_from_me && (
-                          <span className="text-secondary">
-                            <i className="fas fa-check me-1" style={{ fontSize: "0.7rem" }}></i>
-                            You: 
+                    <div className="conversation-info">
+                      <div className="conversation-name">
+                        <span>{conv.other_user?.full_name || "User"}</span>
+                        <span className="conversation-time">
+                          {formatMessageTime(conv.last_message?.created_at || conv.created_at)}
+                        </span>
+                      </div>
+                      <div className="conversation-last-message">
+                        <span>
+                          {conv.last_message?.is_from_me && (
+                            <span className="text-secondary">
+                              <i className="fas fa-check me-1" style={{ fontSize: "0.7rem" }}></i>
+                              You: 
+                            </span>
+                          )}
+                          {conv.last_message?.content || 'Start a conversation'}
+                        </span>
+                        {conv.unread_count > 0 && (
+                          <span className="unread-badge">
+                            {conv.unread_count}
                           </span>
                         )}
-                        {conv.last_message?.content || 'Start a conversation'}
-                      </span>
-                      {conv.unread_count > 0 && (
-                        <span className="unread-badge">
-                          {conv.unread_count}
-                        </span>
-                      )}
+                      </div>
+                      <div className="online-status-text" style={{ color: statusColor }}>
+                        {getOnlineStatusText(isOnline, onlineStatus)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="text-center py-5">
                 <i className="fas fa-comment-dots" style={{ fontSize: "3rem", color: "#ff8fa3", opacity: 0.3 }}></i>
@@ -711,17 +826,23 @@ export default function Messages() {
                   </button>
                 )}
                 <div className="chat-header-info" onClick={() => navigate(`/profile/${otherUser?.id}`)}>
-                  <img
-                    src={getProfilePhotoUrl(otherUser?.profile_photo_url)}
-                    alt={otherUser?.full_name || "User"}
-                    className="chat-header-avatar"
-                    onError={(e) => e.target.src = "https://via.placeholder.com/45"}
-                  />
+                  <div className="chat-header-avatar-container">
+                    <img
+                      src={getProfilePhotoUrl(otherUser?.profile_photo_url)}
+                      alt={otherUser?.full_name || "User"}
+                      className="chat-header-avatar"
+                      onError={(e) => e.target.src = "https://via.placeholder.com/45"}
+                    />
+                    <span 
+                      className={otherUser?.is_online ? 'chat-header-online' : 'chat-header-offline'}
+                      style={{ backgroundColor: getOnlineStatusColor(otherUser?.online_status) }}
+                    ></span>
+                  </div>
                   <div>
                     <h3 className="chat-header-name">{otherUser?.full_name || "User"}</h3>
-                    <p className="chat-header-status">
-                      <i className="fas fa-circle me-1" style={{ fontSize: "0.5rem", color: "#4ade80" }}></i>
-                      Online
+                    <p className="chat-header-status" style={{ color: getOnlineStatusColor(otherUser?.online_status) }}>
+                      <i className="fas fa-circle me-1" style={{ fontSize: "0.5rem" }}></i>
+                      {getOnlineStatusText(otherUser?.is_online, otherUser?.online_status)}
                     </p>
                   </div>
                 </div>

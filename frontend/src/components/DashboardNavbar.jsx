@@ -12,6 +12,46 @@ export default function DashboardNavbar({ user }) {
   });
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Heartbeat to keep user online
+  useEffect(() => {
+    const sendHeartbeat = async () => {
+      const token = localStorage.getItem("access");
+      if (token && user) {
+        try {
+          await fetch("http://127.0.0.1:8000/api/users/heartbeat/", {
+            method: "POST",
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+          });
+          console.log("💓 Heartbeat sent");
+        } catch (error) {
+          console.error("Heartbeat error:", error);
+        }
+      }
+    };
+
+    // Send heartbeat every 2 minutes
+    const interval = setInterval(sendHeartbeat, 120000);
+    sendHeartbeat(); // Send immediately on mount
+
+    // Send heartbeat before user leaves
+    const handleBeforeUnload = () => {
+      navigator.sendBeacon(
+        "http://127.0.0.1:8000/api/users/heartbeat/",
+        new Blob([JSON.stringify({})], { type: "application/json" })
+      );
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [user]);
+
   // Fetch conversations and unread count
   useEffect(() => {
     if (user && user.id) {
@@ -65,7 +105,9 @@ export default function DashboardNavbar({ user }) {
           time: lastMessage?.created_at || '',
           other_user: otherUser,
           unread_count: conv.unread_count || 0,
-          match_id: conv.match_id
+          match_id: conv.match_id,
+          is_online: otherUser?.is_online || false,
+          online_status: otherUser?.online_status || "offline"
         };
       });
       
@@ -126,9 +168,24 @@ export default function DashboardNavbar({ user }) {
     return date.toLocaleDateString();
   };
 
+  const getOnlineStatusColor = (status) => {
+    if (status === "online") return "#4ade80";
+    if (status === "Just now") return "#4ade80";
+    return "#adb5bd";
+  };
+
+  const getOnlineStatusText = (isOnline, onlineStatus) => {
+    if (isOnline) return "Online";
+    if (onlineStatus === "Just now") return "Online";
+    if (onlineStatus) return onlineStatus;
+    return "Offline";
+  };
+
   const handleMessageClick = (conversationId) => {
-    // Navigate to the specific conversation
-    navigate(`/messages/${conversationId}`);
+    // Navigate to the messages page with the conversation ID
+    navigate(`/messages`);
+    // You might want to set the active conversation in a state management solution
+    // For now, we'll just navigate to messages page
   };
 
   return (
@@ -185,14 +242,25 @@ export default function DashboardNavbar({ user }) {
                       className={`dropdown-item d-flex align-items-start gap-2 py-2 px-3 ${msg.unread_count > 0 ? 'bg-light' : ''}`}
                       style={{ borderRadius: "8px", border: "none", width: "100%", textAlign: "left" }}
                     >
-                      <img 
-                        src={msg.other_user?.profile_photo_url || "https://via.placeholder.com/32"}
-                        alt={msg.sender}
-                        className="rounded-circle"
-                        width="32"
-                        height="32"
-                        style={{ objectFit: "cover" }}
-                      />
+                      <div className="position-relative">
+                        <img 
+                          src={msg.other_user?.profile_photo_url || "https://via.placeholder.com/32"}
+                          alt={msg.sender}
+                          className="rounded-circle"
+                          width="32"
+                          height="32"
+                          style={{ objectFit: "cover" }}
+                        />
+                        <span 
+                          className="position-absolute bottom-0 end-0 rounded-circle border border-2 border-white"
+                          style={{ 
+                            width: "10px", 
+                            height: "10px", 
+                            backgroundColor: getOnlineStatusColor(msg.online_status),
+                            display: "block"
+                          }}
+                        ></span>
+                      </div>
                       <div className="flex-grow-1" style={{ minWidth: 0 }}>
                         <div className="d-flex justify-content-between align-items-center">
                           <span className="fw-semibold small">{msg.sender}</span>
@@ -207,6 +275,9 @@ export default function DashboardNavbar({ user }) {
                             </span>
                           )}
                           {msg.text}
+                        </p>
+                        <p className="small mb-0" style={{ fontSize: "0.65rem", color: getOnlineStatusColor(msg.online_status) }}>
+                          {getOnlineStatusText(msg.is_online, msg.online_status)}
                         </p>
                       </div>
                     </button>
@@ -253,22 +324,37 @@ export default function DashboardNavbar({ user }) {
             </ul>
           </div>
 
-          {/* Profile - Always shows authenticated user */}
+          {/* Profile - Always shows authenticated user with online status */}
           <div className="dropdown">
             <button className="btn p-0 border-0 bg-transparent" data-bs-toggle="dropdown">
-              <img
-                src={getProfilePhotoUrl(user?.profile_photo)}
-                alt="profile"
-                className="rounded-circle"
-                width="40"
-                height="40"
-                style={{ objectFit: "cover" }}
-              />
+              <div className="position-relative">
+                <img
+                  src={getProfilePhotoUrl(user?.profile_photo)}
+                  alt="profile"
+                  className="rounded-circle"
+                  width="40"
+                  height="40"
+                  style={{ objectFit: "cover" }}
+                />
+                <span 
+                  className="position-absolute bottom-0 end-0 rounded-circle border border-2 border-white"
+                  style={{ 
+                    width: "12px", 
+                    height: "12px", 
+                    backgroundColor: "#4ade80", // Always green for current user (they're online)
+                    display: "block"
+                  }}
+                ></span>
+              </div>
             </button>
             <ul className="dropdown-menu dropdown-menu-end shadow-sm" style={{ width: "200px", maxWidth: "90vw" }}>
               <li className="px-3 py-2">
                 <div className="fw-semibold">{user?.first_name} {user?.last_name}</div>
                 <div className="small text-secondary text-truncate">{user?.email}</div>
+                <div className="small mt-1" style={{ color: "#4ade80" }}>
+                  <i className="fas fa-circle me-1" style={{ fontSize: "0.5rem" }}></i>
+                  Online
+                </div>
               </li>
               <li><hr className="dropdown-divider" /></li>
               <li>

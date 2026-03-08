@@ -73,14 +73,14 @@ export default function Dashboard() {
     return conversation?.id;
   };
 
-  // Navigate to conversation - create if doesn't exist
-  const goToConversation = async (profileId) => {
+  // Navigate to messenger with conversation - create if doesn't exist
+  const goToMessenger = async (profileId) => {
     // First check if conversation exists
     const conversationId = getConversationId(profileId);
     
     if (conversationId) {
-      // If exists, go directly to it
-      navigate(`/messages/${conversationId}`);
+      // If exists, go to messenger with that conversation
+      navigate(`/messages?conversation=${conversationId}`);
     } else {
       // If not, find the match and create a conversation
       try {
@@ -119,8 +119,8 @@ export default function Dashboard() {
           // Refresh conversations list
           await fetchConversations();
           
-          // Navigate to the new conversation
-          navigate(`/messages/${newConversation.id}`);
+          // Navigate to messenger with the new conversation
+          navigate(`/messages?conversation=${newConversation.id}`);
         } else {
           const error = await response.json();
           console.error("❌ Failed to create conversation:", error);
@@ -131,6 +131,21 @@ export default function Dashboard() {
         navigate('/messages');
       }
     }
+  };
+
+  // Navigate to messenger without specific conversation
+  const goToMessages = () => {
+    navigate('/messages');
+  };
+
+  // Navigate to profile
+  const goToProfile = (profileId) => {
+    navigate(`/profile/${profileId}`);
+  };
+
+  // Navigate to own profile
+  const goToMyProfile = () => {
+    navigate('/profile');
   };
 
   // Fetch conversations
@@ -1128,15 +1143,12 @@ export default function Dashboard() {
                   objectFit: "cover",
                   border: "2px solid #fff",
                   boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  cursor: onClickAvatar ? "pointer" : "default",
+                  cursor: "pointer",
                   transition: "transform 0.2s",
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
                 onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
               />
-              {onClickAvatar && (
-                <div className="position-absolute bottom-0 end-0 bg-primary rounded-circle p-1" style={{ width: 8, height: 8 }} />
-              )}
             </div>
           </button>
         );
@@ -1284,6 +1296,7 @@ export default function Dashboard() {
             justify-content: center;
             overflow: hidden;
             min-height: 420px;
+            cursor: pointer;
           }
 
           .image-container img {
@@ -1334,6 +1347,15 @@ export default function Dashboard() {
             background: #ff4d6d;
             color: white;
           }
+
+          .clickable-profile {
+            cursor: pointer;
+            transition: opacity 0.2s;
+          }
+          
+          .clickable-profile:hover {
+            opacity: 0.8;
+          }
         `}
       </style>
 
@@ -1354,7 +1376,8 @@ export default function Dashboard() {
                   background: "#ffffff",
                 }}
               >
-                <div className="d-flex align-items-center gap-3">
+                {/* Clickable User Profile */}
+                <div className="d-flex align-items-center gap-3 clickable-profile" onClick={goToMyProfile}>
                   <div className="position-relative flex-shrink-0">
                     <img
                       src={getProfilePhotoUrl(user.profile_photo) || "https://via.placeholder.com/70"}
@@ -1416,6 +1439,8 @@ export default function Dashboard() {
                     </div>
                   )}
                 </SectionCard>
+
+                
               </div>
             </div>
 
@@ -1447,7 +1472,8 @@ export default function Dashboard() {
                   </div>
                 ) : profiles.length > 0 && profileIndex < profiles.length ? (
                   <>
-                    <div className="image-container">
+                    {/* Clickable Profile Image */}
+                    <div className="image-container" onClick={() => goToProfile(currentProfile.id)}>
                       {currentProfile.photo ? (
                         <img
                           src={currentProfile.photo}
@@ -1464,7 +1490,8 @@ export default function Dashboard() {
 
                     <div className="p-4">
                       <div className="d-flex align-items-center mb-2">
-                        <h2 className="fw-bold mb-0">
+                        {/* Clickable Name */}
+                        <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
                           {formatName(currentProfile)}
                           {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
                         </h2>
@@ -1504,7 +1531,7 @@ export default function Dashboard() {
                           </button>
 
                           <RoundActionBtn
-                            onClick={() => navigate(`/profile/${currentProfile.id}`)}
+                            onClick={() => goToProfile(currentProfile.id)}
                             bg="#ffffff"
                             border="1px solid #e9ecef"
                             icon="fas fa-user"
@@ -1513,7 +1540,7 @@ export default function Dashboard() {
                           />
 
                           <RoundActionBtn
-                            onClick={() => goToConversation(currentProfile.id)}
+                            onClick={() => goToMessenger(currentProfile.id)}
                             bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
                             border="none"
                             icon="fas fa-comment-dots"
@@ -1593,7 +1620,7 @@ export default function Dashboard() {
                           </button>
 
                           <button
-                            onClick={() => navigate(`/profile/${currentProfile.id}`)}
+                            onClick={() => goToProfile(currentProfile.id)}
                             disabled={isAnimating}
                             className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
                             style={{
@@ -1659,7 +1686,8 @@ export default function Dashboard() {
               >
                 {currentProfile ? (
                   <>
-                    <div className="d-flex align-items-center gap-3 mb-4">
+                    {/* Clickable Profile Summary */}
+                    <div className="d-flex align-items-center gap-3 mb-4 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
                       <img
                         src={currentProfile.photo || "https://via.placeholder.com/60"}
                         alt={formatName(currentProfile) || "Profile"}
@@ -1771,7 +1799,7 @@ export default function Dashboard() {
                     {/* View Full Profile Button */}
                     <div className="mt-4 text-center">
                       <button
-                        onClick={() => navigate(`/profile/${currentProfile.id}`)}
+                        onClick={() => goToProfile(currentProfile.id)}
                         className="btn btn-outline-primary w-100 py-2"
                         style={{ borderRadius: "30px" }}
                       >
@@ -1784,7 +1812,7 @@ export default function Dashboard() {
                     {isMatched(currentProfile.id) && (
                       <div className="mt-2 text-center">
                         <button
-                          onClick={() => goToConversation(currentProfile.id)}
+                          onClick={() => goToMessenger(currentProfile.id)}
                           className="btn w-100 py-2"
                           style={{ 
                             borderRadius: "30px", 
@@ -1851,7 +1879,7 @@ export default function Dashboard() {
                       <RoundActionBtn
                         onClick={() => {
                           closeLikeModal();
-                          navigate(`/profile/${selectedLike.id}`);
+                          goToProfile(selectedLike.id);
                         }}
                         bg="#ffffff"
                         border="1px solid #e9ecef"
@@ -1862,7 +1890,7 @@ export default function Dashboard() {
                       <RoundActionBtn
                         onClick={() => {
                           closeLikeModal();
-                          goToConversation(selectedLike.id);
+                          goToMessenger(selectedLike.id);
                         }}
                         bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
                         border="none"
@@ -1923,7 +1951,7 @@ export default function Dashboard() {
                       <RoundActionBtn
                         onClick={() => {
                           closeLikeModal();
-                          navigate(`/profile/${selectedLike.id}`);
+                          goToProfile(selectedLike.id);
                         }}
                         bg="#ffffff"
                         border="1px solid #e9ecef"
@@ -1997,7 +2025,7 @@ export default function Dashboard() {
                     <RoundActionBtn
                       onClick={() => {
                         closeMatchModal();
-                        navigate(`/profile/${matchedProfile.id}`);
+                        goToProfile(matchedProfile.id);
                       }}
                       bg="#ffffff"
                       border="1px solid #e9ecef"
@@ -2009,7 +2037,7 @@ export default function Dashboard() {
                     <RoundActionBtn
                       onClick={() => {
                         closeMatchModal();
-                        goToConversation(matchedProfile.id);
+                        goToMessenger(matchedProfile.id);
                       }}
                       bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
                       border="none"

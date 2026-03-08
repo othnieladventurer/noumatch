@@ -40,12 +40,9 @@ class UserManager(BaseUserManager):
 
 
 
-
-
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30, unique=False)
-
 
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
@@ -81,6 +78,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     hobbies = models.TextField(blank=True)
     favorite_music = models.TextField(blank=True)
 
+    # Online Status Fields
+    last_activity = models.DateTimeField(null=True, blank=True)
+    is_online = models.BooleanField(default=False)
+
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
@@ -93,9 +94,30 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+    
+    def update_last_activity(self):
+        """Update user's last activity timestamp"""
+        self.last_activity = timezone.now()
+        self.save(update_fields=['last_activity', 'is_online'])
+    
+    def set_online(self):
+        """Set user as online"""
+        if not self.is_online:
+            self.is_online = True
+            self.last_activity = timezone.now()
+            self.save(update_fields=['is_online', 'last_activity'])
+    
+    def set_offline(self):
+        """Set user as offline"""
+        if self.is_online:
+            self.is_online = False
+            self.save(update_fields=['is_online'])
 
 
 
+
+
+            
 
 
 class UserPhoto(models.Model):

@@ -5,6 +5,8 @@ from rest_framework import generics, permissions, status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAdminUser
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 from .models import User
 from .serializers import (RegisterSerializer, LoginSerializer, 
@@ -256,6 +258,15 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def heartbeat(request):
+    """Update user's last activity timestamp"""
+    request.user.update_last_activity()
+    return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
 
 

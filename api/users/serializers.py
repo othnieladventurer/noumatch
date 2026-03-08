@@ -176,16 +176,19 @@ class MeSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     age = serializers.SerializerMethodField()
+    online_status = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'first_name', 'last_name',  # 👈 ADD THESE
+            'id', 'username', 'email', 'first_name', 'last_name',
             'bio', 'birth_date', 'age',
             'gender', 'interested_in', 'location', 'profile_photo',
             'height', 'passions', 'career', 'education', 'hobbies',
-            'favorite_music', 'is_verified', 'is_active'
+            'favorite_music', 'is_verified', 'is_active',
+            'is_online', 'last_activity', 'online_status'
         ]
+        read_only_fields = ['is_online', 'last_activity']
     
     def get_age(self, obj):
         if obj.birth_date:
@@ -195,7 +198,33 @@ class UserProfileSerializer(serializers.ModelSerializer):
                 (today.month, today.day) < (obj.birth_date.month, obj.birth_date.day)
             )
         return None
-
+    
+    def get_online_status(self, obj):
+        """Return online status with time"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        if obj.is_online:
+            return "online"
+        elif obj.last_activity:
+            now = timezone.now()
+            diff = now - obj.last_activity
+            
+            if diff < timedelta(minutes=1):
+                return "Just now"
+            elif diff < timedelta(hours=1):
+                minutes = int(diff.total_seconds() / 60)
+                return f"Active {minutes} minute{'s' if minutes != 1 else ''} ago"
+            elif diff < timedelta(days=1):
+                hours = int(diff.total_seconds() / 3600)
+                return f"Active {hours} hour{'s' if hours != 1 else ''} ago"
+            elif diff < timedelta(days=7):
+                days = diff.days
+                return f"Active {days} day{'s' if days != 1 else ''} ago"
+            else:
+                return f"Last seen {obj.last_activity.strftime('%b %d, %Y')}"
+        return "Offline"
 
         
+                
                 

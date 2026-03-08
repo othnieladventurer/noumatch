@@ -9,12 +9,14 @@ class UserChatSerializer(serializers.ModelSerializer):
     """Minimal user serializer for chat responses"""
     profile_photo_url = serializers.SerializerMethodField()
     full_name = serializers.SerializerMethodField()
+    online_status = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'username', 'first_name', 'last_name', 
-            'full_name', 'profile_photo_url', 'is_verified'
+            'full_name', 'profile_photo_url', 'is_verified',
+            'is_online', 'online_status'
         ]
     
     def get_full_name(self, obj):
@@ -33,6 +35,32 @@ class UserChatSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.profile_photo.url)
             return obj.profile_photo.url
         return None
+    
+    def get_online_status(self, obj):
+        """Return online status with time"""
+        if obj.is_online:
+            return "online"
+        elif obj.last_activity:
+            from django.utils import timezone
+            from datetime import timedelta
+            
+            now = timezone.now()
+            diff = now - obj.last_activity
+            
+            if diff < timedelta(minutes=5):
+                return "online"
+            elif diff < timedelta(hours=1):
+                minutes = int(diff.total_seconds() / 60)
+                return f"{minutes}m ago"
+            elif diff < timedelta(days=1):
+                hours = int(diff.total_seconds() / 3600)
+                return f"{hours}h ago"
+            else:
+                days = diff.days
+                return f"{days}d ago"
+        return "offline"
+
+        
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -177,4 +205,3 @@ class MarkMessagesReadSerializer(serializers.Serializer):
         return data
 
 
-        
