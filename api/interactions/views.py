@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import permissions, status
 from .models import Like
 from .serializers import LikeSerializer
+from django.shortcuts import get_object_or_404
 
 
 
@@ -67,3 +68,100 @@ class SentLikesView(APIView):
             import traceback
             traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+class UnlikeView(APIView):
+    """
+    Delete a like (unlike a user)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, user_id):
+        """
+        Delete a like where the authenticated user is the from_user
+        and the target user is the user_id
+        """
+        try:
+            print(f"🔵 Unlike request: user {request.user.id} unliking user {user_id}")
+            
+            # Find the like where current user is the from_user and target is the user_id
+            like = get_object_or_404(
+                Like, 
+                from_user=request.user, 
+                to_user_id=user_id
+            )
+            
+            # Store the like data before deleting for response
+            like_data = LikeSerializer(like, context={'request': request}).data
+            
+            # Delete the like
+            like.delete()
+            print(f"✅ Unlike successful: user {request.user.id} unliked user {user_id}")
+            
+            return Response(
+                {"message": "Like removed successfully", "like": like_data},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            print(f"❌ Unlike failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class UnlikeByLikeIdView(APIView):
+    """
+    Delete a like by its ID
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, like_id):
+        """
+        Delete a specific like by ID, ensuring the user owns it
+        """
+        try:
+            print(f"🔵 Unlike request: user {request.user.id} deleting like {like_id}")
+            
+            # Find the like by ID and ensure it belongs to the current user
+            like = get_object_or_404(
+                Like, 
+                id=like_id,
+                from_user=request.user
+            )
+            
+            # Store the like data before deleting
+            like_data = LikeSerializer(like, context={'request': request}).data
+            
+            # Delete the like
+            like.delete()
+            print(f"✅ Unlike successful: like {like_id} deleted")
+            
+            return Response(
+                {"message": "Like removed successfully", "like": like_data},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            print(f"❌ Unlike failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+
+
+
+
+
+
+

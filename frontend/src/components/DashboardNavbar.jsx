@@ -198,7 +198,7 @@ export default function DashboardNavbar({ user }) {
         <Link className="navbar-brand d-flex align-items-center" to="/dashboard">
           <FaHeart className="text-danger me-2" />
           <span className="fw-bold fs-4" style={{ color: "#ff4d6d" }}>
-            NouMatch
+            NM
           </span>
         </Link>
 

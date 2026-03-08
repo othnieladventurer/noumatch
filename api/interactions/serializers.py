@@ -22,15 +22,26 @@ class UserMinimalSerializer(serializers.ModelSerializer):
         return None
 
 
+
 class LikeSerializer(serializers.ModelSerializer):
     from_user = UserMinimalSerializer(read_only=True)
     to_user = UserMinimalSerializer(read_only=True)
     to_user_id = serializers.IntegerField(write_only=True)
+    
+    # Optional: Add a field to check if it's a mutual like
+    is_mutual = serializers.SerializerMethodField()
 
     class Meta:
         model = Like
-        fields = ('id', 'from_user', 'to_user', 'to_user_id', 'created_at')
-        read_only_fields = ('id', 'from_user', 'created_at')
+        fields = ('id', 'from_user', 'to_user', 'to_user_id', 'created_at', 'is_mutual')
+        read_only_fields = ('id', 'from_user', 'created_at', 'is_mutual')
+
+    def get_is_mutual(self, obj):
+        """Check if this is a mutual like (both users like each other)"""
+        return Like.objects.filter(
+            from_user=obj.to_user,
+            to_user=obj.from_user
+        ).exists()
 
     def validate_to_user_id(self, value):
         request = self.context.get('request')

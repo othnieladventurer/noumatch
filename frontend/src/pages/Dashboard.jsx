@@ -478,6 +478,11 @@ export default function Dashboard() {
 
   // Delete match from database
   const deleteMatch = async (matchId) => {
+    if (!matchId) {
+      console.error("❌ No match ID provided");
+      return false;
+    }
+    
     try {
       const token = localStorage.getItem("access");
       const response = await fetch(`http://127.0.0.1:8000/api/matches/unmatch/${matchId}/`, {
@@ -507,27 +512,36 @@ export default function Dashboard() {
     }
   };
 
-  // Unlike a profile
+  // Unlike a profile - deletes the like AND removes match if exists
   const handleUnlike = async (profileId) => {
     const success = await deleteLike(profileId);
     if (success) {
       setSentLikesIds(prev => prev.filter(id => id !== profileId));
-      // Also remove from matches if exists
+      
+      // If there was a match, remove it from matches list too
       if (matchesIds.includes(profileId)) {
         removeFromMatches(profileId);
       }
+      
+      // Remove from likes list
+      setLikesList(prev => prev.filter(like => like.id !== profileId));
     }
     return success;
   };
 
-  // Unmatch a profile
-  const handleUnmatch = async () => {
-    if (!matchedProfile) return;
+  // Unmatch a profile - ONLY deletes the match, keeps the like
+  const handleUnmatch = async (profile) => {
+    if (!profile || !profile.match_id) {
+      console.error("❌ No match ID provided for unmatch");
+      return;
+    }
     
-    const success = await deleteMatch(matchedProfile.match_id);
+    const success = await deleteMatch(profile.match_id);
     if (success) {
-      removeFromMatches(matchedProfile.id);
+      // Remove from matches list only - keep the like
+      removeFromMatches(profile.id);
       closeMatchModal();
+      
       // Refresh conversations after unmatch
       fetchConversations();
     }
@@ -1440,7 +1454,22 @@ export default function Dashboard() {
                   )}
                 </SectionCard>
 
-                
+                {/* Messages Link */}
+                <div className="mt-3 text-center">
+                  <button
+                    onClick={goToMessages}
+                    className="btn w-100 py-2"
+                    style={{ 
+                      borderRadius: "30px", 
+                      background: "linear-gradient(135deg, #ff4d6d, #ff8fa3)",
+                      color: "white",
+                      border: "none"
+                    }}
+                  >
+                    <i className="fas fa-comment-dots me-2"></i>
+                    View All Messages
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1838,7 +1867,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* LIKES MODAL */}
+            {/* LIKES MODAL - UPDATED with Unlike instead of Unmatch */}
             <ModalShell
               open={likeModalOpen}
               onClose={closeLikeModal}
@@ -1898,17 +1927,14 @@ export default function Dashboard() {
                         iconColor="#ffffff"
                         label="Send Message"
                       />
+                      {/* UNLIKE button for matched users - deletes like AND match */}
                       <RoundActionBtn
-                        onClick={() => {
-                          setMatchedProfile(selectedLike);
-                          closeLikeModal();
-                          setMatchModalOpen(true);
-                        }}
-                        bg="#ffffff"
-                        border="1px solid #dc354530"
+                        onClick={() => handleUnlikeFromModal()}
+                        bg="#dc3545"
+                        border="none"
                         icon="fas fa-heart-broken"
-                        iconColor="#dc3545"
-                        label="Unmatch"
+                        iconColor="#ffffff"
+                        label="Unlike"
                       />
                       <RoundActionBtn
                         onClick={() => {
@@ -1940,6 +1966,7 @@ export default function Dashboard() {
                         iconColor="#ffffff"
                         label="Like back"
                       />
+                      {/* UNLIKE button for non-matched users - only deletes like */}
                       <RoundActionBtn
                         onClick={handleUnlikeFromModal}
                         bg="#dc3545"
@@ -1976,7 +2003,7 @@ export default function Dashboard() {
               )}
             </ModalShell>
 
-            {/* MATCH MODAL */}
+            {/* MATCH MODAL - UPDATED with proper Unmatch */}
             <ModalShell
               open={matchModalOpen}
               onClose={closeMatchModal}
@@ -2046,8 +2073,9 @@ export default function Dashboard() {
                       label="Send Message"
                     />
 
+                    {/* UNMATCH button - only deletes match, keeps like */}
                     <RoundActionBtn
-                      onClick={handleUnmatch}
+                      onClick={() => handleUnmatch(matchedProfile)}
                       bg="#ffffff"
                       border="1px solid #dc354530"
                       icon="fas fa-heart-broken"

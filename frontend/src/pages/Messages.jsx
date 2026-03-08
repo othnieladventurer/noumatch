@@ -733,7 +733,7 @@ export default function Messages() {
         `}
       </style>
 
-      <div className="messenger-container">
+      <div className="messenger-container container">
         {/* Sidebar */}
         <div className={`sidebar ${!showSidebar ? 'hidden' : ''}`}>
           <div className="sidebar-header">

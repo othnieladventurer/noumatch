@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
+from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from .models import Match
 from .serializers import MatchSerializer
@@ -69,6 +70,100 @@ class MatchCheckView(APIView):
         
         return Response({"is_match": match_exists})
     
+
+
+
+
+class UnmatchView(APIView):
+    """
+    Delete a match (unmatch with a user)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, match_id):
+        """
+        Delete a match by its ID, ensuring the user is part of it
+        """
+        try:
+            print(f"🔵 Unmatch request: user {request.user.id} unmatching match {match_id}")
+            
+            # Find the match by ID and ensure the current user is part of it
+            match = get_object_or_404(
+                Match, 
+                id=match_id
+            )
+            
+            # Verify the current user is one of the participants
+            if request.user not in [match.user1, match.user2]:
+                return Response(
+                    {"error": "You are not part of this match"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Store match data before deleting for response
+            match_data = MatchSerializer(match, context={'request': request}).data
+            
+            # Delete the match
+            match.delete()
+            print(f"✅ Unmatch successful: match {match_id} deleted")
+            
+            return Response(
+                {"message": "Match removed successfully", "match": match_data},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            print(f"❌ Unmatch failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class UnmatchByUserView(APIView):
+    """
+    Delete a match by the other user's ID
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, user_id):
+        """
+        Delete a match where the current user is matched with the specified user
+        """
+        try:
+            print(f"🔵 Unmatch request: user {request.user.id} unmatching user {user_id}")
+            
+            # Find the match where current user is matched with the specified user
+            match = get_object_or_404(
+                Match,
+                Q(user1=request.user, user2_id=user_id) |
+                Q(user1_id=user_id, user2=request.user)
+            )
+            
+            # Store match data before deleting
+            match_data = MatchSerializer(match, context={'request': request}).data
+            
+            # Delete the match
+            match.delete()
+            print(f"✅ Unmatch successful: user {request.user.id} unmatched user {user_id}")
+            
+            return Response(
+                {"message": "Match removed successfully", "match": match_data},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            print(f"❌ Unmatch failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
 
 
     
