@@ -714,7 +714,7 @@ export default function ProfileDetail() {
               className="btn back-button"
             >
               <i className="fas fa-arrow-left me-2"></i>
-              Back to Dashboard
+             
             </button>
           </div>
         </div>

@@ -18,6 +18,10 @@ export default function Dashboard() {
   const [slideDirection, setSlideDirection] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  // Photo modal state
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+
   // Lists
   const [likesList, setLikesList] = useState([]);
   const [sentLikesIds, setSentLikesIds] = useState([]);
@@ -146,6 +150,102 @@ export default function Dashboard() {
   // Navigate to own profile
   const goToMyProfile = () => {
     navigate('/profile');
+  };
+
+  // Photo modal functions
+  const openPhotoModal = (photo) => {
+    setSelectedPhoto(photo);
+    setPhotoModalOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closePhotoModal = () => {
+    setPhotoModalOpen(false);
+    setSelectedPhoto(null);
+    document.body.style.overflow = 'unset';
+  };
+
+  // Photo Modal Component
+  const PhotoModal = () => {
+    if (!photoModalOpen) return null;
+
+    return (
+      <>
+        <div
+          onClick={closePhotoModal}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.95)",
+            zIndex: 1000000,
+            backdropFilter: "blur(8px)",
+            cursor: "pointer",
+          }}
+        />
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1000001,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "95vw",
+              maxHeight: "95vh",
+              position: "relative",
+              pointerEvents: "auto",
+            }}
+          >
+            <button
+              onClick={closePhotoModal}
+              style={{
+                position: "absolute",
+                top: "-40px",
+                right: "-40px",
+                background: "white",
+                border: "none",
+                borderRadius: "50%",
+                width: "40px",
+                height: "40px",
+                fontSize: "20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                zIndex: 1000002,
+              }}
+            >
+              <i className="fas fa-times"></i>
+            </button>
+            <img
+              src={selectedPhoto}
+              alt="Full size"
+              style={{
+                maxWidth: "100%",
+                maxHeight: "95vh",
+                objectFit: "contain",
+                borderRadius: "8px",
+                boxShadow: "0 4px 30px rgba(0,0,0,0.5)",
+              }}
+            />
+          </div>
+        </div>
+      </>
+    );
   };
 
   // Fetch conversations
@@ -1040,6 +1140,12 @@ export default function Dashboard() {
         ? "translateX(100%) rotate(8deg)"
         : "translateX(0)",
     opacity: slideDirection ? 0 : 1,
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
   };
 
   const ModalShell = ({ open, onClose, title, children, maxWidth = 520, overlay = "rgba(0,0,0,0.60)" }) => {
@@ -1223,16 +1329,132 @@ export default function Dashboard() {
   return (
     <>
       <DashboardNavbar user={user} />
+      <PhotoModal />
 
       <style>
         {`
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+          
+          html, body {
+            height: 100%;
+            overflow: hidden;
+          }
           
           body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: #f5f7fb;
             margin: 0;
             padding: 0;
+          }
+          
+          .dashboard-container {
+            height: calc(100vh - 72px);
+            overflow: hidden;
+            background: #f5f7fb;
+          }
+          
+          .dashboard-row {
+            height: 100%;
+            overflow: hidden;
+            margin: 0 -8px;
+          }
+          
+          .dashboard-col {
+            height: 100%;
+            overflow: hidden;
+            padding: 0 8px;
+          }
+          
+          .scrollable-card {
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-radius: 24px !important;
+            background: #ffffff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+          }
+          
+          .scrollable-card::-webkit-scrollbar {
+            width: 6px;
+          }
+          
+          .scrollable-card::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+          }
+          
+          .scrollable-card::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 10px;
+          }
+          
+          .scrollable-card::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+          }
+          
+          .center-col {
+            height: 100%;
+            overflow: hidden;
+          }
+          
+          .center-card {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            border-radius: 24px !important;
+            overflow: hidden !important;
+            background: #ffffff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+          }
+          
+          .image-container {
+            background-color: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            min-height: 0;
+            flex: 1 1 auto;
+            width: 100%;
+            cursor: pointer;
+            position: relative;
+          }
+
+          .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          }
+
+          .image-container::after {
+            content: '🔍';
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            background: rgba(255,255,255,0.9);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            pointer-events: none;
+          }
+
+          .image-container:hover::after {
+            opacity: 1;
+          }
+
+          .card-content {
+            flex: 0 0 auto;
+            padding: 1.5rem;
+            background: #ffffff;
+            border-top: 1px solid #f0f0f0;
           }
           
           .round-action-btn .round-tooltip{
@@ -1303,26 +1525,6 @@ export default function Dashboard() {
             max-width: 100%;
           }
 
-          .image-container {
-            background-color: #f8f9fa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            min-height: 420px;
-            cursor: pointer;
-          }
-
-          .image-container img {
-            max-width: 100%;
-            max-height: 420px;
-            width: auto;
-            height: auto;
-            object-fit: contain;
-            margin: 0 auto;
-            display: block;
-          }
-
           .modal-image-container {
             background-color: #f8f9fa;
             display: flex;
@@ -1370,143 +1572,526 @@ export default function Dashboard() {
           .clickable-profile:hover {
             opacity: 0.8;
           }
+
+          /* Responsive adjustments */
+          @media (max-width: 768px) {
+            .dashboard-container {
+              height: auto;
+              overflow: auto;
+            }
+            
+            html, body {
+              overflow: auto;
+            }
+            
+            .image-container {
+              min-height: 300px;
+            }
+          }
         `}
       </style>
 
-      <div className="container py-4" style={{ background: "#f5f7fb", minHeight: "100vh" }}>
+      <div className="dashboard-container container">
         {loading ? (
-          <div className="d-flex justify-content-center align-items-center" style={{ height: "80vh" }}>
+          <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
             <div className="spinner-border text-primary" role="status" />
           </div>
         ) : user ? (
-          <div className="row g-4">
-            {/* LEFT BLOCK - User Profile & Lists */}
-            <div className="col-lg-3 col-md-4 order-2 order-md-1">
-              <div
-                className="card profile-card shadow-sm h-100 p-4"
-                style={{
-                  borderRadius: "28px",
-                  border: "none",
-                  background: "#ffffff",
-                }}
-              >
-                {/* Clickable User Profile */}
-                <div className="d-flex align-items-center gap-3 clickable-profile" onClick={goToMyProfile}>
-                  <div className="position-relative flex-shrink-0">
-                    <img
-                      src={getProfilePhotoUrl(user.profile_photo) || "https://via.placeholder.com/70"}
-                      alt="profile"
-                      className="rounded-circle shadow-sm"
-                      width="70"
-                      height="70"
-                      style={{ objectFit: "cover", border: "3px solid #fff" }}
-                    />
-                    <div className="position-absolute bottom-0 end-0 bg-success rounded-circle p-2" style={{ width: 14, height: 14, border: "2px solid #fff" }} />
+          <div className="container-fluid h-100 py-3">
+            <div className="row g-3 h-100 dashboard-row">
+              {/* LEFT BLOCK - User Profile & Lists */}
+              <div className="col-lg-3 col-md-4 order-2 order-md-1 h-100 dashboard-col">
+                <div className="scrollable-card p-3">
+                  {/* Clickable User Profile */}
+                  <div className="d-flex align-items-center gap-3 clickable-profile" onClick={goToMyProfile}>
+                    <div className="position-relative flex-shrink-0">
+                      <img
+                        src={getProfilePhotoUrl(user.profile_photo) || "https://via.placeholder.com/70"}
+                        alt="profile"
+                        className="rounded-circle shadow-sm"
+                        width="70"
+                        height="70"
+                        style={{ objectFit: "cover", border: "3px solid #fff" }}
+                      />
+                      <div className="position-absolute bottom-0 end-0 bg-success rounded-circle p-2" style={{ width: 14, height: 14, border: "2px solid #fff" }} />
+                    </div>
+                    <div className="text-start flex-grow-1" style={{ minWidth: 0 }}>
+                      <div className="fw-bold fs-5 text-truncate-custom">
+                        {user.first_name && user.last_name 
+                          ? `${user.first_name} ${user.last_name}` 
+                          : user.first_name || user.last_name || ""}
+                      </div>
+                      <div className="small text-secondary text-truncate-custom" title={user.email}>{user.email}</div>
+                    </div>
                   </div>
-                  <div className="text-start flex-grow-1" style={{ minWidth: 0 }}>
-                    <div className="fw-bold fs-5 text-truncate-custom">
-                      {user.first_name && user.last_name 
-                        ? `${user.first_name} ${user.last_name}` 
-                        : user.first_name || user.last_name || ""}
-                    </div>
-                    <div className="small text-secondary text-truncate-custom" title={user.email}>{user.email}</div>
+
+                  <div className="mt-3" style={{ height: 1, background: "linear-gradient(90deg, transparent, #e9ecef, transparent)" }} />
+
+                  <SectionCard title="Likes You" count={likesList.length}>
+                    {likesList.length > 0 ? (
+                      <AvatarRow items={likesList} onClickAvatar={openLikeModal} />
+                    ) : (
+                      <div className="text-center py-3">
+                        <div className="text-secondary small">
+                          <i className="far fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
+                          <div>No likes yet</div>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  <SectionCard title="Matches" count={matchesList.length}>
+                    {matchesList.length > 0 ? (
+                      <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} />
+                    ) : (
+                      <div className="text-center py-3">
+                        <div className="text-secondary small">
+                          <i className="fas fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
+                          <div>No matches yet</div>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  <SectionCard title="Blocked" count={blockedList.length}>
+                    {blockedList.length > 0 ? (
+                      <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} />
+                    ) : (
+                      <div className="text-center py-3">
+                        <div className="text-secondary small">
+                          <i className="fas fa-ban me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
+                          <div>No blocked users</div>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+
+                  {/* Messages Link */}
+                  <div className="mt-3 text-center">
+                    <button
+                      onClick={goToMessages}
+                      className="btn w-100 py-2"
+                      style={{ 
+                        borderRadius: "30px", 
+                        background: "linear-gradient(135deg, #ff4d6d, #ff8fa3)",
+                        color: "white",
+                        border: "none"
+                      }}
+                    >
+                      <i className="fas fa-comment-dots me-2"></i>
+                      View All Messages
+                    </button>
                   </div>
-                </div>
-
-                <div className="mt-4" style={{ height: 1, background: "linear-gradient(90deg, transparent, #e9ecef, transparent)" }} />
-
-                <SectionCard title="Likes You" count={likesList.length}>
-                  {likesList.length > 0 ? (
-                    <AvatarRow items={likesList} onClickAvatar={openLikeModal} />
-                  ) : (
-                    <div className="text-center py-4">
-                      <div className="text-secondary small">
-                        <i className="far fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                        <div>No likes yet</div>
-                      </div>
-                    </div>
-                  )}
-                </SectionCard>
-
-                <SectionCard title="Matches" count={matchesList.length}>
-                  {matchesList.length > 0 ? (
-                    <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} />
-                  ) : (
-                    <div className="text-center py-4">
-                      <div className="text-secondary small">
-                        <i className="fas fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                        <div>No matches yet</div>
-                      </div>
-                    </div>
-                  )}
-                </SectionCard>
-
-                <SectionCard title="Blocked" count={blockedList.length}>
-                  {blockedList.length > 0 ? (
-                    <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} />
-                  ) : (
-                    <div className="text-center py-4">
-                      <div className="text-secondary small">
-                        <i className="fas fa-ban me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                        <div>No blocked users</div>
-                      </div>
-                    </div>
-                  )}
-                </SectionCard>
-
-                {/* Messages Link */}
-                <div className="mt-3 text-center">
-                  <button
-                    onClick={goToMessages}
-                    className="btn w-100 py-2"
-                    style={{ 
-                      borderRadius: "30px", 
-                      background: "linear-gradient(135deg, #ff4d6d, #ff8fa3)",
-                      color: "white",
-                      border: "none"
-                    }}
-                  >
-                    <i className="fas fa-comment-dots me-2"></i>
-                    View All Messages
-                  </button>
                 </div>
               </div>
-            </div>
 
-            {/* CENTER BLOCK - Main Swipe Card */}
-            <div className="col-lg-6 col-md-8 order-1 order-md-2">
-              <div className="card shadow-lg h-100 overflow-hidden" style={centerCardStyle}>
-                {profilesLoading ? (
-                  <div className="p-5 text-center" style={{ minHeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div>
-                      <div className="spinner-border text-primary mb-3" role="status" style={{ width: "3rem", height: "3rem" }} />
-                      <div className="text-secondary">Loading people you might like...</div>
-                    </div>
-                  </div>
-                ) : apiError ? (
-                  <div className="p-5 text-center" style={{ minHeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div>
-                      <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle bg-danger bg-opacity-10" style={{ width: 80, height: 80 }}>
-                        <i className="fas fa-exclamation-triangle text-danger" style={{ fontSize: "2rem" }} />
+              {/* CENTER BLOCK - Main Swipe Card */}
+              <div className="col-lg-6 col-md-8 order-1 order-md-2 h-100 dashboard-col center-col">
+                <div className="center-card" style={centerCardStyle}>
+                  {profilesLoading ? (
+                    <div className="h-100 d-flex align-items-center justify-content-center">
+                      <div className="text-center">
+                        <div className="spinner-border text-primary mb-3" role="status" style={{ width: "3rem", height: "3rem" }} />
+                        <div className="text-secondary">Loading people you might like...</div>
                       </div>
-                      <h5 className="fw-bold mb-2">Error Loading Profiles</h5>
-                      <p className="text-secondary mb-3">{apiError}</p>
-                      <button
-                        className="btn btn-outline-primary"
-                        onClick={() => window.location.reload()}
-                      >
-                        Try Again
-                      </button>
                     </div>
-                  </div>
-                ) : profiles.length > 0 && profileIndex < profiles.length ? (
-                  <>
-                    {/* Clickable Profile Image */}
-                    <div className="image-container" onClick={() => goToProfile(currentProfile.id)}>
-                      {currentProfile.photo ? (
+                  ) : apiError ? (
+                    <div className="h-100 d-flex align-items-center justify-content-center">
+                      <div className="text-center p-4">
+                        <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle bg-danger bg-opacity-10" style={{ width: 80, height: 80 }}>
+                          <i className="fas fa-exclamation-triangle text-danger" style={{ fontSize: "2rem" }} />
+                        </div>
+                        <h5 className="fw-bold mb-2">Error Loading Profiles</h5>
+                        <p className="text-secondary mb-3">{apiError}</p>
+                        <button
+                          className="btn btn-outline-primary"
+                          onClick={() => window.location.reload()}
+                        >
+                          Try Again
+                        </button>
+                      </div>
+                    </div>
+                  ) : profiles.length > 0 && profileIndex < profiles.length ? (
+                    <>
+                      {/* Clickable Profile Image - Now opens fullscreen */}
+                      <div className="image-container" onClick={() => openPhotoModal(currentProfile.photo)}>
+                        {currentProfile.photo ? (
+                          <img
+                            src={currentProfile.photo}
+                            alt={formatName(currentProfile) || "Profile"}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
+                            }}
+                          />
+                        ) : (
+                          <div className="p-5 text-secondary">No photo available</div>
+                        )}
+                      </div>
+
+                      <div className="card-content">
+                        <div className="d-flex align-items-center mb-2">
+                          {/* Clickable Name - Goes to profile */}
+                          <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
+                            {formatName(currentProfile)}
+                            {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
+                          </h2>
+                          {isMatched(currentProfile.id) && (
+                            <span className="status-badge matched-badge">Matched</span>
+                          )}
+                          {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
+                            <span className="status-badge liked-badge">Liked</span>
+                          )}
+                        </div>
+                        <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "No bio yet"}</p>
+
+                        {isMatched(currentProfile.id) ? (
+                          <div className="d-flex justify-content-center gap-2 flex-wrap mt-3">
+                            <button
+                              onClick={handlePass}
+                              disabled={isAnimating}
+                              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
+                              style={{
+                                width: "60px",
+                                height: "60px",
+                                background: "#ffffff",
+                                border: "1px solid #e9ecef",
+                                transition: "all 0.2s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "#f8f9fa";
+                                e.currentTarget.style.transform = "scale(1.05)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "#ffffff";
+                                e.currentTarget.style.transform = "scale(1)";
+                              }}
+                              aria-label="Pass"
+                            >
+                              <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.3rem" }} />
+                            </button>
+
+                            <RoundActionBtn
+                              onClick={() => goToProfile(currentProfile.id)}
+                              bg="#ffffff"
+                              border="1px solid #e9ecef"
+                              icon="fas fa-user"
+                              iconColor="#6f42c1"
+                              label="See Profile"
+                            />
+
+                            <RoundActionBtn
+                              onClick={() => goToMessenger(currentProfile.id)}
+                              bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
+                              border="none"
+                              icon="fas fa-comment-dots"
+                              iconColor="#ffffff"
+                              label="Send Message"
+                            />
+
+                            <RoundActionBtn
+                              onClick={() => {
+                                setMatchedProfile(currentProfile);
+                                setMatchModalOpen(true);
+                              }}
+                              bg="#ffffff"
+                              border="1px solid #dc354530"
+                              icon="fas fa-heart-broken"
+                              iconColor="#dc3545"
+                              label="Unmatch"
+                            />
+
+                            <RoundActionBtn
+                              onClick={() => handleBlock(currentProfile)}
+                              bg="#1a1a1a"
+                              border="none"
+                              icon="fas fa-ban"
+                              iconColor="#ffffff"
+                              label="Block"
+                            />
+                          </div>
+                        ) : (
+                          <div className="d-flex justify-content-center gap-3 mt-3">
+                            <button
+                              onClick={handlePass}
+                              disabled={isAnimating}
+                              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
+                              style={{
+                                width: "60px",
+                                height: "60px",
+                                background: "#ffffff",
+                                border: "1px solid #e9ecef",
+                                transition: "all 0.2s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "#f8f9fa";
+                                e.currentTarget.style.transform = "scale(1.05)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "#ffffff";
+                                e.currentTarget.style.transform = "scale(1)";
+                              }}
+                              aria-label="Pass"
+                            >
+                              <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.3rem" }} />
+                            </button>
+
+                            <button
+                              onClick={handleLike}
+                              disabled={isAnimating}
+                              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
+                              style={{
+                                width: "74px",
+                                height: "74px",
+                                background: "linear-gradient(145deg, #ff4d6d, #ff3355)",
+                                border: "none",
+                                transition: "all 0.2s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = "scale(1.08)";
+                                e.currentTarget.style.boxShadow = "0 10px 25px rgba(255,77,109,0.4)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = "scale(1)";
+                                e.currentTarget.style.boxShadow = "0 8px 20px rgba(255,77,109,0.3)";
+                              }}
+                              aria-label="Like"
+                            >
+                              <i className="fas fa-heart" style={{ color: "#ffffff", fontSize: "1.6rem" }} />
+                            </button>
+
+                            <button
+                              onClick={() => goToProfile(currentProfile.id)}
+                              disabled={isAnimating}
+                              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
+                              style={{
+                                width: "60px",
+                                height: "60px",
+                                background: "#ffffff",
+                                border: "1px solid #e9ecef",
+                                transition: "all 0.2s",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "#f8f9fa";
+                                e.currentTarget.style.transform = "scale(1.05)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "#ffffff";
+                                e.currentTarget.style.transform = "scale(1)";
+                              }}
+                              aria-label="View Profile"
+                            >
+                              <i className="fas fa-user" style={{ color: "#6f42c1", fontSize: "1.2rem" }} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-100 d-flex align-items-center justify-content-center">
+                      <div className="text-center p-4">
+                        <div
+                          className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle"
+                          style={{ width: 100, height: 100, background: "rgba(255,77,109,0.1)" }}
+                        >
+                          <i className="fas fa-heart" style={{ color: "#ff4d6d", fontSize: "2.5rem" }} />
+                        </div>
+
+                        <h4 className="fw-bold mb-2">No more profiles</h4>
+                        <p className="text-secondary mb-4">Check back later for new people!</p>
+
+                        <button
+                          className="btn btn-primary rounded-pill px-5 py-2"
+                          onClick={() => {
+                            window.location.reload();
+                          }}
+                          style={{ background: "#ff4d6d", border: "none" }}
+                        >
+                          Refresh Profiles
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* RIGHT BLOCK - Current Profile Details */}
+              <div className="col-lg-3 d-none d-lg-block order-3 h-100 dashboard-col">
+                <div className="scrollable-card p-3">
+                  {currentProfile ? (
+                    <>
+                      {/* Clickable Profile Summary */}
+                      <div className="d-flex align-items-center gap-3 mb-3 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
                         <img
-                          src={currentProfile.photo}
+                          src={currentProfile.photo || "https://via.placeholder.com/60"}
                           alt={formatName(currentProfile) || "Profile"}
+                          className="rounded-circle shadow-sm"
+                          width="60"
+                          height="60"
+                          style={{ objectFit: "cover", border: "3px solid #fff" }}
+                        />
+                        <div>
+                          <div className="d-flex align-items-center">
+                            <h5 className="fw-bold mb-1">
+                              {formatName(currentProfile)}
+                              {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
+                            </h5>
+                            {isMatched(currentProfile.id) && (
+                              <span className="status-badge matched-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Matched</span>
+                            )}
+                            {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
+                              <span className="status-badge liked-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Liked</span>
+                            )}
+                          </div>
+                          <div className="small text-secondary">
+                            <i className="fas fa-map-marker-alt me-1" style={{ fontSize: "0.8rem" }} />
+                            {currentProfile.location || "Location not specified"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
+                          <i className="fas fa-info-circle me-2" />BASIC INFO
+                        </h6>
+                        <div className="d-flex flex-column gap-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-venus-mars text-secondary flex-shrink-0" style={{ width: 20 }} />
+                            <span className="text-secondary small text-truncate-custom">
+                              {currentProfile.gender ? currentProfile.gender.charAt(0).toUpperCase() + currentProfile.gender.slice(1) : "Not specified"}
+                            </span>
+                          </div>
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-heart text-secondary flex-shrink-0" style={{ width: 20 }} />
+                            <span className="text-secondary small text-truncate-custom">
+                              Interested in: {currentProfile.interested_in ? currentProfile.interested_in.charAt(0).toUpperCase() + currentProfile.interested_in.slice(1) : "Not specified"}
+                            </span>
+                          </div>
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-cake-candles text-secondary flex-shrink-0" style={{ width: 20 }} />
+                            <span className="text-secondary small text-truncate-custom">
+                              {currentProfile.birth_date ? calculateAge(currentProfile.birth_date) + " years old" : "Age not specified"}
+                            </span>
+                          </div>
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-ruler text-secondary flex-shrink-0" style={{ width: 20 }} />
+                            <span className="text-secondary small text-truncate-custom">
+                              {currentProfile.height ? `${currentProfile.height} cm` : "Height not specified"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
+                          <i className="fas fa-briefcase me-2" />PROFESSION
+                        </h6>
+                        <div className="d-flex flex-column gap-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-briefcase text-secondary flex-shrink-0" style={{ width: 20 }} />
+                            <span className="text-secondary small text-truncate-custom">{currentProfile.career || "Not specified"}</span>
+                          </div>
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-graduation-cap text-secondary flex-shrink-0" style={{ width: 20 }} />
+                            <span className="text-secondary small text-truncate-custom">{currentProfile.education || "Not specified"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
+                          <i className="fas fa-heart me-2" />PASSIONS & HOBBIES
+                        </h6>
+                        <div className="d-flex flex-column gap-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-fire text-secondary flex-shrink-0" style={{ width: 20 }} />
+                            <span className="text-secondary small text-truncate-custom" title={currentProfile.passions}>
+                              {currentProfile.passions || "Not specified"}
+                            </span>
+                          </div>
+                          <div className="d-flex align-items-center gap-2">
+                            <i className="fas fa-pencil text-secondary flex-shrink-0" style={{ width: 20 }} />
+                            <span className="text-secondary small text-truncate-custom" title={currentProfile.hobbies}>
+                              {currentProfile.hobbies || "Not specified"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-3">
+                        <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
+                          <i className="fas fa-music me-2" />MUSIC
+                        </h6>
+                        <div className="d-flex align-items-center gap-2">
+                          <i className="fas fa-headphones text-secondary flex-shrink-0" style={{ width: 20 }} />
+                          <span className="text-secondary small text-truncate-custom" title={currentProfile.favorite_music}>
+                            {currentProfile.favorite_music || "Not specified"}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* View Full Profile Button */}
+                      <div className="mt-3 text-center">
+                        <button
+                          onClick={() => goToProfile(currentProfile.id)}
+                          className="btn btn-outline-primary w-100 py-2"
+                          style={{ borderRadius: "30px", fontSize: "0.9rem" }}
+                        >
+                          <i className="fas fa-user me-2"></i>
+                          View Full Profile
+                        </button>
+                      </div>
+                      
+                      {/* Message Button for Matched Users in Sidebar */}
+                      {isMatched(currentProfile.id) && (
+                        <div className="mt-2 text-center">
+                          <button
+                            onClick={() => goToMessenger(currentProfile.id)}
+                            className="btn w-100 py-2"
+                            style={{ 
+                              borderRadius: "30px", 
+                              background: "linear-gradient(145deg, #6f42c1, #5a32a3)",
+                              color: "white",
+                              border: "none",
+                              fontSize: "0.9rem"
+                            }}
+                          >
+                            <i className="fas fa-comment-dots me-2"></i>
+                            Send Message
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <div className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle bg-light" style={{ width: 60, height: 60 }}>
+                        <i className="fas fa-user-slash text-secondary" style={{ fontSize: "1.5rem" }} />
+                      </div>
+                      <p className="text-secondary small">No profile selected</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* LIKES MODAL */}
+              <ModalShell
+                open={likeModalOpen}
+                onClose={closeLikeModal}
+                title=""
+                overlay="rgba(0,0,0,0.60)"
+                maxWidth={480}>
+                {selectedLike && (
+                  <>
+                    <div className="modal-image-container mb-3" style={{ minHeight: "300px", maxHeight: "300px" }}>
+                      {selectedLike.photo ? (
+                        <img 
+                          src={selectedLike.photo} 
+                          alt={selectedLike.first_name + " " + selectedLike.last_name || "Profile"}
+                          onClick={() => {
+                            closeLikeModal();
+                            setTimeout(() => openPhotoModal(selectedLike.photo), 100);
+                          }}
+                          style={{ cursor: "pointer" }}
                           onError={(e) => {
                             e.target.style.display = 'none';
                             e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
@@ -1517,398 +2102,178 @@ export default function Dashboard() {
                       )}
                     </div>
 
-                    <div className="p-4">
-                      <div className="d-flex align-items-center mb-2">
-                        {/* Clickable Name */}
-                        <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
-                          {formatName(currentProfile)}
-                          {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
-                        </h2>
-                        {isMatched(currentProfile.id) && (
-                          <span className="status-badge matched-badge">Matched</span>
-                        )}
-                        {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
-                          <span className="status-badge liked-badge">Liked</span>
-                        )}
-                      </div>
-                      <p className="text-secondary mb-4" style={{ fontSize: "1.1rem", lineHeight: 1.6 }}>{currentProfile.bio || "No bio yet"}</p>
-
-                      {isMatched(currentProfile.id) ? (
-                        <div className="d-flex justify-content-center gap-3 flex-wrap mt-4">
-                          <button
-                            onClick={handlePass}
-                            disabled={isAnimating}
-                            className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-                            style={{
-                              width: "70px",
-                              height: "70px",
-                              background: "#ffffff",
-                              border: "1px solid #e9ecef",
-                              transition: "all 0.2s",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "#f8f9fa";
-                              e.currentTarget.style.transform = "scale(1.05)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "#ffffff";
-                              e.currentTarget.style.transform = "scale(1)";
-                            }}
-                            aria-label="Pass"
-                          >
-                            <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.5rem" }} />
-                          </button>
-
-                          <RoundActionBtn
-                            onClick={() => goToProfile(currentProfile.id)}
-                            bg="#ffffff"
-                            border="1px solid #e9ecef"
-                            icon="fas fa-user"
-                            iconColor="#6f42c1"
-                            label="See Profile"
-                          />
-
-                          <RoundActionBtn
-                            onClick={() => goToMessenger(currentProfile.id)}
-                            bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
-                            border="none"
-                            icon="fas fa-comment-dots"
-                            iconColor="#ffffff"
-                            label="Send Message"
-                          />
-
-                          <RoundActionBtn
-                            onClick={() => {
-                              setMatchedProfile(currentProfile);
-                              setMatchModalOpen(true);
-                            }}
-                            bg="#ffffff"
-                            border="1px solid #dc354530"
-                            icon="fas fa-heart-broken"
-                            iconColor="#dc3545"
-                            label="Unmatch"
-                          />
-
-                          <RoundActionBtn
-                            onClick={() => handleBlock(currentProfile)}
-                            bg="#1a1a1a"
-                            border="none"
-                            icon="fas fa-ban"
-                            iconColor="#ffffff"
-                            label="Block"
-                          />
-                        </div>
-                      ) : (
-                        <div className="d-flex justify-content-center gap-4 mt-4">
-                          <button
-                            onClick={handlePass}
-                            disabled={isAnimating}
-                            className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-                            style={{
-                              width: "70px",
-                              height: "70px",
-                              background: "#ffffff",
-                              border: "1px solid #e9ecef",
-                              transition: "all 0.2s",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "#f8f9fa";
-                              e.currentTarget.style.transform = "scale(1.05)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "#ffffff";
-                              e.currentTarget.style.transform = "scale(1)";
-                            }}
-                            aria-label="Pass"
-                          >
-                            <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.5rem" }} />
-                          </button>
-
-                          <button
-                            onClick={handleLike}
-                            disabled={isAnimating}
-                            className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-                            style={{
-                              width: "84px",
-                              height: "84px",
-                              background: "linear-gradient(145deg, #ff4d6d, #ff3355)",
-                              border: "none",
-                              transition: "all 0.2s",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = "scale(1.08)";
-                              e.currentTarget.style.boxShadow = "0 10px 25px rgba(255,77,109,0.4)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = "scale(1)";
-                              e.currentTarget.style.boxShadow = "0 8px 20px rgba(255,77,109,0.3)";
-                            }}
-                            aria-label="Like"
-                          >
-                            <i className="fas fa-heart" style={{ color: "#ffffff", fontSize: "1.8rem" }} />
-                          </button>
-
-                          <button
-                            onClick={() => goToProfile(currentProfile.id)}
-                            disabled={isAnimating}
-                            className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-                            style={{
-                              width: "70px",
-                              height: "70px",
-                              background: "#ffffff",
-                              border: "1px solid #e9ecef",
-                              transition: "all 0.2s",
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "#f8f9fa";
-                              e.currentTarget.style.transform = "scale(1.05)";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "#ffffff";
-                              e.currentTarget.style.transform = "scale(1)";
-                            }}
-                            aria-label="View Profile"
-                          >
-                            <i className="fas fa-user" style={{ color: "#6f42c1", fontSize: "1.3rem" }} />
-                          </button>
-                        </div>
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <h4 className="fw-bold mb-0 clickable-profile" onClick={() => {
+                        closeLikeModal();
+                        goToProfile(selectedLike.id);
+                      }}>
+                        {selectedLike.first_name} {selectedLike.last_name}
+                        {selectedLike.age ? `, ${selectedLike.age}` : ''}
+                      </h4>
+                      {isMatched(selectedLike.id) && (
+                        <span className="status-badge matched-badge">Matched</span>
                       )}
                     </div>
-                  </>
-                ) : (
-                  <div className="p-5 text-center" style={{ minHeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div>
-                      <div
-                        className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle"
-                        style={{ width: 100, height: 100, background: "rgba(255,77,109,0.1)" }}
-                      >
-                        <i className="fas fa-heart" style={{ color: "#ff4d6d", fontSize: "2.5rem" }} />
-                      </div>
 
-                      <h4 className="fw-bold mb-2">No more profiles</h4>
-                      <p className="text-secondary mb-4">Check back later for new people!</p>
+                    <p className="text-secondary mb-3" style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{selectedLike.bio || "No bio yet"}</p>
 
-                      <button
-                        className="btn btn-primary rounded-pill px-5 py-2"
-                        onClick={() => {
-                          window.location.reload();
-                        }}
-                        style={{ background: "#ff4d6d", border: "none" }}
-                      >
-                        Refresh Profiles
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* RIGHT BLOCK - Current Profile Details */}
-            <div className="col-lg-3 d-none d-lg-block order-3">
-              <div
-                className="card profile-card shadow-sm h-100 p-4"
-                style={{
-                  borderRadius: "28px",
-                  border: "none",
-                  background: "#ffffff",
-                }}
-              >
-                {currentProfile ? (
-                  <>
-                    {/* Clickable Profile Summary */}
-                    <div className="d-flex align-items-center gap-3 mb-4 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
-                      <img
-                        src={currentProfile.photo || "https://via.placeholder.com/60"}
-                        alt={formatName(currentProfile) || "Profile"}
-                        className="rounded-circle shadow-sm"
-                        width="60"
-                        height="60"
-                        style={{ objectFit: "cover", border: "3px solid #fff" }}
-                      />
-                      <div>
-                        <div className="d-flex align-items-center">
-                          <h5 className="fw-bold mb-1">
-                            {formatName(currentProfile)}
-                            {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
-                          </h5>
-                          {isMatched(currentProfile.id) && (
-                            <span className="status-badge matched-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Matched</span>
-                          )}
-                          {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
-                            <span className="status-badge liked-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Liked</span>
-                          )}
-                        </div>
-                        <div className="small text-secondary">
-                          <i className="fas fa-map-marker-alt me-1" style={{ fontSize: "0.8rem" }} />
-                          {currentProfile.location || "Location not specified"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <h6 className="fw-semibold mb-3" style={{ color: "#495057", fontSize: "0.9rem", letterSpacing: "0.5px" }}>
-                        <i className="fas fa-info-circle me-2" />BASIC INFO
-                      </h6>
-                      <div className="d-flex flex-column gap-2">
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-venus-mars text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom">
-                            {currentProfile.gender ? currentProfile.gender.charAt(0).toUpperCase() + currentProfile.gender.slice(1) : "Not specified"}
-                          </span>
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-heart text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom">
-                            Interested in: {currentProfile.interested_in ? currentProfile.interested_in.charAt(0).toUpperCase() + currentProfile.interested_in.slice(1) : "Not specified"}
-                          </span>
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-cake-candles text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom">
-                            {currentProfile.birth_date ? calculateAge(currentProfile.birth_date) + " years old" : "Age not specified"}
-                          </span>
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-ruler text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom">
-                            {currentProfile.height ? `${currentProfile.height} cm` : "Height not specified"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <h6 className="fw-semibold mb-3" style={{ color: "#495057", fontSize: "0.9rem", letterSpacing: "0.5px" }}>
-                        <i className="fas fa-briefcase me-2" />PROFESSION
-                      </h6>
-                      <div className="d-flex flex-column gap-2">
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-briefcase text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom">{currentProfile.career || "Not specified"}</span>
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-graduation-cap text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom">{currentProfile.education || "Not specified"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <h6 className="fw-semibold mb-3" style={{ color: "#495057", fontSize: "0.9rem", letterSpacing: "0.5px" }}>
-                        <i className="fas fa-heart me-2" />PASSIONS & HOBBIES
-                      </h6>
-                      <div className="d-flex flex-column gap-2">
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-fire text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom" title={currentProfile.passions}>
-                            {currentProfile.passions || "Not specified"}
-                          </span>
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-pencil text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom" title={currentProfile.hobbies}>
-                            {currentProfile.hobbies || "Not specified"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h6 className="fw-semibold mb-3" style={{ color: "#495057", fontSize: "0.9rem", letterSpacing: "0.5px" }}>
-                        <i className="fas fa-music me-2" />MUSIC
-                      </h6>
-                      <div className="d-flex align-items-center gap-2">
-                        <i className="fas fa-headphones text-secondary flex-shrink-0" style={{ width: 20 }} />
-                        <span className="text-secondary small text-truncate-custom" title={currentProfile.favorite_music}>
-                          {currentProfile.favorite_music || "Not specified"}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* View Full Profile Button */}
-                    <div className="mt-4 text-center">
-                      <button
-                        onClick={() => goToProfile(currentProfile.id)}
-                        className="btn btn-outline-primary w-100 py-2"
-                        style={{ borderRadius: "30px" }}
-                      >
-                        <i className="fas fa-user me-2"></i>
-                        View Full Profile
-                      </button>
-                    </div>
-                    
-                    {/* Message Button for Matched Users in Sidebar */}
-                    {isMatched(currentProfile.id) && (
-                      <div className="mt-2 text-center">
-                        <button
-                          onClick={() => goToMessenger(currentProfile.id)}
-                          className="btn w-100 py-2"
-                          style={{ 
-                            borderRadius: "30px", 
-                            background: "linear-gradient(145deg, #6f42c1, #5a32a3)",
-                            color: "white",
-                            border: "none"
+                    {isMatched(selectedLike.id) ? (
+                      <div className="d-flex justify-content-center gap-2 flex-wrap">
+                        <RoundActionBtn
+                          onClick={() => {
+                            closeLikeModal();
+                            goToProfile(selectedLike.id);
                           }}
-                        >
-                          <i className="fas fa-comment-dots me-2"></i>
-                          Send Message
-                        </button>
+                          bg="#ffffff"
+                          border="1px solid #e9ecef"
+                          icon="fas fa-user"
+                          iconColor="#6f42c1"
+                          label="See Profile"
+                        />
+                        <RoundActionBtn
+                          onClick={() => {
+                            closeLikeModal();
+                            goToMessenger(selectedLike.id);
+                          }}
+                          bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
+                          border="none"
+                          icon="fas fa-comment-dots"
+                          iconColor="#ffffff"
+                          label="Send Message"
+                        />
+                        <RoundActionBtn
+                          onClick={() => handleUnlikeFromModal()}
+                          bg="#dc3545"
+                          border="none"
+                          icon="fas fa-heart-broken"
+                          iconColor="#ffffff"
+                          label="Unlike"
+                        />
+                        <RoundActionBtn
+                          onClick={() => {
+                            handleBlock(selectedLike);
+                            closeLikeModal();
+                          }}
+                          bg="#1a1a1a"
+                          border="none"
+                          icon="fas fa-ban"
+                          iconColor="#ffffff"
+                          label="Block"
+                        />
+                      </div>
+                    ) : (
+                      <div className="d-flex justify-content-center gap-2">
+                        <RoundActionBtn
+                          onClick={handlePassFromLikeModal}
+                          bg="#ffffff"
+                          border="1px solid #e9ecef"
+                          icon="fas fa-times"
+                          iconColor="#adb5bd"
+                          label="Pass"
+                        />
+                        <RoundActionBtn
+                          onClick={handleLikeBack}
+                          bg="linear-gradient(145deg, #ff4d6d, #ff3355)"
+                          border="none"
+                          icon="fas fa-heart"
+                          iconColor="#ffffff"
+                          label="Like back"
+                        />
+                        <RoundActionBtn
+                          onClick={handleUnlikeFromModal}
+                          bg="#dc3545"
+                          border="none"
+                          icon="fas fa-heart-broken"
+                          iconColor="#ffffff"
+                          label="Unlike"
+                        />
+                        <RoundActionBtn
+                          onClick={() => {
+                            closeLikeModal();
+                            goToProfile(selectedLike.id);
+                          }}
+                          bg="#ffffff"
+                          border="1px solid #e9ecef"
+                          icon="fas fa-user"
+                          iconColor="#6f42c1"
+                          label="See profile"
+                        />
+                        <RoundActionBtn
+                          onClick={() => {
+                            handleBlock(selectedLike);
+                            closeLikeModal();
+                          }}
+                          bg="#1a1a1a"
+                          border="none"
+                          icon="fas fa-ban"
+                          iconColor="#ffffff"
+                          label="Block"
+                        />
                       </div>
                     )}
                   </>
-                ) : (
-                  <div className="text-center py-4">
-                    <div className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle bg-light" style={{ width: 60, height: 60 }}>
-                      <i className="fas fa-user-slash text-secondary" style={{ fontSize: "1.5rem" }} />
-                    </div>
-                    <p className="text-secondary small">No profile selected</p>
-                  </div>
                 )}
-              </div>
-            </div>
+              </ModalShell>
 
-            {/* LIKES MODAL - UPDATED with Unlike instead of Unmatch */}
-            <ModalShell
-              open={likeModalOpen}
-              onClose={closeLikeModal}
-              title=""
-              overlay="rgba(0,0,0,0.60)"
-              maxWidth={480}>
-              {selectedLike && (
-                <>
-                  <div className="modal-image-container mb-3" style={{ minHeight: "300px", maxHeight: "300px" }}>
-                    {selectedLike.photo ? (
-                      <img 
-                        src={selectedLike.photo} 
-                        alt={selectedLike.first_name + " " + selectedLike.last_name || "Profile"}
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
-                        }}
-                      />
-                    ) : (
-                      <div className="p-5 text-secondary">No photo available</div>
-                    )}
-                  </div>
+              {/* MATCH MODAL */}
+              <ModalShell
+                open={matchModalOpen}
+                onClose={closeMatchModal}
+                title=""
+                maxWidth={640}
+                overlay="rgba(0,0,0,0.60)">
+                {matchedProfile && (
+                  <>
+                    <div
+                      className="text-center p-4 position-relative rounded-4 mb-4"
+                      style={{
+                        background: "linear-gradient(145deg, #fff5f7, #fff)",
+                      }}
+                    >
+                      <h2 className="fw-bold mb-2" style={{ fontSize: "2.5rem", background: "linear-gradient(145deg, #ff4d6d, #ff3355)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                        🎉Nou Match!🎉
+                      </h2>
 
-                  <div className="d-flex align-items-center justify-content-between mb-2">
-                    <h4 className="fw-bold mb-0">
-                      {selectedLike.first_name} {selectedLike.last_name}
-                      {selectedLike.age ? `, ${selectedLike.age}` : ''}
-                    </h4>
-                    {isMatched(selectedLike.id) && (
-                      <span className="status-badge matched-badge">Matched</span>
-                    )}
-                  </div>
+                      <p className="text-secondary mb-4">
+                        You and <span className="fw-semibold text-dark clickable-profile" onClick={() => {
+                          closeMatchModal();
+                          goToProfile(matchedProfile.id);
+                        }}>{matchedProfile.first_name} {matchedProfile.last_name}</span> liked each other, starting a conversation is just a click away!
+                      </p>
 
-                  <p className="text-secondary mb-3" style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{selectedLike.bio || "No bio yet"}</p>
+                      <div className="d-flex align-items-center justify-content-center gap-4 mb-4">
+                        <div style={{ width: "100px", height: "100px", borderRadius: "50%", overflow: "hidden", backgroundColor: "#f8f9fa", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} onClick={() => {
+                          closeMatchModal();
+                          setTimeout(() => openPhotoModal(matchedProfile.photo), 100);
+                        }}>
+                          <img 
+                            src={matchedProfile.photo || "https://via.placeholder.com/100"} 
+                            alt={matchedProfile.first_name + " " + matchedProfile.last_name || "Profile"}
+                            style={{ 
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover"
+                            }}
+                          />
+                        </div>
+                        <div className="text-start" style={{ minWidth: 0 }}>
+                          <h4 className="fw-bold mb-1 text-truncate-custom clickable-profile" onClick={() => {
+                            closeMatchModal();
+                            goToProfile(matchedProfile.id);
+                          }}>
+                            {matchedProfile.first_name} {matchedProfile.last_name}
+                            {matchedProfile.age ? `, ${matchedProfile.age}` : ''}
+                          </h4>
+                          <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio || "No bio yet"}</p>
+                        </div>
+                      </div>
+                    </div>
 
-                  {isMatched(selectedLike.id) ? (
-                    <div className="d-flex justify-content-center gap-2 flex-wrap">
+                    <div className="d-flex justify-content-center gap-3 flex-wrap">
                       <RoundActionBtn
                         onClick={() => {
-                          closeLikeModal();
-                          goToProfile(selectedLike.id);
+                          closeMatchModal();
+                          goToProfile(matchedProfile.id);
                         }}
                         bg="#ffffff"
                         border="1px solid #e9ecef"
@@ -1916,10 +2281,11 @@ export default function Dashboard() {
                         iconColor="#6f42c1"
                         label="See Profile"
                       />
+
                       <RoundActionBtn
                         onClick={() => {
-                          closeLikeModal();
-                          goToMessenger(selectedLike.id);
+                          closeMatchModal();
+                          goToMessenger(matchedProfile.id);
                         }}
                         bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
                         border="none"
@@ -1927,20 +2293,18 @@ export default function Dashboard() {
                         iconColor="#ffffff"
                         label="Send Message"
                       />
-                      {/* UNLIKE button for matched users - deletes like AND match */}
+
                       <RoundActionBtn
-                        onClick={() => handleUnlikeFromModal()}
-                        bg="#dc3545"
-                        border="none"
+                        onClick={() => handleUnmatch(matchedProfile)}
+                        bg="#ffffff"
+                        border="1px solid #dc354530"
                         icon="fas fa-heart-broken"
-                        iconColor="#ffffff"
-                        label="Unlike"
+                        iconColor="#dc3545"
+                        label="Unmatch"
                       />
+
                       <RoundActionBtn
-                        onClick={() => {
-                          handleBlock(selectedLike);
-                          closeLikeModal();
-                        }}
+                        onClick={() => handleBlock(matchedProfile)}
                         bg="#1a1a1a"
                         border="none"
                         icon="fas fa-ban"
@@ -1948,216 +2312,81 @@ export default function Dashboard() {
                         label="Block"
                       />
                     </div>
-                  ) : (
-                    <div className="d-flex justify-content-center gap-2">
-                      <RoundActionBtn
-                        onClick={handlePassFromLikeModal}
-                        bg="#ffffff"
-                        border="1px solid #e9ecef"
-                        icon="fas fa-times"
-                        iconColor="#adb5bd"
-                        label="Pass"
-                      />
-                      <RoundActionBtn
-                        onClick={handleLikeBack}
-                        bg="linear-gradient(145deg, #ff4d6d, #ff3355)"
-                        border="none"
-                        icon="fas fa-heart"
-                        iconColor="#ffffff"
-                        label="Like back"
-                      />
-                      {/* UNLIKE button for non-matched users - only deletes like */}
-                      <RoundActionBtn
-                        onClick={handleUnlikeFromModal}
-                        bg="#dc3545"
-                        border="none"
-                        icon="fas fa-heart-broken"
-                        iconColor="#ffffff"
-                        label="Unlike"
-                      />
-                      <RoundActionBtn
-                        onClick={() => {
-                          closeLikeModal();
-                          goToProfile(selectedLike.id);
-                        }}
-                        bg="#ffffff"
-                        border="1px solid #e9ecef"
-                        icon="fas fa-user"
-                        iconColor="#6f42c1"
-                        label="See profile"
-                      />
-                      <RoundActionBtn
-                        onClick={() => {
-                          handleBlock(selectedLike);
-                          closeLikeModal();
-                        }}
-                        bg="#1a1a1a"
-                        border="none"
-                        icon="fas fa-ban"
-                        iconColor="#ffffff"
-                        label="Block"
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-            </ModalShell>
 
-            {/* MATCH MODAL - UPDATED with proper Unmatch */}
-            <ModalShell
-              open={matchModalOpen}
-              onClose={closeMatchModal}
-              title=""
-              maxWidth={640}
-              overlay="rgba(0,0,0,0.60)">
-              {matchedProfile && (
-                <>
-                  <div
-                    className="text-center p-4 position-relative rounded-4 mb-4"
-                    style={{
-                      background: "linear-gradient(145deg, #fff5f7, #fff)",
-                    }}
-                  >
-                    <h2 className="fw-bold mb-2" style={{ fontSize: "2.5rem", background: "linear-gradient(145deg, #ff4d6d, #ff3355)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                      🎉Nou Match!🎉
-                    </h2>
-
-                    <p className="text-secondary mb-4">
-                      You and <span className="fw-semibold text-dark">{matchedProfile.first_name} {matchedProfile.last_name}</span> liked each other, starting a conversation is just a click away!
+                    <p className="text-center text-secondary small mt-3 mb-0">
+                      What would you like to do next?
                     </p>
+                  </>
+                )}
+              </ModalShell>
 
-                    <div className="d-flex align-items-center justify-content-center gap-4 mb-4">
-                      <div style={{ width: "100px", height: "100px", borderRadius: "50%", overflow: "hidden", backgroundColor: "#f8f9fa", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {/* UNBLOCK MODAL */}
+              <ModalShell
+                open={unblockModalOpen}
+                onClose={closeUnblockModal}
+                title=""
+                maxWidth={480}
+                overlay="rgba(0,0,0,0.60)">
+                {selectedBlocked && (
+                  <>
+                    <div className="modal-image-container mb-3" style={{ minHeight: "200px", maxHeight: "200px" }}>
+                      {selectedBlocked.photo ? (
                         <img 
-                          src={matchedProfile.photo || "https://via.placeholder.com/100"} 
-                          alt={matchedProfile.first_name + " " + matchedProfile.last_name || "Profile"}
-                          style={{ 
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover"
+                          src={selectedBlocked.photo} 
+                          alt={selectedBlocked.first_name + " " + selectedBlocked.last_name || "Profile"}
+                          onClick={() => {
+                            closeUnblockModal();
+                            setTimeout(() => openPhotoModal(selectedBlocked.photo), 100);
+                          }}
+                          style={{ cursor: "pointer" }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
                           }}
                         />
-                      </div>
-                      <div className="text-start" style={{ minWidth: 0 }}>
-                        <h4 className="fw-bold mb-1 text-truncate-custom">
-                          {matchedProfile.first_name} {matchedProfile.last_name}
-                          {matchedProfile.age ? `, ${matchedProfile.age}` : ''}
-                        </h4>
-                        <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio || "No bio yet"}</p>
-                      </div>
+                      ) : (
+                        <div className="p-5 text-secondary">No photo available</div>
+                      )}
                     </div>
-                  </div>
 
-                  <div className="d-flex justify-content-center gap-3 flex-wrap">
-                    <RoundActionBtn
-                      onClick={() => {
-                        closeMatchModal();
-                        goToProfile(matchedProfile.id);
-                      }}
-                      bg="#ffffff"
-                      border="1px solid #e9ecef"
-                      icon="fas fa-user"
-                      iconColor="#6f42c1"
-                      label="See Profile"
-                    />
+                    <div className="text-center mb-4">
+                      <h4 className="fw-bold mb-2 clickable-profile" onClick={() => {
+                        closeUnblockModal();
+                        goToProfile(selectedBlocked.id);
+                      }}>
+                        {selectedBlocked.first_name} {selectedBlocked.last_name}
+                        {selectedBlocked.age ? `, ${selectedBlocked.age}` : ''}
+                      </h4>
+                      <p className="text-secondary mb-3">{selectedBlocked.bio || "No bio yet"}</p>
+                      <p className="text-muted small">This user is currently blocked</p>
+                    </div>
 
-                    <RoundActionBtn
-                      onClick={() => {
-                        closeMatchModal();
-                        goToMessenger(matchedProfile.id);
-                      }}
-                      bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
-                      border="none"
-                      icon="fas fa-comment-dots"
-                      iconColor="#ffffff"
-                      label="Send Message"
-                    />
-
-                    {/* UNMATCH button - only deletes match, keeps like */}
-                    <RoundActionBtn
-                      onClick={() => handleUnmatch(matchedProfile)}
-                      bg="#ffffff"
-                      border="1px solid #dc354530"
-                      icon="fas fa-heart-broken"
-                      iconColor="#dc3545"
-                      label="Unmatch"
-                    />
-
-                    <RoundActionBtn
-                      onClick={() => handleBlock(matchedProfile)}
-                      bg="#1a1a1a"
-                      border="none"
-                      icon="fas fa-ban"
-                      iconColor="#ffffff"
-                      label="Block"
-                    />
-                  </div>
-
-                  <p className="text-center text-secondary small mt-3 mb-0">
-                    What would you like to do next?
-                  </p>
-                </>
-              )}
-            </ModalShell>
-
-            {/* UNBLOCK MODAL */}
-            <ModalShell
-              open={unblockModalOpen}
-              onClose={closeUnblockModal}
-              title=""
-              maxWidth={480}
-              overlay="rgba(0,0,0,0.60)">
-              {selectedBlocked && (
-                <>
-                  <div className="modal-image-container mb-3" style={{ minHeight: "200px", maxHeight: "200px" }}>
-                    {selectedBlocked.photo ? (
-                      <img 
-                        src={selectedBlocked.photo} 
-                        alt={selectedBlocked.first_name + " " + selectedBlocked.last_name || "Profile"}
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
-                        }}
+                    <div className="d-flex justify-content-center gap-3">
+                      <RoundActionBtn
+                        onClick={() => handleUnblock(selectedBlocked)}
+                        bg="#28a745"
+                        border="none"
+                        icon="fas fa-check"
+                        iconColor="#ffffff"
+                        label="Unblock"
                       />
-                    ) : (
-                      <div className="p-5 text-secondary">No photo available</div>
-                    )}
-                  </div>
+                      <RoundActionBtn
+                        onClick={closeUnblockModal}
+                        bg="#6c757d"
+                        border="none"
+                        icon="fas fa-times"
+                        iconColor="#ffffff"
+                        label="Cancel"
+                      />
+                    </div>
+                  </>
+                )}
+              </ModalShell>
 
-                  <div className="text-center mb-4">
-                    <h4 className="fw-bold mb-2">
-                      {selectedBlocked.first_name} {selectedBlocked.last_name}
-                      {selectedBlocked.age ? `, ${selectedBlocked.age}` : ''}
-                    </h4>
-                    <p className="text-secondary mb-3">{selectedBlocked.bio || "No bio yet"}</p>
-                    <p className="text-muted small">This user is currently blocked</p>
-                  </div>
-
-                  <div className="d-flex justify-content-center gap-3">
-                    <RoundActionBtn
-                      onClick={() => handleUnblock(selectedBlocked)}
-                      bg="#28a745"
-                      border="none"
-                      icon="fas fa-check"
-                      iconColor="#ffffff"
-                      label="Unblock"
-                    />
-                    <RoundActionBtn
-                      onClick={closeUnblockModal}
-                      bg="#6c757d"
-                      border="none"
-                      icon="fas fa-times"
-                      iconColor="#ffffff"
-                      label="Cancel"
-                    />
-                  </div>
-                </>
-              )}
-            </ModalShell>
-
+            </div>
           </div>
         ) : (
-          <div className="d-flex justify-content-center align-items-center" style={{ height: "80vh" }}>
+          <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
             <p className="text-secondary">Unable to load user data.</p>
           </div>
         )}

@@ -33,7 +33,6 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "date_joined", "is_verified"]
 
 
-
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     first_name = serializers.CharField(required=True)
@@ -55,6 +54,20 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("This email is already registered.")
+        return value
+
+    def validate_birth_date(self, value):
+        """Validate that user is at least 18 years old"""
+        if not value:
+            raise serializers.ValidationError("Birth date is required.")
+        
+        # Calculate age
+        today = date.today()
+        age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+        
+        if age < 18:
+            raise serializers.ValidationError("You must be at least 18 years old to register.")
+        
         return value
 
     def generate_unique_username(self, first_name, last_name):
@@ -102,9 +115,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         
         return user
-
-
-
 
 
 class LoginSerializer(serializers.Serializer):

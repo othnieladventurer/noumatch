@@ -20,6 +20,19 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Calculate age from birth date
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
   const handleChange = (e) => {
     const { name, value, files } = e.target;
 
@@ -33,6 +46,13 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
+
+    // Frontend validation for age
+    const age = calculateAge(formData.birth_date);
+    if (age < 18) {
+      setErrorMessage("You must be at least 18 years old to register.");
+      return;
+    }
 
     if (formData.password !== formData.password2) {
       setErrorMessage("Passwords do not match.");
@@ -59,7 +79,7 @@ export default function Register() {
         "http://127.0.0.1:8000/api/users/register/",
         {
           method: "POST",
-          body: data, // DO NOT set Content-Type manually
+          body: data,
         }
       );
 
@@ -70,9 +90,6 @@ export default function Register() {
         localStorage.setItem("access", result.access);
         localStorage.setItem("refresh", result.refresh);
 
-        // Show success message with generated username (optional)
-        console.log("Your username is:", result.user.username);
-        
         // Redirect to dashboard
         navigate("/dashboard");
       } else {
@@ -190,6 +207,7 @@ export default function Register() {
                   required
                   onChange={handleChange}
                 />
+                <small className="text-muted">You must be 18 or older to register</small>
               </div>
 
               {/* Gender */}
@@ -294,5 +312,3 @@ export default function Register() {
     </div>
   );
 }
-
-
