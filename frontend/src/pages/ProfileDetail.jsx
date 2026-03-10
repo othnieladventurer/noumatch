@@ -6,7 +6,7 @@ import "@fortawesome/fontawesome-free/css/all.min.css";
 
 export default function ProfileDetail() {
   const navigate = useNavigate();
-  const { id } = useParams(); // Get profile ID from URL
+  const { id } = useParams();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +20,7 @@ export default function ProfileDetail() {
   
   // Photo modal state
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
   // Fetch current user and profile data
   useEffect(() => {
@@ -31,7 +32,6 @@ export default function ProfileDetail() {
 
     const fetchData = async () => {
       try {
-        // Fetch current user
         const userResponse = await fetch("http://127.0.0.1:8000/api/users/me/", {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -50,7 +50,6 @@ export default function ProfileDetail() {
         const userData = await userResponse.json();
         setUser(userData);
 
-        // Fetch profile details
         const profileResponse = await fetch(`http://127.0.0.1:8000/api/users/profiles/${id}/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -62,7 +61,6 @@ export default function ProfileDetail() {
         const profileData = await profileResponse.json();
         setProfile(profileData);
 
-        // Check relationship status
         await checkRelationshipStatus(id, token);
 
       } catch (error) {
@@ -78,7 +76,6 @@ export default function ProfileDetail() {
 
   const checkRelationshipStatus = async (profileId, token) => {
     try {
-      // Check if liked
       const likesResponse = await fetch("http://127.0.0.1:8000/api/interactions/likes/sent/", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -89,7 +86,6 @@ export default function ProfileDetail() {
         setIsLiked(liked);
       }
 
-      // Check if matched
       const matchesResponse = await fetch("http://127.0.0.1:8000/api/matches/matches/", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -106,7 +102,6 @@ export default function ProfileDetail() {
         }
       }
 
-      // Check if blocked
       const blocksResponse = await fetch("http://127.0.0.1:8000/api/blocked/blocks/", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -165,7 +160,6 @@ export default function ProfileDetail() {
 
       if (response.ok) {
         setIsLiked(true);
-        // Check for match
         await checkForMatch();
       }
     } catch (error) {
@@ -224,7 +218,6 @@ export default function ProfileDetail() {
 
       if (response.ok) {
         setIsBlocked(true);
-        // Optionally navigate back
         navigate(-1);
       }
     } catch (error) {
@@ -274,7 +267,7 @@ export default function ProfileDetail() {
   };
 
   const goBack = () => {
-    navigate(-1); // Go back to previous page
+    navigate(-1);
   };
 
   const openPhotoModal = () => {
@@ -285,6 +278,14 @@ export default function ProfileDetail() {
   const closePhotoModal = () => {
     setPhotoModalOpen(false);
     document.body.style.overflow = 'unset';
+  };
+
+  const nextPhoto = () => {
+    setActivePhotoIndex((prev) => (prev + 1) % 1);
+  };
+
+  const prevPhoto = () => {
+    setActivePhotoIndex((prev) => (prev - 1 + 1) % 1);
   };
 
   const PhotoModal = () => {
@@ -377,6 +378,7 @@ export default function ProfileDetail() {
           <div className="spinner-border text-danger" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
+          <p className="mt-3 text-secondary">Finding your potential match...</p>
         </div>
       </>
     );
@@ -388,10 +390,10 @@ export default function ProfileDetail() {
         <DashboardNavbar user={user} />
         <div className="container py-5 text-center">
           <div className="alert alert-danger">
-            <i className="fas fa-exclamation-circle me-2"></i>
+            <i className="fas fa-heart-broken me-2"></i>
             {error || "Profile not found"}
           </div>
-          <button className="btn btn-danger mt-3 px-5 py-2" onClick={goBack} style={{ borderRadius: "50px" }}>
+          <button className="btn btn-outline-danger mt-3 px-5 py-2" onClick={goBack} style={{ borderRadius: "30px" }}>
             <i className="fas fa-arrow-left me-2"></i>
             Go Back
           </button>
@@ -407,175 +409,278 @@ export default function ProfileDetail() {
       
       <style>
         {`
-          /* Enable page scrolling */
-          html, body {
-            overflow-y: auto !important;
-            height: auto !important;
-            min-height: 100vh;
-          }
+          /* Modern Dating App Styles - NouMatch Brand Colors */
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
           
           .profile-detail-page {
+            font-family: 'Inter', sans-serif;
+            background: #f5f7fb;
             min-height: 100vh;
-            padding-bottom: 2rem;
-            background: #f8f9fa;
           }
           
-          .profile-detail-header {
-            background: linear-gradient(135deg, #ff4d6d 0%, #ff8fa3 100%);
-            color: white;
-            padding: 1.5rem 0 9rem 0;
-            margin-bottom: -7rem;
+          /* Photo Gallery Hero - Full image, no cropping */
+          .photo-gallery {
             position: relative;
-          }
-          
-          .profile-detail-card {
-            border-radius: 30px;
-            border: none;
-            box-shadow: 0 20px 50px rgba(255, 77, 109, 0.15);
-            margin-top: -7rem;
-            background: white;
-            position: relative;
-            z-index: 10;
-            max-width: 900px;
-            margin-left: auto;
-            margin-right: auto;
-            margin-bottom: 2rem;
-          }
-          
-          .profile-photo-container {
-            position: relative;
-            display: inline-block;
-            cursor: pointer;
-            margin-top: -100px;
-          }
-          
-          .profile-detail-photo {
-            width: 240px;
-            height: 240px;
-            border-radius: 50%;
-            border: 8px solid white;
-            box-shadow: 0 15px 40px rgba(255, 77, 109, 0.3);
-            object-fit: cover;
-            transition: transform 0.3s;
-          }
-          
-          .profile-detail-photo:hover {
-            transform: scale(1.05);
-          }
-          
-          .photo-zoom-overlay {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
+            width: 100%;
+            height: 60vh;
+            background: #f5f7fb;
+            overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #ff4d6d;
-            font-size: 1.3rem;
-            box-shadow: 0 4px 15px rgba(255, 77, 109, 0.3);
-            transition: all 0.3s;
-            border: 3px solid white;
           }
           
-          .photo-zoom-overlay:hover {
+          .main-photo {
+            width: auto;
+            height: 100%;
+            max-width: 100%;
+            object-fit: contain;
+            object-position: center;
+            background-color: #f5f7fb;
+          }
+          
+          /* Back button integrated into photo gallery */
+          .gallery-back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 50;
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(8px);
+            border: none;
+            color: #ff4d6d;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+          }
+          
+          .gallery-back-btn:hover {
             background: #ff4d6d;
             color: white;
             transform: scale(1.1);
           }
           
-          .info-section {
-            padding: 1.5rem 2rem;
-            border-bottom: 1px solid #ffe6e9;
+          .gallery-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 40px 24px 24px;
+            background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, transparent 100%);
+            color: white;
           }
           
-          .info-section:last-child {
+          .gallery-name {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          }
+          
+          .gallery-age {
+            font-size: 1.8rem;
+            font-weight: 400;
+            margin-left: 10px;
+            opacity: 0.9;
+          }
+          
+          .gallery-location {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 1rem;
+            opacity: 0.9;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+          }
+          
+          .photo-nav {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 50%;
+            z-index: 10;
+          }
+          
+          .photo-nav-left {
+            left: 0;
+          }
+          
+          .photo-nav-right {
+            right: 0;
+          }
+          
+          .photo-nav button {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.3);
+            backdrop-filter: blur(5px);
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            cursor: pointer;
+            opacity: 0;
+          }
+          
+          .photo-gallery:hover .photo-nav button {
+            opacity: 1;
+          }
+          
+          .photo-nav-left button {
+            left: 20px;
+          }
+          
+          .photo-nav-right button {
+            right: 20px;
+          }
+          
+          .photo-nav button:hover {
+            background: #ff4d6d;
+            color: white;
+            transform: translateY(-50%) scale(1.1);
+          }
+          
+          .photo-indicators {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            z-index: 20;
+            padding: 0 20px;
+          }
+          
+          .photo-indicator {
+            width: 40px;
+            height: 4px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 2px;
+            transition: all 0.3s;
+          }
+          
+          .photo-indicator.active {
+            background: #ff4d6d;
+            width: 60px;
+          }
+          
+          /* Profile Content Card */
+          .profile-content {
+            max-width: 800px;
+            margin: -30px auto 0;
+            background: white;
+            border-radius: 30px 30px 0 0;
+            position: relative;
+            z-index: 40;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.05);
+          }
+          
+          .profile-section {
+            padding: 24px;
+            border-bottom: 1px solid #f0f0f0;
+          }
+          
+          .profile-section:last-child {
             border-bottom: none;
           }
           
-          .info-label {
-            font-size: 0.8rem;
-            color: #ff8fa3;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.2rem;
-          }
-          
-          .info-value {
-            font-size: 1.1rem;
-            color: #2c3e50;
-            font-weight: 500;
-          }
-          
-          .info-value-empty {
-            font-size: 1.1rem;
-            color: #adb5bd;
-            font-weight: 400;
-            font-style: italic;
-          }
-          
-          .status-badge {
-            display: inline-block;
-            padding: 6px 18px;
-            border-radius: 50px;
-            font-size: 0.9rem;
+          .section-title {
+            font-size: 1.2rem;
             font-weight: 600;
-            margin: 0 5px;
-            box-shadow: 0 4px 15px rgba(255, 77, 109, 0.2);
+            color: #2d2d2d;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
           }
           
-          .matched-badge {
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            color: white;
+          .section-title i {
+            color: #ff4d6d;
+            margin-right: 10px;
+            font-size: 1.2rem;
           }
           
-          .liked-badge {
-            background: #6c757d;
-            color: white;
-          }
-          
-          .blocked-badge {
-            background: #dc3545;
-            color: white;
-          }
-          
-          .action-btn {
-            padding: 12px 30px;
-            border-radius: 50px;
-            font-weight: 600;
+          /* About Section */
+          .about-text {
             font-size: 1rem;
-            transition: all 0.3s;
-            border: none;
-            box-shadow: 0 8px 20px rgba(255, 77, 109, 0.2);
+            line-height: 1.6;
+            color: #4a4a4a;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 16px;
+            position: relative;
           }
           
-          .action-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(255, 77, 109, 0.3);
+          .about-text i {
+            color: #ff4d6d;
+            opacity: 0.5;
+            font-size: 1rem;
+          }
+          
+          /* Info Chips */
+          .info-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+          }
+          
+          .info-chip {
+            background: #f8f9fa;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            color: #2d2d2d;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #e9ecef;
+          }
+          
+          .info-chip i {
+            color: #ff4d6d;
+            width: 16px;
+          }
+          
+          /* Interest Tags */
+          .interest-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
           }
           
           .interest-tag {
-            background: #fff5f7;
-            padding: 8px 18px;
-            border-radius: 50px;
-            color: #ff4d6d;
-            font-size: 0.95rem;
-            border: 1px solid #ffe6e9;
-            transition: all 0.3s;
+            background: #f8f9fa;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            color: #2d2d2d;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
           }
           
           .interest-tag:hover {
             background: #ff4d6d;
             color: white;
             border-color: #ff4d6d;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 77, 109, 0.3);
           }
           
           .interest-tag:hover i {
@@ -583,455 +688,505 @@ export default function ProfileDetail() {
           }
           
           .interest-tag i {
-            transition: color 0.3s;
-          }
-          
-          .display-name {
-            font-size: 2.4rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-          }
-          
-          .back-button {
-            background: rgba(255,255,255,0.2);
-            border: 2px solid white;
-            color: white;
-            padding: 8px 20px;
-            border-radius: 50px;
-            font-weight: 600;
-            transition: all 0.3s;
-            backdrop-filter: blur(5px);
-            font-size: 0.95rem;
-          }
-          
-          .back-button:hover {
-            background: white;
             color: #ff4d6d;
-            transform: translateX(-5px);
+            transition: all 0.2s;
           }
-
-          .location-text {
-            color: #ff8fa3;
-            font-size: 1.1rem;
+          
+          /* Professional Cards */
+          .professional-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
           }
-
-          .location-text i {
-            color: #ff4d6d;
+          
+          .professional-card {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid #e9ecef;
           }
-
-          .bio-text {
+          
+          .professional-label {
+            font-size: 0.75rem;
             color: #6c757d;
-            font-size: 1.1rem;
-            line-height: 1.6;
-            background: #fff5f7;
-            padding: 1.2rem 1.5rem;
-            border-radius: 20px;
-            margin-top: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
           }
-
-          .bio-text i {
-            color: #ff4d6d;
-            opacity: 0.5;
-          }
-
-          .section-title {
-            color: #ff4d6d;
-            font-weight: 600;
-            margin-bottom: 1.2rem;
-            font-size: 1.2rem;
-          }
-
-          .section-title i {
-            margin-right: 8px;
-          }
-
-          .info-icon {
-            color: #ff4d6d;
-            margin-right: 8px;
-            width: 20px;
+          
+          .professional-value {
             font-size: 1rem;
+            font-weight: 500;
+            color: #2d2d2d;
+            display: flex;
+            align-items: center;
+            gap: 8px;
           }
-
-          .empty-field-message {
-            color: #adb5bd;
-            font-style: italic;
-            font-size: 1rem;
-            padding: 0.5rem 0;
+          
+          .professional-value i {
+            color: #ff4d6d;
+            width: 18px;
           }
-
+          
+          /* Verification Badge */
           .verification-badge {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
             padding: 4px 12px;
-            border-radius: 50px;
+            border-radius: 30px;
             font-size: 0.8rem;
             font-weight: 600;
-            margin-left: 10px;
           }
-
+          
           .verified-badge {
             background: #d4edda;
             color: #155724;
           }
-
+          
           .unverified-badge {
             background: #f8d7da;
             color: #721c24;
           }
-
-          /* Custom scrollbar styling */
-          ::-webkit-scrollbar {
-            width: 10px;
+          
+          /* Action Buttons */
+          .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            padding: 24px;
+            flex-wrap: wrap;
           }
-
-          ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
+          
+          .action-btn {
+            padding: 12px 28px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            border: none;
+            transition: all 0.3s;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            min-width: 130px;
           }
-
-          ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            border-radius: 10px;
+          
+          .action-btn.primary {
+            background: linear-gradient(135deg, #ff4d6d, #ff3355);
+            color: white;
           }
-
-          ::-webkit-scrollbar-thumb:hover {
-            background: #ff4d6d;
+          
+          .action-btn.primary:hover {
+            background: linear-gradient(135deg, #ff3355, #ff1a3f);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 77, 109, 0.3);
+          }
+          
+          .action-btn.secondary {
+            background: white;
+            color: #2d2d2d;
+            border: 1px solid #2d2d2d;
+          }
+          
+          .action-btn.secondary:hover {
+            background: #2d2d2d;
+            color: white;
+            transform: translateY(-2px);
+          }
+          
+          .action-btn.danger {
+            background: white;
+            color: #dc3545;
+            border: 1px solid #dc3545;
+          }
+          
+          .action-btn.danger:hover {
+            background: #dc3545;
+            color: white;
+            transform: translateY(-2px);
+          }
+          
+          .action-btn.success {
+            background: #28a745;
+            color: white;
+          }
+          
+          .action-btn.success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+          }
+          
+          .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+          }
+          
+          /* Relationship Badges */
+          .relationship-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 8px;
+          }
+          
+          .relationship-badge.matched {
+            background: linear-gradient(135deg, #ff4d6d, #ff3355);
+            color: white;
+          }
+          
+          .relationship-badge.liked {
+            background: #6c757d;
+            color: white;
+          }
+          
+          .relationship-badge.blocked {
+            background: #dc3545;
+            color: white;
+          }
+          
+          /* Empty States */
+          .empty-value {
+            color: #aaa;
+            font-style: italic;
+          }
+          
+          /* Responsive */
+          @media (max-width: 768px) {
+            .photo-gallery {
+              height: 50vh;
+            }
+            
+            .main-photo {
+              width: 100%;
+              height: auto;
+              max-height: 100%;
+            }
+            
+            .gallery-name {
+              font-size: 2rem;
+            }
+            
+            .gallery-age {
+              font-size: 1.5rem;
+            }
+            
+            .profile-content {
+              margin-top: -20px;
+            }
+            
+            .action-btn {
+              min-width: 120px;
+              padding: 10px 20px;
+            }
           }
         `}
       </style>
 
-      {/* Main page container with scrolling */}
       <div className="profile-detail-page">
-        {/* Header */}
-        <div className="profile-detail-header">
-          <div className="container">
-            <button 
-              onClick={goBack}
-              className="btn back-button"
-            >
-              <i className="fas fa-arrow-left me-2"></i>
-             
+        {/* Photo Gallery Hero - Full image, no cropping */}
+        <div className="photo-gallery">
+          {/* Back button integrated directly into the photo gallery */}
+          <button onClick={goBack} className="gallery-back-btn">
+            <i className="fas fa-arrow-left"></i>
+          </button>
+          
+          <img
+            src={getProfilePhotoUrl(profile.profile_photo) || "https://via.placeholder.com/800"}
+            alt={formatName(profile)}
+            className="main-photo"
+            onClick={openPhotoModal}
+          />
+          
+          {/* Photo Navigation (prepared for multiple photos) */}
+          <div className="photo-nav photo-nav-left" onClick={prevPhoto}>
+            <button>
+              <i className="fas fa-chevron-left"></i>
             </button>
+          </div>
+          <div className="photo-nav photo-nav-right" onClick={nextPhoto}>
+            <button>
+              <i className="fas fa-chevron-right"></i>
+            </button>
+          </div>
+          
+          {/* Photo Indicators */}
+          <div className="photo-indicators">
+            <div className={`photo-indicator ${activePhotoIndex === 0 ? 'active' : ''}`}></div>
+          </div>
+          
+          {/* Overlay with name and location */}
+          <div className="gallery-overlay">
+            <div className="gallery-name">
+              {formatName(profile)}
+              <span className="gallery-age">{profile.age || ''}</span>
+            </div>
+            {profile.location && (
+              <div className="gallery-location">
+                <i className="fas fa-map-marker-alt"></i>
+                {profile.location}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="container">
-          <div className="profile-detail-card">
-            {/* Profile Header with Photo */}
-            <div className="text-center pt-4 px-4">
-              <div className="profile-photo-container" onClick={openPhotoModal}>
-                <img
-                  src={getProfilePhotoUrl(profile.profile_photo) || "https://via.placeholder.com/240"}
-                  alt={formatName(profile)}
-                  className="profile-detail-photo"
-                />
-                <div className="photo-zoom-overlay">
-                  <i className="fas fa-search-plus"></i>
-                </div>
-              </div>
-              
-              <div className="mt-3">
-                <h1 className="display-name">
-                  {formatName(profile) || "Name not set"}
-                  {profile.age && <span style={{ fontSize: '1.8rem', background: 'none', WebkitTextFillColor: '#ff8fa3', marginLeft: '8px' }}>{profile.age}</span>}
-                </h1>
-                
-                <div className="d-flex justify-content-center align-items-center flex-wrap gap-2 mb-3">
-                  {profile.location ? (
-                    <span className="location-text">
-                      <i className="fas fa-map-marker-alt me-2"></i>
-                      {profile.location}
-                    </span>
-                  ) : (
-                    <span className="location-text" style={{ opacity: 0.5 }}>
-                      <i className="fas fa-map-marker-alt me-2"></i>
-                      Location not set
-                    </span>
-                  )}
-                  
-                  <div className="d-flex gap-2">
-                    {isMatched && (
-                      <span className="status-badge matched-badge">
-                        <i className="fas fa-heart me-2"></i>Matched
-                      </span>
-                    )}
-                    {!isMatched && isLiked && (
-                      <span className="status-badge liked-badge">
-                        <i className="fas fa-check me-2"></i>Liked
-                      </span>
-                    )}
-                    {isBlocked && (
-                      <span className="status-badge blocked-badge">
-                        <i className="fas fa-ban me-2"></i>Blocked
-                      </span>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Bio - always show */}
-                <div className="bio-text">
-                  <i className="fas fa-quote-left me-2"></i>
-                  {profile.bio || "This user hasn't added a bio yet"}
-                  <i className="fas fa-quote-right ms-2"></i>
-                </div>
+        {/* Profile Content */}
+        <div className="profile-content">
+          {/* Relationship Status */}
+          <div className="profile-section pt-3 pb-0">
+            <div className="d-flex justify-content-end">
+              {isMatched && (
+                <span className="relationship-badge matched">
+                  <i className="fas fa-heart me-1"></i> Matched
+                </span>
+              )}
+              {!isMatched && isLiked && (
+                <span className="relationship-badge liked">
+                  <i className="fas fa-check me-1"></i> You Liked Them
+                </span>
+              )}
+              {isBlocked && (
+                <span className="relationship-badge blocked">
+                  <i className="fas fa-ban me-1"></i> Blocked
+                </span>
+              )}
+            </div>
+          </div>
 
-                {/* Verification Status - New field */}
-                <div className="mt-2">
-                  {profile.is_verified ? (
-                    <span className="verification-badge verified-badge">
-                      <i className="fas fa-check-circle"></i> Verified Account
-                    </span>
-                  ) : (
-                    <span className="verification-badge unverified-badge">
-                      <i className="fas fa-clock"></i> Not Verified
-                    </span>
-                  )}
-                </div>
-              </div>
+          {/* About Section */}
+          <div className="profile-section">
+            <h3 className="section-title">
+              <i className="fas fa-heart"></i>
+              About {profile.first_name || 'them'}
+            </h3>
+            
+            <div className="about-text">
+              <i className="fas fa-quote-left me-2"></i>
+              {profile.bio || "This user hasn't added a bio yet"}
+              <i className="fas fa-quote-right ms-2"></i>
             </div>
 
-            {/* Basic Information - All fields shown */}
-            <div className="info-section">
-              <h4 className="section-title">
-                <i className="fas fa-info-circle"></i>
-                Basic Information
-              </h4>
+            {/* Quick Info Chips */}
+            <div className="info-chips">
+              {profile.gender && (
+                <span className="info-chip">
+                  <i className="fas fa-venus-mars"></i>
+                  {profile.gender === 'male' ? 'Man' : profile.gender === 'female' ? 'Woman' : profile.gender}
+                </span>
+              )}
               
-              <div className="row">
-                <div className="col-md-6 mb-3">
-                  <div className="info-label">Full Name</div>
-                  <div className={profile.first_name || profile.last_name ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-user info-icon"></i>
-                    {formatName(profile) || "Not specified"}
-                  </div>
-                </div>
-                
-                <div className="col-md-6 mb-3">
-                  <div className="info-label">Username</div>
-                  <div className={profile.username ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-at info-icon"></i>
-                    {profile.username || "Not specified"}
-                  </div>
-                </div>
-                
-                <div className="col-md-6 mb-3">
-                  <div className="info-label">Gender</div>
-                  <div className={profile.gender ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-venus-mars info-icon"></i>
-                    {profile.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : "Not specified"}
-                  </div>
-                </div>
-                
-                <div className="col-md-6 mb-3">
-                  <div className="info-label">Interested In</div>
-                  <div className={profile.interested_in ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-heart info-icon"></i>
-                    {profile.interested_in ? profile.interested_in.charAt(0).toUpperCase() + profile.interested_in.slice(1) : "Not specified"}
-                  </div>
-                </div>
-                
-                <div className="col-md-6 mb-3">
-                  <div className="info-label">Birth Date</div>
-                  <div className={profile.birth_date ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-cake-candles info-icon"></i>
-                    {profile.birth_date ? new Date(profile.birth_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : "Not specified"}
-                  </div>
-                </div>
-                
-                <div className="col-md-6 mb-3">
-                  <div className="info-label">Height</div>
-                  <div className={profile.height ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-ruler info-icon"></i>
-                    {profile.height ? `${profile.height} cm` : "Not specified"}
-                  </div>
-                </div>
-                
-                <div className="col-12 mb-3">
-                  <div className="info-label">Location</div>
-                  <div className={profile.location ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-map-pin info-icon"></i>
-                    {profile.location || "Not specified"}
-                  </div>
-                </div>
-              </div>
+              {profile.interested_in && (
+                <span className="info-chip">
+                  <i className="fas fa-heart"></i>
+                  {profile.interested_in === 'male' ? 'Men' : 
+                   profile.interested_in === 'female' ? 'Women' : 'Everyone'}
+                </span>
+              )}
+              
+              {profile.height && (
+                <span className="info-chip">
+                  <i className="fas fa-ruler"></i>
+                  {profile.height} cm
+                </span>
+              )}
+              
+              {calculateAge(profile.birth_date) && (
+                <span className="info-chip">
+                  <i className="fas fa-cake-candles"></i>
+                  {calculateAge(profile.birth_date)} years
+                </span>
+              )}
             </div>
 
-            {/* Professional Information - All fields shown */}
-            <div className="info-section">
-              <h4 className="section-title">
+            {/* Verification Status */}
+            <div className="mt-3">
+              {profile.is_verified ? (
+                <span className="verification-badge verified-badge">
+                  <i className="fas fa-check-circle"></i> Verified Account
+                </span>
+              ) : (
+                <span className="verification-badge unverified-badge">
+                  <i className="fas fa-clock"></i> Not Verified
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Professional Info */}
+          {(profile.career || profile.education) && (
+            <div className="profile-section">
+              <h3 className="section-title">
                 <i className="fas fa-briefcase"></i>
-                Professional
-              </h4>
+                Work & Education
+              </h3>
               
-              <div className="row">
-                <div className="col-md-6 mb-3">
-                  <div className="info-label">Career</div>
-                  <div className={profile.career ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-briefcase info-icon"></i>
-                    {profile.career || "Not specified"}
+              <div className="professional-grid">
+                {profile.career && (
+                  <div className="professional-card">
+                    <div className="professional-label">Career</div>
+                    <div className="professional-value">
+                      <i className="fas fa-briefcase"></i>
+                      {profile.career}
+                    </div>
                   </div>
-                </div>
+                )}
                 
-                <div className="col-md-6 mb-3">
-                  <div className="info-label">Education</div>
-                  <div className={profile.education ? "info-value" : "info-value-empty"}>
-                    <i className="fas fa-graduation-cap info-icon"></i>
-                    {profile.education || "Not specified"}
+                {profile.education && (
+                  <div className="professional-card">
+                    <div className="professional-label">Education</div>
+                    <div className="professional-value">
+                      <i className="fas fa-graduation-cap"></i>
+                      {profile.education}
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Interests & Hobbies - All fields shown */}
-            <div className="info-section">
-              <h4 className="section-title">
-                <i className="fas fa-heart"></i>
-                Interests & Hobbies
-              </h4>
-              
-              <div className="row">
-                {/* Passions */}
-                <div className="col-12 mb-4">
-                  <div className="info-label mb-2">Passions</div>
-                  {profile.passions ? (
-                    <div className="d-flex flex-wrap gap-2">
-                      {profile.passions.split(',').map((passion, index) => (
-                        <span key={index} className="interest-tag">
-                          <i className="fas fa-fire"></i>
-                          {passion.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="info-value-empty">
-                      <i className="fas fa-fire info-icon"></i>
-                      No passions added yet
-                    </div>
-                  )}
-                </div>
-                
-                {/* Hobbies */}
-                <div className="col-12 mb-4">
-                  <div className="info-label mb-2">Hobbies</div>
-                  {profile.hobbies ? (
-                    <div className="d-flex flex-wrap gap-2">
-                      {profile.hobbies.split(',').map((hobby, index) => (
-                        <span key={index} className="interest-tag">
-                          <i className="fas fa-pencil"></i>
-                          {hobby.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="info-value-empty">
-                      <i className="fas fa-pencil info-icon"></i>
-                      No hobbies added yet
-                    </div>
-                  )}
-                </div>
-                
-                {/* Favorite Music */}
-                <div className="col-12">
-                  <div className="info-label mb-2">Favorite Music</div>
-                  {profile.favorite_music ? (
-                    <div className="d-flex flex-wrap gap-2">
-                      {profile.favorite_music.split(',').map((music, index) => (
-                        <span key={index} className="interest-tag">
-                          <i className="fas fa-music"></i>
-                          {music.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="info-value-empty">
-                      <i className="fas fa-music info-icon"></i>
-                      No music preferences added yet
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="info-section text-center">
-              <div className="d-flex justify-content-center gap-3 flex-wrap">
-                {isBlocked ? (
-                  <button
-                    onClick={handleUnblock}
-                    className="btn btn-success action-btn"
-                  >
-                    <i className="fas fa-check me-2"></i>
-                    Unblock User
-                  </button>
-                ) : (
-                  <>
-                    {isMatched ? (
-                      <>
-                        <button
-                          onClick={() => navigate(`/messages/${profile.id}`)}
-                          className="btn action-btn"
-                          style={{ background: "linear-gradient(135deg, #6f42c1, #8a5fd1)", color: "white" }}
-                        >
-                          <i className="fas fa-comment-dots me-2"></i>
-                          Send Message
-                        </button>
-                        <button
-                          onClick={handleUnmatch}
-                          className="btn btn-outline-danger action-btn"
-                        >
-                          <i className="fas fa-heart-broken me-2"></i>
-                          Unmatch
-                        </button>
-                      </>
-                    ) : isLiked ? (
-                      <>
-                        <button
-                          onClick={handleUnlike}
-                          className="btn btn-outline-secondary action-btn"
-                        >
-                          <i className="fas fa-times me-2"></i>
-                          Unlike
-                        </button>
-                        <button
-                          onClick={() => navigate(`/messages/${profile.id}`)}
-                          className="btn action-btn"
-                          style={{ background: "linear-gradient(135deg, #6f42c1, #8a5fd1)", color: "white" }}
-                          disabled={!isMatched}
-                        >
-                          <i className="fas fa-comment-dots me-2"></i>
-                          Message
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={handleLike}
-                        className="btn action-btn"
-                        style={{ background: "linear-gradient(135deg, #ff4d6d, #ff8fa3)", color: "white" }}
-                      >
-                        <i className="fas fa-heart me-2"></i>
-                        Like Profile
-                      </button>
-                    )}
-                    
-                    <button
-                      onClick={handleBlock}
-                      className="btn btn-dark action-btn"
-                    >
-                      <i className="fas fa-ban me-2"></i>
-                      Block
-                    </button>
-                  </>
                 )}
               </div>
             </div>
+          )}
+
+          {/* Interests & Hobbies */}
+          {(profile.passions || profile.hobbies || profile.favorite_music) && (
+            <div className="profile-section">
+              <h3 className="section-title">
+                <i className="fas fa-star"></i>
+                Interests & Vibes
+              </h3>
+              
+              {profile.passions && (
+                <div className="mb-3">
+                  <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
+                    <i className="fas fa-fire me-1" style={{ color: '#ff4d6d' }}></i>
+                    Passions
+                  </h6>
+                  <div className="interest-tags">
+                    {profile.passions.split(',').map((item, index) => (
+                      <span key={index} className="interest-tag">
+                        <i className="fas fa-heart"></i>
+                        {item.trim()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.hobbies && (
+                <div className="mb-3">
+                  <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
+                    <i className="fas fa-pencil me-1" style={{ color: '#ff4d6d' }}></i>
+                    Hobbies
+                  </h6>
+                  <div className="interest-tags">
+                    {profile.hobbies.split(',').map((item, index) => (
+                      <span key={index} className="interest-tag">
+                        <i className="fas fa-heart"></i>
+                        {item.trim()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.favorite_music && (
+                <div className="mb-2">
+                  <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
+                    <i className="fas fa-music me-1" style={{ color: '#ff4d6d' }}></i>
+                    Music Vibes
+                  </h6>
+                  <div className="interest-tags">
+                    {profile.favorite_music.split(',').map((item, index) => (
+                      <span key={index} className="interest-tag">
+                        <i className="fas fa-heart"></i>
+                        {item.trim()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="action-buttons">
+            {isBlocked ? (
+              <button
+                onClick={handleUnblock}
+                className="action-btn success"
+              >
+                <i className="fas fa-check me-2"></i>
+                Unblock
+              </button>
+            ) : (
+              <>
+                {isMatched ? (
+                  <>
+                    <button
+                      onClick={() => navigate(`/messages/${profile.id}`)}
+                      className="action-btn primary"
+                    >
+                      <i className="fas fa-comment-dots me-2"></i>
+                      Message
+                    </button>
+                    <button
+                      onClick={handleUnmatch}
+                      className="action-btn danger"
+                    >
+                      <i className="fas fa-heart-broken me-2"></i>
+                      Unmatch
+                    </button>
+                  </>
+                ) : isLiked ? (
+                  <>
+                    <button
+                      onClick={handleUnlike}
+                      className="action-btn secondary"
+                    >
+                      <i className="fas fa-times me-2"></i>
+                      Unlike
+                    </button>
+                    <button
+                      onClick={() => navigate(`/messages/${profile.id}`)}
+                      className="action-btn primary"
+                      disabled={!isMatched}
+                    >
+                      <i className="fas fa-comment-dots me-2"></i>
+                      Message
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleLike}
+                    className="action-btn primary"
+                  >
+                    <i className="fas fa-heart me-2"></i>
+                    Like
+                  </button>
+                )}
+                
+                <button
+                  onClick={handleBlock}
+                  className="action-btn secondary"
+                >
+                  <i className="fas fa-ban me-2"></i>
+                  Block
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Romantic Footer */}
+          <div className="text-center pb-4">
+            <p className="small text-secondary" style={{ fontSize: '0.8rem' }}>
+              <i className="fas fa-heart me-1" style={{ color: '#ff4d6d' }}></i>
+              Take a chance on love
+            </p>
           </div>
         </div>
       </div>
     </>
   );
 }
+
+
+

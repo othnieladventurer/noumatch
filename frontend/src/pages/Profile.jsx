@@ -356,8 +356,9 @@ export default function Profile() {
       
       <style>
         {`
+          /* Modern, clean, unisex styling */
           .profile-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
             color: white;
             padding: 4rem 0 3rem 0;
             margin-bottom: 2rem;
@@ -373,8 +374,8 @@ export default function Profile() {
             width: 200px;
             height: 200px;
             border-radius: 50%;
-            border: 5px solid white;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            border: 4px solid white;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
             object-fit: cover;
             transition: transform 0.3s;
           }
@@ -387,70 +388,77 @@ export default function Profile() {
             position: absolute;
             bottom: 10px;
             right: 10px;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.95);
             border-radius: 50%;
             width: 40px;
             height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #764ba2;
+            color: #2c3e50;
             font-size: 1.2rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.2);
             transition: all 0.3s;
+            border: 2px solid #fff;
           }
           
           .profile-avatar-overlay:hover {
             background: white;
             transform: scale(1.1);
+            color: #3498db;
           }
           
           .edit-profile-btn {
             background: white;
-            color: #764ba2;
-            border: none;
+            color: #2c3e50;
+            border: 2px solid white;
             padding: 0.75rem 2rem;
             border-radius: 30px;
             font-weight: 600;
-            font-size: 1.1rem;
+            font-size: 1rem;
             transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
           }
           
           .edit-profile-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            background: transparent;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
           }
           
           .profile-card {
-            border-radius: 15px;
+            border-radius: 16px;
             border: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
             transition: transform 0.3s;
             height: 100%;
+            background: #ffffff;
           }
           
           .profile-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
           }
           
           .info-label {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             color: #6c757d;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 0.25rem;
+            font-weight: 500;
           }
           
           .info-value {
             font-size: 1rem;
-            color: #212529;
+            color: #2c3e50;
             font-weight: 500;
           }
           
           .form-control:focus, .form-select:focus {
-            border-color: #764ba2;
-            box-shadow: 0 0 0 0.2rem rgba(118, 75, 162, 0.25);
+            border-color: #3498db;
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
           }
           
           .photo-upload-container {
@@ -483,38 +491,83 @@ export default function Profile() {
           .section-title {
             font-size: 1.1rem;
             font-weight: 600;
-            color: #495057;
+            color: #2c3e50;
             letter-spacing: 0.5px;
             margin-bottom: 1rem;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: 2px solid #e9ecef;
             padding-bottom: 0.5rem;
           }
 
           .display-name {
             font-size: 2.5rem;
-            font-weight: 700;
+            font-weight: 600;
             margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
           }
 
           .profile-email {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             opacity: 0.9;
             margin-bottom: 0.5rem;
           }
 
           .profile-location {
-            font-size: 1.1rem;
+            font-size: 1rem;
             opacity: 0.8;
           }
 
           .view-photo-hint {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             margin-top: 0.5rem;
-            opacity: 0.8;
+            opacity: 0.7;
           }
           
           .view-photo-hint i {
             margin-right: 0.3rem;
+          }
+
+          .badge-verified {
+            background: #28a745;
+            color: white;
+            padding: 0.35rem 0.65rem;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 500;
+          }
+
+          .badge-pending {
+            background: #ffc107;
+            color: #212529;
+            padding: 0.35rem 0.65rem;
+            border-radius: 30px;
+            font-size: 0.75rem;
+            font-weight: 500;
+          }
+
+          .stat-item {
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 12px;
+            text-align: center;
+          }
+
+          .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
+            line-height: 1.2;
+          }
+
+          .stat-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+
+          hr {
+            opacity: 0.2;
+            margin: 1.5rem 0;
           }
         `}
       </style>
@@ -522,7 +575,7 @@ export default function Profile() {
       {/* Photo Modal */}
       <PhotoModal />
 
-      {/* Profile Header */}
+      {/* Profile Header - Modern & Clean */}
       <div className="profile-header">
         <div className="container">
           <div className="row align-items-center">
@@ -562,7 +615,7 @@ export default function Profile() {
               {!editing && (
                 <div className="view-photo-hint">
                   <i className="fas fa-search-plus"></i>
-                  Click photo to view full size
+                  Click to enlarge
                 </div>
               )}
             </div>
@@ -576,7 +629,7 @@ export default function Profile() {
               </p>
               <p className="profile-location">
                 <i className="fas fa-map-marker-alt me-2"></i>
-                {user?.location || "Location not set"}
+                {user?.location || "Location not specified"}
               </p>
               {user?.birth_date && (
                 <p className="profile-location">
@@ -584,6 +637,17 @@ export default function Profile() {
                   {calculateAge(user.birth_date)} years old
                 </p>
               )}
+              <div className="mt-2">
+                {user?.is_verified ? (
+                  <span className="badge-verified">
+                    <i className="fas fa-check-circle me-1"></i> Verified
+                  </span>
+                ) : (
+                  <span className="badge-pending">
+                    <i className="fas fa-clock me-1"></i> Pending Verification
+                  </span>
+                )}
+              </div>
             </div>
             <div className="col-md-3 text-center text-md-end mt-4 mt-md-0">
               {!editing ? (
@@ -597,10 +661,10 @@ export default function Profile() {
               ) : (
                 <div>
                   <button
-                    className="btn btn-success me-2 px-4 py-2"
+                    className="btn btn-primary me-2 px-4 py-2"
                     onClick={handleSubmit}
                     disabled={saving}
-                    style={{ borderRadius: '30px', fontWeight: '600' }}
+                    style={{ borderRadius: '30px', fontWeight: '500', background: '#3498db', border: 'none' }}
                   >
                     {saving ? (
                       <>
@@ -618,7 +682,7 @@ export default function Profile() {
                     className="btn btn-outline-light px-4 py-2"
                     onClick={cancelEdit}
                     disabled={saving}
-                    style={{ borderRadius: '30px', fontWeight: '600' }}
+                    style={{ borderRadius: '30px', fontWeight: '500' }}
                   >
                     Cancel
                   </button>
@@ -647,59 +711,101 @@ export default function Profile() {
         )}
       </div>
 
-      {/* Profile Content - ALL FIELDS from user model */}
+      {/* Profile Content - Clean, Organized Layout */}
       <div className="container pb-5">
+        {/* Quick Stats Row */}
+        {!editing && user && (
+          <div className="row mb-4">
+            <div className="col-md-3 col-6 mb-3">
+              <div className="stat-item">
+                <div className="stat-value">{user.height ? `${user.height}cm` : '—'}</div>
+                <div className="stat-label">Height</div>
+              </div>
+            </div>
+            <div className="col-md-3 col-6 mb-3">
+              <div className="stat-item">
+                <div className="stat-value">
+                  {user.gender ? user.gender.charAt(0).toUpperCase() + user.gender.slice(1) : '—'}
+                </div>
+                <div className="stat-label">Gender</div>
+              </div>
+            </div>
+            <div className="col-md-3 col-6 mb-3">
+              <div className="stat-item">
+                <div className="stat-value">
+                  {user.interested_in ? 
+                    (user.interested_in === 'male' ? 'Men' : 
+                     user.interested_in === 'female' ? 'Women' : 'Everyone') 
+                    : '—'}
+                </div>
+                <div className="stat-label">Interested In</div>
+              </div>
+            </div>
+            <div className="col-md-3 col-6 mb-3">
+              <div className="stat-item">
+                <div className="stat-value">
+                  {user.date_joined ? new Date(user.date_joined).getFullYear() : '—'}
+                </div>
+                <div className="stat-label">Member Since</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="row">
-          {/* Basic Information - Full Width */}
-          <div className="col-12 mb-4">
-            <div className="card profile-card p-4">
+          {/* Left Column - Basic Information */}
+          <div className="col-lg-6 mb-4">
+            <div className="card profile-card p-4 h-100">
               <h4 className="section-title">
-                <i className="fas fa-info-circle text-primary me-2"></i>
+                <i className="fas fa-user-circle text-secondary me-2"></i>
                 Basic Information
               </h4>
               
               {!editing ? (
                 // View Mode
                 <div className="row">
-                  <div className="col-md-4 mb-3">
+                  <div className="col-6 mb-3">
                     <div className="info-label">First Name</div>
                     <div className="info-value">{user?.first_name || "Not set"}</div>
                   </div>
-                  <div className="col-md-4 mb-3">
+                  <div className="col-6 mb-3">
                     <div className="info-label">Last Name</div>
                     <div className="info-value">{user?.last_name || "Not set"}</div>
                   </div>
-                  <div className="col-md-4 mb-3">
-                    <div className="info-label">Age</div>
-                    <div className="info-value">
-                      {user?.birth_date ? calculateAge(user.birth_date) : "Not set"}
-                    </div>
-                  </div>
-                  <div className="col-md-4 mb-3">
+                  <div className="col-6 mb-3">
                     <div className="info-label">Birth Date</div>
                     <div className="info-value">
                       {user?.birth_date ? new Date(user.birth_date).toLocaleDateString() : "Not set"}
                     </div>
                   </div>
-                  <div className="col-md-4 mb-3">
+                  <div className="col-6 mb-3">
+                    <div className="info-label">Age</div>
+                    <div className="info-value">
+                      {user?.birth_date ? calculateAge(user.birth_date) : "—"}
+                    </div>
+                  </div>
+                  <div className="col-6 mb-3">
                     <div className="info-label">Gender</div>
                     <div className="info-value">
                       {user?.gender ? user.gender.charAt(0).toUpperCase() + user.gender.slice(1) : "Not set"}
                     </div>
                   </div>
-                  <div className="col-md-4 mb-3">
+                  <div className="col-6 mb-3">
                     <div className="info-label">Interested In</div>
                     <div className="info-value">
-                      {user?.interested_in ? user.interested_in.charAt(0).toUpperCase() + user.interested_in.slice(1) : "Not set"}
+                      {user?.interested_in ? 
+                        (user.interested_in === 'male' ? 'Men' : 
+                         user.interested_in === 'female' ? 'Women' : 'Everyone') 
+                        : "Not set"}
                     </div>
                   </div>
-                  <div className="col-md-4 mb-3">
+                  <div className="col-6 mb-3">
                     <div className="info-label">Height</div>
                     <div className="info-value">
                       {user?.height ? `${user.height} cm` : "Not set"}
                     </div>
                   </div>
-                  <div className="col-md-8 mb-3">
+                  <div className="col-6 mb-3">
                     <div className="info-label">Location</div>
                     <div className="info-value">{user?.location || "Not set"}</div>
                   </div>
@@ -809,22 +915,23 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* Professional Information */}
-          <div className="col-md-6 mb-4">
-            <div className="card profile-card p-4 h-100">
+          {/* Right Column - Professional & Interests */}
+          <div className="col-lg-6">
+            {/* Professional Information */}
+            <div className="card profile-card p-4 mb-4">
               <h4 className="section-title">
-                <i className="fas fa-briefcase text-success me-2"></i>
-                Professional Information
+                <i className="fas fa-briefcase text-secondary me-2"></i>
+                Professional
               </h4>
               
               {!editing ? (
                 // View Mode
                 <div className="row">
-                  <div className="col-12 mb-3">
+                  <div className="col-md-6 mb-3">
                     <div className="info-label">Career</div>
                     <div className="info-value">{user?.career || "Not set"}</div>
                   </div>
-                  <div className="col-12 mb-3">
+                  <div className="col-md-6 mb-3">
                     <div className="info-label">Education</div>
                     <div className="info-value">{user?.education || "Not set"}</div>
                   </div>
@@ -857,13 +964,11 @@ export default function Profile() {
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Interests & Hobbies */}
-          <div className="col-md-6 mb-4">
-            <div className="card profile-card p-4 h-100">
+            {/* Interests & Hobbies */}
+            <div className="card profile-card p-4">
               <h4 className="section-title">
-                <i className="fas fa-heart text-danger me-2"></i>
+                <i className="fas fa-heart text-secondary me-2"></i>
                 Interests & Hobbies
               </h4>
               
@@ -923,8 +1028,10 @@ export default function Profile() {
               )}
             </div>
           </div>
+        </div>
 
-          {/* Account Information */}
+        {/* Account Information */}
+        <div className="row mt-4">
           <div className="col-12">
             <div className="card profile-card p-4">
               <h4 className="section-title">
@@ -933,28 +1040,28 @@ export default function Profile() {
               </h4>
               
               <div className="row">
-                <div className="col-md-4 mb-3">
+                <div className="col-md-3 col-6 mb-3">
                   <div className="info-label">Username</div>
-                  <div className="info-value">{user?.username || "Not set"}</div>
+                  <div className="info-value">@{user?.username || "Not set"}</div>
                 </div>
-                <div className="col-md-4 mb-3">
+                <div className="col-md-3 col-6 mb-3">
                   <div className="info-label">Email</div>
                   <div className="info-value">{user?.email || "Not set"}</div>
                 </div>
-                <div className="col-md-4 mb-3">
-                  <div className="info-label">Account Status</div>
+                <div className="col-md-3 col-6 mb-3">
+                  <div className="info-label">Status</div>
                   <div className="info-value">
                     {user?.is_verified ? (
-                      <span className="badge bg-success">Verified</span>
+                      <span className="badge-verified">Verified</span>
                     ) : (
-                      <span className="badge bg-warning">Pending Verification</span>
+                      <span className="badge-pending">Pending</span>
                     )}
                   </div>
                 </div>
-                <div className="col-md-4 mb-3">
-                  <div className="info-label">Member Since</div>
+                <div className="col-md-3 col-6 mb-3">
+                  <div className="info-label">Joined</div>
                   <div className="info-value">
-                    {user?.date_joined ? new Date(user.date_joined).toLocaleDateString() : "Not available"}
+                    {user?.date_joined ? new Date(user.date_joined).toLocaleDateString() : "—"}
                   </div>
                 </div>
               </div>

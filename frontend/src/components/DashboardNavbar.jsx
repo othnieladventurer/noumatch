@@ -25,9 +25,9 @@ export default function DashboardNavbar({ user }) {
               "Content-Type": "application/json"
             },
           });
-          console.log("💓 Heartbeat sent");
+          console.log("💓 Heartbeat envoyé");
         } catch (error) {
-          console.error("Heartbeat error:", error);
+          console.error("Erreur Heartbeat:", error);
         }
       }
     };
@@ -83,11 +83,11 @@ export default function DashboardNavbar({ user }) {
       }
 
       if (!response.ok) {
-        throw new Error("Failed to fetch conversations");
+        throw new Error("Échec de la récupération des conversations");
       }
 
       const data = await response.json();
-      console.log("✅ Conversations fetched:", data);
+      console.log("✅ Conversations récupérées:", data);
       
       // Transform API data to match our message format
       const formattedMessages = data.map(conv => {
@@ -98,8 +98,8 @@ export default function DashboardNavbar({ user }) {
         return {
           id: conv.id,
           conversation_id: conv.id,
-          text: lastMessage?.content || "Start a conversation",
-          sender: otherUser?.full_name || "User",
+          text: lastMessage?.content || "Démarrer une conversation",
+          sender: otherUser?.full_name || "Utilisateur",
           sender_id: otherUser?.id,
           read: lastMessage ? lastMessage.is_from_me : true,
           time: lastMessage?.created_at || '',
@@ -113,7 +113,7 @@ export default function DashboardNavbar({ user }) {
       
       setMessages(formattedMessages);
     } catch (error) {
-      console.error("Error fetching conversations:", error);
+      console.error("Erreur lors de la récupération des conversations:", error);
     } finally {
       setLoading(prev => ({ ...prev, messages: false }));
     }
@@ -130,11 +130,11 @@ export default function DashboardNavbar({ user }) {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Unread count:", data);
+        console.log("✅ Nombre de messages non lus:", data);
         setUnreadCount(data.total_unread || 0);
       }
     } catch (error) {
-      console.error("Error fetching unread count:", error);
+      console.error("Erreur lors de la récupération des messages non lus:", error);
     }
   };
 
@@ -160,25 +160,25 @@ export default function DashboardNavbar({ user }) {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    if (diffMins < 1) return "À l'instant";
+    if (diffMins < 60) return `il y a ${diffMins} min`;
+    if (diffHours < 24) return `il y a ${diffHours} h`;
+    if (diffDays === 1) return 'Hier';
+    if (diffDays < 7) return `il y a ${diffDays} j`;
+    return date.toLocaleDateString('fr-FR');
   };
 
   const getOnlineStatusColor = (status) => {
     if (status === "online") return "#4ade80";
-    if (status === "Just now") return "#4ade80";
+    if (status === "À l'instant") return "#4ade80";
     return "#adb5bd";
   };
 
   const getOnlineStatusText = (isOnline, onlineStatus) => {
-    if (isOnline) return "Online";
-    if (onlineStatus === "Just now") return "Online";
+    if (isOnline) return "En ligne";
+    if (onlineStatus === "À l'instant") return "En ligne";
     if (onlineStatus) return onlineStatus;
-    return "Offline";
+    return "Hors ligne";
   };
 
   const handleMessageClick = (conversationId) => {
@@ -223,16 +223,16 @@ export default function DashboardNavbar({ user }) {
               <li className="dropdown-header fw-bold d-flex justify-content-between align-items-center">
                 <span>Messages ({messages.length})</span>
                 {unreadCount > 0 && (
-                  <span className="badge bg-danger rounded-pill">{unreadCount} unread</span>
+                  <span className="badge bg-danger rounded-pill">{unreadCount} non lu{unreadCount > 1 ? 's' : ''}</span>
                 )}
               </li>
               
               {loading.messages ? (
                 <li className="text-center py-3">
                   <div className="spinner-border spinner-border-sm text-danger" role="status">
-                    <span className="visually-hidden">Loading...</span>
+                    <span className="visually-hidden">Chargement...</span>
                   </div>
-                  <p className="small text-secondary mt-2 mb-0">Loading messages...</p>
+                  <p className="small text-secondary mt-2 mb-0">Chargement des messages...</p>
                 </li>
               ) : messages.length > 0 ? (
                 messages.map(msg => (
@@ -287,8 +287,8 @@ export default function DashboardNavbar({ user }) {
                 <li className="text-center py-4">
                   <div className="text-secondary">
                     <FaEnvelope size={24} className="mb-2 opacity-50" />
-                    <p className="small mb-0">No messages yet</p>
-                    <p className="small text-secondary mt-1">When you match with someone, you can chat here</p>
+                    <p className="small mb-0">Pas encore de messages</p>
+                    <p className="small text-secondary mt-1">Quand vous matchez avec quelqu'un, vous pourrez discuter ici</p>
                   </div>
                 </li>
               )}
@@ -300,7 +300,7 @@ export default function DashboardNavbar({ user }) {
                   to="/messages"
                   onClick={() => document.body.click()} // Close dropdown
                 >
-                  View All Messages
+                  Voir tous les messages
                 </Link>
               </li>
             </ul>
@@ -317,8 +317,8 @@ export default function DashboardNavbar({ user }) {
               <li className="text-center py-4">
                 <div className="text-secondary">
                   <FaBell size={24} className="mb-2 opacity-50" />
-                  <p className="small mb-0">No notifications yet</p>
-                  <p className="small text-secondary mt-1">We'll notify you when something happens</p>
+                  <p className="small mb-0">Pas encore de notifications</p>
+                  <p className="small text-secondary mt-1">Nous vous notifierons quand quelque chose se produira</p>
                 </div>
               </li>
             </ul>
@@ -330,7 +330,7 @@ export default function DashboardNavbar({ user }) {
               <div className="position-relative">
                 <img
                   src={getProfilePhotoUrl(user?.profile_photo)}
-                  alt="profile"
+                  alt="profil"
                   className="rounded-circle"
                   width="40"
                   height="40"
@@ -353,7 +353,7 @@ export default function DashboardNavbar({ user }) {
                 <div className="small text-secondary text-truncate">{user?.email}</div>
                 <div className="small mt-1" style={{ color: "#4ade80" }}>
                   <i className="fas fa-circle me-1" style={{ fontSize: "0.5rem" }}></i>
-                  Online
+                  En ligne
                 </div>
               </li>
               <li><hr className="dropdown-divider" /></li>
@@ -363,12 +363,12 @@ export default function DashboardNavbar({ user }) {
                   to="/profile"
                   onClick={() => document.body.click()}
                 >
-                  My Profile
+                  Mon profil
                 </Link>
               </li>
               <li><hr className="dropdown-divider" /></li>
               <li>
-                <button className="dropdown-item text-danger" onClick={handleLogout}>Logout</button>
+                <button className="dropdown-item text-danger" onClick={handleLogout}>Déconnexion</button>
               </li>
             </ul>
           </div>

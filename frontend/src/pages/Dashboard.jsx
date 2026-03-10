@@ -94,7 +94,7 @@ export default function Dashboard() {
         const match = matchesList.find(m => m.id === profileId);
         
         if (!match) {
-          console.error("No match found for this user");
+          console.error("Aucun match trouvé pour cet utilisateur");
           navigate('/messages');
           return;
         }
@@ -118,7 +118,7 @@ export default function Dashboard() {
 
         if (response.ok) {
           const newConversation = await response.json();
-          console.log("✅ Conversation created:", newConversation);
+          console.log("✅ Conversation créée:", newConversation);
           
           // Refresh conversations list
           await fetchConversations();
@@ -127,11 +127,11 @@ export default function Dashboard() {
           navigate(`/messages?conversation=${newConversation.id}`);
         } else {
           const error = await response.json();
-          console.error("❌ Failed to create conversation:", error);
+          console.error("❌ Échec de création de la conversation:", error);
           navigate('/messages');
         }
       } catch (error) {
-        console.error("Error creating conversation:", error);
+        console.error("Erreur lors de la création de la conversation:", error);
         navigate('/messages');
       }
     }
@@ -233,7 +233,7 @@ export default function Dashboard() {
             </button>
             <img
               src={selectedPhoto}
-              alt="Full size"
+              alt="Plein écran"
               style={{
                 maxWidth: "100%",
                 maxHeight: "95vh",
@@ -265,11 +265,11 @@ export default function Dashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Conversations fetched:", data);
+        console.log("✅ Conversations récupérées:", data);
         setConversations(data);
       }
     } catch (error) {
-      console.error("Error fetching conversations:", error);
+      console.error("Erreur lors de la récupération des conversations:", error);
     }
   };
 
@@ -295,14 +295,14 @@ export default function Dashboard() {
         }
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch user: ${response.status}`);
+          throw new Error(`Échec de la récupération de l'utilisateur: ${response.status}`);
         }
 
         const data = await response.json();
-        console.log("✅ Current authenticated user:", data);
+        console.log("✅ Utilisateur authentifié:", data);
         setUser(data);
       } catch (error) {
-        console.error("Error fetching user:", error);
+        console.error("Erreur lors de la récupération de l'utilisateur:", error);
         navigate("/login");
       } finally {
         setLoading(false);
@@ -349,7 +349,7 @@ export default function Dashboard() {
       });
       
       if (response.status === 401) {
-        console.error("Token expired in fetchBlockedUsers");
+        console.error("Token expiré dans fetchBlockedUsers");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -358,7 +358,7 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Blocked users:", data);
+        console.log("✅ Utilisateurs bloqués:", data);
         
         const blocked = data.map(block => ({
           id: block.blocked,
@@ -379,7 +379,7 @@ export default function Dashboard() {
         return blockedIdsArray;
       }
     } catch (error) {
-      console.error("Error fetching blocked users:", error);
+      console.error("Erreur lors de la récupération des utilisateurs bloqués:", error);
       return [];
     }
   };
@@ -393,7 +393,7 @@ export default function Dashboard() {
       });
       
       if (response.status === 401) {
-        console.error("Token expired in fetchLikesReceived");
+        console.error("Token expiré dans fetchLikesReceived");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -402,7 +402,7 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Received likes:", data);
+        console.log("✅ Likes reçus:", data);
         
         const likes = data.map(like => {
           let age = like.from_user.age;
@@ -426,7 +426,7 @@ export default function Dashboard() {
         setLikesList(filteredLikes);
       }
     } catch (error) {
-      console.error("Error fetching received likes:", error);
+      console.error("Erreur lors de la récupération des likes reçus:", error);
     }
   };
 
@@ -439,7 +439,7 @@ export default function Dashboard() {
       });
       
       if (response.status === 401) {
-        console.error("Token expired in fetchSentLikes");
+        console.error("Token expiré dans fetchSentLikes");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -448,13 +448,13 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Sent likes:", data);
+        console.log("✅ Likes envoyés:", data);
         
         const likedUserIds = data.map(like => like.to_user.id);
         setSentLikesIds(likedUserIds);
       }
     } catch (error) {
-      console.error("Error fetching sent likes:", error);
+      console.error("Erreur lors de la récupération des likes envoyés:", error);
     }
   };
 
@@ -469,7 +469,7 @@ export default function Dashboard() {
       });
       
       if (response.status === 401) {
-        console.error("Token expired in fetchMatches");
+        console.error("Token expiré dans fetchMatches");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -478,7 +478,7 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Matches fetched:", data);
+        console.log("✅ Matches récupérés:", data);
         
         const matches = data.map(match => {
           const otherUser = match.user1.id === user.id ? match.user2 : match.user1;
@@ -503,7 +503,7 @@ export default function Dashboard() {
         setMatchesIds(matchedIdsArray);
       }
     } catch (error) {
-      console.error("Error fetching matches:", error);
+      console.error("Erreur lors de la récupération des matches:", error);
     }
   };
 
@@ -533,14 +533,14 @@ export default function Dashboard() {
       const data = await response.json();
       
       if (response.status === 201 || response.status === 200) {
-        console.log("✅ Match created/exists:", data);
+        console.log("✅ Match créé/existant:", data);
         return true;
       } else {
-        console.error("Failed to create match:", data);
+        console.error("Échec de la création du match:", data);
         return false;
       }
     } catch (error) {
-      console.error("Error creating match:", error);
+      console.error("Erreur lors de la création du match:", error);
       return false;
     }
   };
@@ -564,14 +564,14 @@ export default function Dashboard() {
       }
 
       if (response.ok || response.status === 204) {
-        console.log("✅ Like deleted from database:", profileId);
+        console.log("✅ Like supprimé de la base de données:", profileId);
         return true;
       } else {
-        console.error("❌ Failed to delete like");
+        console.error("❌ Échec de la suppression du like");
         return false;
       }
     } catch (error) {
-      console.error("Error deleting like:", error);
+      console.error("Erreur lors de la suppression du like:", error);
       return false;
     }
   };
@@ -579,7 +579,7 @@ export default function Dashboard() {
   // Delete match from database
   const deleteMatch = async (matchId) => {
     if (!matchId) {
-      console.error("❌ No match ID provided");
+      console.error("❌ Aucun ID de match fourni");
       return false;
     }
     
@@ -600,14 +600,14 @@ export default function Dashboard() {
       }
 
       if (response.ok || response.status === 204) {
-        console.log("✅ Match deleted from database:", matchId);
+        console.log("✅ Match supprimé de la base de données:", matchId);
         return true;
       } else {
-        console.error("❌ Failed to delete match");
+        console.error("❌ Échec de la suppression du match");
         return false;
       }
     } catch (error) {
-      console.error("Error deleting match:", error);
+      console.error("Erreur lors de la suppression du match:", error);
       return false;
     }
   };
@@ -632,7 +632,7 @@ export default function Dashboard() {
   // Unmatch a profile - ONLY deletes the match, keeps the like
   const handleUnmatch = async (profile) => {
     if (!profile || !profile.match_id) {
-      console.error("❌ No match ID provided for unmatch");
+      console.error("❌ Aucun ID de match fourni pour le unmatch");
       return;
     }
     
@@ -654,7 +654,7 @@ export default function Dashboard() {
     const theyLikeMe = likesList.some(like => like.id === likedUserId);
     
     if (theyLikeMe) {
-      console.log("🎉 Mutual like detected! Creating match...");
+      console.log("🎉 Like mutuel détecté! Création du match...");
       
       const matchCreated = await createMatch(likedUserId);
       
@@ -695,7 +695,7 @@ export default function Dashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ User blocked:", data);
+        console.log("✅ Utilisateur bloqué:", data);
         
         // Delete like from database if exists
         if (sentLikesIds.includes(profile.id)) {
@@ -745,10 +745,10 @@ export default function Dashboard() {
         
       } else {
         const error = await response.json();
-        console.error("❌ Block failed:", error);
+        console.error("❌ Échec du blocage:", error);
       }
     } catch (error) {
-      console.error("Error blocking user:", error);
+      console.error("Erreur lors du blocage de l'utilisateur:", error);
     }
   };
 
@@ -773,7 +773,7 @@ export default function Dashboard() {
       }
 
       if (response.ok || response.status === 204) {
-        console.log("✅ User unblocked:", profile.id);
+        console.log("✅ Utilisateur débloqué:", profile.id);
         
         // Update blocked IDs first
         const newBlockedIds = blockedIds.filter(id => id !== profile.id);
@@ -796,10 +796,10 @@ export default function Dashboard() {
         }
         
       } else {
-        console.error("❌ Unblock failed");
+        console.error("❌ Échec du déblocage");
       }
     } catch (error) {
-      console.error("Error unblocking user:", error);
+      console.error("Erreur lors du déblocage de l'utilisateur:", error);
     }
   };
 
@@ -820,12 +820,12 @@ export default function Dashboard() {
       let genderFilter = '';
       if (user.interested_in === 'male') {
         genderFilter = 'male';
-        console.log("🔍 Fetching male profiles");
+        console.log("🔍 Récupération des profils masculins");
       } else if (user.interested_in === 'female') {
         genderFilter = 'female';
-        console.log("🔍 Fetching female profiles");
+        console.log("🔍 Récupération des profils féminins");
       } else if (user.interested_in === 'everyone') {
-        console.log("🔍 Fetching all profiles");
+        console.log("🔍 Récupération de tous les profils");
       }
 
       const queryParams = new URLSearchParams();
@@ -834,14 +834,14 @@ export default function Dashboard() {
       }
       
       const apiUrl = `http://127.0.0.1:8000/api/users/profiles/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      console.log("🔍 Fetching profiles from:", apiUrl);
+      console.log("🔍 Récupération des profils depuis:", apiUrl);
       
       const response = await fetch(apiUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.status === 401) {
-        console.error("Token expired in fetchProfiles");
+        console.error("Token expiré dans fetchProfiles");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -849,7 +849,7 @@ export default function Dashboard() {
       }
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        throw new Error(`Erreur API: ${response.status}`);
       }
 
       const data = await response.json();
@@ -861,19 +861,19 @@ export default function Dashboard() {
         profilesArray = data.results;
       }
 
-      console.log(`📊 Raw profiles count: ${profilesArray.length}`);
+      console.log(`📊 Nombre de profils bruts: ${profilesArray.length}`);
 
       // Filter out current user and blocked users
       const filteredById = profilesArray.filter(profile => 
         profile.id !== user.id && !currentBlockedIds.includes(profile.id)
       );
-      console.log(`📊 After removing current user and blocked: ${filteredById.length}`);
+      console.log(`📊 Après suppression de l'utilisateur actuel et des bloqués: ${filteredById.length}`);
 
       // Apply gender filter if needed
       let genderFilteredProfiles = filteredById;
       if (genderFilter) {
         genderFilteredProfiles = filteredById.filter(profile => profile.gender === genderFilter);
-        console.log(`📊 After gender filter: ${genderFilteredProfiles.length} profiles`);
+        console.log(`📊 Après filtre de genre: ${genderFilteredProfiles.length} profils`);
       }
 
       // Transform profiles
@@ -901,7 +901,7 @@ export default function Dashboard() {
       setProfileIndex(0);
 
     } catch (error) {
-      console.error("Error fetching profiles:", error);
+      console.error("Erreur lors de la récupération des profils:", error);
       setApiError(error.message);
       setProfiles([]);
     } finally {
@@ -936,7 +936,7 @@ export default function Dashboard() {
     if (profileIndex >= profiles.length) return null;
     
     if (user && profiles[profileIndex] && profiles[profileIndex].id === user.id) {
-      console.log(`🚨 Emergency: Found current user in profiles! Skipping...`);
+      console.log(`🚨 Urgence: Utilisateur actuel trouvé dans les profils! Ignoré...`);
       setTimeout(() => goNextProfile(), 0);
       return null;
     }
@@ -1025,17 +1025,17 @@ export default function Dashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Like sent successfully:", data);
+        console.log("✅ Like envoyé avec succès:", data);
         
         setSentLikesIds(prev => [...prev, currentProfile.id]);
         await checkForMatch(currentProfile.id);
         
       } else {
         const error = await response.json();
-        console.error("❌ Like failed:", error);
+        console.error("❌ Échec du like:", error);
       }
     } catch (error) {
-      console.error("Error liking profile:", error);
+      console.error("Erreur lors du like du profil:", error);
     }
 
     triggerSlide("right");
@@ -1081,17 +1081,17 @@ export default function Dashboard() {
       }
 
       if (response.ok) {
-        console.log("✅ Liked back successfully");
+        console.log("✅ Like retourné avec succès");
         setSentLikesIds(prev => [...prev, selectedLike.id]);
         await checkForMatch(selectedLike.id);
         closeLikeModal();
       } else {
         const error = await response.json();
-        console.error("❌ Like back failed:", error);
+        console.error("❌ Échec du like retourné:", error);
         closeLikeModal();
       }
     } catch (error) {
-      console.error("Error liking back:", error);
+      console.error("Erreur lors du like retourné:", error);
       closeLikeModal();
     }
   };
@@ -1214,7 +1214,7 @@ export default function Dashboard() {
               <button
                 className="btn rounded-circle d-flex align-items-center justify-content-center"
                 onClick={onClose}
-                aria-label="Close"
+                aria-label="Fermer"
                 style={{
                   width: 40,
                   height: 40,
@@ -1250,12 +1250,12 @@ export default function Dashboard() {
             className="p-0 border-0 bg-transparent"
             onClick={() => onClickAvatar?.(p)}
             style={{ lineHeight: 0 }}
-            aria-label={displayName ? `Open ${displayName}'s profile` : "Open profile"}
+            aria-label={displayName ? `Ouvrir le profil de ${displayName}` : "Ouvrir le profil"}
           >
             <div className="position-relative">
               <img
                 src={p.photo || "https://via.placeholder.com/42"}
-                alt={displayName || "User"}
+                alt={displayName || "Utilisateur"}
                 className="rounded-circle"
                 width="42"
                 height="42"
@@ -1599,15 +1599,15 @@ export default function Dashboard() {
         ) : user ? (
           <div className="container-fluid h-100 py-3">
             <div className="row g-3 h-100 dashboard-row">
-              {/* LEFT BLOCK - User Profile & Lists */}
+              {/* LEFT BLOCK - Profil utilisateur et listes */}
               <div className="col-lg-3 col-md-4 order-2 order-md-1 h-100 dashboard-col">
                 <div className="scrollable-card p-3">
-                  {/* Clickable User Profile */}
+                  {/* Profil utilisateur cliquable */}
                   <div className="d-flex align-items-center gap-3 clickable-profile" onClick={goToMyProfile}>
                     <div className="position-relative flex-shrink-0">
                       <img
                         src={getProfilePhotoUrl(user.profile_photo) || "https://via.placeholder.com/70"}
-                        alt="profile"
+                        alt="profil"
                         className="rounded-circle shadow-sm"
                         width="70"
                         height="70"
@@ -1627,14 +1627,14 @@ export default function Dashboard() {
 
                   <div className="mt-3" style={{ height: 1, background: "linear-gradient(90deg, transparent, #e9ecef, transparent)" }} />
 
-                  <SectionCard title="Likes You" count={likesList.length}>
+                  <SectionCard title="Qui vous aiment" count={likesList.length}>
                     {likesList.length > 0 ? (
                       <AvatarRow items={likesList} onClickAvatar={openLikeModal} />
                     ) : (
                       <div className="text-center py-3">
                         <div className="text-secondary small">
                           <i className="far fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                          <div>No likes yet</div>
+                          <div>Aucun like pour le moment</div>
                         </div>
                       </div>
                     )}
@@ -1647,52 +1647,37 @@ export default function Dashboard() {
                       <div className="text-center py-3">
                         <div className="text-secondary small">
                           <i className="fas fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                          <div>No matches yet</div>
+                          <div>Pas encore de matches</div>
                         </div>
                       </div>
                     )}
                   </SectionCard>
 
-                  <SectionCard title="Blocked" count={blockedList.length}>
+                  <SectionCard title="Bloqués" count={blockedList.length}>
                     {blockedList.length > 0 ? (
                       <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} />
                     ) : (
                       <div className="text-center py-3">
                         <div className="text-secondary small">
                           <i className="fas fa-ban me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                          <div>No blocked users</div>
+                          <div>Aucun utilisateur bloqué</div>
                         </div>
                       </div>
                     )}
                   </SectionCard>
 
-                  {/* Messages Link */}
-                  <div className="mt-3 text-center">
-                    <button
-                      onClick={goToMessages}
-                      className="btn w-100 py-2"
-                      style={{ 
-                        borderRadius: "30px", 
-                        background: "linear-gradient(135deg, #ff4d6d, #ff8fa3)",
-                        color: "white",
-                        border: "none"
-                      }}
-                    >
-                      <i className="fas fa-comment-dots me-2"></i>
-                      View All Messages
-                    </button>
-                  </div>
+                  
                 </div>
               </div>
 
-              {/* CENTER BLOCK - Main Swipe Card */}
+              {/* CENTER BLOCK - Carte de swipe principale */}
               <div className="col-lg-6 col-md-8 order-1 order-md-2 h-100 dashboard-col center-col">
                 <div className="center-card" style={centerCardStyle}>
                   {profilesLoading ? (
                     <div className="h-100 d-flex align-items-center justify-content-center">
                       <div className="text-center">
                         <div className="spinner-border text-primary mb-3" role="status" style={{ width: "3rem", height: "3rem" }} />
-                        <div className="text-secondary">Loading people you might like...</div>
+                        <div className="text-secondary">Chargement des profils...</div>
                       </div>
                     </div>
                   ) : apiError ? (
@@ -1701,49 +1686,49 @@ export default function Dashboard() {
                         <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle bg-danger bg-opacity-10" style={{ width: 80, height: 80 }}>
                           <i className="fas fa-exclamation-triangle text-danger" style={{ fontSize: "2rem" }} />
                         </div>
-                        <h5 className="fw-bold mb-2">Error Loading Profiles</h5>
+                        <h5 className="fw-bold mb-2">Erreur de chargement</h5>
                         <p className="text-secondary mb-3">{apiError}</p>
                         <button
                           className="btn btn-outline-primary"
                           onClick={() => window.location.reload()}
                         >
-                          Try Again
+                          Réessayer
                         </button>
                       </div>
                     </div>
                   ) : profiles.length > 0 && profileIndex < profiles.length ? (
                     <>
-                      {/* Clickable Profile Image - Now opens fullscreen */}
+                      {/* Image du profil cliquable - Ouvre en plein écran */}
                       <div className="image-container" onClick={() => openPhotoModal(currentProfile.photo)}>
                         {currentProfile.photo ? (
                           <img
                             src={currentProfile.photo}
-                            alt={formatName(currentProfile) || "Profile"}
+                            alt={formatName(currentProfile) || "Profil"}
                             onError={(e) => {
                               e.target.style.display = 'none';
-                              e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
+                              e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
                             }}
                           />
                         ) : (
-                          <div className="p-5 text-secondary">No photo available</div>
+                          <div className="p-5 text-secondary">Photo non disponible</div>
                         )}
                       </div>
 
                       <div className="card-content">
                         <div className="d-flex align-items-center mb-2">
-                          {/* Clickable Name - Goes to profile */}
+                          {/* Nom cliquable - Va vers le profil */}
                           <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
                             {formatName(currentProfile)}
                             {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
                           </h2>
                           {isMatched(currentProfile.id) && (
-                            <span className="status-badge matched-badge">Matched</span>
+                            <span className="status-badge matched-badge">Match</span>
                           )}
                           {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
-                            <span className="status-badge liked-badge">Liked</span>
+                            <span className="status-badge liked-badge">Aimé</span>
                           )}
                         </div>
-                        <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "No bio yet"}</p>
+                        <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "Pas encore de bio"}</p>
 
                         {isMatched(currentProfile.id) ? (
                           <div className="d-flex justify-content-center gap-2 flex-wrap mt-3">
@@ -1766,7 +1751,7 @@ export default function Dashboard() {
                                 e.currentTarget.style.background = "#ffffff";
                                 e.currentTarget.style.transform = "scale(1)";
                               }}
-                              aria-label="Pass"
+                              aria-label="Passer"
                             >
                               <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.3rem" }} />
                             </button>
@@ -1777,7 +1762,7 @@ export default function Dashboard() {
                               border="1px solid #e9ecef"
                               icon="fas fa-user"
                               iconColor="#6f42c1"
-                              label="See Profile"
+                              label="Voir le profil"
                             />
 
                             <RoundActionBtn
@@ -1786,7 +1771,7 @@ export default function Dashboard() {
                               border="none"
                               icon="fas fa-comment-dots"
                               iconColor="#ffffff"
-                              label="Send Message"
+                              label="Envoyer un message"
                             />
 
                             <RoundActionBtn
@@ -1798,7 +1783,7 @@ export default function Dashboard() {
                               border="1px solid #dc354530"
                               icon="fas fa-heart-broken"
                               iconColor="#dc3545"
-                              label="Unmatch"
+                              label="Annuler le match"
                             />
 
                             <RoundActionBtn
@@ -1807,7 +1792,7 @@ export default function Dashboard() {
                               border="none"
                               icon="fas fa-ban"
                               iconColor="#ffffff"
-                              label="Block"
+                              label="Bloquer"
                             />
                           </div>
                         ) : (
@@ -1831,7 +1816,7 @@ export default function Dashboard() {
                                 e.currentTarget.style.background = "#ffffff";
                                 e.currentTarget.style.transform = "scale(1)";
                               }}
-                              aria-label="Pass"
+                              aria-label="Passer"
                             >
                               <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.3rem" }} />
                             </button>
@@ -1855,7 +1840,7 @@ export default function Dashboard() {
                                 e.currentTarget.style.transform = "scale(1)";
                                 e.currentTarget.style.boxShadow = "0 8px 20px rgba(255,77,109,0.3)";
                               }}
-                              aria-label="Like"
+                              aria-label="Aimer"
                             >
                               <i className="fas fa-heart" style={{ color: "#ffffff", fontSize: "1.6rem" }} />
                             </button>
@@ -1879,7 +1864,7 @@ export default function Dashboard() {
                                 e.currentTarget.style.background = "#ffffff";
                                 e.currentTarget.style.transform = "scale(1)";
                               }}
-                              aria-label="View Profile"
+                              aria-label="Voir le profil"
                             >
                               <i className="fas fa-user" style={{ color: "#6f42c1", fontSize: "1.2rem" }} />
                             </button>
@@ -1897,8 +1882,8 @@ export default function Dashboard() {
                           <i className="fas fa-heart" style={{ color: "#ff4d6d", fontSize: "2.5rem" }} />
                         </div>
 
-                        <h4 className="fw-bold mb-2">No more profiles</h4>
-                        <p className="text-secondary mb-4">Check back later for new people!</p>
+                        <h4 className="fw-bold mb-2">Plus de profils</h4>
+                        <p className="text-secondary mb-4">Revenez plus tard pour découvrir de nouvelles personnes !</p>
 
                         <button
                           className="btn btn-primary rounded-pill px-5 py-2"
@@ -1907,7 +1892,7 @@ export default function Dashboard() {
                           }}
                           style={{ background: "#ff4d6d", border: "none" }}
                         >
-                          Refresh Profiles
+                          Rafraîchir
                         </button>
                       </div>
                     </div>
@@ -1915,16 +1900,16 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* RIGHT BLOCK - Current Profile Details */}
+              {/* RIGHT BLOCK - Détails du profil actuel */}
               <div className="col-lg-3 d-none d-lg-block order-3 h-100 dashboard-col">
                 <div className="scrollable-card p-3">
                   {currentProfile ? (
                     <>
-                      {/* Clickable Profile Summary */}
+                      {/* Résumé du profil cliquable */}
                       <div className="d-flex align-items-center gap-3 mb-3 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
                         <img
                           src={currentProfile.photo || "https://via.placeholder.com/60"}
-                          alt={formatName(currentProfile) || "Profile"}
+                          alt={formatName(currentProfile) || "Profil"}
                           className="rounded-circle shadow-sm"
                           width="60"
                           height="60"
@@ -1937,46 +1922,49 @@ export default function Dashboard() {
                               {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
                             </h5>
                             {isMatched(currentProfile.id) && (
-                              <span className="status-badge matched-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Matched</span>
+                              <span className="status-badge matched-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Match</span>
                             )}
                             {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
-                              <span className="status-badge liked-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Liked</span>
+                              <span className="status-badge liked-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Aimé</span>
                             )}
                           </div>
                           <div className="small text-secondary">
                             <i className="fas fa-map-marker-alt me-1" style={{ fontSize: "0.8rem" }} />
-                            {currentProfile.location || "Location not specified"}
+                            {currentProfile.location || "Localisation non spécifiée"}
                           </div>
                         </div>
                       </div>
 
                       <div className="mb-3">
                         <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
-                          <i className="fas fa-info-circle me-2" />BASIC INFO
+                          <i className="fas fa-info-circle me-2" />INFOS DE BASE
                         </h6>
                         <div className="d-flex flex-column gap-2">
                           <div className="d-flex align-items-center gap-2">
                             <i className="fas fa-venus-mars text-secondary flex-shrink-0" style={{ width: 20 }} />
                             <span className="text-secondary small text-truncate-custom">
-                              {currentProfile.gender ? currentProfile.gender.charAt(0).toUpperCase() + currentProfile.gender.slice(1) : "Not specified"}
+                              {currentProfile.gender ? currentProfile.gender.charAt(0).toUpperCase() + currentProfile.gender.slice(1) : "Non spécifié"}
                             </span>
                           </div>
                           <div className="d-flex align-items-center gap-2">
                             <i className="fas fa-heart text-secondary flex-shrink-0" style={{ width: 20 }} />
                             <span className="text-secondary small text-truncate-custom">
-                              Interested in: {currentProfile.interested_in ? currentProfile.interested_in.charAt(0).toUpperCase() + currentProfile.interested_in.slice(1) : "Not specified"}
+                              Intéressé par: {currentProfile.interested_in ? 
+                                (currentProfile.interested_in === 'male' ? 'Hommes' : 
+                                 currentProfile.interested_in === 'female' ? 'Femmes' : 'Tout le monde') 
+                                : "Non spécifié"}
                             </span>
                           </div>
                           <div className="d-flex align-items-center gap-2">
                             <i className="fas fa-cake-candles text-secondary flex-shrink-0" style={{ width: 20 }} />
                             <span className="text-secondary small text-truncate-custom">
-                              {currentProfile.birth_date ? calculateAge(currentProfile.birth_date) + " years old" : "Age not specified"}
+                              {currentProfile.birth_date ? calculateAge(currentProfile.birth_date) + " ans" : "Âge non spécifié"}
                             </span>
                           </div>
                           <div className="d-flex align-items-center gap-2">
                             <i className="fas fa-ruler text-secondary flex-shrink-0" style={{ width: 20 }} />
                             <span className="text-secondary small text-truncate-custom">
-                              {currentProfile.height ? `${currentProfile.height} cm` : "Height not specified"}
+                              {currentProfile.height ? `${currentProfile.height} cm` : "Taille non spécifiée"}
                             </span>
                           </div>
                         </div>
@@ -1989,30 +1977,30 @@ export default function Dashboard() {
                         <div className="d-flex flex-column gap-2">
                           <div className="d-flex align-items-center gap-2">
                             <i className="fas fa-briefcase text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom">{currentProfile.career || "Not specified"}</span>
+                            <span className="text-secondary small text-truncate-custom">{currentProfile.career || "Non spécifiée"}</span>
                           </div>
                           <div className="d-flex align-items-center gap-2">
                             <i className="fas fa-graduation-cap text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom">{currentProfile.education || "Not specified"}</span>
+                            <span className="text-secondary small text-truncate-custom">{currentProfile.education || "Non spécifiée"}</span>
                           </div>
                         </div>
                       </div>
 
                       <div className="mb-3">
                         <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
-                          <i className="fas fa-heart me-2" />PASSIONS & HOBBIES
+                          <i className="fas fa-heart me-2" />PASSIONS & LOISIRS
                         </h6>
                         <div className="d-flex flex-column gap-2">
                           <div className="d-flex align-items-center gap-2">
                             <i className="fas fa-fire text-secondary flex-shrink-0" style={{ width: 20 }} />
                             <span className="text-secondary small text-truncate-custom" title={currentProfile.passions}>
-                              {currentProfile.passions || "Not specified"}
+                              {currentProfile.passions || "Non spécifiées"}
                             </span>
                           </div>
                           <div className="d-flex align-items-center gap-2">
                             <i className="fas fa-pencil text-secondary flex-shrink-0" style={{ width: 20 }} />
                             <span className="text-secondary small text-truncate-custom" title={currentProfile.hobbies}>
-                              {currentProfile.hobbies || "Not specified"}
+                              {currentProfile.hobbies || "Non spécifiés"}
                             </span>
                           </div>
                         </div>
@@ -2020,29 +2008,19 @@ export default function Dashboard() {
 
                       <div className="mb-3">
                         <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
-                          <i className="fas fa-music me-2" />MUSIC
+                          <i className="fas fa-music me-2" />MUSIQUE
                         </h6>
                         <div className="d-flex align-items-center gap-2">
                           <i className="fas fa-headphones text-secondary flex-shrink-0" style={{ width: 20 }} />
                           <span className="text-secondary small text-truncate-custom" title={currentProfile.favorite_music}>
-                            {currentProfile.favorite_music || "Not specified"}
+                            {currentProfile.favorite_music || "Non spécifiée"}
                           </span>
                         </div>
                       </div>
                       
-                      {/* View Full Profile Button */}
-                      <div className="mt-3 text-center">
-                        <button
-                          onClick={() => goToProfile(currentProfile.id)}
-                          className="btn btn-outline-primary w-100 py-2"
-                          style={{ borderRadius: "30px", fontSize: "0.9rem" }}
-                        >
-                          <i className="fas fa-user me-2"></i>
-                          View Full Profile
-                        </button>
-                      </div>
                       
-                      {/* Message Button for Matched Users in Sidebar */}
+                      
+                      {/* Bouton Message pour les utilisateurs matchés dans la barre latérale */}
                       {isMatched(currentProfile.id) && (
                         <div className="mt-2 text-center">
                           <button
@@ -2057,7 +2035,7 @@ export default function Dashboard() {
                             }}
                           >
                             <i className="fas fa-comment-dots me-2"></i>
-                            Send Message
+                            Envoyer un message
                           </button>
                         </div>
                       )}
@@ -2067,13 +2045,13 @@ export default function Dashboard() {
                       <div className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle bg-light" style={{ width: 60, height: 60 }}>
                         <i className="fas fa-user-slash text-secondary" style={{ fontSize: "1.5rem" }} />
                       </div>
-                      <p className="text-secondary small">No profile selected</p>
+                      <p className="text-secondary small">Aucun profil sélectionné</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* LIKES MODAL */}
+              {/* MODAL DES LIKES */}
               <ModalShell
                 open={likeModalOpen}
                 onClose={closeLikeModal}
@@ -2086,7 +2064,7 @@ export default function Dashboard() {
                       {selectedLike.photo ? (
                         <img 
                           src={selectedLike.photo} 
-                          alt={selectedLike.first_name + " " + selectedLike.last_name || "Profile"}
+                          alt={selectedLike.first_name + " " + selectedLike.last_name || "Profil"}
                           onClick={() => {
                             closeLikeModal();
                             setTimeout(() => openPhotoModal(selectedLike.photo), 100);
@@ -2094,11 +2072,11 @@ export default function Dashboard() {
                           style={{ cursor: "pointer" }}
                           onError={(e) => {
                             e.target.style.display = 'none';
-                            e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
+                            e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
                           }}
                         />
                       ) : (
-                        <div className="p-5 text-secondary">No photo available</div>
+                        <div className="p-5 text-secondary">Photo non disponible</div>
                       )}
                     </div>
 
@@ -2111,11 +2089,11 @@ export default function Dashboard() {
                         {selectedLike.age ? `, ${selectedLike.age}` : ''}
                       </h4>
                       {isMatched(selectedLike.id) && (
-                        <span className="status-badge matched-badge">Matched</span>
+                        <span className="status-badge matched-badge">Match</span>
                       )}
                     </div>
 
-                    <p className="text-secondary mb-3" style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{selectedLike.bio || "No bio yet"}</p>
+                    <p className="text-secondary mb-3" style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{selectedLike.bio || "Pas encore de bio"}</p>
 
                     {isMatched(selectedLike.id) ? (
                       <div className="d-flex justify-content-center gap-2 flex-wrap">
@@ -2128,7 +2106,7 @@ export default function Dashboard() {
                           border="1px solid #e9ecef"
                           icon="fas fa-user"
                           iconColor="#6f42c1"
-                          label="See Profile"
+                          label="Voir le profil"
                         />
                         <RoundActionBtn
                           onClick={() => {
@@ -2139,8 +2117,9 @@ export default function Dashboard() {
                           border="none"
                           icon="fas fa-comment-dots"
                           iconColor="#ffffff"
-                          label="Send Message"
+                          label="Envoyer un message"
                         />
+                        {/* SINGLE UNLIKE BUTTON - deletes like AND match */}
                         <RoundActionBtn
                           onClick={() => handleUnlikeFromModal()}
                           bg="#dc3545"
@@ -2158,7 +2137,7 @@ export default function Dashboard() {
                           border="none"
                           icon="fas fa-ban"
                           iconColor="#ffffff"
-                          label="Block"
+                          label="Bloquer"
                         />
                       </div>
                     ) : (
@@ -2169,7 +2148,7 @@ export default function Dashboard() {
                           border="1px solid #e9ecef"
                           icon="fas fa-times"
                           iconColor="#adb5bd"
-                          label="Pass"
+                          label="Passer"
                         />
                         <RoundActionBtn
                           onClick={handleLikeBack}
@@ -2177,15 +2156,7 @@ export default function Dashboard() {
                           border="none"
                           icon="fas fa-heart"
                           iconColor="#ffffff"
-                          label="Like back"
-                        />
-                        <RoundActionBtn
-                          onClick={handleUnlikeFromModal}
-                          bg="#dc3545"
-                          border="none"
-                          icon="fas fa-heart-broken"
-                          iconColor="#ffffff"
-                          label="Unlike"
+                          label="Aimer en retour"
                         />
                         <RoundActionBtn
                           onClick={() => {
@@ -2196,7 +2167,7 @@ export default function Dashboard() {
                           border="1px solid #e9ecef"
                           icon="fas fa-user"
                           iconColor="#6f42c1"
-                          label="See profile"
+                          label="Voir le profil"
                         />
                         <RoundActionBtn
                           onClick={() => {
@@ -2207,7 +2178,7 @@ export default function Dashboard() {
                           border="none"
                           icon="fas fa-ban"
                           iconColor="#ffffff"
-                          label="Block"
+                          label="Bloquer"
                         />
                       </div>
                     )}
@@ -2215,7 +2186,7 @@ export default function Dashboard() {
                 )}
               </ModalShell>
 
-              {/* MATCH MODAL */}
+              {/* MODAL DE MATCH */}
               <ModalShell
                 open={matchModalOpen}
                 onClose={closeMatchModal}
@@ -2235,10 +2206,10 @@ export default function Dashboard() {
                       </h2>
 
                       <p className="text-secondary mb-4">
-                        You and <span className="fw-semibold text-dark clickable-profile" onClick={() => {
+                        Vous et <span className="fw-semibold text-dark clickable-profile" onClick={() => {
                           closeMatchModal();
                           goToProfile(matchedProfile.id);
-                        }}>{matchedProfile.first_name} {matchedProfile.last_name}</span> liked each other, starting a conversation is just a click away!
+                        }}>{matchedProfile.first_name} {matchedProfile.last_name}</span> vous êtes mutuellement likés, démarrer une conversation n'a jamais été aussi simple !
                       </p>
 
                       <div className="d-flex align-items-center justify-content-center gap-4 mb-4">
@@ -2248,7 +2219,7 @@ export default function Dashboard() {
                         }}>
                           <img 
                             src={matchedProfile.photo || "https://via.placeholder.com/100"} 
-                            alt={matchedProfile.first_name + " " + matchedProfile.last_name || "Profile"}
+                            alt={matchedProfile.first_name + " " + matchedProfile.last_name || "Profil"}
                             style={{ 
                               width: "100%",
                               height: "100%",
@@ -2264,7 +2235,7 @@ export default function Dashboard() {
                             {matchedProfile.first_name} {matchedProfile.last_name}
                             {matchedProfile.age ? `, ${matchedProfile.age}` : ''}
                           </h4>
-                          <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio || "No bio yet"}</p>
+                          <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio || "Pas encore de bio"}</p>
                         </div>
                       </div>
                     </div>
@@ -2279,7 +2250,7 @@ export default function Dashboard() {
                         border="1px solid #e9ecef"
                         icon="fas fa-user"
                         iconColor="#6f42c1"
-                        label="See Profile"
+                        label="Voir le profil"
                       />
 
                       <RoundActionBtn
@@ -2291,7 +2262,7 @@ export default function Dashboard() {
                         border="none"
                         icon="fas fa-comment-dots"
                         iconColor="#ffffff"
-                        label="Send Message"
+                        label="Envoyer un message"
                       />
 
                       <RoundActionBtn
@@ -2300,7 +2271,7 @@ export default function Dashboard() {
                         border="1px solid #dc354530"
                         icon="fas fa-heart-broken"
                         iconColor="#dc3545"
-                        label="Unmatch"
+                        label="Annuler le match"
                       />
 
                       <RoundActionBtn
@@ -2309,18 +2280,18 @@ export default function Dashboard() {
                         border="none"
                         icon="fas fa-ban"
                         iconColor="#ffffff"
-                        label="Block"
+                        label="Bloquer"
                       />
                     </div>
 
                     <p className="text-center text-secondary small mt-3 mb-0">
-                      What would you like to do next?
+                      Que souhaitez-vous faire ensuite ?
                     </p>
                   </>
                 )}
               </ModalShell>
 
-              {/* UNBLOCK MODAL */}
+              {/* MODAL DE DÉBLOCAGE */}
               <ModalShell
                 open={unblockModalOpen}
                 onClose={closeUnblockModal}
@@ -2333,7 +2304,7 @@ export default function Dashboard() {
                       {selectedBlocked.photo ? (
                         <img 
                           src={selectedBlocked.photo} 
-                          alt={selectedBlocked.first_name + " " + selectedBlocked.last_name || "Profile"}
+                          alt={selectedBlocked.first_name + " " + selectedBlocked.last_name || "Profil"}
                           onClick={() => {
                             closeUnblockModal();
                             setTimeout(() => openPhotoModal(selectedBlocked.photo), 100);
@@ -2341,11 +2312,11 @@ export default function Dashboard() {
                           style={{ cursor: "pointer" }}
                           onError={(e) => {
                             e.target.style.display = 'none';
-                            e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">No photo available</div>';
+                            e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
                           }}
                         />
                       ) : (
-                        <div className="p-5 text-secondary">No photo available</div>
+                        <div className="p-5 text-secondary">Photo non disponible</div>
                       )}
                     </div>
 
@@ -2357,8 +2328,8 @@ export default function Dashboard() {
                         {selectedBlocked.first_name} {selectedBlocked.last_name}
                         {selectedBlocked.age ? `, ${selectedBlocked.age}` : ''}
                       </h4>
-                      <p className="text-secondary mb-3">{selectedBlocked.bio || "No bio yet"}</p>
-                      <p className="text-muted small">This user is currently blocked</p>
+                      <p className="text-secondary mb-3">{selectedBlocked.bio || "Pas encore de bio"}</p>
+                      <p className="text-muted small">Cet utilisateur est actuellement bloqué</p>
                     </div>
 
                     <div className="d-flex justify-content-center gap-3">
@@ -2368,7 +2339,7 @@ export default function Dashboard() {
                         border="none"
                         icon="fas fa-check"
                         iconColor="#ffffff"
-                        label="Unblock"
+                        label="Débloquer"
                       />
                       <RoundActionBtn
                         onClick={closeUnblockModal}
@@ -2376,7 +2347,7 @@ export default function Dashboard() {
                         border="none"
                         icon="fas fa-times"
                         iconColor="#ffffff"
-                        label="Cancel"
+                        label="Annuler"
                       />
                     </div>
                   </>
@@ -2387,10 +2358,11 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
-            <p className="text-secondary">Unable to load user data.</p>
+            <p className="text-secondary">Impossible de charger les données utilisateur.</p>
           </div>
         )}
       </div>
     </>
   );
 }
+
