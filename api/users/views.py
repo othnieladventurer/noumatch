@@ -1,16 +1,19 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAdminUser
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
-from .models import User
+from .models import User, UserPhoto
 from .serializers import (RegisterSerializer, LoginSerializer, 
-                          ChangePasswordSerializer, UserSerializer, MeSerializer, UserProfileSerializer)
+                          ChangePasswordSerializer, UserSerializer, MeSerializer, UserProfileSerializer,
+                          UserPhotoSerializer)
 
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -267,6 +270,163 @@ def heartbeat(request):
     """Update user's last activity timestamp"""
     request.user.update_last_activity()
     return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+
+
+
+
+
+
+
+
+
+
+
+class UserPhotoViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for viewing and editing user photos.
+    Provides list, create, retrieve, update, delete actions.
+    """
+    serializer_class = UserPhotoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        """Filter photos based on URL parameters or current user"""
+        user_id = self.kwargs.get('user_id')
+        
+        if user_id:
+            # Viewing photos of a specific user (for profile viewing)
+            return UserPhoto.objects.filter(user_id=user_id)
+        else:
+            # Viewing own photos (for management)
+            return UserPhoto.objects.filter(user=self.request.user)
+
+    def get_serializer_context(self):
+        """Add request to serializer context for absolute URLs"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def perform_create(self, serializer):
+        """Set the user to current user when creating a photo"""
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['post'], url_path='upload-multiple')
+    def upload_multiple(self, request):
+        """
+        Upload multiple photos at once.
+        Expects 'images' as a list of files in the request.
+        """
+        files = request.FILES.getlist('images')
+        
+        if not files:
+            return Response(
+                {"error": "No images provided"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        current_photo_count = request.user.photos.count()
+        if current_photo_count + len(files) > 10:
+            return Response(
+                {"error": f"Cannot upload {len(files)} photos. You can only add {10 - current_photo_count} more photo(s)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        created_photos = []
+        errors = []
+        
+        for file in files:
+            try:
+                photo = UserPhoto.objects.create(
+                    user=request.user,
+                    image=file
+                )
+                serializer = self.get_serializer(photo)
+                created_photos.append(serializer.data)
+            except Exception as e:
+                errors.append({file.name: str(e)})
+        
+        response_data = {
+            "uploaded": created_photos,
+            "count": len(created_photos)
+        }
+        
+        if errors:
+            response_data["errors"] = errors
+            return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['delete'], url_path='delete')
+    def delete_photo(self, request, pk=None):
+        """Delete a specific photo"""
+        photo = self.get_object()
+        
+        # Check if user owns this photo
+        if photo.user != request.user:
+            return Response(
+                {"error": "You don't have permission to delete this photo"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        photo.delete()
+        return Response(
+            {"message": "Photo deleted successfully"},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+    @action(detail=False, methods=['delete'], url_path='delete-all')
+    def delete_all_photos(self, request):
+        """Delete all photos of the current user"""
+        count = request.user.photos.count()
+        request.user.photos.all().delete()
+        return Response(
+            {"message": f"Successfully deleted {count} photo(s)"},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+class UserPhotoListView(generics.ListAPIView):
+    """
+    List all photos of a specific user (public view)
+    """
+    serializer_class = UserPhotoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user_id = self.kwargs.get('user_id')
+        return UserPhoto.objects.filter(user_id=user_id)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+class UserPhotoUploadView(generics.CreateAPIView):
+    """
+    Upload a single photo for the current user
+    """
+    serializer_class = UserPhotoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class UserPhotoDeleteView(generics.DestroyAPIView):
+    """
+    Delete a specific photo (only if owned by current user)
+    """
+    serializer_class = UserPhotoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UserPhoto.objects.filter(user=self.request.user)
 
 
 

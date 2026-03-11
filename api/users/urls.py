@@ -19,6 +19,29 @@ urlpatterns = [
 
     path("logout/", LogoutView.as_view(), name="logout"),
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
+
+
+    # Alternative explicit routes if you prefer not to use ViewSet
+    path('<int:user_id>/photos/', 
+         views.UserPhotoListView.as_view(), 
+         name='user-photos-list'),
+    
+    path('photos/upload/', 
+         views.UserPhotoUploadView.as_view(), 
+         name='user-photos-upload'),
+    
+    path('photos/upload-multiple/', 
+         views.UserPhotoViewSet.as_view({'post': 'upload_multiple'}), 
+         name='user-photos-upload-multiple'),
+    
+    path('photos/<int:pk>/delete/', 
+         views.UserPhotoDeleteView.as_view(), 
+         name='user-photos-delete'),
+    
+    path('photos/delete-all/', 
+         views.UserPhotoViewSet.as_view({'delete': 'delete_all_photos'}), 
+         name='user-photos-delete-all'),
+
 ]
 
 

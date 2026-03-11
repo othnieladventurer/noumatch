@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 
@@ -10,29 +10,33 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Profile discovery
   const [profiles, setProfiles] = useState([]);
   const [profileIndex, setProfileIndex] = useState(0);
   const [profilesLoading, setProfilesLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
-
   const [slideDirection, setSlideDirection] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
+
+  // Photo gallery state
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const [photoSlideDirection, setPhotoSlideDirection] = useState(null);
+  const [isPhotoAnimating, setIsPhotoAnimating] = useState(false);
+  const [userPhotos, setUserPhotos] = useState({}); // Store photos by user ID
 
   // Photo modal state
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [modalPhotos, setModalPhotos] = useState([]);
+  const [modalPhotoIndex, setModalPhotoIndex] = useState(0);
 
   // Lists
   const [likesList, setLikesList] = useState([]);
   const [sentLikesIds, setSentLikesIds] = useState([]);
   const [matchesList, setMatchesList] = useState([]);
   const [matchesIds, setMatchesIds] = useState([]);
-  
-  // Block list
   const [blockedList, setBlockedList] = useState([]);
   const [blockedIds, setBlockedIds] = useState([]);
-
-  // Conversations for message linking
   const [conversations, setConversations] = useState([]);
 
   // Modals
@@ -43,7 +47,7 @@ export default function Dashboard() {
   const [unblockModalOpen, setUnblockModalOpen] = useState(false);
   const [selectedBlocked, setSelectedBlocked] = useState(null);
 
-  // Helper function to format name for main card and sidebar
+  // Helper function to format name
   const formatName = (profile) => {
     if (!profile) return "";
     if (profile.first_name && profile.last_name) {
@@ -55,42 +59,60 @@ export default function Dashboard() {
   };
 
   // Check if user is matched with a profile
-  const isMatched = (profileId) => {
-    return matchesIds.includes(profileId);
-  };
+  const isMatched = (profileId) => matchesIds.includes(profileId);
 
   // Check if user has liked a profile
-  const isLiked = (profileId) => {
-    return sentLikesIds.includes(profileId);
-  };
+  const isLiked = (profileId) => sentLikesIds.includes(profileId);
 
   // Check if user is blocked
-  const isBlocked = (profileId) => {
-    return blockedIds.includes(profileId);
+  const isBlocked = (profileId) => blockedIds.includes(profileId);
+
+  // Calculate age
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // Shuffle array
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  // Photo URL helper
+  const getProfilePhotoUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    if (path.startsWith('/media')) return `http://127.0.0.1:8000${path}`;
+    return `http://127.0.0.1:8000${path}`;
   };
 
   // Get conversation ID for a matched user
   const getConversationId = (userId) => {
-    const conversation = conversations.find(conv => 
-      conv.other_user?.id === userId
-    );
+    const conversation = conversations.find(conv => conv.other_user?.id === userId);
     return conversation?.id;
   };
 
-  // Navigate to messenger with conversation - create if doesn't exist
+  // Navigate to messenger
   const goToMessenger = async (profileId) => {
-    // First check if conversation exists
     const conversationId = getConversationId(profileId);
     
     if (conversationId) {
-      // If exists, go to messenger with that conversation
       navigate(`/messages?conversation=${conversationId}`);
     } else {
-      // If not, find the match and create a conversation
       try {
         const token = localStorage.getItem("access");
-        
-        // Find the match for this user
         const match = matchesList.find(m => m.id === profileId);
         
         if (!match) {
@@ -99,7 +121,6 @@ export default function Dashboard() {
           return;
         }
         
-        // Create conversation for this match
         const response = await fetch("http://127.0.0.1:8000/api/chat/conversations/create/", {
           method: "POST",
           headers: {
@@ -118,16 +139,9 @@ export default function Dashboard() {
 
         if (response.ok) {
           const newConversation = await response.json();
-          console.log("✅ Conversation créée:", newConversation);
-          
-          // Refresh conversations list
           await fetchConversations();
-          
-          // Navigate to messenger with the new conversation
           navigate(`/messages?conversation=${newConversation.id}`);
         } else {
-          const error = await response.json();
-          console.error("❌ Échec de création de la conversation:", error);
           navigate('/messages');
         }
       } catch (error) {
@@ -137,115 +151,40 @@ export default function Dashboard() {
     }
   };
 
-  // Navigate to messenger without specific conversation
-  const goToMessages = () => {
-    navigate('/messages');
-  };
+  const goToMessages = () => navigate('/messages');
+  const goToProfile = (profileId) => navigate(`/profile/${profileId}`);
+  const goToMyProfile = () => navigate('/profile');
 
-  // Navigate to profile
-  const goToProfile = (profileId) => {
-    navigate(`/profile/${profileId}`);
-  };
+  // Fetch user photos - FIXED: Using the correct endpoint
+  const fetchUserPhotos = async (userId) => {
+    if (!userId) return [];
+    
+    try {
+      const token = localStorage.getItem("access");
+      // Using the correct endpoint from your URLs
+      const response = await fetch(`http://127.0.0.1:8000/api/users/${userId}/photos/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-  // Navigate to own profile
-  const goToMyProfile = () => {
-    navigate('/profile');
-  };
-
-  // Photo modal functions
-  const openPhotoModal = (photo) => {
-    setSelectedPhoto(photo);
-    setPhotoModalOpen(true);
-    document.body.style.overflow = 'hidden';
-  };
-
-  const closePhotoModal = () => {
-    setPhotoModalOpen(false);
-    setSelectedPhoto(null);
-    document.body.style.overflow = 'unset';
-  };
-
-  // Photo Modal Component
-  const PhotoModal = () => {
-    if (!photoModalOpen) return null;
-
-    return (
-      <>
-        <div
-          onClick={closePhotoModal}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.95)",
-            zIndex: 1000000,
-            backdropFilter: "blur(8px)",
-            cursor: "pointer",
-          }}
-        />
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 1000001,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px",
-            pointerEvents: "none",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "95vw",
-              maxHeight: "95vh",
-              position: "relative",
-              pointerEvents: "auto",
-            }}
-          >
-            <button
-              onClick={closePhotoModal}
-              style={{
-                position: "absolute",
-                top: "-40px",
-                right: "-40px",
-                background: "white",
-                border: "none",
-                borderRadius: "50%",
-                width: "40px",
-                height: "40px",
-                fontSize: "20px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                zIndex: 1000002,
-              }}
-            >
-              <i className="fas fa-times"></i>
-            </button>
-            <img
-              src={selectedPhoto}
-              alt="Plein écran"
-              style={{
-                maxWidth: "100%",
-                maxHeight: "95vh",
-                objectFit: "contain",
-                borderRadius: "8px",
-                boxShadow: "0 4px 30px rgba(0,0,0,0.5)",
-              }}
-            />
-          </div>
-        </div>
-      </>
-    );
+      if (response.ok) {
+        const data = await response.json();
+        const photos = data.map(photo => ({
+          id: photo.id,
+          image: getProfilePhotoUrl(photo.image_url || photo.image),
+          uploaded_at: photo.uploaded_at
+        }));
+        
+        setUserPhotos(prev => ({
+          ...prev,
+          [userId]: photos
+        }));
+        
+        return photos;
+      }
+    } catch (error) {
+      console.error(`Erreur lors de la récupération des photos pour l'utilisateur ${userId}:`, error);
+    }
+    return [];
   };
 
   // Fetch conversations
@@ -265,7 +204,6 @@ export default function Dashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Conversations récupérées:", data);
         setConversations(data);
       }
     } catch (error) {
@@ -273,7 +211,7 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch authenticated user on mount
+  // Fetch authenticated user
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (!token) {
@@ -299,7 +237,6 @@ export default function Dashboard() {
         }
 
         const data = await response.json();
-        console.log("✅ Utilisateur authentifié:", data);
         setUser(data);
       } catch (error) {
         console.error("Erreur lors de la récupération de l'utilisateur:", error);
@@ -312,34 +249,6 @@ export default function Dashboard() {
     fetchUser();
   }, [navigate]);
 
-  const getProfilePhotoUrl = (path) => {
-    if (!path) return null;
-    if (path.startsWith('http')) return path;
-    if (path.startsWith('/media')) return `http://127.0.0.1:8000${path}`;
-    return `http://127.0.0.1:8000${path}`;
-  };
-
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return null;
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-    return age;
-  };
-
-  const shuffleArray = (array) => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
-
   // Fetch blocked users
   const fetchBlockedUsers = async () => {
     try {
@@ -349,7 +258,6 @@ export default function Dashboard() {
       });
       
       if (response.status === 401) {
-        console.error("Token expiré dans fetchBlockedUsers");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -358,7 +266,6 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Utilisateurs bloqués:", data);
         
         const blocked = data.map(block => ({
           id: block.blocked,
@@ -384,7 +291,7 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch likes received (people who liked me)
+  // Fetch likes received
   const fetchLikesReceived = async (currentBlockedIds = blockedIds) => {
     try {
       const token = localStorage.getItem("access");
@@ -393,7 +300,6 @@ export default function Dashboard() {
       });
       
       if (response.status === 401) {
-        console.error("Token expiré dans fetchLikesReceived");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -402,7 +308,6 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Likes reçus:", data);
         
         const likes = data.map(like => {
           let age = like.from_user.age;
@@ -421,7 +326,6 @@ export default function Dashboard() {
           };
         });
         
-        // Filter out blocked users AFTER getting all likes
         const filteredLikes = likes.filter(like => !currentBlockedIds.includes(like.id));
         setLikesList(filteredLikes);
       }
@@ -430,7 +334,7 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch likes sent (people I liked)
+  // Fetch likes sent
   const fetchSentLikes = async () => {
     try {
       const token = localStorage.getItem("access");
@@ -439,7 +343,6 @@ export default function Dashboard() {
       });
       
       if (response.status === 401) {
-        console.error("Token expiré dans fetchSentLikes");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -448,8 +351,6 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Likes envoyés:", data);
-        
         const likedUserIds = data.map(like => like.to_user.id);
         setSentLikesIds(likedUserIds);
       }
@@ -469,7 +370,6 @@ export default function Dashboard() {
       });
       
       if (response.status === 401) {
-        console.error("Token expiré dans fetchMatches");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -478,7 +378,6 @@ export default function Dashboard() {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Matches récupérés:", data);
         
         const matches = data.map(match => {
           const otherUser = match.user1.id === user.id ? match.user2 : match.user1;
@@ -488,26 +387,23 @@ export default function Dashboard() {
             last_name: otherUser.last_name || "",
             age: otherUser.age,
             bio: otherUser.bio || "",
-            photo: otherUser.profile_photo_url || getProfilePhotoUrl(otherUser.profile_photo),
+            photo: getProfilePhotoUrl(otherUser.profile_photo),
             gender: otherUser.gender,
             match_id: match.id,
             created_at: match.created_at
           };
         });
         
-        // Filter out blocked users AFTER getting all matches
         const filteredMatches = matches.filter(match => !currentBlockedIds.includes(match.id));
         setMatchesList(filteredMatches);
-        
-        const matchedIdsArray = filteredMatches.map(m => m.id);
-        setMatchesIds(matchedIdsArray);
+        setMatchesIds(filteredMatches.map(m => m.id));
       }
     } catch (error) {
       console.error("Erreur lors de la récupération des matches:", error);
     }
   };
 
-  // Create match in database
+  // Create match
   const createMatch = async (otherUserId) => {
     try {
       const token = localStorage.getItem("access");
@@ -533,10 +429,8 @@ export default function Dashboard() {
       const data = await response.json();
       
       if (response.status === 201 || response.status === 200) {
-        console.log("✅ Match créé/existant:", data);
         return true;
       } else {
-        console.error("Échec de la création du match:", data);
         return false;
       }
     } catch (error) {
@@ -545,7 +439,7 @@ export default function Dashboard() {
     }
   };
 
-  // Delete like from database
+  // Delete like
   const deleteLike = async (profileId) => {
     try {
       const token = localStorage.getItem("access");
@@ -564,10 +458,8 @@ export default function Dashboard() {
       }
 
       if (response.ok || response.status === 204) {
-        console.log("✅ Like supprimé de la base de données:", profileId);
         return true;
       } else {
-        console.error("❌ Échec de la suppression du like");
         return false;
       }
     } catch (error) {
@@ -576,12 +468,9 @@ export default function Dashboard() {
     }
   };
 
-  // Delete match from database
+  // Delete match
   const deleteMatch = async (matchId) => {
-    if (!matchId) {
-      console.error("❌ Aucun ID de match fourni");
-      return false;
-    }
+    if (!matchId) return false;
     
     try {
       const token = localStorage.getItem("access");
@@ -600,10 +489,8 @@ export default function Dashboard() {
       }
 
       if (response.ok || response.status === 204) {
-        console.log("✅ Match supprimé de la base de données:", matchId);
         return true;
       } else {
-        console.error("❌ Échec de la suppression du match");
         return false;
       }
     } catch (error) {
@@ -612,55 +499,43 @@ export default function Dashboard() {
     }
   };
 
-  // Unlike a profile - deletes the like AND removes match if exists
+  // Unlike a profile
   const handleUnlike = async (profileId) => {
     const success = await deleteLike(profileId);
     if (success) {
       setSentLikesIds(prev => prev.filter(id => id !== profileId));
-      
-      // If there was a match, remove it from matches list too
       if (matchesIds.includes(profileId)) {
         removeFromMatches(profileId);
       }
-      
-      // Remove from likes list
       setLikesList(prev => prev.filter(like => like.id !== profileId));
     }
     return success;
   };
 
-  // Unmatch a profile - ONLY deletes the match, keeps the like
+  // Unmatch a profile
   const handleUnmatch = async (profile) => {
-    if (!profile || !profile.match_id) {
-      console.error("❌ Aucun ID de match fourni pour le unmatch");
-      return;
-    }
+    if (!profile || !profile.match_id) return;
     
     const success = await deleteMatch(profile.match_id);
     if (success) {
-      // Remove from matches list only - keep the like
       removeFromMatches(profile.id);
       closeMatchModal();
-      
-      // Refresh conversations after unmatch
       fetchConversations();
     }
   };
 
-  // Check for mutual like and create match
+  // Check for match
   const checkForMatch = async (likedUserId) => {
     if (isBlocked(likedUserId)) return;
     
     const theyLikeMe = likesList.some(like => like.id === likedUserId);
     
     if (theyLikeMe) {
-      console.log("🎉 Like mutuel détecté! Création du match...");
-      
       const matchCreated = await createMatch(likedUserId);
       
       if (matchCreated) {
         await fetchMatches(blockedIds);
-        await fetchConversations(); // Refresh conversations after match
+        await fetchConversations();
         const matchedProfile = likesList.find(like => like.id === likedUserId);
         setMatchedProfile(matchedProfile);
         setMatchModalOpen(true);
@@ -669,7 +544,7 @@ export default function Dashboard() {
     }
   };
 
-  // Block a user - deletes likes and matches from database
+  // Block a user
   const handleBlock = async (profile) => {
     if (!profile) return;
     
@@ -695,14 +570,11 @@ export default function Dashboard() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Utilisateur bloqué:", data);
         
-        // Delete like from database if exists
         if (sentLikesIds.includes(profile.id)) {
           await deleteLike(profile.id);
         }
         
-        // Delete match from database if exists
         if (matchesIds.includes(profile.id)) {
           const match = matchesList.find(m => m.id === profile.id);
           if (match && match.match_id) {
@@ -710,11 +582,9 @@ export default function Dashboard() {
           }
         }
         
-        // Update blocked IDs first
         const newBlockedIds = [...blockedIds, profile.id];
         setBlockedIds(newBlockedIds);
         
-        // Add to blocked list
         const blockedProfile = {
           id: profile.id,
           first_name: profile.first_name,
@@ -731,18 +601,14 @@ export default function Dashboard() {
           return [blockedProfile, ...prev];
         });
         
-        // Remove from all lists in UI
         removeFromMatches(profile.id);
         removeFromLikes(profile.id);
         removeFromDiscover(profile.id);
         
-        // Close any open modals
         if (likeModalOpen) closeLikeModal();
         if (matchModalOpen) closeMatchModal();
         
-        // Refresh conversations
         fetchConversations();
-        
       } else {
         const error = await response.json();
         console.error("❌ Échec du blocage:", error);
@@ -773,28 +639,18 @@ export default function Dashboard() {
       }
 
       if (response.ok || response.status === 204) {
-        console.log("✅ Utilisateur débloqué:", profile.id);
-        
-        // Update blocked IDs first
         const newBlockedIds = blockedIds.filter(id => id !== profile.id);
         setBlockedIds(newBlockedIds);
-        
-        // Remove from blocked list
         setBlockedList(prev => prev.filter(b => b.id !== profile.id));
-        
-        // Close unblock modal
         setUnblockModalOpen(false);
         setSelectedBlocked(null);
         
-        // Refresh profiles with new blocked IDs
         if (user) {
           fetchProfilesBasedOnUser(newBlockedIds);
-          // Refresh likes and matches with new blocked IDs
           fetchLikesReceived(newBlockedIds);
           fetchMatches(newBlockedIds);
-          fetchConversations(); // Refresh conversations
+          fetchConversations();
         }
-        
       } else {
         console.error("❌ Échec du déblocage");
       }
@@ -803,7 +659,7 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch profiles from database
+  // Fetch profiles
   const fetchProfilesBasedOnUser = async (currentBlockedIds = blockedIds) => {
     if (!user || !user.id) return;
     
@@ -820,12 +676,10 @@ export default function Dashboard() {
       let genderFilter = '';
       if (user.interested_in === 'male') {
         genderFilter = 'male';
-        console.log("🔍 Récupération des profils masculins");
       } else if (user.interested_in === 'female') {
         genderFilter = 'female';
-        console.log("🔍 Récupération des profils féminins");
       } else if (user.interested_in === 'everyone') {
-        console.log("🔍 Récupération de tous les profils");
+        // No filter
       }
 
       const queryParams = new URLSearchParams();
@@ -834,14 +688,12 @@ export default function Dashboard() {
       }
       
       const apiUrl = `http://127.0.0.1:8000/api/users/profiles/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      console.log("🔍 Récupération des profils depuis:", apiUrl);
       
       const response = await fetch(apiUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.status === 401) {
-        console.error("Token expiré dans fetchProfiles");
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -861,29 +713,23 @@ export default function Dashboard() {
         profilesArray = data.results;
       }
 
-      console.log(`📊 Nombre de profils bruts: ${profilesArray.length}`);
-
-      // Filter out current user and blocked users
       const filteredById = profilesArray.filter(profile => 
         profile.id !== user.id && !currentBlockedIds.includes(profile.id)
       );
-      console.log(`📊 Après suppression de l'utilisateur actuel et des bloqués: ${filteredById.length}`);
 
-      // Apply gender filter if needed
       let genderFilteredProfiles = filteredById;
       if (genderFilter) {
         genderFilteredProfiles = filteredById.filter(profile => profile.gender === genderFilter);
-        console.log(`📊 Après filtre de genre: ${genderFilteredProfiles.length} profils`);
       }
 
-      // Transform profiles
       const transformedProfiles = genderFilteredProfiles.map(profile => ({
         id: profile.id,
         first_name: profile.first_name || "",
         last_name: profile.last_name || "",
         age: profile.age || calculateAge(profile.birth_date),
         bio: profile.bio || "",
-        photo: getProfilePhotoUrl(profile.profile_photo),
+        profile_photo: getProfilePhotoUrl(profile.profile_photo), // Main profile photo
+        photos: [], // Will be populated when fetched
         location: profile.location || "",
         gender: profile.gender,
         interested_in: profile.interested_in,
@@ -899,6 +745,11 @@ export default function Dashboard() {
       const shuffledProfiles = shuffleArray(transformedProfiles);
       setProfiles(shuffledProfiles);
       setProfileIndex(0);
+      
+      // Fetch photos for first profile
+      if (shuffledProfiles.length > 0) {
+        fetchUserPhotos(shuffledProfiles[0].id);
+      }
 
     } catch (error) {
       console.error("Erreur lors de la récupération des profils:", error);
@@ -924,25 +775,129 @@ export default function Dashboard() {
         fetchLikesReceived(blockedIdsArray),
         fetchSentLikes(),
         fetchMatches(blockedIdsArray),
-        fetchConversations() // Fetch conversations
+        fetchConversations()
       ]);
     };
     
     fetchAllInteractions();
   }, [user]);
 
+  // Get current profile
   const currentProfile = useMemo(() => {
     if (!profiles || profiles.length === 0) return null;
     if (profileIndex >= profiles.length) return null;
     
     if (user && profiles[profileIndex] && profiles[profileIndex].id === user.id) {
-      console.log(`🚨 Urgence: Utilisateur actuel trouvé dans les profils! Ignoré...`);
       setTimeout(() => goNextProfile(), 0);
       return null;
     }
     
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
+
+  // Get photos for current profile - FIXED: Returns all photos including main profile photo
+  const getCurrentProfilePhotos = useCallback(() => {
+    if (!currentProfile) return [];
+    
+    const photos = [];
+    
+    // Add main profile photo first if it exists
+    if (currentProfile.profile_photo) {
+      photos.push({
+        id: 'main',
+        image: currentProfile.profile_photo,
+        is_main: true
+      });
+    }
+    
+    // Add gallery photos
+    const galleryPhotos = userPhotos[currentProfile.id] || [];
+    galleryPhotos.forEach(photo => {
+      photos.push(photo);
+    });
+    
+    return photos;
+  }, [currentProfile, userPhotos]);
+
+  // Get current photo URL - FIXED: Returns the current photo based on index
+  const getCurrentPhotoUrl = useCallback(() => {
+    if (!currentProfile) return null;
+    
+    const photos = getCurrentProfilePhotos();
+    if (photos.length > 0 && currentPhotoIndex < photos.length) {
+      return photos[currentPhotoIndex]?.image;
+    }
+    return currentProfile.profile_photo;
+  }, [currentProfile, currentPhotoIndex, getCurrentProfilePhotos]);
+
+  // Photo navigation
+  const goToNextPhoto = (e) => {
+    e?.stopPropagation();
+    const photos = getCurrentProfilePhotos();
+    if (isPhotoAnimating || photos.length <= 1) return;
+    
+    setPhotoSlideDirection("right");
+    setIsPhotoAnimating(true);
+    
+    setTimeout(() => {
+      setCurrentPhotoIndex((prev) => (prev + 1) % photos.length);
+      setPhotoSlideDirection(null);
+      setIsPhotoAnimating(false);
+    }, 200);
+  };
+
+  const goToPrevPhoto = (e) => {
+    e?.stopPropagation();
+    const photos = getCurrentProfilePhotos();
+    if (isPhotoAnimating || photos.length <= 1) return;
+    
+    setPhotoSlideDirection("left");
+    setIsPhotoAnimating(true);
+    
+    setTimeout(() => {
+      setCurrentPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length);
+      setPhotoSlideDirection(null);
+      setIsPhotoAnimating(false);
+    }, 200);
+  };
+
+  // Reset photo index when profile changes
+  useEffect(() => {
+    setCurrentPhotoIndex(0);
+    setPhotoSlideDirection(null);
+    setIsPhotoAnimating(false);
+    
+    // Fetch photos for new profile
+    if (currentProfile?.id) {
+      fetchUserPhotos(currentProfile.id);
+    }
+  }, [currentProfile]);
+
+  // Open photo modal
+  const openPhotoModal = (photoUrl, profileId) => {
+    if (!currentProfile) return;
+    
+    const photos = getCurrentProfilePhotos();
+    if (photos.length > 0) {
+      setModalPhotos(photos.map(p => p.image));
+      const index = photos.findIndex(p => p.image === photoUrl);
+      setModalPhotoIndex(index >= 0 ? index : currentPhotoIndex);
+    } else {
+      setModalPhotos([currentProfile.profile_photo]);
+      setModalPhotoIndex(0);
+    }
+    
+    setSelectedPhoto(photoUrl);
+    setPhotoModalOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closePhotoModal = () => {
+    setPhotoModalOpen(false);
+    setSelectedPhoto(null);
+    setModalPhotos([]);
+    document.body.style.overflow = 'unset';
+  };
 
   const goNextProfile = () => {
     if (profileIndex < profiles.length - 1) {
@@ -1024,12 +979,8 @@ export default function Dashboard() {
       }
 
       if (response.ok) {
-        const data = await response.json();
-        console.log("✅ Like envoyé avec succès:", data);
-        
         setSentLikesIds(prev => [...prev, currentProfile.id]);
         await checkForMatch(currentProfile.id);
-        
       } else {
         const error = await response.json();
         console.error("❌ Échec du like:", error);
@@ -1081,7 +1032,6 @@ export default function Dashboard() {
       }
 
       if (response.ok) {
-        console.log("✅ Like retourné avec succès");
         setSentLikesIds(prev => [...prev, selectedLike.id]);
         await checkForMatch(selectedLike.id);
         closeLikeModal();
@@ -1128,6 +1078,171 @@ export default function Dashboard() {
     setUnblockModalOpen(false);
     setSelectedBlocked(null);
     document.body.style.overflow = 'unset';
+  };
+
+  // Photo Modal Component
+  const PhotoModal = () => {
+    if (!photoModalOpen) return null;
+
+    const goToNextModalPhoto = (e) => {
+      e.stopPropagation();
+      if (modalPhotos.length <= 1) return;
+      const nextIndex = (modalPhotoIndex + 1) % modalPhotos.length;
+      setModalPhotoIndex(nextIndex);
+      setSelectedPhoto(modalPhotos[nextIndex]);
+    };
+
+    const goToPrevModalPhoto = (e) => {
+      e.stopPropagation();
+      if (modalPhotos.length <= 1) return;
+      const prevIndex = (modalPhotoIndex - 1 + modalPhotos.length) % modalPhotos.length;
+      setModalPhotoIndex(prevIndex);
+      setSelectedPhoto(modalPhotos[prevIndex]);
+    };
+
+    return (
+      <>
+        <div
+          onClick={closePhotoModal}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.95)",
+            zIndex: 1000000,
+            backdropFilter: "blur(8px)",
+            cursor: "pointer",
+          }}
+        />
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1000001,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "95vw",
+              maxHeight: "95vh",
+              position: "relative",
+              pointerEvents: "auto",
+            }}
+          >
+            <button
+              onClick={closePhotoModal}
+              style={{
+                position: "absolute",
+                top: "-40px",
+                right: "-40px",
+                background: "white",
+                border: "none",
+                borderRadius: "50%",
+                width: "40px",
+                height: "40px",
+                fontSize: "20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                zIndex: 1000002,
+              }}
+            >
+              <i className="fas fa-times"></i>
+            </button>
+            
+            {modalPhotos.length > 1 && (
+              <>
+                <button
+                  onClick={goToPrevModalPhoto}
+                  style={{
+                    position: "absolute",
+                    left: "20px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "rgba(255,255,255,0.8)",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: "50px",
+                    height: "50px",
+                    fontSize: "20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                    zIndex: 1000002,
+                  }}
+                >
+                  <i className="fas fa-chevron-left"></i>
+                </button>
+                <button
+                  onClick={goToNextModalPhoto}
+                  style={{
+                    position: "absolute",
+                    right: "20px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "rgba(255,255,255,0.8)",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: "50px",
+                    height: "50px",
+                    fontSize: "20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                    zIndex: 1000002,
+                  }}
+                >
+                  <i className="fas fa-chevron-right"></i>
+                </button>
+              </>
+            )}
+            
+            <div style={{
+              position: "absolute",
+              bottom: "-40px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              color: "white",
+              fontSize: "16px",
+              background: "rgba(0,0,0,0.5)",
+              padding: "6px 16px",
+              borderRadius: "20px",
+            }}>
+              {modalPhotoIndex + 1} / {modalPhotos.length}
+            </div>
+            
+            <img
+              src={selectedPhoto}
+              alt="Plein écran"
+              style={{
+                maxWidth: "100%",
+                maxHeight: "95vh",
+                objectFit: "contain",
+                borderRadius: "8px",
+                boxShadow: "0 4px 30px rgba(0,0,0,0.5)",
+              }}
+            />
+          </div>
+        </div>
+      </>
+    );
   };
 
   const centerCardStyle = {
@@ -1371,7 +1486,7 @@ export default function Dashboard() {
             overflow-x: hidden;
             border-radius: 24px !important;
             background: #ffffff;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
           }
           
           .scrollable-card::-webkit-scrollbar {
@@ -1404,7 +1519,7 @@ export default function Dashboard() {
             border-radius: 24px !important;
             overflow: hidden !important;
             background: #ffffff;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
           }
           
           .image-container {
@@ -1448,6 +1563,67 @@ export default function Dashboard() {
 
           .image-container:hover::after {
             opacity: 1;
+          }
+
+          .photo-nav-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 20;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+            border: none;
+          }
+
+          .photo-nav-arrow:hover {
+            background: #ffffff;
+            transform: translateY(-50%) scale(1.1);
+          }
+
+          .photo-nav-arrow.left {
+            left: 16px;
+          }
+
+          .photo-nav-arrow.right {
+            right: 16px;
+          }
+
+          .photo-indicators {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+            background: rgba(0,0,0,0.3);
+            padding: 6px 12px;
+            border-radius: 20px;
+            backdrop-filter: blur(4px);
+          }
+
+          .photo-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            transition: background 0.2s;
+            cursor: pointer;
+          }
+
+          .photo-dot.active {
+            background: #ff4d6d;
+          }
+
+          .photo-dot.inactive {
+            background: rgba(255,255,255,0.6);
           }
 
           .card-content {
@@ -1665,12 +1841,10 @@ export default function Dashboard() {
                       </div>
                     )}
                   </SectionCard>
-
-                  
                 </div>
               </div>
 
-              {/* CENTER BLOCK - Carte de swipe principale */}
+              {/* CENTER BLOCK - Carte de swipe principale avec galerie photo */}
               <div className="col-lg-6 col-md-8 order-1 order-md-2 h-100 dashboard-col center-col">
                 <div className="center-card" style={centerCardStyle}>
                   {profilesLoading ? (
@@ -1696,19 +1870,89 @@ export default function Dashboard() {
                         </button>
                       </div>
                     </div>
-                  ) : profiles.length > 0 && profileIndex < profiles.length ? (
+                  ) : profiles.length > 0 && profileIndex < profiles.length && currentProfile ? (
                     <>
-                      {/* Image du profil cliquable - Ouvre en plein écran */}
-                      <div className="image-container" onClick={() => openPhotoModal(currentProfile.photo)}>
-                        {currentProfile.photo ? (
-                          <img
-                            src={currentProfile.photo}
-                            alt={formatName(currentProfile) || "Profil"}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
-                            }}
-                          />
+                      {/* Image du profil avec navigation photo */}
+                      <div 
+                        className="image-container" 
+                        onClick={() => openPhotoModal(getCurrentPhotoUrl(), currentProfile.id)}
+                      >
+                        {getCurrentPhotoUrl() ? (
+                          <>
+                            <img
+                              src={getCurrentPhotoUrl()}
+                              alt={formatName(currentProfile) || "Profil"}
+                              style={{
+                                transition: 'transform 0.2s ease, opacity 0.2s ease',
+                                transform: photoSlideDirection === 'left' ? 'translateX(-20px) scale(0.98)' : 
+                                          photoSlideDirection === 'right' ? 'translateX(20px) scale(0.98)' : 
+                                          'translateX(0) scale(1)',
+                                opacity: photoSlideDirection ? 0.7 : 1,
+                              }}
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
+                              }}
+                            />
+                            
+                            {/* Photo indicators */}
+                            {getCurrentProfilePhotos().length > 1 && (
+                              <div className="photo-indicators">
+                                {getCurrentProfilePhotos().map((_, idx) => (
+                                  <div
+                                    key={idx}
+                                    className={`photo-dot ${idx === currentPhotoIndex ? 'active' : 'inactive'}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (idx !== currentPhotoIndex) {
+                                        setCurrentPhotoIndex(idx);
+                                      }
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Navigation arrows */}
+                            {getCurrentProfilePhotos().length > 1 && (
+                              <>
+                                <button
+                                  className="photo-nav-arrow left"
+                                  onClick={goToPrevPhoto}
+                                  disabled={isPhotoAnimating}
+                                  style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
+                                >
+                                  <i className="fas fa-chevron-left" style={{ color: '#333', fontSize: '1rem' }} />
+                                </button>
+                                
+                                <button
+                                  className="photo-nav-arrow right"
+                                  onClick={goToNextPhoto}
+                                  disabled={isPhotoAnimating}
+                                  style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
+                                >
+                                  <i className="fas fa-chevron-right" style={{ color: '#333', fontSize: '1rem' }} />
+                                </button>
+                              </>
+                            )}
+                            
+                            {/* Photo count */}
+                            {getCurrentProfilePhotos().length > 1 && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '16px',
+                                right: '16px',
+                                background: 'rgba(0,0,0,0.5)',
+                                color: 'white',
+                                padding: '4px 12px',
+                                borderRadius: '20px',
+                                fontSize: '0.85rem',
+                                zIndex: 15
+                              }}>
+                                {currentPhotoIndex + 1} / {getCurrentProfilePhotos().length}
+                              </div>
+                            )}
+                          </>
                         ) : (
                           <div className="p-5 text-secondary">Photo non disponible</div>
                         )}
@@ -1719,7 +1963,7 @@ export default function Dashboard() {
                           {/* Nom cliquable - Va vers le profil */}
                           <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
                             {formatName(currentProfile)}
-                            {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
+                            {currentProfile.age ? `, ${currentProfile.age}` : ''}
                           </h2>
                           {isMatched(currentProfile.id) && (
                             <span className="status-badge matched-badge">Match</span>
@@ -1908,7 +2152,7 @@ export default function Dashboard() {
                       {/* Résumé du profil cliquable */}
                       <div className="d-flex align-items-center gap-3 mb-3 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
                         <img
-                          src={currentProfile.photo || "https://via.placeholder.com/60"}
+                          src={currentProfile.profile_photo || "https://via.placeholder.com/60"}
                           alt={formatName(currentProfile) || "Profil"}
                           className="rounded-circle shadow-sm"
                           width="60"
@@ -1919,7 +2163,7 @@ export default function Dashboard() {
                           <div className="d-flex align-items-center">
                             <h5 className="fw-bold mb-1">
                               {formatName(currentProfile)}
-                              {formatName(currentProfile) && currentProfile.age ? `, ${currentProfile.age}` : currentProfile.age || ''}
+                              {currentProfile.age ? `, ${currentProfile.age}` : ''}
                             </h5>
                             {isMatched(currentProfile.id) && (
                               <span className="status-badge matched-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Match</span>
@@ -1934,6 +2178,16 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Photo count indicator */}
+                      {getCurrentProfilePhotos().length > 1 && (
+                        <div className="mb-3 text-center">
+                          <span className="badge bg-light text-dark px-3 py-2">
+                            <i className="fas fa-images me-2"></i>
+                            {getCurrentProfilePhotos().length} photo{getCurrentProfilePhotos().length > 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="mb-3">
                         <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
@@ -2018,8 +2272,6 @@ export default function Dashboard() {
                         </div>
                       </div>
                       
-                      
-                      
                       {/* Bouton Message pour les utilisateurs matchés dans la barre latérale */}
                       {isMatched(currentProfile.id) && (
                         <div className="mt-2 text-center">
@@ -2067,7 +2319,7 @@ export default function Dashboard() {
                           alt={selectedLike.first_name + " " + selectedLike.last_name || "Profil"}
                           onClick={() => {
                             closeLikeModal();
-                            setTimeout(() => openPhotoModal(selectedLike.photo), 100);
+                            setTimeout(() => openPhotoModal(selectedLike.photo, selectedLike.id), 100);
                           }}
                           style={{ cursor: "pointer" }}
                           onError={(e) => {
@@ -2119,7 +2371,6 @@ export default function Dashboard() {
                           iconColor="#ffffff"
                           label="Envoyer un message"
                         />
-                        {/* SINGLE UNLIKE BUTTON - deletes like AND match */}
                         <RoundActionBtn
                           onClick={() => handleUnlikeFromModal()}
                           bg="#dc3545"
@@ -2215,7 +2466,7 @@ export default function Dashboard() {
                       <div className="d-flex align-items-center justify-content-center gap-4 mb-4">
                         <div style={{ width: "100px", height: "100px", borderRadius: "50%", overflow: "hidden", backgroundColor: "#f8f9fa", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} onClick={() => {
                           closeMatchModal();
-                          setTimeout(() => openPhotoModal(matchedProfile.photo), 100);
+                          setTimeout(() => openPhotoModal(matchedProfile.photo, matchedProfile.id), 100);
                         }}>
                           <img 
                             src={matchedProfile.photo || "https://via.placeholder.com/100"} 
@@ -2307,7 +2558,7 @@ export default function Dashboard() {
                           alt={selectedBlocked.first_name + " " + selectedBlocked.last_name || "Profil"}
                           onClick={() => {
                             closeUnblockModal();
-                            setTimeout(() => openPhotoModal(selectedBlocked.photo), 100);
+                            setTimeout(() => openPhotoModal(selectedBlocked.photo, selectedBlocked.id), 100);
                           }}
                           style={{ cursor: "pointer" }}
                           onError={(e) => {
@@ -2365,4 +2616,3 @@ export default function Dashboard() {
     </>
   );
 }
-

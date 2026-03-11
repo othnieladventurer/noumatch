@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User
+from .models import User, UserPhoto
 from django.utils import timezone
+from django.conf import settings
 from datetime import timedelta, date
 from django.contrib.auth.password_validation import validate_password
 from django.utils.text import slugify
@@ -236,5 +237,55 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return "Offline"
 
         
-                
-                
+
+
+
+
+class UserPhotoSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    user_email = serializers.ReadOnlyField(source='user.email')
+    user_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserPhoto
+        fields = [
+            'id', 
+            'user', 
+            'user_email',
+            'user_name',
+            'image', 
+            'image_url', 
+            'uploaded_at'
+        ]
+        read_only_fields = ['id', 'user', 'uploaded_at']
+    
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return f"{settings.MEDIA_URL}{obj.image.url}"
+        return None
+    
+    def get_user_name(self, obj):
+        if obj.user:
+            if obj.user.first_name and obj.user.last_name:
+                return f"{obj.user.first_name} {obj.user.last_name}"
+            return obj.user.first_name or obj.user.last_name or obj.user.username
+        return None
+    
+    def validate(self, data):
+        """Validate that user doesn't exceed 10 photos"""
+        user = self.context['request'].user
+        if not self.instance and user.photos.count() >= 10:
+            raise serializers.ValidationError(
+                "You cannot upload more than 10 photos."
+            )
+        return data
+    
+
+
+
+
+
+

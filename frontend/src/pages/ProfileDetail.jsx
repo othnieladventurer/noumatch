@@ -9,6 +9,7 @@ export default function ProfileDetail() {
   const { id } = useParams();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [userPhotos, setUserPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -18,9 +19,36 @@ export default function ProfileDetail() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [matchId, setMatchId] = useState(null);
   
-  // Photo modal state
+  // Photo gallery state
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [modalPhotos, setModalPhotos] = useState([]);
+  const [modalPhotoIndex, setModalPhotoIndex] = useState(0);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+
+  // Fetch user photos
+  const fetchUserPhotos = async (userId) => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch(`http://127.0.0.1:8000/api/users/${userId}/photos/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const photos = data.map(photo => ({
+          id: photo.id,
+          image: getProfilePhotoUrl(photo.image_url || photo.image),
+          uploaded_at: photo.uploaded_at
+        }));
+        setUserPhotos(photos);
+        return photos;
+      }
+    } catch (error) {
+      console.error("Error fetching user photos:", error);
+    }
+    return [];
+  };
 
   // Fetch current user and profile data
   useEffect(() => {
@@ -60,6 +88,9 @@ export default function ProfileDetail() {
 
         const profileData = await profileResponse.json();
         setProfile(profileData);
+
+        // Fetch user photos
+        await fetchUserPhotos(id);
 
         await checkRelationshipStatus(id, token);
 
@@ -270,26 +301,87 @@ export default function ProfileDetail() {
     navigate(-1);
   };
 
-  const openPhotoModal = () => {
+  // Get all photos (main + gallery)
+  const getAllPhotos = () => {
+    const photos = [];
+    
+    // Add main profile photo first
+    if (profile?.profile_photo) {
+      photos.push({
+        id: 'main',
+        image: getProfilePhotoUrl(profile.profile_photo),
+        is_main: true
+      });
+    }
+    
+    // Add gallery photos
+    userPhotos.forEach(photo => {
+      // Avoid duplicates if main photo is also in gallery
+      if (photo.image !== getProfilePhotoUrl(profile?.profile_photo)) {
+        photos.push(photo);
+      }
+    });
+    
+    return photos;
+  };
+
+  // Get current display photo
+  const getCurrentPhoto = () => {
+    const photos = getAllPhotos();
+    if (photos.length === 0) return null;
+    return photos[activePhotoIndex]?.image || photos[0]?.image;
+  };
+
+  // Photo navigation
+  const nextPhoto = (e) => {
+    e?.stopPropagation();
+    const photos = getAllPhotos();
+    if (photos.length <= 1) return;
+    setActivePhotoIndex((prev) => (prev + 1) % photos.length);
+  };
+
+  const prevPhoto = (e) => {
+    e?.stopPropagation();
+    const photos = getAllPhotos();
+    if (photos.length <= 1) return;
+    setActivePhotoIndex((prev) => (prev - 1 + photos.length) % photos.length);
+  };
+
+  // Open photo modal
+  const openPhotoModal = (photoUrl, index) => {
+    const photos = getAllPhotos().map(p => p.image);
+    setModalPhotos(photos);
+    setModalPhotoIndex(index !== undefined ? index : activePhotoIndex);
+    setSelectedPhoto(photoUrl || photos[activePhotoIndex]);
     setPhotoModalOpen(true);
     document.body.style.overflow = 'hidden';
   };
 
   const closePhotoModal = () => {
     setPhotoModalOpen(false);
+    setSelectedPhoto(null);
+    setModalPhotos([]);
     document.body.style.overflow = 'unset';
-  };
-
-  const nextPhoto = () => {
-    setActivePhotoIndex((prev) => (prev + 1) % 1);
-  };
-
-  const prevPhoto = () => {
-    setActivePhotoIndex((prev) => (prev - 1 + 1) % 1);
   };
 
   const PhotoModal = () => {
     if (!photoModalOpen) return null;
+
+    const goToNextModalPhoto = (e) => {
+      e.stopPropagation();
+      if (modalPhotos.length <= 1) return;
+      const nextIndex = (modalPhotoIndex + 1) % modalPhotos.length;
+      setModalPhotoIndex(nextIndex);
+      setSelectedPhoto(modalPhotos[nextIndex]);
+    };
+
+    const goToPrevModalPhoto = (e) => {
+      e.stopPropagation();
+      if (modalPhotos.length <= 1) return;
+      const prevIndex = (modalPhotoIndex - 1 + modalPhotos.length) % modalPhotos.length;
+      setModalPhotoIndex(prevIndex);
+      setSelectedPhoto(modalPhotos[prevIndex]);
+    };
 
     return (
       <>
@@ -325,8 +417,8 @@ export default function ProfileDetail() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              maxWidth: "90vw",
-              maxHeight: "90vh",
+              maxWidth: "95vw",
+              maxHeight: "95vh",
               position: "relative",
               pointerEvents: "auto",
             }}
@@ -348,17 +440,85 @@ export default function ProfileDetail() {
                 justifyContent: "center",
                 cursor: "pointer",
                 boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                zIndex: 1000001,
+                zIndex: 1000002,
               }}
             >
               <i className="fas fa-times"></i>
             </button>
+            
+            {modalPhotos.length > 1 && (
+              <>
+                <button
+                  onClick={goToPrevModalPhoto}
+                  style={{
+                    position: "absolute",
+                    left: "20px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "#ff4d6d",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: "50px",
+                    height: "50px",
+                    fontSize: "20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                    zIndex: 1000002,
+                    color: "white",
+                  }}
+                >
+                  <i className="fas fa-chevron-left"></i>
+                </button>
+                <button
+                  onClick={goToNextModalPhoto}
+                  style={{
+                    position: "absolute",
+                    right: "20px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "#ff4d6d",
+                    border: "none",
+                    borderRadius: "50%",
+                    width: "50px",
+                    height: "50px",
+                    fontSize: "20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                    zIndex: 1000002,
+                    color: "white",
+                  }}
+                >
+                  <i className="fas fa-chevron-right"></i>
+                </button>
+              </>
+            )}
+            
+            <div style={{
+              position: "absolute",
+              bottom: "-40px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              color: "white",
+              fontSize: "16px",
+              background: "rgba(0,0,0,0.5)",
+              padding: "6px 16px",
+              borderRadius: "20px",
+            }}>
+              {modalPhotoIndex + 1} / {modalPhotos.length}
+            </div>
+            
             <img
-              src={getProfilePhotoUrl(profile?.profile_photo) || "https://via.placeholder.com/800"}
-              alt={formatName(profile)}
+              src={selectedPhoto}
+              alt="Full size"
               style={{
                 maxWidth: "100%",
-                maxHeight: "90vh",
+                maxHeight: "95vh",
                 objectFit: "contain",
                 borderRadius: "8px",
                 boxShadow: "0 4px 30px rgba(0,0,0,0.5)",
@@ -402,6 +562,9 @@ export default function ProfileDetail() {
     );
   }
 
+  const photos = getAllPhotos();
+  const currentPhoto = getCurrentPhoto();
+
   return (
     <>
       <DashboardNavbar user={user} />
@@ -423,7 +586,7 @@ export default function ProfileDetail() {
             position: relative;
             width: 100%;
             height: 60vh;
-            background: #f5f7fb;
+            background: #111;
             overflow: hidden;
             display: flex;
             align-items: center;
@@ -436,7 +599,9 @@ export default function ProfileDetail() {
             max-width: 100%;
             object-fit: contain;
             object-position: center;
-            background-color: #f5f7fb;
+            background-color: #111;
+            transition: opacity 0.3s ease;
+            cursor: pointer;
           }
           
           /* Back button integrated into photo gallery */
@@ -445,7 +610,7 @@ export default function ProfileDetail() {
             top: 20px;
             left: 20px;
             z-index: 50;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.92);
             backdrop-filter: blur(8px);
             border: none;
             color: #ff4d6d;
@@ -467,14 +632,39 @@ export default function ProfileDetail() {
             transform: scale(1.1);
           }
           
+          /* Photo count badge */
+          .photo-count {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 50;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+          }
+          
+          .photo-count i {
+            color: #ff4d6d;
+          }
+          
           .gallery-overlay {
             position: absolute;
             bottom: 0;
             left: 0;
             right: 0;
             padding: 40px 24px 24px;
-            background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, transparent 100%);
+            background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.3) 50%, transparent 100%);
             color: white;
+            z-index: 30;
           }
           
           .gallery-name {
@@ -501,28 +691,31 @@ export default function ProfileDetail() {
             text-shadow: 0 1px 2px rgba(0,0,0,0.3);
           }
           
+          /* Photo Navigation Arrows - Always visible */
           .photo-nav {
             position: absolute;
             top: 0;
             bottom: 0;
             width: 50%;
-            z-index: 10;
+            z-index: 40;
+            display: flex;
+            align-items: center;
           }
           
           .photo-nav-left {
             left: 0;
+            justify-content: flex-start;
+            padding-left: 20px;
           }
           
           .photo-nav-right {
             right: 0;
+            justify-content: flex-end;
+            padding-right: 20px;
           }
           
           .photo-nav button {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            background: rgba(255,255,255,0.3);
-            backdrop-filter: blur(5px);
+            background: #ff4d6d;
             border: none;
             width: 44px;
             height: 44px;
@@ -534,36 +727,26 @@ export default function ProfileDetail() {
             justify-content: center;
             transition: all 0.3s;
             cursor: pointer;
-            opacity: 0;
-          }
-          
-          .photo-gallery:hover .photo-nav button {
-            opacity: 1;
-          }
-          
-          .photo-nav-left button {
-            left: 20px;
-          }
-          
-          .photo-nav-right button {
-            right: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            opacity: 0.95;
           }
           
           .photo-nav button:hover {
-            background: #ff4d6d;
-            color: white;
-            transform: translateY(-50%) scale(1.1);
+            background: #ff3355;
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
           }
           
+          /* Photo Indicators */
           .photo-indicators {
             position: absolute;
-            top: 20px;
+            bottom: 100px;
             left: 0;
             right: 0;
             display: flex;
             justify-content: center;
-            gap: 6px;
-            z-index: 20;
+            gap: 8px;
+            z-index: 35;
             padding: 0 20px;
           }
           
@@ -573,11 +756,52 @@ export default function ProfileDetail() {
             background: rgba(255,255,255,0.4);
             border-radius: 2px;
             transition: all 0.3s;
+            cursor: pointer;
           }
           
           .photo-indicator.active {
             background: #ff4d6d;
             width: 60px;
+          }
+          
+          .photo-indicator:hover {
+            background: rgba(255,255,255,0.8);
+          }
+          
+          /* Thumbnail Strip */
+          .thumbnail-strip {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 36;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+            border-radius: 30px;
+          }
+          
+          .thumbnail {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            object-fit: cover;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+            opacity: 0.7;
+          }
+          
+          .thumbnail:hover {
+            opacity: 1;
+            transform: scale(1.1);
+          }
+          
+          .thumbnail.active {
+            border-color: #ff4d6d;
+            opacity: 1;
           }
           
           /* Profile Content Card */
@@ -881,47 +1105,99 @@ export default function ProfileDetail() {
               min-width: 120px;
               padding: 10px 20px;
             }
+            
+            .photo-indicators {
+              bottom: 80px;
+            }
+            
+            .photo-indicator {
+              width: 30px;
+            }
+            
+            .photo-indicator.active {
+              width: 45px;
+            }
           }
         `}
       </style>
 
       <div className="profile-detail-page">
-        {/* Photo Gallery Hero - Full image, no cropping */}
+        {/* Photo Gallery Hero with Carousel */}
         <div className="photo-gallery">
-          {/* Back button integrated directly into the photo gallery */}
+          {/* Back button */}
           <button onClick={goBack} className="gallery-back-btn">
             <i className="fas fa-arrow-left"></i>
           </button>
           
-          <img
-            src={getProfilePhotoUrl(profile.profile_photo) || "https://via.placeholder.com/800"}
-            alt={formatName(profile)}
-            className="main-photo"
-            onClick={openPhotoModal}
-          />
+          {/* Photo count badge */}
+          {photos.length > 1 && (
+            <div className="photo-count">
+              <i className="fas fa-images"></i>
+              {activePhotoIndex + 1} / {photos.length}
+            </div>
+          )}
           
-          {/* Photo Navigation (prepared for multiple photos) */}
-          <div className="photo-nav photo-nav-left" onClick={prevPhoto}>
-            <button>
-              <i className="fas fa-chevron-left"></i>
-            </button>
-          </div>
-          <div className="photo-nav photo-nav-right" onClick={nextPhoto}>
-            <button>
-              <i className="fas fa-chevron-right"></i>
-            </button>
-          </div>
+          {/* Main photo */}
+          {currentPhoto ? (
+            <img
+              src={currentPhoto}
+              alt={formatName(profile)}
+              className="main-photo"
+              onClick={() => openPhotoModal(currentPhoto, activePhotoIndex)}
+            />
+          ) : (
+            <div className="text-white">No photo available</div>
+          )}
           
-          {/* Photo Indicators */}
-          <div className="photo-indicators">
-            <div className={`photo-indicator ${activePhotoIndex === 0 ? 'active' : ''}`}></div>
-          </div>
+          {/* Photo Navigation Arrows - always visible */}
+          {photos.length > 1 && (
+            <>
+              <div className="photo-nav photo-nav-left" onClick={prevPhoto}>
+                <button>
+                  <i className="fas fa-chevron-left"></i>
+                </button>
+              </div>
+              <div className="photo-nav photo-nav-right" onClick={nextPhoto}>
+                <button>
+                  <i className="fas fa-chevron-right"></i>
+                </button>
+              </div>
+            </>
+          )}
+          
+          {/* Photo Indicators - dots */}
+          {photos.length > 1 && (
+            <div className="photo-indicators">
+              {photos.map((_, index) => (
+                <div 
+                  key={index}
+                  className={`photo-indicator ${activePhotoIndex === index ? 'active' : ''}`}
+                  onClick={() => setActivePhotoIndex(index)}
+                />
+              ))}
+            </div>
+          )}
+          
+          {/* Thumbnail strip for quick navigation */}
+          {photos.length > 1 && (
+            <div className="thumbnail-strip">
+              {photos.map((photo, index) => (
+                <img
+                  key={index}
+                  src={photo.image || photo}
+                  alt={`Thumbnail ${index + 1}`}
+                  className={`thumbnail ${activePhotoIndex === index ? 'active' : ''}`}
+                  onClick={() => setActivePhotoIndex(index)}
+                />
+              ))}
+            </div>
+          )}
           
           {/* Overlay with name and location */}
           <div className="gallery-overlay">
             <div className="gallery-name">
               {formatName(profile)}
-              <span className="gallery-age">{profile.age || ''}</span>
+              <span className="gallery-age">{profile.age ? `, ${profile.age}` : ''}</span>
             </div>
             {profile.location && (
               <div className="gallery-location">
@@ -1187,6 +1463,3 @@ export default function ProfileDetail() {
     </>
   );
 }
-
-
-
