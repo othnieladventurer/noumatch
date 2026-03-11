@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom"; // Add useLocation
 import DashboardNavbar from "../components/DashboardNavbar";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
 export default function Messages() {
   const navigate = useNavigate();
+  const location = useLocation(); // Add this
   const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
@@ -98,6 +99,19 @@ export default function Messages() {
     fetchConversations();
   }, [navigate]);
 
+  // NEW: Auto-select conversation from URL parameter
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const conversationId = params.get('conversation');
+    
+    if (conversationId && conversations.length > 0 && !activeConversation) {
+      const conversation = conversations.find(c => c.id === parseInt(conversationId));
+      if (conversation) {
+        selectConversation(conversation);
+      }
+    }
+  }, [location.search, conversations, activeConversation]);
+
   const fetchConversations = async () => {
     try {
       const token = localStorage.getItem("access");
@@ -130,6 +144,9 @@ export default function Messages() {
 
   const selectConversation = async (conversation) => {
     setActiveConversation(conversation);
+    
+    // Update URL with conversation ID (optional but good for bookmarking)
+    navigate(`/messages?conversation=${conversation.id}`, { replace: true });
     
     try {
       const token = localStorage.getItem("access");
@@ -280,6 +297,8 @@ export default function Messages() {
     setActiveConversation(null);
     setMessages([]);
     setShowSidebar(true);
+    // Remove conversation from URL when going back
+    navigate('/messages', { replace: true });
   };
 
   const otherUser = activeConversation?.other_user;

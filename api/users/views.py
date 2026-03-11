@@ -17,6 +17,7 @@ from .serializers import (RegisterSerializer, LoginSerializer,
 
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.utils import timezone
 
 
 
@@ -52,7 +53,6 @@ class RegisterView(generics.CreateAPIView):
         }, status=201)    
 
 
-
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny] 
@@ -71,6 +71,13 @@ class LoginView(generics.GenericAPIView):
                 {"detail": "Invalid credentials"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+
+        # Update last_login timestamp
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+        
+        # Also update last_activity if you want to track online status
+        user.update_last_activity()
 
         refresh = RefreshToken.for_user(user)
 

@@ -993,6 +993,11 @@ export default function Dashboard() {
   };
 
   const openLikeModal = (p) => {
+    // Only open like modal for premium and god mode users
+    if (user?.account_type === "free") {
+      return; // Do nothing for free users
+    }
+    
     setSelectedLike(p);
     setLikeModalOpen(true);
     document.body.style.overflow = 'hidden';
@@ -1803,19 +1808,23 @@ export default function Dashboard() {
 
                   <div className="mt-3" style={{ height: 1, background: "linear-gradient(90deg, transparent, #e9ecef, transparent)" }} />
 
-                  <SectionCard title="Qui vous aiment" count={likesList.length}>
-                    {likesList.length > 0 ? (
-                      <AvatarRow items={likesList} onClickAvatar={openLikeModal} />
-                    ) : (
-                      <div className="text-center py-3">
-                        <div className="text-secondary small">
-                          <i className="far fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                          <div>Aucun like pour le moment</div>
+                  {/* Qui vous aiment - Only visible for Premium and God Mode users */}
+                  {(user.account_type === "premium" || user.account_type === "god_mode") && (
+                    <SectionCard title="Qui vous aiment" count={likesList.length}>
+                      {likesList.length > 0 ? (
+                        <AvatarRow items={likesList} onClickAvatar={openLikeModal} />
+                      ) : (
+                        <div className="text-center py-3">
+                          <div className="text-secondary small">
+                            <i className="far fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
+                            <div>Aucun like pour le moment</div>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </SectionCard>
+                      )}
+                    </SectionCard>
+                  )}
 
+                  {/* Matches - Visible to all users */}
                   <SectionCard title="Matches" count={matchesList.length}>
                     {matchesList.length > 0 ? (
                       <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} />
@@ -1829,6 +1838,7 @@ export default function Dashboard() {
                     )}
                   </SectionCard>
 
+                  {/* Bloqués - Visible to all users */}
                   <SectionCard title="Bloqués" count={blockedList.length}>
                     {blockedList.length > 0 ? (
                       <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} />
@@ -2303,141 +2313,143 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* MODAL DES LIKES */}
-              <ModalShell
-                open={likeModalOpen}
-                onClose={closeLikeModal}
-                title=""
-                overlay="rgba(0,0,0,0.60)"
-                maxWidth={480}>
-                {selectedLike && (
-                  <>
-                    <div className="modal-image-container mb-3" style={{ minHeight: "300px", maxHeight: "300px" }}>
-                      {selectedLike.photo ? (
-                        <img 
-                          src={selectedLike.photo} 
-                          alt={selectedLike.first_name + " " + selectedLike.last_name || "Profil"}
-                          onClick={() => {
-                            closeLikeModal();
-                            setTimeout(() => openPhotoModal(selectedLike.photo, selectedLike.id), 100);
-                          }}
-                          style={{ cursor: "pointer" }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
-                          }}
-                        />
+              {/* MODAL DES LIKES - Only visible for Premium and God Mode users */}
+              {(user?.account_type === "premium" || user?.account_type === "god_mode") && (
+                <ModalShell
+                  open={likeModalOpen}
+                  onClose={closeLikeModal}
+                  title=""
+                  overlay="rgba(0,0,0,0.60)"
+                  maxWidth={480}>
+                  {selectedLike && (
+                    <>
+                      <div className="modal-image-container mb-3" style={{ minHeight: "300px", maxHeight: "300px" }}>
+                        {selectedLike.photo ? (
+                          <img 
+                            src={selectedLike.photo} 
+                            alt={selectedLike.first_name + " " + selectedLike.last_name || "Profil"}
+                            onClick={() => {
+                              closeLikeModal();
+                              setTimeout(() => openPhotoModal(selectedLike.photo, selectedLike.id), 100);
+                            }}
+                            style={{ cursor: "pointer" }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
+                            }}
+                          />
+                        ) : (
+                          <div className="p-5 text-secondary">Photo non disponible</div>
+                        )}
+                      </div>
+
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <h4 className="fw-bold mb-0 clickable-profile" onClick={() => {
+                          closeLikeModal();
+                          goToProfile(selectedLike.id);
+                        }}>
+                          {selectedLike.first_name} {selectedLike.last_name}
+                          {selectedLike.age ? `, ${selectedLike.age}` : ''}
+                        </h4>
+                        {isMatched(selectedLike.id) && (
+                          <span className="status-badge matched-badge">Match</span>
+                        )}
+                      </div>
+
+                      <p className="text-secondary mb-3" style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{selectedLike.bio || "Pas encore de bio"}</p>
+
+                      {isMatched(selectedLike.id) ? (
+                        <div className="d-flex justify-content-center gap-2 flex-wrap">
+                          <RoundActionBtn
+                            onClick={() => {
+                              closeLikeModal();
+                              goToProfile(selectedLike.id);
+                            }}
+                            bg="#ffffff"
+                            border="1px solid #e9ecef"
+                            icon="fas fa-user"
+                            iconColor="#6f42c1"
+                            label="Voir le profil"
+                          />
+                          <RoundActionBtn
+                            onClick={() => {
+                              closeLikeModal();
+                              goToMessenger(selectedLike.id);
+                            }}
+                            bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
+                            border="none"
+                            icon="fas fa-comment-dots"
+                            iconColor="#ffffff"
+                            label="Envoyer un message"
+                          />
+                          <RoundActionBtn
+                            onClick={() => handleUnlikeFromModal()}
+                            bg="#dc3545"
+                            border="none"
+                            icon="fas fa-heart-broken"
+                            iconColor="#ffffff"
+                            label="Unlike"
+                          />
+                          <RoundActionBtn
+                            onClick={() => {
+                              handleBlock(selectedLike);
+                              closeLikeModal();
+                            }}
+                            bg="#1a1a1a"
+                            border="none"
+                            icon="fas fa-ban"
+                            iconColor="#ffffff"
+                            label="Bloquer"
+                          />
+                        </div>
                       ) : (
-                        <div className="p-5 text-secondary">Photo non disponible</div>
+                        <div className="d-flex justify-content-center gap-2">
+                          <RoundActionBtn
+                            onClick={handlePassFromLikeModal}
+                            bg="#ffffff"
+                            border="1px solid #e9ecef"
+                            icon="fas fa-times"
+                            iconColor="#adb5bd"
+                            label="Passer"
+                          />
+                          <RoundActionBtn
+                            onClick={handleLikeBack}
+                            bg="linear-gradient(145deg, #ff4d6d, #ff3355)"
+                            border="none"
+                            icon="fas fa-heart"
+                            iconColor="#ffffff"
+                            label="Aimer en retour"
+                          />
+                          <RoundActionBtn
+                            onClick={() => {
+                              closeLikeModal();
+                              goToProfile(selectedLike.id);
+                            }}
+                            bg="#ffffff"
+                            border="1px solid #e9ecef"
+                            icon="fas fa-user"
+                            iconColor="#6f42c1"
+                            label="Voir le profil"
+                          />
+                          <RoundActionBtn
+                            onClick={() => {
+                              handleBlock(selectedLike);
+                              closeLikeModal();
+                            }}
+                            bg="#1a1a1a"
+                            border="none"
+                            icon="fas fa-ban"
+                            iconColor="#ffffff"
+                            label="Bloquer"
+                          />
+                        </div>
                       )}
-                    </div>
+                    </>
+                  )}
+                </ModalShell>
+              )}
 
-                    <div className="d-flex align-items-center justify-content-between mb-2">
-                      <h4 className="fw-bold mb-0 clickable-profile" onClick={() => {
-                        closeLikeModal();
-                        goToProfile(selectedLike.id);
-                      }}>
-                        {selectedLike.first_name} {selectedLike.last_name}
-                        {selectedLike.age ? `, ${selectedLike.age}` : ''}
-                      </h4>
-                      {isMatched(selectedLike.id) && (
-                        <span className="status-badge matched-badge">Match</span>
-                      )}
-                    </div>
-
-                    <p className="text-secondary mb-3" style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{selectedLike.bio || "Pas encore de bio"}</p>
-
-                    {isMatched(selectedLike.id) ? (
-                      <div className="d-flex justify-content-center gap-2 flex-wrap">
-                        <RoundActionBtn
-                          onClick={() => {
-                            closeLikeModal();
-                            goToProfile(selectedLike.id);
-                          }}
-                          bg="#ffffff"
-                          border="1px solid #e9ecef"
-                          icon="fas fa-user"
-                          iconColor="#6f42c1"
-                          label="Voir le profil"
-                        />
-                        <RoundActionBtn
-                          onClick={() => {
-                            closeLikeModal();
-                            goToMessenger(selectedLike.id);
-                          }}
-                          bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
-                          border="none"
-                          icon="fas fa-comment-dots"
-                          iconColor="#ffffff"
-                          label="Envoyer un message"
-                        />
-                        <RoundActionBtn
-                          onClick={() => handleUnlikeFromModal()}
-                          bg="#dc3545"
-                          border="none"
-                          icon="fas fa-heart-broken"
-                          iconColor="#ffffff"
-                          label="Unlike"
-                        />
-                        <RoundActionBtn
-                          onClick={() => {
-                            handleBlock(selectedLike);
-                            closeLikeModal();
-                          }}
-                          bg="#1a1a1a"
-                          border="none"
-                          icon="fas fa-ban"
-                          iconColor="#ffffff"
-                          label="Bloquer"
-                        />
-                      </div>
-                    ) : (
-                      <div className="d-flex justify-content-center gap-2">
-                        <RoundActionBtn
-                          onClick={handlePassFromLikeModal}
-                          bg="#ffffff"
-                          border="1px solid #e9ecef"
-                          icon="fas fa-times"
-                          iconColor="#adb5bd"
-                          label="Passer"
-                        />
-                        <RoundActionBtn
-                          onClick={handleLikeBack}
-                          bg="linear-gradient(145deg, #ff4d6d, #ff3355)"
-                          border="none"
-                          icon="fas fa-heart"
-                          iconColor="#ffffff"
-                          label="Aimer en retour"
-                        />
-                        <RoundActionBtn
-                          onClick={() => {
-                            closeLikeModal();
-                            goToProfile(selectedLike.id);
-                          }}
-                          bg="#ffffff"
-                          border="1px solid #e9ecef"
-                          icon="fas fa-user"
-                          iconColor="#6f42c1"
-                          label="Voir le profil"
-                        />
-                        <RoundActionBtn
-                          onClick={() => {
-                            handleBlock(selectedLike);
-                            closeLikeModal();
-                          }}
-                          bg="#1a1a1a"
-                          border="none"
-                          icon="fas fa-ban"
-                          iconColor="#ffffff"
-                          label="Bloquer"
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-              </ModalShell>
-
-              {/* MODAL DE MATCH */}
+              {/* MODAL DE MATCH - Visible to all users */}
               <ModalShell
                 open={matchModalOpen}
                 onClose={closeMatchModal}
@@ -2542,7 +2554,7 @@ export default function Dashboard() {
                 )}
               </ModalShell>
 
-              {/* MODAL DE DÉBLOCAGE */}
+              {/* MODAL DE DÉBLOCAGE - Visible to all users */}
               <ModalShell
                 open={unblockModalOpen}
                 onClose={closeUnblockModal}

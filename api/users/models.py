@@ -39,7 +39,6 @@ class UserManager(BaseUserManager):
         return self.create_user(email, username, password, **extra_fields)
 
 
-
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30, unique=False)
@@ -70,6 +69,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     profile_photo = models.ImageField(upload_to="profiles/main/", blank=True, null=True)
 
     is_verified = models.BooleanField(default=False)
+
+    # Account Type
+    ACCOUNT_TYPE_CHOICES = [
+        ("free", "Free Account"),
+        ("premium", "Premium Account"),
+        ("god_mode", "God Mode"),
+    ]
+    account_type = models.CharField(
+        max_length=20, 
+        choices=ACCOUNT_TYPE_CHOICES, 
+        default="free",
+        help_text="Account tier: Free, Premium, or God Mode"
+    )
 
     height = models.PositiveIntegerField(null=True, blank=True)
     passions = models.TextField(blank=True)
@@ -108,12 +120,9 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.save(update_fields=['is_online', 'last_activity'])
     
     def set_offline(self):
-        """Set user as offline"""
         if self.is_online:
             self.is_online = False
             self.save(update_fields=['is_online'])
-
-
 
 
 

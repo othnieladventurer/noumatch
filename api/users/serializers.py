@@ -175,11 +175,12 @@ class MeSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "username",
-            "first_name",      # 👈 ADD THIS
-            "last_name",       # 👈 ADD THIS
+            "first_name",      
+            "last_name",      
             "bio",
             "birth_date",
             "profile_photo",
+            "account_type",
         ]
 
 

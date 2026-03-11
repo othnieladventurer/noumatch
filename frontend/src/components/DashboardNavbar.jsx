@@ -174,8 +174,9 @@ export default function DashboardNavbar({ user }) {
     return "Hors ligne";
   };
 
+  // UPDATED: Handle message click to navigate with conversation ID
   const handleMessageClick = (conversationId) => {
-    navigate("/messages");
+    navigate(`/messages?conversation=${conversationId}`);
   };
 
   return (
