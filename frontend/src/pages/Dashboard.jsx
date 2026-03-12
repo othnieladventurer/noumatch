@@ -504,6 +504,24 @@ export default function Dashboard() {
     }
   };
 
+  // Track pass in database
+  const trackPass = async (profileId) => {
+    try {
+      const token = localStorage.getItem("access");
+      await fetch("http://127.0.0.1:8000/api/interactions/pass/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ to_user_id: profileId }),
+      });
+      // Don't await or check response - fire and forget
+    } catch (error) {
+      console.error("Error tracking pass:", error);
+    }
+  };
+
   // Unlike a profile
   const handleUnlike = async (profileId) => {
     const success = await deleteLike(profileId);
@@ -971,7 +989,13 @@ export default function Dashboard() {
     });
   };
 
-  const handlePass = () => triggerSlide("left");
+  const handlePass = () => {
+    if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;
+    
+    // Track the pass in database
+    trackPass(currentProfile.id);
+    triggerSlide("left");
+  };
   
   const handleLike = async () => {
     if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;

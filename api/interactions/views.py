@@ -1,9 +1,13 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import permissions, status
-from .models import Like
-from .serializers import LikeSerializer
+from rest_framework import generics, permissions, status
+from .models import Pass, Like
+from .serializers import LikeSerializer, PassSerializer, PassCheckSerializer, BulkPassSerializer
 from django.shortcuts import get_object_or_404
+
+from django.db import models
+from django.contrib.auth import get_user_model
+from users.models import User
 
 
 
@@ -159,6 +163,161 @@ class UnlikeByLikeIdView(APIView):
 
 
 
+
+
+
+
+class CreatePassView(generics.CreateAPIView):
+    """Create a new pass (when user swipes left)"""
+    serializer_class = PassSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class BulkCreatePassView(APIView):
+    """Create multiple passes at once"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        serializer = BulkPassSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        
+        user_ids = serializer.validated_data['user_ids']
+        created_passes = []
+        errors = []
+
+        for user_id in user_ids:
+            try:
+                # Check if user exists
+                to_user = User.objects.get(id=user_id)
+                
+                # Check if already passed
+                if Pass.objects.filter(from_user=request.user, to_user=to_user).exists():
+                    errors.append({f"user_{user_id}": "Already passed on this user"})
+                    continue
+                
+                # Check if already liked
+                if Like.objects.filter(from_user=request.user, to_user=to_user).exists():
+                    errors.append({f"user_{user_id}": "Cannot pass on liked user"})
+                    continue
+
+                # Create pass
+                pass_obj = Pass.objects.create(
+                    from_user=request.user,
+                    to_user=to_user
+                )
+                created_passes.append(pass_obj)
+                
+            except User.DoesNotExist:
+                errors.append({f"user_{user_id}": "User not found"})
+
+        response_data = {
+            "created_count": len(created_passes),
+            "created": PassSerializer(created_passes, many=True).data if created_passes else [],
+            "errors": errors
+        }
+
+        if errors and not created_passes:
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+        elif errors:
+            return Response(response_data, status=status.HTTP_207_MULTI_STATUS)
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+
+class CheckPassView(APIView):
+    """Check if current user has passed on a specific user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, user_id):
+        try:
+            to_user = User.objects.get(id=user_id)
+            pass_obj = Pass.objects.filter(
+                from_user=request.user,
+                to_user=to_user
+            ).first()
+            
+            data = {
+                'has_passed': pass_obj is not None,
+                'passed_at': pass_obj.created_at if pass_obj else None
+            }
+            serializer = PassCheckSerializer(data)
+            return Response(serializer.data)
+            
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class RemovePassView(APIView):
+    """Remove a pass (if user changes their mind)"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, user_id):
+        try:
+            pass_obj = Pass.objects.get(
+                from_user=request.user,
+                to_user_id=user_id
+            )
+            pass_obj.delete()
+            return Response(
+                {"message": "Pass removed successfully"},
+                status=status.HTTP_204_NO_CONTENT
+            )
+        except Pass.DoesNotExist:
+            return Response(
+                {"error": "Pass not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class UserPassesSentView(generics.ListAPIView):
+    """Get all passes sent by current user"""
+    serializer_class = PassSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Pass.objects.filter(from_user=self.request.user)
+
+
+class UserPassesReceivedView(generics.ListAPIView):
+    """Get all passes received by current user"""
+    serializer_class = PassSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Pass.objects.filter(to_user=self.request.user)
+
+
+class PassStatsView(APIView):
+    """Get pass statistics for current user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        total_passes_sent = Pass.objects.filter(from_user=request.user).count()
+        total_passes_received = Pass.objects.filter(to_user=request.user).count()
+        
+        # Get recent passes (last 7 days)
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        week_ago = timezone.now() - timedelta(days=7)
+        recent_passes_sent = Pass.objects.filter(
+            from_user=request.user,
+            created_at__gte=week_ago
+        ).count()
+
+        return Response({
+            'total_passes_sent': total_passes_sent,
+            'total_passes_received': total_passes_received,
+            'recent_passes_sent': recent_passes_sent,
+        })
 
 
 
