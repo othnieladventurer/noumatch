@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
-import ReportModal from "../components/ReportModal"; // Import the ReportModal component
-
-import "bootstrap/dist/css/bootstrap.min.css";
-import "@fortawesome/fontawesome-free/css/all.min.css";
+import LeftBlock from "../components/LeftBlock";
+import CenterBlock from "../components/CenterBlock";
+import RightBlock from "../components/RightBlock";
+import Modals from "../components/Modals";
+import { getProfilePhotoUrl, calculateAge, shuffleArray, formatName } from "../utils/helpers";
+import "../styles/Dashboard.css";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -52,16 +54,16 @@ export default function Dashboard() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [userToReport, setUserToReport] = useState(null);
 
+  // NEW: Swipe limits state
+  const [swipeLimits, setSwipeLimits] = useState({
+    can_like: true,
+    likes_remaining: 10,
+    likes_today: 0,
+    daily_limit: 10
+  });
+
   // Helper function to format name
-  const formatName = (profile) => {
-    if (!profile) return "";
-    if (profile.first_name && profile.last_name) {
-      return `${profile.first_name} ${profile.last_name}`;
-    }
-    if (profile.first_name) return profile.first_name;
-    if (profile.last_name) return profile.last_name;
-    return "";
-  };
+  // Now imported from helpers
 
   // Check if user is matched with a profile
   const isMatched = (profileId) => matchesIds.includes(profileId);
@@ -72,35 +74,21 @@ export default function Dashboard() {
   // Check if user is blocked
   const isBlocked = (profileId) => blockedIds.includes(profileId);
 
-  // Calculate age
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return null;
-    const today = new Date();
-    const birth = new Date(birthDate);
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-      age--;
+  // NEW: Fetch swipe limits
+  const fetchSwipeLimits = async () => {
+    try {
+      const token = localStorage.getItem("access");
+      const response = await fetch("http://127.0.0.1:8000/api/interactions/swipe/limits/", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSwipeLimits(data);
+        console.log("📊 Swipe limits updated:", data);
+      }
+    } catch (error) {
+      console.error("Error fetching swipe limits:", error);
     }
-    return age;
-  };
-
-  // Shuffle array
-  const shuffleArray = (array) => {
-    const shuffled = [...array];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
-
-  // Photo URL helper
-  const getProfilePhotoUrl = (path) => {
-    if (!path) return null;
-    if (path.startsWith('http')) return path;
-    if (path.startsWith('/media')) return `http://127.0.0.1:8000${path}`;
-    return `http://127.0.0.1:8000${path}`;
   };
 
   // Get conversation ID for a matched user
@@ -216,6 +204,11 @@ export default function Dashboard() {
     }
   };
 
+
+
+
+  
+
   // Fetch authenticated user
   useEffect(() => {
     const token = localStorage.getItem("access");
@@ -243,6 +236,7 @@ export default function Dashboard() {
 
         const data = await response.json();
         setUser(data);
+        console.log("👤 User loaded:", data.email, "Account type:", data.account_type);
       } catch (error) {
         console.error("Erreur lors de la récupération de l'utilisateur:", error);
         navigate("/login");
@@ -253,6 +247,13 @@ export default function Dashboard() {
 
     fetchUser();
   }, [navigate]);
+
+  // NEW: Fetch swipe limits when user loads
+  useEffect(() => {
+    if (user) {
+      fetchSwipeLimits();
+    }
+  }, [user]);
 
   // Fetch blocked users
   const fetchBlockedUsers = async () => {
@@ -504,22 +505,82 @@ export default function Dashboard() {
     }
   };
 
-  // Track pass in database
+  // UPDATED: Track pass in database with comprehensive debugging
   const trackPass = async (profileId) => {
+    console.log("🔍 ===== PASS TRACKING DEBUG =====");
+    console.log("🔍 Attempting to track pass for user ID:", profileId);
+    console.log("🔍 Current user:", user?.id, user?.email);
+    console.log("🔍 Token exists:", !!localStorage.getItem("access"));
+    
+    // Check if trying to pass on self
+    if (user?.id === profileId) {
+      console.error("❌ Cannot pass on yourself!");
+      return;
+    }
+    
+    // Check if already liked
+    if (isLiked(profileId)) {
+      console.error("❌ Cannot pass on someone you've already liked!");
+      return;
+    }
+    
+    // Check if already passed
+    // Note: We don't have a state for passed IDs yet, so we'll let the API handle this
+    
     try {
       const token = localStorage.getItem("access");
-      await fetch("http://127.0.0.1:8000/api/interactions/pass/", {
+      const requestBody = JSON.stringify({ to_user_id: profileId });
+      console.log("🔍 Request body:", requestBody);
+      
+      const response = await fetch("http://127.0.0.1:8000/api/interactions/swipe/pass/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ to_user_id: profileId }),
+        body: requestBody,
       });
-      // Don't await or check response - fire and forget
+      
+      console.log("🔍 Response status:", response.status);
+      
+      // Try to get response body
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log("🔍 Response data:", responseData);
+      } catch (e) {
+        console.log("🔍 Could not parse response as JSON");
+        responseData = await response.text();
+        console.log("🔍 Response text:", responseData);
+      }
+      
+      if (response.ok) {
+        console.log("✅ Pass recorded successfully for user:", profileId);
+        // Optionally refresh swipe limits after pass
+        fetchSwipeLimits();
+      } else {
+        console.error("❌ Failed to record pass. Status:", response.status);
+        console.error("❌ Error details:", responseData);
+        
+        // Specific error handling
+        if (response.status === 400) {
+          if (responseData?.error?.includes("already passed")) {
+            console.warn("⚠️ You have already passed on this user");
+          } else if (responseData?.error?.includes("already liked")) {
+            console.warn("⚠️ You cannot pass on someone you've already liked");
+          } else if (responseData?.error?.includes("pass on yourself")) {
+            console.warn("⚠️ Cannot pass on yourself");
+          }
+        } else if (response.status === 401) {
+          console.error("❌ Authentication error - token may be expired");
+        } else if (response.status === 429) {
+          console.error("❌ Rate limit exceeded");
+        }
+      }
     } catch (error) {
-      console.error("Error tracking pass:", error);
+      console.error("❌ Network error tracking pass:", error);
     }
+    console.log("🔍 ===== END PASS DEBUG =====");
   };
 
   // Unlike a profile
@@ -943,6 +1004,10 @@ export default function Dashboard() {
     }
   };
 
+  const reloadProfiles = () => {
+    window.location.reload();
+  };
+
   const triggerSlide = (direction) => {
     if (isAnimating) return;
     setSlideDirection(direction);
@@ -989,20 +1054,33 @@ export default function Dashboard() {
     });
   };
 
+  // UPDATED: handlePass with swipe limit check and debugging
   const handlePass = () => {
     if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;
+    
+    console.log("👆 Pass button clicked for user:", currentProfile.id, currentProfile.first_name);
     
     // Track the pass in database
     trackPass(currentProfile.id);
     triggerSlide("left");
   };
   
+  // UPDATED: handleLike with swipe limit check and new endpoint
   const handleLike = async () => {
     if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;
     
+    console.log("❤️ Like button clicked for user:", currentProfile.id, currentProfile.first_name);
+    console.log("📊 Current swipe limits:", swipeLimits);
+    
+    // Check if user can like based on daily limits
+    if (!swipeLimits.can_like) {
+      alert(`Daily like limit reached (${swipeLimits.daily_limit}/day). Upgrade to premium for more!`);
+      return;
+    }
+    
     try {
       const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/like/", {
+      const response = await fetch("http://127.0.0.1:8000/api/interactions/swipe/like/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1013,6 +1091,8 @@ export default function Dashboard() {
         }),
       });
 
+      console.log("❤️ Like response status:", response.status);
+
       if (response.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -1020,15 +1100,24 @@ export default function Dashboard() {
         return;
       }
 
+      if (response.status === 429) {
+        const data = await response.json();
+        alert(`Daily like limit reached (${data.limit}/day)!`);
+        fetchSwipeLimits(); // Refresh limits
+        return;
+      }
+
       if (response.ok) {
+        console.log("✅ Like recorded successfully");
         setSentLikesIds(prev => [...prev, currentProfile.id]);
         await checkForMatch(currentProfile.id);
+        fetchSwipeLimits(); // Refresh limits after successful like
       } else {
         const error = await response.json();
         console.error("❌ Échec du like:", error);
       }
     } catch (error) {
-      console.error("Erreur lors du like du profil:", error);
+      console.error("❌ Erreur lors du like du profil:", error);
     }
 
     triggerSlide("right");
@@ -1127,171 +1216,6 @@ export default function Dashboard() {
     document.body.style.overflow = 'unset';
   };
 
-  // Photo Modal Component
-  const PhotoModal = () => {
-    if (!photoModalOpen) return null;
-
-    const goToNextModalPhoto = (e) => {
-      e.stopPropagation();
-      if (modalPhotos.length <= 1) return;
-      const nextIndex = (modalPhotoIndex + 1) % modalPhotos.length;
-      setModalPhotoIndex(nextIndex);
-      setSelectedPhoto(modalPhotos[nextIndex]);
-    };
-
-    const goToPrevModalPhoto = (e) => {
-      e.stopPropagation();
-      if (modalPhotos.length <= 1) return;
-      const prevIndex = (modalPhotoIndex - 1 + modalPhotos.length) % modalPhotos.length;
-      setModalPhotoIndex(prevIndex);
-      setSelectedPhoto(modalPhotos[prevIndex]);
-    };
-
-    return (
-      <>
-        <div
-          onClick={closePhotoModal}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.95)",
-            zIndex: 1000000,
-            backdropFilter: "blur(8px)",
-            cursor: "pointer",
-          }}
-        />
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 1000001,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px",
-            pointerEvents: "none",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: "95vw",
-              maxHeight: "95vh",
-              position: "relative",
-              pointerEvents: "auto",
-            }}
-          >
-            <button
-              onClick={closePhotoModal}
-              style={{
-                position: "absolute",
-                top: "-40px",
-                right: "-40px",
-                background: "white",
-                border: "none",
-                borderRadius: "50%",
-                width: "40px",
-                height: "40px",
-                fontSize: "20px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                zIndex: 1000002,
-              }}
-            >
-              <i className="fas fa-times"></i>
-            </button>
-            
-            {modalPhotos.length > 1 && (
-              <>
-                <button
-                  onClick={goToPrevModalPhoto}
-                  style={{
-                    position: "absolute",
-                    left: "20px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "rgba(255,255,255,0.8)",
-                    border: "none",
-                    borderRadius: "50%",
-                    width: "50px",
-                    height: "50px",
-                    fontSize: "20px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                    zIndex: 1000002,
-                  }}
-                >
-                  <i className="fas fa-chevron-left"></i>
-                </button>
-                <button
-                  onClick={goToNextModalPhoto}
-                  style={{
-                    position: "absolute",
-                    right: "20px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "rgba(255,255,255,0.8)",
-                    border: "none",
-                    borderRadius: "50%",
-                    width: "50px",
-                    height: "50px",
-                    fontSize: "20px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-                    zIndex: 1000002,
-                  }}
-                >
-                  <i className="fas fa-chevron-right"></i>
-                </button>
-              </>
-            )}
-            
-            <div style={{
-              position: "absolute",
-              bottom: "-40px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              color: "white",
-              fontSize: "16px",
-              background: "rgba(0,0,0,0.5)",
-              padding: "6px 16px",
-              borderRadius: "20px",
-            }}>
-              {modalPhotoIndex + 1} / {modalPhotos.length}
-            </div>
-            
-            <img
-              src={selectedPhoto}
-              alt="Plein écran"
-              style={{
-                maxWidth: "100%",
-                maxHeight: "95vh",
-                objectFit: "contain",
-                borderRadius: "8px",
-                boxShadow: "0 4px 30px rgba(0,0,0,0.5)",
-              }}
-            />
-          </div>
-        </div>
-      </>
-    );
-  };
-
   const centerCardStyle = {
     borderRadius: "24px",
     transition: "transform 0.3s ease, opacity 0.3s ease",
@@ -1310,515 +1234,10 @@ export default function Dashboard() {
     boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
   };
 
-  const ModalShell = ({ open, onClose, title, children, maxWidth = 520, overlay = "rgba(0,0,0,0.60)" }) => {
-    if (!open) return null;
-
-    return (
-      <>
-        <div
-          onClick={onClose}
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: "100%",
-            height: "100%",
-            background: overlay,
-            zIndex: 999999,
-            backdropFilter: "blur(4px)",
-            margin: 0,
-            padding: 0,
-          }}
-        />
-
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: "100%",
-            height: "100%",
-            zIndex: 1000000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: 0,
-            padding: "16px",
-            pointerEvents: "none",
-          }}
-        >
-          <div
-            className="card shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth,
-              borderRadius: 28,
-              overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.2)",
-              background: "#ffffff",
-              animation: "modalFadeIn 0.2s ease-out",
-              pointerEvents: "auto",
-              maxHeight: "calc(100vh - 32px)",
-              overflowY: "auto",
-              margin: 0,
-            }}
-          >
-            <div className="p-4 d-flex align-items-center justify-content-between border-bottom">
-              <div className="fw-bold fs-5">{title}</div>
-
-              <button
-                className="btn rounded-circle d-flex align-items-center justify-content-center"
-                onClick={onClose}
-                aria-label="Fermer"
-                style={{
-                  width: 40,
-                  height: 40,
-                  background: "rgba(0,0,0,0.04)",
-                  border: "none",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,0,0,0.08)"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "rgba(0,0,0,0.04)"}
-              >
-                <i className="fas fa-times" style={{ color: "#111", fontSize: "1.1rem" }} />
-              </button>
-            </div>
-
-            <div className="p-4">{children}</div>
-          </div>
-        </div>
-      </>
-    );
-  };
-
-  const AvatarRow = ({ items, onClickAvatar }) => (
-    <div className="d-flex align-items-center gap-2 flex-wrap mt-3">
-      {items.slice(0, 8).map((p) => {
-        const displayName = p.first_name && p.last_name 
-          ? `${p.first_name} ${p.last_name}` 
-          : p.first_name || p.last_name || "";
-        
-        return (
-          <button
-            key={p.id}
-            type="button"
-            className="p-0 border-0 bg-transparent"
-            onClick={() => onClickAvatar?.(p)}
-            style={{ lineHeight: 0 }}
-            aria-label={displayName ? `Ouvrir le profil de ${displayName}` : "Ouvrir le profil"}
-          >
-            <div className="position-relative">
-              <img
-                src={p.photo || "https://via.placeholder.com/42"}
-                alt={displayName || "Utilisateur"}
-                className="rounded-circle"
-                width="42"
-                height="42"
-                style={{
-                  objectFit: "cover",
-                  border: "2px solid #fff",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                  cursor: "pointer",
-                  transition: "transform 0.2s",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
-              />
-            </div>
-          </button>
-        );
-      })}
-
-      {items.length > 8 && (
-        <span className="badge bg-light text-dark rounded-pill px-3 py-2" style={{ fontSize: "0.85rem" }}>
-          +{items.length - 8}
-        </span>
-      )}
-    </div>
-  );
-
-  const SectionCard = ({ title, count, children }) => (
-    <div
-      className="p-3 mt-3"
-      style={{
-        borderRadius: "20px",
-        background: "linear-gradient(145deg, #ffffff, #f8f9fa)",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-      }}
-    >
-      <div className="d-flex justify-content-between align-items-center mb-2">
-        <span className="fw-semibold" style={{ fontSize: "0.95rem", color: "#2c3e50" }}>{title}</span>
-        <span className="badge rounded-pill" style={{ background: "#e9ecef", color: "#495057", padding: "6px 12px" }}>{count}</span>
-      </div>
-      {children}
-    </div>
-  );
-
-  const RoundActionBtn = ({ onClick, bg, border, icon, iconColor, label }) => (
-    <button
-      type="button"
-      className="btn rounded-circle shadow-sm d-flex align-items-center justify-content-center round-action-btn position-relative"
-      onClick={onClick}
-      style={{
-        width: 64,
-        height: 64,
-        background: bg,
-        border: border || "none",
-        transition: "all 0.2s ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "scale(1.05)";
-        e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.15)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "scale(1)";
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
-      }}
-      aria-label={label}
-    >
-      <i className={icon} style={{ color: iconColor, fontSize: "1.3rem" }} />
-      <span className="round-tooltip">{label}</span>
-    </button>
-  );
-
   return (
     <>
       <DashboardNavbar user={user} />
-      <PhotoModal />
-      <ReportModal 
-        isOpen={reportModalOpen}
-        onClose={closeReportModal}
-        reportedUser={userToReport}
-      />
-
-      <style>
-        {`
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-          
-          html, body {
-            height: 100%;
-            overflow: hidden;
-          }
-          
-          body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #f5f7fb;
-            margin: 0;
-            padding: 0;
-          }
-          
-          .dashboard-container {
-            height: calc(100vh - 72px);
-            overflow: hidden;
-            background: #f5f7fb;
-          }
-          
-          .dashboard-row {
-            height: 100%;
-            overflow: hidden;
-            margin: 0 -8px;
-          }
-          
-          .dashboard-col {
-            height: 100%;
-            overflow: hidden;
-            padding: 0 8px;
-          }
-          
-          .scrollable-card {
-            height: 100%;
-            overflow-y: auto;
-            overflow-x: hidden;
-            border-radius: 24px !important;
-            background: #ffffff;
-            boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
-          }
-          
-          .scrollable-card::-webkit-scrollbar {
-            width: 6px;
-          }
-          
-          .scrollable-card::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-          }
-          
-          .scrollable-card::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 10px;
-          }
-          
-          .scrollable-card::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-          }
-          
-          .center-col {
-            height: 100%;
-            overflow: hidden;
-          }
-          
-          .center-card {
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            border-radius: 24px !important;
-            overflow: hidden !important;
-            background: #ffffff;
-            boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-          }
-          
-          .image-container {
-            background-color: #f8f9fa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            min-height: 0;
-            flex: 1 1 auto;
-            width: 100%;
-            cursor: pointer;
-            position: relative;
-          }
-
-          .image-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-          }
-
-          .image-container::after {
-            content: '🔍';
-            position: absolute;
-            bottom: 16px;
-            right: 16px;
-            background: rgba(255,255,255,0.9);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            opacity: 0;
-            transition: opacity 0.2s;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            pointer-events: none;
-          }
-
-          .image-container:hover::after {
-            opacity: 1;
-          }
-
-          .photo-nav-arrow {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.9);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 20;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            transition: all 0.2s;
-            border: none;
-          }
-
-          .photo-nav-arrow:hover {
-            background: #ffffff;
-            transform: translateY(-50%) scale(1.1);
-          }
-
-          .photo-nav-arrow.left {
-            left: 16px;
-          }
-
-          .photo-nav-arrow.right {
-            right: 16px;
-          }
-
-          .photo-indicators {
-            position: absolute;
-            bottom: 16px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 8px;
-            z-index: 10;
-            background: rgba(0,0,0,0.3);
-            padding: 6px 12px;
-            border-radius: 20px;
-            backdrop-filter: blur(4px);
-          }
-
-          .photo-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            transition: background 0.2s;
-            cursor: pointer;
-          }
-
-          .photo-dot.active {
-            background: #ff4d6d;
-          }
-
-          .photo-dot.inactive {
-            background: rgba(255,255,255,0.6);
-          }
-
-          .card-content {
-            flex: 0 0 auto;
-            padding: 1.5rem;
-            background: #ffffff;
-            border-top: 1px solid #f0f0f0;
-          }
-          
-          .round-action-btn .round-tooltip{
-            position: absolute;
-            left: 50%;
-            bottom: calc(100% + 12px);
-            transform: translateX(-50%) translateY(6px);
-            background: #1a1a1a;
-            color: #fff;
-            font-size: 12px;
-            font-weight: 500;
-            padding: 6px 12px;
-            border-radius: 20px;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 160ms ease, transform 160ms ease;
-            box-shadow: 0 10px 22px rgba(0,0,0,0.25);
-            z-index: 5;
-          }
-          .round-action-btn .round-tooltip::after{
-            content: "";
-            position: absolute;
-            left: 50%;
-            top: 100%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-top: 6px solid #1a1a1a;
-          }
-          .round-action-btn:hover .round-tooltip{
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-          }
-
-          @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-          }
-          
-          @keyframes modalFadeIn {
-            from {
-              opacity: 0;
-              transform: scale(0.95);
-            }
-            to {
-              opacity: 1;
-              transform: scale(1);
-            }
-          }
-          
-          .profile-card {
-            transition: all 0.3s ease;
-          }
-          
-          .profile-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 30px rgba(0,0,0,0.1) !important;
-          }
-
-          .text-truncate-custom {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-          }
-
-          .modal-image-container {
-            background-color: #f8f9fa;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            min-height: 360px;
-            border-radius: 16px;
-          }
-
-          .modal-image-container img {
-            max-width: 100%;
-            max-height: 360px;
-            width: auto;
-            height: auto;
-            object-fit: contain;
-            margin: 0 auto;
-            display: block;
-          }
-
-          .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-left: 10px;
-          }
-          
-          .liked-badge {
-            background: #ff4d6d;
-            color: white;
-          }
-          
-          .matched-badge {
-            background: #ff4d6d;
-            color: white;
-          }
-
-          .clickable-profile {
-            cursor: pointer;
-            transition: opacity 0.2s;
-          }
-          
-          .clickable-profile:hover {
-            opacity: 0.8;
-          }
-
-          /* Responsive adjustments */
-          @media (max-width: 768px) {
-            .dashboard-container {
-              height: auto;
-              overflow: auto;
-            }
-            
-            html, body {
-              overflow: auto;
-            }
-            
-            .image-container {
-              min-height: 300px;
-            }
-          }
-        `}
-      </style>
-
+      
       <div className="dashboard-container container">
         {loading ? (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
@@ -1827,886 +1246,99 @@ export default function Dashboard() {
         ) : user ? (
           <div className="container-fluid h-100 py-3">
             <div className="row g-3 h-100 dashboard-row">
-              {/* LEFT BLOCK - Profil utilisateur et listes */}
+              {/* LEFT BLOCK */}
               <div className="col-lg-3 col-md-4 order-2 order-md-1 h-100 dashboard-col">
-                <div className="scrollable-card p-3">
-                  {/* Profil utilisateur cliquable */}
-                  <div className="d-flex align-items-center gap-3 clickable-profile" onClick={goToMyProfile}>
-                    <div className="position-relative flex-shrink-0">
-                      <img
-                        src={getProfilePhotoUrl(user.profile_photo) || "https://via.placeholder.com/70"}
-                        alt="profil"
-                        className="rounded-circle shadow-sm"
-                        width="70"
-                        height="70"
-                        style={{ objectFit: "cover", border: "3px solid #fff" }}
-                      />
-                      <div className="position-absolute bottom-0 end-0 bg-success rounded-circle p-2" style={{ width: 14, height: 14, border: "2px solid #fff" }} />
-                    </div>
-                    <div className="text-start flex-grow-1" style={{ minWidth: 0 }}>
-                      <div className="fw-bold fs-5 text-truncate-custom">
-                        {user.first_name && user.last_name 
-                          ? `${user.first_name} ${user.last_name}` 
-                          : user.first_name || user.last_name || ""}
-                      </div>
-                      <div className="small text-secondary text-truncate-custom" title={user.email}>{user.email}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3" style={{ height: 1, background: "linear-gradient(90deg, transparent, #e9ecef, transparent)" }} />
-
-                  {/* Qui vous aiment - Only visible for Premium and God Mode users */}
-                  {(user.account_type === "premium" || user.account_type === "god_mode") && (
-                    <SectionCard title="Qui vous aiment" count={likesList.length}>
-                      {likesList.length > 0 ? (
-                        <AvatarRow items={likesList} onClickAvatar={openLikeModal} />
-                      ) : (
-                        <div className="text-center py-3">
-                          <div className="text-secondary small">
-                            <i className="far fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                            <div>Aucun like pour le moment</div>
-                          </div>
-                        </div>
-                      )}
-                    </SectionCard>
-                  )}
-
-                  {/* Matches - Visible to all users */}
-                  <SectionCard title="Matches" count={matchesList.length}>
-                    {matchesList.length > 0 ? (
-                      <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} />
-                    ) : (
-                      <div className="text-center py-3">
-                        <div className="text-secondary small">
-                          <i className="fas fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                          <div>Pas encore de matches</div>
-                        </div>
-                      </div>
-                    )}
-                  </SectionCard>
-
-                  {/* Bloqués - Visible to all users */}
-                  <SectionCard title="Bloqués" count={blockedList.length}>
-                    {blockedList.length > 0 ? (
-                      <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} />
-                    ) : (
-                      <div className="text-center py-3">
-                        <div className="text-secondary small">
-                          <i className="fas fa-ban me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
-                          <div>Aucun utilisateur bloqué</div>
-                        </div>
-                      </div>
-                    )}
-                  </SectionCard>
-                </div>
+                <LeftBlock 
+                  user={user}
+                  likesList={likesList}
+                  matchesList={matchesList}
+                  blockedList={blockedList}
+                  openLikeModal={openLikeModal}
+                  openMatchModalFor={openMatchModalFor}
+                  openUnblockModal={openUnblockModal}
+                  goToMyProfile={goToMyProfile}
+                />
               </div>
 
-              {/* CENTER BLOCK - Carte de swipe principale avec galerie photo */}
+              {/* CENTER BLOCK */}
               <div className="col-lg-6 col-md-8 order-1 order-md-2 h-100 dashboard-col center-col">
-                <div className="center-card" style={centerCardStyle}>
-                  {profilesLoading ? (
-                    <div className="h-100 d-flex align-items-center justify-content-center">
-                      <div className="text-center">
-                        <div className="spinner-border text-primary mb-3" role="status" style={{ width: "3rem", height: "3rem" }} />
-                        <div className="text-secondary">Chargement des profils...</div>
-                      </div>
-                    </div>
-                  ) : apiError ? (
-                    <div className="h-100 d-flex align-items-center justify-content-center">
-                      <div className="text-center p-4">
-                        <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle bg-danger bg-opacity-10" style={{ width: 80, height: 80 }}>
-                          <i className="fas fa-exclamation-triangle text-danger" style={{ fontSize: "2rem" }} />
-                        </div>
-                        <h5 className="fw-bold mb-2">Erreur de chargement</h5>
-                        <p className="text-secondary mb-3">{apiError}</p>
-                        <button
-                          className="btn btn-outline-primary"
-                          onClick={() => window.location.reload()}
-                        >
-                          Réessayer
-                        </button>
-                      </div>
-                    </div>
-                  ) : profiles.length > 0 && profileIndex < profiles.length && currentProfile ? (
-                    <>
-                      {/* Image du profil avec navigation photo */}
-                      <div 
-                        className="image-container" 
-                        onClick={() => openPhotoModal(getCurrentPhotoUrl(), currentProfile.id)}
-                      >
-                        {getCurrentPhotoUrl() ? (
-                          <>
-                            <img
-                              src={getCurrentPhotoUrl()}
-                              alt={formatName(currentProfile) || "Profil"}
-                              style={{
-                                transition: 'transform 0.2s ease, opacity 0.2s ease',
-                                transform: photoSlideDirection === 'left' ? 'translateX(-20px) scale(0.98)' : 
-                                          photoSlideDirection === 'right' ? 'translateX(20px) scale(0.98)' : 
-                                          'translateX(0) scale(1)',
-                                opacity: photoSlideDirection ? 0.7 : 1,
-                              }}
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
-                              }}
-                            />
-                            
-                            {/* Photo indicators */}
-                            {getCurrentProfilePhotos().length > 1 && (
-                              <div className="photo-indicators">
-                                {getCurrentProfilePhotos().map((_, idx) => (
-                                  <div
-                                    key={idx}
-                                    className={`photo-dot ${idx === currentPhotoIndex ? 'active' : 'inactive'}`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (idx !== currentPhotoIndex) {
-                                        setCurrentPhotoIndex(idx);
-                                      }
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                            
-                            {/* Navigation arrows */}
-                            {getCurrentProfilePhotos().length > 1 && (
-                              <>
-                                <button
-                                  className="photo-nav-arrow left"
-                                  onClick={goToPrevPhoto}
-                                  disabled={isPhotoAnimating}
-                                  style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
-                                >
-                                  <i className="fas fa-chevron-left" style={{ color: '#333', fontSize: '1rem' }} />
-                                </button>
-                                
-                                <button
-                                  className="photo-nav-arrow right"
-                                  onClick={goToNextPhoto}
-                                  disabled={isPhotoAnimating}
-                                  style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
-                                >
-                                  <i className="fas fa-chevron-right" style={{ color: '#333', fontSize: '1rem' }} />
-                                </button>
-                              </>
-                            )}
-                            
-                            {/* Photo count */}
-                            {getCurrentProfilePhotos().length > 1 && (
-                              <div style={{
-                                position: 'absolute',
-                                top: '16px',
-                                right: '16px',
-                                background: 'rgba(0,0,0,0.5)',
-                                color: 'white',
-                                padding: '4px 12px',
-                                borderRadius: '20px',
-                                fontSize: '0.85rem',
-                                zIndex: 15
-                              }}>
-                                {currentPhotoIndex + 1} / {getCurrentProfilePhotos().length}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <div className="p-5 text-secondary">Photo non disponible</div>
-                        )}
-                      </div>
-
-                      <div className="card-content">
-                        <div className="d-flex align-items-center mb-2">
-                          {/* Nom cliquable - Va vers le profil */}
-                          <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
-                            {formatName(currentProfile)}
-                            {currentProfile.age ? `, ${currentProfile.age}` : ''}
-                          </h2>
-                          {isMatched(currentProfile.id) && (
-                            <span className="status-badge matched-badge">Match</span>
-                          )}
-                          {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
-                            <span className="status-badge liked-badge">Aimé</span>
-                          )}
-                        </div>
-                        <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "Pas encore de bio"}</p>
-
-                        {isMatched(currentProfile.id) ? (
-                          <div className="d-flex justify-content-center gap-2 flex-wrap mt-3">
-                            <button
-                              onClick={handlePass}
-                              disabled={isAnimating}
-                              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-                              style={{
-                                width: "60px",
-                                height: "60px",
-                                background: "#ffffff",
-                                border: "1px solid #e9ecef",
-                                transition: "all 0.2s",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "#f8f9fa";
-                                e.currentTarget.style.transform = "scale(1.05)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "#ffffff";
-                                e.currentTarget.style.transform = "scale(1)";
-                              }}
-                              aria-label="Passer"
-                            >
-                              <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.3rem" }} />
-                            </button>
-
-                            <RoundActionBtn
-                              onClick={() => goToProfile(currentProfile.id)}
-                              bg="#ffffff"
-                              border="1px solid #e9ecef"
-                              icon="fas fa-user"
-                              iconColor="#6f42c1"
-                              label="Voir le profil"
-                            />
-
-                            <RoundActionBtn
-                              onClick={() => goToMessenger(currentProfile.id)}
-                              bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
-                              border="none"
-                              icon="fas fa-comment-dots"
-                              iconColor="#ffffff"
-                              label="Envoyer un message"
-                            />
-
-                            <RoundActionBtn
-                              onClick={() => {
-                                setMatchedProfile(currentProfile);
-                                setMatchModalOpen(true);
-                              }}
-                              bg="#ffffff"
-                              border="1px solid #dc354530"
-                              icon="fas fa-heart-broken"
-                              iconColor="#dc3545"
-                              label="Annuler le match"
-                            />
-
-                            <RoundActionBtn
-                              onClick={() => openReportModal(currentProfile)}
-                              bg="#ffffff"
-                              border="1px solid #ffc107"
-                              icon="fas fa-flag"
-                              iconColor="#ffc107"
-                              label="Signaler"
-                            />
-
-                            <RoundActionBtn
-                              onClick={() => handleBlock(currentProfile)}
-                              bg="#1a1a1a"
-                              border="none"
-                              icon="fas fa-ban"
-                              iconColor="#ffffff"
-                              label="Bloquer"
-                            />
-                          </div>
-                        ) : (
-                          <div className="d-flex justify-content-center gap-3 mt-3">
-                            <button
-                              onClick={handlePass}
-                              disabled={isAnimating}
-                              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-                              style={{
-                                width: "60px",
-                                height: "60px",
-                                background: "#ffffff",
-                                border: "1px solid #e9ecef",
-                                transition: "all 0.2s",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "#f8f9fa";
-                                e.currentTarget.style.transform = "scale(1.05)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "#ffffff";
-                                e.currentTarget.style.transform = "scale(1)";
-                              }}
-                              aria-label="Passer"
-                            >
-                              <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.3rem" }} />
-                            </button>
-
-                            <button
-                              onClick={handleLike}
-                              disabled={isAnimating}
-                              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-                              style={{
-                                width: "74px",
-                                height: "74px",
-                                background: "linear-gradient(145deg, #ff4d6d, #ff3355)",
-                                border: "none",
-                                transition: "all 0.2s",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = "scale(1.08)";
-                                e.currentTarget.style.boxShadow = "0 10px 25px rgba(255,77,109,0.4)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = "scale(1)";
-                                e.currentTarget.style.boxShadow = "0 8px 20px rgba(255,77,109,0.3)";
-                              }}
-                              aria-label="Aimer"
-                            >
-                              <i className="fas fa-heart" style={{ color: "#ffffff", fontSize: "1.6rem" }} />
-                            </button>
-
-                            <button
-                              onClick={() => goToProfile(currentProfile.id)}
-                              disabled={isAnimating}
-                              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-                              style={{
-                                width: "60px",
-                                height: "60px",
-                                background: "#ffffff",
-                                border: "1px solid #e9ecef",
-                                transition: "all 0.2s",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "#f8f9fa";
-                                e.currentTarget.style.transform = "scale(1.05)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "#ffffff";
-                                e.currentTarget.style.transform = "scale(1)";
-                              }}
-                              aria-label="Voir le profil"
-                            >
-                              <i className="fas fa-user" style={{ color: "#6f42c1", fontSize: "1.2rem" }} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="h-100 d-flex align-items-center justify-content-center">
-                      <div className="text-center p-4">
-                        <div
-                          className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle"
-                          style={{ width: 100, height: 100, background: "rgba(255,77,109,0.1)" }}
-                        >
-                          <i className="fas fa-heart" style={{ color: "#ff4d6d", fontSize: "2.5rem" }} />
-                        </div>
-
-                        <h4 className="fw-bold mb-2">Plus de profils</h4>
-                        <p className="text-secondary mb-4">Revenez plus tard pour découvrir de nouvelles personnes !</p>
-
-                        <button
-                          className="btn btn-primary rounded-pill px-5 py-2"
-                          onClick={() => {
-                            window.location.reload();
-                          }}
-                          style={{ background: "#ff4d6d", border: "none" }}
-                        >
-                          Rafraîchir
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <CenterBlock
+                  profilesLoading={profilesLoading}
+                  apiError={apiError}
+                  profiles={profiles}
+                  profileIndex={profileIndex}
+                  currentProfile={currentProfile}
+                  getCurrentPhotoUrl={getCurrentPhotoUrl}
+                  openPhotoModal={openPhotoModal}
+                  getCurrentProfilePhotos={getCurrentProfilePhotos}
+                  currentPhotoIndex={currentPhotoIndex}
+                  setCurrentPhotoIndex={setCurrentPhotoIndex}
+                  goToPrevPhoto={goToPrevPhoto}
+                  goToNextPhoto={goToNextPhoto}
+                  isPhotoAnimating={isPhotoAnimating}
+                  isMatched={isMatched}
+                  isLiked={isLiked}
+                  goToProfile={goToProfile}
+                  handlePass={handlePass}
+                  handleLike={handleLike}
+                  isAnimating={isAnimating}
+                  goToMessenger={goToMessenger}
+                  setMatchedProfile={setMatchedProfile}
+                  setMatchModalOpen={setMatchModalOpen}
+                  openReportModal={openReportModal}
+                  handleBlock={handleBlock}
+                  centerCardStyle={centerCardStyle}
+                  reloadProfiles={reloadProfiles}
+                  swipeLimits={swipeLimits} // Pass swipe limits to CenterBlock
+                />
               </div>
 
-              {/* RIGHT BLOCK - Détails du profil actuel */}
+              {/* RIGHT BLOCK */}
               <div className="col-lg-3 d-none d-lg-block order-3 h-100 dashboard-col">
-                <div className="scrollable-card p-3">
-                  {currentProfile ? (
-                    <>
-                      {/* Résumé du profil cliquable */}
-                      <div className="d-flex align-items-center gap-3 mb-3 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
-                        <img
-                          src={currentProfile.profile_photo || "https://via.placeholder.com/60"}
-                          alt={formatName(currentProfile) || "Profil"}
-                          className="rounded-circle shadow-sm"
-                          width="60"
-                          height="60"
-                          style={{ objectFit: "cover", border: "3px solid #fff" }}
-                        />
-                        <div>
-                          <div className="d-flex align-items-center">
-                            <h5 className="fw-bold mb-1">
-                              {formatName(currentProfile)}
-                              {currentProfile.age ? `, ${currentProfile.age}` : ''}
-                            </h5>
-                            {isMatched(currentProfile.id) && (
-                              <span className="status-badge matched-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Match</span>
-                            )}
-                            {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
-                              <span className="status-badge liked-badge" style={{ marginLeft: '8px', fontSize: '0.7rem' }}>Aimé</span>
-                            )}
-                          </div>
-                          <div className="small text-secondary">
-                            <i className="fas fa-map-marker-alt me-1" style={{ fontSize: "0.8rem" }} />
-                            {currentProfile.location || "Localisation non spécifiée"}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Photo count indicator */}
-                      {getCurrentProfilePhotos().length > 1 && (
-                        <div className="mb-3 text-center">
-                          <span className="badge bg-light text-dark px-3 py-2">
-                            <i className="fas fa-images me-2"></i>
-                            {getCurrentProfilePhotos().length} photo{getCurrentProfilePhotos().length > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="mb-3">
-                        <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
-                          <i className="fas fa-info-circle me-2" />INFOS DE BASE
-                        </h6>
-                        <div className="d-flex flex-column gap-2">
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="fas fa-venus-mars text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom">
-                              {currentProfile.gender ? currentProfile.gender.charAt(0).toUpperCase() + currentProfile.gender.slice(1) : "Non spécifié"}
-                            </span>
-                          </div>
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="fas fa-heart text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom">
-                              Intéressé par: {currentProfile.interested_in ? 
-                                (currentProfile.interested_in === 'male' ? 'Hommes' : 
-                                 currentProfile.interested_in === 'female' ? 'Femmes' : 'Tout le monde') 
-                                : "Non spécifié"}
-                            </span>
-                          </div>
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="fas fa-cake-candles text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom">
-                              {currentProfile.birth_date ? calculateAge(currentProfile.birth_date) + " ans" : "Âge non spécifié"}
-                            </span>
-                          </div>
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="fas fa-ruler text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom">
-                              {currentProfile.height ? `${currentProfile.height} cm` : "Taille non spécifiée"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mb-3">
-                        <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
-                          <i className="fas fa-briefcase me-2" />PROFESSION
-                        </h6>
-                        <div className="d-flex flex-column gap-2">
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="fas fa-briefcase text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom">{currentProfile.career || "Non spécifiée"}</span>
-                          </div>
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="fas fa-graduation-cap text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom">{currentProfile.education || "Non spécifiée"}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mb-3">
-                        <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
-                          <i className="fas fa-heart me-2" />PASSIONS & LOISIRS
-                        </h6>
-                        <div className="d-flex flex-column gap-2">
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="fas fa-fire text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom" title={currentProfile.passions}>
-                              {currentProfile.passions || "Non spécifiées"}
-                            </span>
-                          </div>
-                          <div className="d-flex align-items-center gap-2">
-                            <i className="fas fa-pencil text-secondary flex-shrink-0" style={{ width: 20 }} />
-                            <span className="text-secondary small text-truncate-custom" title={currentProfile.hobbies}>
-                              {currentProfile.hobbies || "Non spécifiés"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mb-3">
-                        <h6 className="fw-semibold mb-2" style={{ color: "#495057", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
-                          <i className="fas fa-music me-2" />MUSIQUE
-                        </h6>
-                        <div className="d-flex align-items-center gap-2">
-                          <i className="fas fa-headphones text-secondary flex-shrink-0" style={{ width: 20 }} />
-                          <span className="text-secondary small text-truncate-custom" title={currentProfile.favorite_music}>
-                            {currentProfile.favorite_music || "Non spécifiée"}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {/* Bouton Message pour les utilisateurs matchés dans la barre latérale */}
-                      {isMatched(currentProfile.id) && (
-                        <div className="mt-2 text-center">
-                          <button
-                            onClick={() => goToMessenger(currentProfile.id)}
-                            className="btn w-100 py-2"
-                            style={{ 
-                              borderRadius: "30px", 
-                              background: "linear-gradient(145deg, #6f42c1, #5a32a3)",
-                              color: "white",
-                              border: "none",
-                              fontSize: "0.9rem"
-                            }}
-                          >
-                            <i className="fas fa-comment-dots me-2"></i>
-                            Envoyer un message
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="text-center py-4">
-                      <div className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle bg-light" style={{ width: 60, height: 60 }}>
-                        <i className="fas fa-user-slash text-secondary" style={{ fontSize: "1.5rem" }} />
-                      </div>
-                      <p className="text-secondary small">Aucun profil sélectionné</p>
-                    </div>
-                  )}
-                </div>
+                <RightBlock
+                  currentProfile={currentProfile}
+                  getCurrentProfilePhotos={getCurrentProfilePhotos}
+                  isMatched={isMatched}
+                  isLiked={isLiked}
+                  goToProfile={goToProfile}
+                  goToMessenger={goToMessenger}
+                />
               </div>
 
-              {/* MODAL DES LIKES - Only visible for Premium and God Mode users */}
-              {(user?.account_type === "premium" || user?.account_type === "god_mode") && (
-                <ModalShell
-                  open={likeModalOpen}
-                  onClose={closeLikeModal}
-                  title=""
-                  overlay="rgba(0,0,0,0.60)"
-                  maxWidth={480}>
-                  {selectedLike && (
-                    <>
-                      <div className="modal-image-container mb-3" style={{ minHeight: "300px", maxHeight: "300px" }}>
-                        {selectedLike.photo ? (
-                          <img 
-                            src={selectedLike.photo} 
-                            alt={selectedLike.first_name + " " + selectedLike.last_name || "Profil"}
-                            onClick={() => {
-                              closeLikeModal();
-                              setTimeout(() => openPhotoModal(selectedLike.photo, selectedLike.id), 100);
-                            }}
-                            style={{ cursor: "pointer" }}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
-                            }}
-                          />
-                        ) : (
-                          <div className="p-5 text-secondary">Photo non disponible</div>
-                        )}
-                      </div>
-
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <h4 className="fw-bold mb-0 clickable-profile" onClick={() => {
-                          closeLikeModal();
-                          goToProfile(selectedLike.id);
-                        }}>
-                          {selectedLike.first_name} {selectedLike.last_name}
-                          {selectedLike.age ? `, ${selectedLike.age}` : ''}
-                        </h4>
-                        {isMatched(selectedLike.id) && (
-                          <span className="status-badge matched-badge">Match</span>
-                        )}
-                      </div>
-
-                      <p className="text-secondary mb-3" style={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{selectedLike.bio || "Pas encore de bio"}</p>
-
-                      {isMatched(selectedLike.id) ? (
-                        <div className="d-flex justify-content-center gap-2 flex-wrap">
-                          <RoundActionBtn
-                            onClick={() => {
-                              closeLikeModal();
-                              goToProfile(selectedLike.id);
-                            }}
-                            bg="#ffffff"
-                            border="1px solid #e9ecef"
-                            icon="fas fa-user"
-                            iconColor="#6f42c1"
-                            label="Voir le profil"
-                          />
-                          <RoundActionBtn
-                            onClick={() => {
-                              closeLikeModal();
-                              goToMessenger(selectedLike.id);
-                            }}
-                            bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
-                            border="none"
-                            icon="fas fa-comment-dots"
-                            iconColor="#ffffff"
-                            label="Envoyer un message"
-                          />
-                          <RoundActionBtn
-                            onClick={() => handleUnlikeFromModal()}
-                            bg="#dc3545"
-                            border="none"
-                            icon="fas fa-heart-broken"
-                            iconColor="#ffffff"
-                            label="Unlike"
-                          />
-                          <RoundActionBtn
-                            onClick={() => {
-                              handleBlock(selectedLike);
-                              closeLikeModal();
-                            }}
-                            bg="#1a1a1a"
-                            border="none"
-                            icon="fas fa-ban"
-                            iconColor="#ffffff"
-                            label="Bloquer"
-                          />
-                          <RoundActionBtn
-                            onClick={() => {
-                              closeLikeModal();
-                              openReportModal(selectedLike);
-                            }}
-                            bg="#ffffff"
-                            border="1px solid #ffc107"
-                            icon="fas fa-flag"
-                            iconColor="#ffc107"
-                            label="Signaler"
-                          />
-                        </div>
-                      ) : (
-                        <div className="d-flex justify-content-center gap-2">
-                          <RoundActionBtn
-                            onClick={handlePassFromLikeModal}
-                            bg="#ffffff"
-                            border="1px solid #e9ecef"
-                            icon="fas fa-times"
-                            iconColor="#adb5bd"
-                            label="Passer"
-                          />
-                          <RoundActionBtn
-                            onClick={handleLikeBack}
-                            bg="linear-gradient(145deg, #ff4d6d, #ff3355)"
-                            border="none"
-                            icon="fas fa-heart"
-                            iconColor="#ffffff"
-                            label="Aimer en retour"
-                          />
-                          <RoundActionBtn
-                            onClick={() => {
-                              closeLikeModal();
-                              goToProfile(selectedLike.id);
-                            }}
-                            bg="#ffffff"
-                            border="1px solid #e9ecef"
-                            icon="fas fa-user"
-                            iconColor="#6f42c1"
-                            label="Voir le profil"
-                          />
-                          <RoundActionBtn
-                            onClick={() => {
-                              handleBlock(selectedLike);
-                              closeLikeModal();
-                            }}
-                            bg="#1a1a1a"
-                            border="none"
-                            icon="fas fa-ban"
-                            iconColor="#ffffff"
-                            label="Bloquer"
-                          />
-                          <RoundActionBtn
-                            onClick={() => {
-                              closeLikeModal();
-                              openReportModal(selectedLike);
-                            }}
-                            bg="#ffffff"
-                            border="1px solid #ffc107"
-                            icon="fas fa-flag"
-                            iconColor="#ffc107"
-                            label="Signaler"
-                          />
-                        </div>
-                      )}
-                    </>
-                  )}
-                </ModalShell>
-              )}
-
-              {/* MODAL DE MATCH - Visible to all users */}
-              <ModalShell
-                open={matchModalOpen}
-                onClose={closeMatchModal}
-                title=""
-                maxWidth={640}
-                overlay="rgba(0,0,0,0.60)">
-                {matchedProfile && (
-                  <>
-                    <div
-                      className="text-center p-4 position-relative rounded-4 mb-4"
-                      style={{
-                        background: "linear-gradient(145deg, #fff5f7, #fff)",
-                      }}
-                    >
-                      <h2 className="fw-bold mb-2" style={{ fontSize: "2.5rem", background: "linear-gradient(145deg, #ff4d6d, #ff3355)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                        🎉Nou Match!🎉
-                      </h2>
-
-                      <p className="text-secondary mb-4">
-                        Vous et <span className="fw-semibold text-dark clickable-profile" onClick={() => {
-                          closeMatchModal();
-                          goToProfile(matchedProfile.id);
-                        }}>{matchedProfile.first_name} {matchedProfile.last_name}</span> vous êtes mutuellement likés, démarrer une conversation n'a jamais été aussi simple !
-                      </p>
-
-                      <div className="d-flex align-items-center justify-content-center gap-4 mb-4">
-                        <div style={{ width: "100px", height: "100px", borderRadius: "50%", overflow: "hidden", backgroundColor: "#f8f9fa", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} onClick={() => {
-                          closeMatchModal();
-                          setTimeout(() => openPhotoModal(matchedProfile.photo, matchedProfile.id), 100);
-                        }}>
-                          <img 
-                            src={matchedProfile.photo || "https://via.placeholder.com/100"} 
-                            alt={matchedProfile.first_name + " " + matchedProfile.last_name || "Profil"}
-                            style={{ 
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover"
-                            }}
-                          />
-                        </div>
-                        <div className="text-start" style={{ minWidth: 0 }}>
-                          <h4 className="fw-bold mb-1 text-truncate-custom clickable-profile" onClick={() => {
-                            closeMatchModal();
-                            goToProfile(matchedProfile.id);
-                          }}>
-                            {matchedProfile.first_name} {matchedProfile.last_name}
-                            {matchedProfile.age ? `, ${matchedProfile.age}` : ''}
-                          </h4>
-                          <p className="text-secondary mb-0 text-truncate-custom" style={{ maxWidth: 300 }} title={matchedProfile.bio}>{matchedProfile.bio || "Pas encore de bio"}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="d-flex justify-content-center gap-3 flex-wrap">
-                      <RoundActionBtn
-                        onClick={() => {
-                          closeMatchModal();
-                          goToProfile(matchedProfile.id);
-                        }}
-                        bg="#ffffff"
-                        border="1px solid #e9ecef"
-                        icon="fas fa-user"
-                        iconColor="#6f42c1"
-                        label="Voir le profil"
-                      />
-
-                      <RoundActionBtn
-                        onClick={() => {
-                          closeMatchModal();
-                          goToMessenger(matchedProfile.id);
-                        }}
-                        bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
-                        border="none"
-                        icon="fas fa-comment-dots"
-                        iconColor="#ffffff"
-                        label="Envoyer un message"
-                      />
-
-                      <RoundActionBtn
-                        onClick={() => handleUnmatch(matchedProfile)}
-                        bg="#ffffff"
-                        border="1px solid #dc354530"
-                        icon="fas fa-heart-broken"
-                        iconColor="#dc3545"
-                        label="Annuler le match"
-                      />
-
-                      <RoundActionBtn
-                        onClick={() => {
-                          closeMatchModal();
-                          openReportModal(matchedProfile);
-                        }}
-                        bg="#ffffff"
-                        border="1px solid #ffc107"
-                        icon="fas fa-flag"
-                        iconColor="#ffc107"
-                        label="Signaler"
-                      />
-
-                      <RoundActionBtn
-                        onClick={() => handleBlock(matchedProfile)}
-                        bg="#1a1a1a"
-                        border="none"
-                        icon="fas fa-ban"
-                        iconColor="#ffffff"
-                        label="Bloquer"
-                      />
-                    </div>
-
-                    <p className="text-center text-secondary small mt-3 mb-0">
-                      Que souhaitez-vous faire ensuite ?
-                    </p>
-                  </>
-                )}
-              </ModalShell>
-
-              {/* MODAL DE DÉBLOCAGE - Visible to all users */}
-              <ModalShell
-                open={unblockModalOpen}
-                onClose={closeUnblockModal}
-                title=""
-                maxWidth={480}
-                overlay="rgba(0,0,0,0.60)">
-                {selectedBlocked && (
-                  <>
-                    <div className="modal-image-container mb-3" style={{ minHeight: "200px", maxHeight: "200px" }}>
-                      {selectedBlocked.photo ? (
-                        <img 
-                          src={selectedBlocked.photo} 
-                          alt={selectedBlocked.first_name + " " + selectedBlocked.last_name || "Profil"}
-                          onClick={() => {
-                            closeUnblockModal();
-                            setTimeout(() => openPhotoModal(selectedBlocked.photo, selectedBlocked.id), 100);
-                          }}
-                          style={{ cursor: "pointer" }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
-                          }}
-                        />
-                      ) : (
-                        <div className="p-5 text-secondary">Photo non disponible</div>
-                      )}
-                    </div>
-
-                    <div className="text-center mb-4">
-                      <h4 className="fw-bold mb-2 clickable-profile" onClick={() => {
-                        closeUnblockModal();
-                        goToProfile(selectedBlocked.id);
-                      }}>
-                        {selectedBlocked.first_name} {selectedBlocked.last_name}
-                        {selectedBlocked.age ? `, ${selectedBlocked.age}` : ''}
-                      </h4>
-                      <p className="text-secondary mb-3">{selectedBlocked.bio || "Pas encore de bio"}</p>
-                      <p className="text-muted small">Cet utilisateur est actuellement bloqué</p>
-                    </div>
-
-                    <div className="d-flex justify-content-center gap-3">
-                      <RoundActionBtn
-                        onClick={() => handleUnblock(selectedBlocked)}
-                        bg="#28a745"
-                        border="none"
-                        icon="fas fa-check"
-                        iconColor="#ffffff"
-                        label="Débloquer"
-                      />
-                      <RoundActionBtn
-                        onClick={closeUnblockModal}
-                        bg="#6c757d"
-                        border="none"
-                        icon="fas fa-times"
-                        iconColor="#ffffff"
-                        label="Annuler"
-                      />
-                    </div>
-                  </>
-                )}
-              </ModalShell>
-
+              {/* MODALS */}
+              <Modals
+                user={user}
+                likeModalOpen={likeModalOpen}
+                closeLikeModal={closeLikeModal}
+                selectedLike={selectedLike}
+                openPhotoModal={openPhotoModal}
+                isMatched={isMatched}
+                goToProfile={goToProfile}
+                goToMessenger={goToMessenger}
+                handleUnlikeFromModal={handleUnlikeFromModal}
+                handleBlock={handleBlock}
+                openReportModal={openReportModal}
+                handlePassFromLikeModal={handlePassFromLikeModal}
+                handleLikeBack={handleLikeBack}
+                matchModalOpen={matchModalOpen}
+                closeMatchModal={closeMatchModal}
+                matchedProfile={matchedProfile}
+                handleUnmatch={handleUnmatch}
+                unblockModalOpen={unblockModalOpen}
+                closeUnblockModal={closeUnblockModal}
+                selectedBlocked={selectedBlocked}
+                handleUnblock={handleUnblock}
+                photoModalOpen={photoModalOpen}
+                closePhotoModal={closePhotoModal}
+                modalPhotos={modalPhotos}
+                modalPhotoIndex={modalPhotoIndex}
+                setModalPhotoIndex={setModalPhotoIndex}
+                selectedPhoto={selectedPhoto}
+                setSelectedPhoto={setSelectedPhoto}
+                reportModalOpen={reportModalOpen}
+                closeReportModal={closeReportModal}
+                userToReport={userToReport}
+              />
             </div>
           </div>
         ) : (
@@ -2718,3 +1350,6 @@ export default function Dashboard() {
     </>
   );
 }
+
+
+

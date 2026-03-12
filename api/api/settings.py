@@ -116,6 +116,19 @@ SIMPLE_JWT = {
 
 
 
+TIME_ZONE = 'America/New_York'  # Change this to your local timezone
+
+# Make sure this is set to True to enable timezone support
+USE_TZ = True
+
+# This should be set to your language/country
+USE_I18N = True
+USE_L10N = True
+
+
+
+PASS_EXPIRY_HOURS = 1/60
+
 
 
 # Database

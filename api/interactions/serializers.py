@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Like, Pass
+from .models import Like, Pass, DailySwipe
 from datetime import date, timedelta
 from django.utils import timezone
 
@@ -124,5 +124,25 @@ class BulkPassSerializer(serializers.Serializer):
             raise serializers.ValidationError("Duplicate user IDs are not allowed.")
 
         return value
+
+
+
+
+
+
+
+class DailySwipeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DailySwipe
+        fields = ['id', 'swipe_type', 'count', 'date']
+
+
+
+
+class SwipeLimitSerializer(serializers.Serializer):
+    can_like = serializers.BooleanField()
+    likes_remaining = serializers.IntegerField()
+    likes_today = serializers.IntegerField()
+    daily_limit = serializers.IntegerField()
 
 

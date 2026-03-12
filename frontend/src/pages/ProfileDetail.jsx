@@ -598,6 +598,16 @@ export default function ProfileDetail() {
           /* Modern Dating App Styles - NouMatch Brand Colors */
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
           
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            overflow-y: auto !important;
+          }
+          
           .profile-detail-page {
             font-family: 'Inter', sans-serif;
             background: #f5f7fb;
@@ -757,7 +767,7 @@ export default function ProfileDetail() {
           .photo-nav button:hover {
             background: #ff3355;
             transform: scale(1.1);
-            boxShadow: 0 6px 20px rgba(0,0,0,0.4);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
           }
           
           /* Photo Indicators */
@@ -1448,9 +1458,9 @@ export default function ProfileDetail() {
                     {/* Add Report button for matched users */}
                     <button
                       onClick={openReportModal}
-                      className="action-btn white"
+                      className="action-btn warning"
                     >
-                      <i className="fas fa-flag me-2 "></i>
+                      <i className="fas fa-flag me-2"></i>
                       Report
                     </button>
                   </>

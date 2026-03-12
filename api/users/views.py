@@ -11,6 +11,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 
 from .models import User, UserPhoto
+from interactions.models import Like, Pass
+from matches.models import Match
+from block.models import Block
 from .serializers import (RegisterSerializer, LoginSerializer, 
                           ChangePasswordSerializer, UserSerializer, MeSerializer, UserProfileSerializer,
                           UserPhotoSerializer)
@@ -140,15 +143,12 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 # Add this new view for profile discovery
 class UserProfileListView(generics.ListAPIView):
-    """
-    API endpoint to get profiles for discovery based on user's interests
-    GET /api/users/profiles/?gender=female
-    """
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         user = self.request.user
+        now = timezone.now()
         
         print(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
         print(f"🔍 INTERESTED IN: {user.interested_in}")
@@ -160,13 +160,13 @@ class UserProfileListView(generics.ListAPIView):
             # Get gender filter from query params
             gender = self.request.query_params.get('gender', None)
             
-            # Build query based on user's interests
+            # Build base query based on user's interests
             if user.interested_in == 'male':
                 # User wants to see males
                 queryset = User.objects.filter(
                     is_active=True,
                     gender='male'
-                ).exclude(id=user.id)
+                )
                 print(f"🔍 Filtering for male users")
                 
             elif user.interested_in == 'female':
@@ -174,17 +174,17 @@ class UserProfileListView(generics.ListAPIView):
                 queryset = User.objects.filter(
                     is_active=True,
                     gender='female'
-                ).exclude(id=user.id)
+                )
                 print(f"🔍 Filtering for female users")
                 
             elif user.interested_in == 'everyone':
                 # User wants to see everyone
                 queryset = User.objects.filter(
                     is_active=True
-                ).exclude(id=user.id)
+                )
                 print(f"🔍 Filtering for all users")
             
-            # 👇 ADD THIS ONE LINE - EXCLUDE ALL SUPERUSERS (ADMINS)
+            # 👇 EXCLUDE ALL SUPERUSERS (ADMINS)
             queryset = queryset.filter(is_superuser=False)
             
             # ALSO apply gender filter from query param if provided (double filter)
@@ -192,12 +192,47 @@ class UserProfileListView(generics.ListAPIView):
                 queryset = queryset.filter(gender=gender)
                 print(f"🔍 Additional gender filter: {gender}")
             
-            # FINAL SAFETY: NEVER include the current user
+            # ===== PERMANENT EXCLUSIONS =====
+            
+            # 1. Users they've liked (permanent)
+            liked_ids = Like.objects.filter(from_user=user).values_list('to_user_id', flat=True)
+            print(f"🔍 Excluding {len(liked_ids)} liked users")
+            
+            # 2. Users they've matched with (permanent)
+            matches_as_user1 = Match.objects.filter(user1=user).values_list('user2_id', flat=True)
+            matches_as_user2 = Match.objects.filter(user2=user).values_list('user1_id', flat=True)
+            matched_ids = list(matches_as_user1) + list(matches_as_user2)
+            print(f"🔍 Excluding {len(matched_ids)} matched users")
+            
+            # 3. Users they've blocked (permanent)
+            blocked_ids = Block.objects.filter(blocker=user).values_list('blocked_id', flat=True)
+            print(f"🔍 Excluding {len(blocked_ids)} blocked users")
+            
+            # Combine all permanent exclusions
+            permanent_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids)
+            
+            # ===== TEMPORARY EXCLUSIONS =====
+            
+            # 4. Users they've passed on that haven't expired yet (72 hours)
+            active_pass_ids = Pass.objects.filter(
+                from_user=user,
+                expires_at__gt=now  # Only passes that haven't expired
+            ).values_list('to_user_id', flat=True)
+            print(f"🔍 Temporarily excluding {len(active_pass_ids)} passed users (active for 72h)")
+            
+            # Combine ALL exclusions
+            all_exclusions = permanent_exclusions | set(active_pass_ids)
+            all_exclusions.add(user.id)  # Always exclude self
+            
+            # Apply all exclusions
+            queryset = queryset.exclude(id__in=all_exclusions)
+            
+            # FINAL SAFETY: NEVER include the current user (redundant but safe)
             queryset = queryset.exclude(id=user.id)
             
             # Log the results
             print(f"🔍 FINAL RESULTS: {queryset.count()} profiles")
-            for profile in queryset:
+            for profile in queryset[:5]:  # Log first 5 only
                 print(f"  ✅ Profile ID: {profile.id}, Username: {profile.username}, Gender: {profile.gender}")
             
         except Exception as e:
@@ -213,7 +248,6 @@ class UserProfileListView(generics.ListAPIView):
         # Return as a simple array
         print(f"🔍 RETURNING {len(serializer.data)} profiles to frontend")
         return Response(serializer.data)
-
 
         
 

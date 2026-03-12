@@ -1,8 +1,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics, permissions, status
-from .models import Pass, Like
-from .serializers import LikeSerializer, PassSerializer, PassCheckSerializer, BulkPassSerializer
+from .models import Pass, Like, DailySwipe
+from .serializers import LikeSerializer, PassSerializer, PassCheckSerializer, BulkPassSerializer, SwipeLimitSerializer, DailySwipeSerializer
 from django.shortcuts import get_object_or_404
 
 from django.db import models
@@ -120,15 +120,10 @@ class UnlikeView(APIView):
 
 
 class UnlikeByLikeIdView(APIView):
-    """
-    Delete a like by its ID
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, like_id):
-        """
-        Delete a specific like by ID, ensuring the user owns it
-        """
+
         try:
             print(f"🔵 Unlike request: user {request.user.id} deleting like {like_id}")
             
@@ -322,5 +317,169 @@ class PassStatsView(APIView):
 
 
 
+
+
+
+
+
+
+
+class GetSwipeLimitsView(APIView):
+    """Get current user's swipe limits for today"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        # Get today's like count
+        today_likes = DailySwipe.get_today_count(user, 'like')
+        
+        # Set daily limit based on account type
+        if user.account_type == 'free':
+            daily_limit = 10
+        elif user.account_type == 'premium':
+            daily_limit = 100
+        else:  # god_mode
+            daily_limit = 999999  # Unlimited
+        
+        # Calculate remaining likes
+        likes_remaining = max(0, daily_limit - today_likes)
+        
+        data = {
+            'can_like': today_likes < daily_limit,
+            'likes_remaining': likes_remaining,
+            'likes_today': today_likes,
+            'daily_limit': daily_limit,
+        }
+        
+        serializer = SwipeLimitSerializer(data)
+        return Response(serializer.data)
+
+
+
+
+
+class IncrementLikeView(APIView):
+    """Handle like action with swipe counting"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        user = request.user
+        to_user_id = request.data.get('to_user_id')
+        
+        if not to_user_id:
+            return Response(
+                {"error": "to_user_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check daily limit
+        today_likes = DailySwipe.get_today_count(user, 'like')
+        daily_limit = 10 if user.account_type == 'free' else 100
+        
+        if today_likes >= daily_limit:
+            return Response(
+                {"error": "Daily like limit reached", "limit": daily_limit},
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+        
+        try:
+            # Create the like
+            like = Like.objects.create(
+                from_user=user,
+                to_user_id=to_user_id
+            )
+            
+            # Increment daily swipe count
+            DailySwipe.increment_swipe(user, 'like')
+            
+            return Response(
+                {"success": True, "message": "Like recorded"},
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class IncrementPassView(APIView):
+    """Handle pass action with swipe counting"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        user = request.user
+        to_user_id = request.data.get('to_user_id')
+        
+        print(f"\n🔴🔴🔴 PASS DEBUG START 🔴🔴🔴")
+        print(f"User ID: {user.id}")
+        print(f"To User ID: {to_user_id}")
+        print(f"Request data: {request.data}")
+        
+        if not to_user_id:
+            print("❌ ERROR: to_user_id is missing")
+            return Response(
+                {"error": "to_user_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user is trying to pass on themselves
+        if user.id == to_user_id:
+            print("❌ ERROR: User trying to pass on themselves")
+            return Response(
+                {"error": "You cannot pass on yourself"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Check if pass already exists
+            pass_exists = Pass.objects.filter(from_user=user, to_user_id=to_user_id).exists()
+            print(f"Pass already exists: {pass_exists}")
+            
+            # Check if user has already liked this person
+            like_exists = Like.objects.filter(from_user=user, to_user_id=to_user_id).exists()
+            print(f"Like already exists: {like_exists}")
+            
+            if like_exists:
+                print("❌ ERROR: User already liked this person")
+                return Response(
+                    {"error": "You cannot pass on someone you've already liked"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Only create if it doesn't exist
+            if not pass_exists:
+                print("Creating new pass record...")
+                pass_obj = Pass.objects.create(
+                    from_user=user,
+                    to_user_id=to_user_id
+                )
+                print(f"✅ Pass created with ID: {pass_obj.id}, expires: {pass_obj.expires_at}")
+            else:
+                print("Pass already exists, skipping creation")
+            
+            # ALWAYS increment the daily swipe count
+            print("Incrementing daily swipe count...")
+            swipe = DailySwipe.increment_swipe(user, 'pass')
+            print(f"✅ Daily swipe count now: {swipe.count} for date {swipe.date}")
+            
+            print("✅ Pass request successful")
+            print(f"🔴🔴🔴 PASS DEBUG END 🔴🔴🔴\n")
+            
+            return Response(
+                {"success": True, "message": "Pass recorded"},
+                status=status.HTTP_200_OK
+            )
+            
+        except Exception as e:
+            print(f"❌❌❌ EXCEPTION: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            print(f"🔴🔴🔴 PASS DEBUG END (with error) 🔴🔴🔴\n")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
