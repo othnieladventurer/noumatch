@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
+import ReportModal from "../components/ReportModal"; // Import ReportModal
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -18,6 +19,10 @@ export default function ProfileDetail() {
   const [isMatched, setIsMatched] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [matchId, setMatchId] = useState(null);
+  
+  // Report modal state
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [userToReport, setUserToReport] = useState(null);
   
   // Photo gallery state
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
@@ -297,6 +302,19 @@ export default function ProfileDetail() {
     }
   };
 
+  // Report functions
+  const openReportModal = () => {
+    setUserToReport(profile);
+    setReportModalOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeReportModal = () => {
+    setReportModalOpen(false);
+    setUserToReport(null);
+    document.body.style.overflow = 'unset';
+  };
+
   const goBack = () => {
     navigate(-1);
   };
@@ -569,6 +587,11 @@ export default function ProfileDetail() {
     <>
       <DashboardNavbar user={user} />
       <PhotoModal />
+      <ReportModal 
+        isOpen={reportModalOpen}
+        onClose={closeReportModal}
+        reportedUser={userToReport}
+      />
       
       <style>
         {`
@@ -734,7 +757,7 @@ export default function ProfileDetail() {
           .photo-nav button:hover {
             background: #ff3355;
             transform: scale(1.1);
-            box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+            boxShadow: 0 6px 20px rgba(0,0,0,0.4);
           }
           
           /* Photo Indicators */
@@ -1036,6 +1059,17 @@ export default function ProfileDetail() {
           
           .action-btn.success:hover {
             background: #218838;
+            transform: translateY(-2px);
+          }
+          
+          .action-btn.warning {
+            background: #ffc107;
+            color: #212529;
+            border: 1px solid #ffc107;
+          }
+          
+          .action-btn.warning:hover {
+            background: #e0a800;
             transform: translateY(-2px);
           }
           
@@ -1411,6 +1445,14 @@ export default function ProfileDetail() {
                       <i className="fas fa-heart-broken me-2"></i>
                       Unmatch
                     </button>
+                    {/* Add Report button for matched users */}
+                    <button
+                      onClick={openReportModal}
+                      className="action-btn white"
+                    >
+                      <i className="fas fa-flag me-2 "></i>
+                      Report
+                    </button>
                   </>
                 ) : isLiked ? (
                   <>
@@ -1429,15 +1471,33 @@ export default function ProfileDetail() {
                       <i className="fas fa-comment-dots me-2"></i>
                       Message
                     </button>
+                    {/* Add Report button for liked but not matched users */}
+                    <button
+                      onClick={openReportModal}
+                      className="action-btn warning"
+                    >
+                      <i className="fas fa-flag me-2"></i>
+                      Report
+                    </button>
                   </>
                 ) : (
-                  <button
-                    onClick={handleLike}
-                    className="action-btn primary"
-                  >
-                    <i className="fas fa-heart me-2"></i>
-                    Like
-                  </button>
+                  <>
+                    <button
+                      onClick={handleLike}
+                      className="action-btn primary"
+                    >
+                      <i className="fas fa-heart me-2"></i>
+                      Like
+                    </button>
+                    {/* Add Report button for non-liked users */}
+                    <button
+                      onClick={openReportModal}
+                      className="action-btn warning"
+                    >
+                      <i className="fas fa-flag me-2"></i>
+                      Report
+                    </button>
+                  </>
                 )}
                 
                 <button

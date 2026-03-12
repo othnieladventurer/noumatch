@@ -6,6 +6,9 @@ from django.conf import settings
 from datetime import timedelta, date
 from django.contrib.auth.password_validation import validate_password
 from django.utils.text import slugify
+from django.contrib.auth import get_user_model
+from rest_framework import serializers
+from datetime import date
 import random
 import string
 import time
@@ -34,88 +37,72 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "date_joined", "is_verified"]
 
 
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
-    first_name = serializers.CharField(required=True)
-    last_name = serializers.CharField(required=True)
+    password2 = serializers.CharField(write_only=True)
+    country = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = (
-            "email",
-            "first_name",
-            "last_name",
-            "birth_date",
-            "gender",
-            "interested_in",
-            "profile_photo",
-            "password",
-        )
+        fields = [
+            'email', 
+            'first_name', 
+            'last_name', 
+            'birth_date', 
+            'gender', 
+            'interested_in', 
+            'profile_photo', 
+            'password', 
+            'password2',
+            'country',
+        ]
+        extra_kwargs = {
+            'first_name': {'required': True},
+            'last_name': {'required': True},
+            'birth_date': {'required': True},
+            'gender': {'required': True},
+            'interested_in': {'required': True},
+            'profile_photo': {'required': False},
+        }
 
-    def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("This email is already registered.")
-        return value
+    def validate(self, data):
+        if data['password'] != data['password2']:
+            raise serializers.ValidationError("Passwords do not match")
+        return data
 
     def validate_birth_date(self, value):
         """Validate that user is at least 18 years old"""
-        if not value:
-            raise serializers.ValidationError("Birth date is required.")
-        
-        # Calculate age
+        from datetime import date
         today = date.today()
         age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
-        
         if age < 18:
             raise serializers.ValidationError("You must be at least 18 years old to register.")
-        
         return value
 
-    def generate_unique_username(self, first_name, last_name):
-        """Generate a unique username from first and last name"""
-        # Create base username
-        base_username = f"{first_name.lower()}.{last_name.lower()}"
-        base_username = slugify(base_username.replace('.', '-'))
-        
-        username = base_username
-        counter = 1
-        
-        # Keep trying until we find a unique username
-        while User.objects.filter(username=username).exists():
-            # Add random suffix if base username is taken
-            random_suffix = ''.join(random.choices(string.digits, k=4))
-            username = f"{base_username}_{random_suffix}"
-            counter += 1
-            if counter > 10:  # Prevent infinite loop
-                # Final fallback with timestamp
-                timestamp = str(int(time.time()))[-6:]
-                username = f"{base_username}_{timestamp}"
-                break
-        
-        return username
+    def validate_email(self, value):
+        """Check if email already exists"""
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
 
     def create(self, validated_data):
-        password = validated_data.pop("password")
-        first_name = validated_data.pop("first_name")
-        last_name = validated_data.pop("last_name")
+        validated_data.pop('password2')
+        password = validated_data.pop('password')
         
-        # Auto-generate username from first and last name
-        username = self.generate_unique_username(first_name, last_name)
+        # Set username from email (since field is removed but model requires it)
+        validated_data['username'] = validated_data['email'].split('@')[0]
         
-        # Create user with all fields
-        user = User.objects.create_user(
-            email=validated_data["email"],
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            password=password,
-            birth_date=validated_data.get("birth_date"),
-            gender=validated_data.get("gender", ""),
-            interested_in=validated_data.get("interested_in", ""),
-            profile_photo=validated_data.get("profile_photo"),
-        )
-        
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
         return user
+
+
+
+
+
 
 
 class LoginSerializer(serializers.Serializer):

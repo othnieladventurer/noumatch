@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/matches/', include('matches.urls')),
     path('api/chat/', include('chat.urls')),
     path('api/blocked/', include('block.urls')),
+    path('api/reports/', include('report.urls')),
 
 
 ]

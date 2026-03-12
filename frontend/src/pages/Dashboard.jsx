@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
+import ReportModal from "../components/ReportModal"; // Import the ReportModal component
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
@@ -46,6 +47,10 @@ export default function Dashboard() {
   const [matchedProfile, setMatchedProfile] = useState(null);
   const [unblockModalOpen, setUnblockModalOpen] = useState(false);
   const [selectedBlocked, setSelectedBlocked] = useState(null);
+  
+  // Report modal state
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [userToReport, setUserToReport] = useState(null);
 
   // Helper function to format name
   const formatName = (profile) => {
@@ -657,6 +662,19 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Erreur lors du déblocage de l'utilisateur:", error);
     }
+  };
+
+  // Report functions
+  const openReportModal = (user) => {
+    setUserToReport(user);
+    setReportModalOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeReportModal = () => {
+    setReportModalOpen(false);
+    setUserToReport(null);
+    document.body.style.overflow = 'unset';
   };
 
   // Fetch profiles
@@ -1450,6 +1468,11 @@ export default function Dashboard() {
     <>
       <DashboardNavbar user={user} />
       <PhotoModal />
+      <ReportModal 
+        isOpen={reportModalOpen}
+        onClose={closeReportModal}
+        reportedUser={userToReport}
+      />
 
       <style>
         {`
@@ -2041,6 +2064,15 @@ export default function Dashboard() {
                             />
 
                             <RoundActionBtn
+                              onClick={() => openReportModal(currentProfile)}
+                              bg="#ffffff"
+                              border="1px solid #ffc107"
+                              icon="fas fa-flag"
+                              iconColor="#ffc107"
+                              label="Signaler"
+                            />
+
+                            <RoundActionBtn
                               onClick={() => handleBlock(currentProfile)}
                               bg="#1a1a1a"
                               border="none"
@@ -2401,6 +2433,17 @@ export default function Dashboard() {
                             iconColor="#ffffff"
                             label="Bloquer"
                           />
+                          <RoundActionBtn
+                            onClick={() => {
+                              closeLikeModal();
+                              openReportModal(selectedLike);
+                            }}
+                            bg="#ffffff"
+                            border="1px solid #ffc107"
+                            icon="fas fa-flag"
+                            iconColor="#ffc107"
+                            label="Signaler"
+                          />
                         </div>
                       ) : (
                         <div className="d-flex justify-content-center gap-2">
@@ -2441,6 +2484,17 @@ export default function Dashboard() {
                             icon="fas fa-ban"
                             iconColor="#ffffff"
                             label="Bloquer"
+                          />
+                          <RoundActionBtn
+                            onClick={() => {
+                              closeLikeModal();
+                              openReportModal(selectedLike);
+                            }}
+                            bg="#ffffff"
+                            border="1px solid #ffc107"
+                            icon="fas fa-flag"
+                            iconColor="#ffc107"
+                            label="Signaler"
                           />
                         </div>
                       )}
@@ -2535,6 +2589,18 @@ export default function Dashboard() {
                         icon="fas fa-heart-broken"
                         iconColor="#dc3545"
                         label="Annuler le match"
+                      />
+
+                      <RoundActionBtn
+                        onClick={() => {
+                          closeMatchModal();
+                          openReportModal(matchedProfile);
+                        }}
+                        bg="#ffffff"
+                        border="1px solid #ffc107"
+                        icon="fas fa-flag"
+                        iconColor="#ffc107"
+                        label="Signaler"
                       />
 
                       <RoundActionBtn

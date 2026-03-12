@@ -39,6 +39,9 @@ class UserManager(BaseUserManager):
         return self.create_user(email, username, password, **extra_fields)
 
 
+
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30, unique=False)
@@ -64,6 +67,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     interested_in = models.CharField(max_length=10, choices=INTEREST_CHOICES, blank=True)
 
     location = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, blank=True)  # New country field
 
     # MAIN PROFILE PHOTO
     profile_photo = models.ImageField(upload_to="profiles/main/", blank=True, null=True)
@@ -123,7 +127,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         if self.is_online:
             self.is_online = False
             self.save(update_fields=['is_online'])
-
 
 
             

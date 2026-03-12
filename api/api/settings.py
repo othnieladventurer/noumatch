@@ -45,7 +45,8 @@ INSTALLED_APPS = [
     "interactions",
     "matches",
     "chat",
-    "block"
+    "block",
+    'report',
 ]
 
 MIDDLEWARE = [

@@ -1,11 +1,13 @@
 import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Register() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
+  const [detectingCountry, setDetectingCountry] = useState(true);
+  const [countryCode, setCountryCode] = useState(""); // Store country code for flag
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -16,10 +18,43 @@ export default function Register() {
     gender: "",
     interested_in: "",
     profile_photo: null,
+    country: "", // Country name
   });
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Auto-detect user's country on component mount
+  useEffect(() => {
+    detectUserCountry();
+  }, []);
+
+  const detectUserCountry = async () => {
+    try {
+      setDetectingCountry(true);
+      
+      // Using ipapi.co (free, no API key required for basic usage)
+      const response = await fetch('https://ipapi.co/json/');
+      const data = await response.json();
+      
+      if (data.country_name) {
+        setFormData(prev => ({ ...prev, country: data.country_name }));
+        setCountryCode(data.country_code.toLowerCase()); // Store country code for flag
+        console.log("📍 Country detected:", data.country_name, data.country_code);
+      } else {
+        // Fallback to a default or empty
+        setFormData(prev => ({ ...prev, country: "" }));
+        setCountryCode("");
+      }
+    } catch (error) {
+      console.error("Error detecting country:", error);
+      // Fallback to empty on error
+      setFormData(prev => ({ ...prev, country: "" }));
+      setCountryCode("");
+    } finally {
+      setDetectingCountry(false);
+    }
+  };
 
   // Calculate age from birth date
   const calculateAge = (birthDate) => {
@@ -84,6 +119,13 @@ export default function Register() {
       }
     }
 
+    if (step === 3) {
+      if (!formData.profile_photo) {
+        setErrorMessage("Profile photo is required");
+        return;
+      }
+    }
+
     setStep(step + 1);
   };
 
@@ -102,6 +144,12 @@ export default function Register() {
     
     setErrorMessage("");
 
+    // Final validation for profile photo
+    if (!formData.profile_photo) {
+      setErrorMessage("Profile photo is required");
+      return;
+    }
+
     const data = new FormData();
     data.append("first_name", formData.first_name);
     data.append("last_name", formData.last_name);
@@ -110,9 +158,17 @@ export default function Register() {
     data.append("gender", formData.gender);
     data.append("interested_in", formData.interested_in);
     data.append("password", formData.password);
+    data.append("password2", formData.password2); // Make sure password2 is included
+    data.append("country", formData.country);
 
     if (formData.profile_photo) {
       data.append("profile_photo", formData.profile_photo);
+    }
+
+    // Log FormData contents for debugging
+    console.log("Submitting form data:");
+    for (let pair of data.entries()) {
+      console.log(pair[0] + ': ' + (pair[0].includes('password') ? '***' : pair[1]));
     }
 
     setLoading(true);
@@ -145,6 +201,7 @@ export default function Register() {
           message = JSON.stringify(result);
         }
         setErrorMessage(message);
+        console.error("Registration error response:", result);
       }
     } catch (error) {
       console.error("Registration error:", error);
@@ -305,6 +362,59 @@ export default function Register() {
                   />
                 </div>
 
+                {/* Country Field with Real Flag - Unclickable, displayed under email */}
+                <div className="col-12 mb-3">
+                  <label className="form-label">Country</label>
+                  <div className="position-relative">
+                    <div className="d-flex align-items-center">
+                      {countryCode && !detectingCountry && (
+                        <img 
+                          src={`https://flagcdn.com/w40/${countryCode}.png`}
+                          srcSet={`https://flagcdn.com/w80/${countryCode}.png 2x`}
+                          width="30"
+                          height="22.5"
+                          alt={`${formData.country} flag`}
+                          style={{ 
+                            marginRight: "10px",
+                            borderRadius: "4px",
+                            objectFit: "cover",
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                          }}
+                          onError={(e) => {
+                            // Fallback to hide if flag fails to load
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      )}
+                      <input
+                        type="text"
+                        name="country"
+                        className="form-control form-control-lg bg-light"
+                        placeholder={detectingCountry ? "Detecting location..." : "Country not detected"}
+                        value={formData.country || ""}
+                        readOnly
+                        disabled
+                        style={{ 
+                          borderRadius: "16px",
+                          cursor: "not-allowed",
+                          opacity: 0.9,
+                          color: "#495057",
+                          backgroundColor: "#e9ecef",
+                          flex: 1
+                        }}
+                      />
+                    </div>
+                    {detectingCountry && (
+                      <div className="position-absolute top-50 end-0 translate-middle-y me-3">
+                        <div className="spinner-border spinner-border-sm text-secondary" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <small className="text-muted">Auto-detected from your location</small>
+                </div>
+
                 <div className="col-12 mb-3">
                   <label className="form-label">Birth Date</label>
                   <input
@@ -390,29 +500,61 @@ export default function Register() {
                     <option value="everyone">Everyone</option>
                   </select>
                 </div>
+
+                {/* Hidden country field - auto-detected */}
+                <input type="hidden" name="country" value={formData.country} />
               </div>
             )}
 
-            {/* STEP 3: Profile Photo (Optional) */}
+            {/* STEP 3: Profile Photo (Required) */}
             {step === 3 && (
               <div className="row">
                 <div className="col-12 mb-3">
-                  <label className="form-label">Profile Photo (Optional)</label>
+                  <label className="form-label">
+                    Profile Photo <span className="text-danger">*</span>
+                  </label>
                   <input
                     type="file"
                     name="profile_photo"
                     className="form-control form-control-lg"
                     accept="image/*"
                     onChange={handleChange}
-                    // No onKeyPress for file input
-                    style={{ borderRadius: "16px" }}
+                    required
+                    style={{ 
+                      borderRadius: "16px",
+                      borderColor: formData.profile_photo ? "#28a745" : "#e9ecef"
+                    }}
                   />
-                  <small className="text-muted">Upload a clear photo of yourself (you can skip this step)</small>
+                  <small className="text-muted">
+                    Upload a clear photo of yourself (required)
+                  </small>
                   
-                  {formData.profile_photo && (
+                  {formData.profile_photo ? (
                     <div className="mt-2 text-success">
                       <i className="fas fa-check-circle me-1"></i>
                       Photo selected: {formData.profile_photo.name}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-danger">
+                      <i className="fas fa-exclamation-circle me-1"></i>
+                      Profile photo is required
+                    </div>
+                  )}
+
+                  {/* Preview selected image */}
+                  {formData.profile_photo && (
+                    <div className="mt-3 text-center">
+                      <img
+                        src={URL.createObjectURL(formData.profile_photo)}
+                        alt="Preview"
+                        className="rounded-circle"
+                        style={{
+                          width: "100px",
+                          height: "100px",
+                          objectFit: "cover",
+                          border: "3px solid #ff4d6d"
+                        }}
+                      />
                     </div>
                   )}
                 </div>
@@ -445,13 +587,13 @@ export default function Register() {
                 </button>
               ) : (
                 <button
-                  type="button" // Changed from "submit" to "button"
+                  type="button"
                   onClick={(e) => {
                     e.preventDefault();
                     handleSubmit(e);
                   }}
                   className="btn btn-danger w-100 btn-lg"
-                  disabled={loading}
+                  disabled={loading || !formData.profile_photo}
                   style={{ borderRadius: "16px" }}
                 >
                   {loading ? "Creating Account..." : "Create Account"}
