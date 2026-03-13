@@ -1,40 +1,32 @@
 from django.contrib import admin
 from .models import Conversation, Message
 
+
+
+# In your admin.py
 @admin.register(Conversation)
 class ConversationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'match', 'get_user1', 'get_user2', 'created_at', 'updated_at', 'get_message_count')
-    list_filter = ('created_at', 'updated_at')
-    search_fields = ('match__user1__email', 'match__user1__username', 'match__user2__email', 'match__user2__username')
-    readonly_fields = ('created_at', 'updated_at')
-    ordering = ('-updated_at',)
+    list_display = ['id', 'match', 'created_at', 'first_message_at', 'last_message_at', 'has_started']
+    list_filter = ['first_message_at', 'last_message_at']
+    search_fields = ['match__user1__email', 'match__user2__email']
+    readonly_fields = ['created_at', 'updated_at', 'first_message_at', 'last_message_at']
     
     fieldsets = (
-        ('Conversation Info', {
+        ('Match Information', {
             'fields': ('match',)
         }),
         ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
+            'fields': ('created_at', 'updated_at', 'first_message_at', 'last_message_at')
         }),
     )
-    
-    def get_user1(self, obj):
-        return obj.match.user1.email
-    get_user1.short_description = 'User 1'
-    get_user1.admin_order_field = 'match__user1__email'
-    
-    def get_user2(self, obj):
-        return obj.match.user2.email
-    get_user2.short_description = 'User 2'
-    get_user2.admin_order_field = 'match__user2__email'
-    
-    def get_message_count(self, obj):
-        return obj.messages.count()
-    get_message_count.short_description = 'Messages'
-    get_message_count.admin_order_field = 'messages'
 
 
+
+
+
+
+
+    
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
     list_display = ('id', 'conversation', 'sender', 'short_content', 'read', 'created_at')

@@ -604,6 +604,11 @@ export default function ProfileDetail() {
             box-sizing: border-box;
           }
           
+          html, body {
+            height: 100%;
+            overflow-y: auto !important;
+          }
+          
           body {
             overflow-y: auto !important;
           }
@@ -612,6 +617,8 @@ export default function ProfileDetail() {
             font-family: 'Inter', sans-serif;
             background: #f5f7fb;
             min-height: 100vh;
+            overflow-y: visible;
+            display: block;
           }
           
           /* Photo Gallery Hero - Full image, no cropping */
@@ -624,6 +631,7 @@ export default function ProfileDetail() {
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
           }
           
           .main-photo {
@@ -837,7 +845,7 @@ export default function ProfileDetail() {
             opacity: 1;
           }
           
-          /* Profile Content Card */
+          /* Profile Content Card - Now with natural height */
           .profile-content {
             max-width: 800px;
             margin: -30px auto 0;
@@ -846,6 +854,7 @@ export default function ProfileDetail() {
             position: relative;
             z-index: 40;
             box-shadow: 0 -10px 30px rgba(0,0,0,0.05);
+            display: block;
           }
           
           .profile-section {
@@ -1252,7 +1261,7 @@ export default function ProfileDetail() {
           </div>
         </div>
 
-        {/* Profile Content */}
+        {/* Profile Content - Now naturally scrollable with page */}
         <div className="profile-content">
           {/* Relationship Status */}
           <div className="profile-section pt-3 pb-0">

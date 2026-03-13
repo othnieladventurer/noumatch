@@ -703,8 +703,10 @@ export default function Profile() {
         }
 
         html, body, #root {
-          margin: 0 !important;
-          padding: 0 !important;
+          height: auto !important;
+          min-height: 100vh !important;
+          overflow: visible !important;
+          overflow-y: auto !important;
           background: #f5f7fb;
         }
 
@@ -712,13 +714,7 @@ export default function Profile() {
           font-family: 'Inter', sans-serif;
           background: #f5f7fb;
           min-height: 100vh;
-          margin: 0 !important;
-          padding: 0 !important;
-          position: relative;
-        }
-
-        .profile-page > *:first-child {
-          margin-top: 0 !important;
+          height: auto;
         }
 
         .photo-gallery {
@@ -730,8 +726,6 @@ export default function Profile() {
           display: flex;
           align-items: center;
           justify-content: center;
-          margin: 0 !important;
-          padding: 0 !important;
         }
 
         .main-photo {
@@ -786,12 +780,6 @@ export default function Profile() {
           right: 20px;
           background: #ff4d6d;
           color: #fff;
-        }
-
-        .gallery-back-btn:hover,
-        .gallery-edit-btn:hover,
-        .gallery-save-btn:hover {
-          transform: scale(1.05);
         }
 
         .photo-count {
@@ -851,36 +839,6 @@ export default function Profile() {
           text-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
 
-        .top-edit-photo-box {
-          margin-top: 16px;
-          padding: 16px;
-          background: rgba(255,255,255,0.12);
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,0.18);
-          backdrop-filter: blur(10px);
-        }
-
-        .top-edit-photo-actions {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-
-        .mini-upload-btn {
-          border: none;
-          background: #ff4d6d;
-          color: #fff;
-          padding: 10px 16px;
-          border-radius: 12px;
-          font-weight: 700;
-          cursor: pointer;
-        }
-
-        .mini-upload-btn:hover {
-          background: #ff3355;
-        }
-
         .photo-nav {
           position: absolute;
           top: 0;
@@ -918,11 +876,6 @@ export default function Profile() {
           cursor: pointer;
           opacity: 0.95;
           box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-
-        .photo-nav button:hover {
-          background: #ff3355;
-          transform: scale(1.1);
         }
 
         .photo-indicators {
@@ -976,11 +929,6 @@ export default function Profile() {
           opacity: 0.7;
         }
 
-        .thumbnail:hover {
-          opacity: 1;
-          transform: scale(1.05);
-        }
-
         .thumbnail.active {
           border-color: #ff4d6d;
           opacity: 1;
@@ -999,10 +947,6 @@ export default function Profile() {
         .profile-section {
           padding: 24px;
           border-bottom: 1px solid #f0f0f0;
-        }
-
-        .profile-section:last-child {
-          border-bottom: none;
         }
 
         .section-title {
@@ -1027,13 +971,6 @@ export default function Profile() {
           background: #f8f9fa;
           padding: 20px;
           border-radius: 16px;
-          position: relative;
-        }
-
-        .about-text i {
-          color: #ff4d6d;
-          opacity: 0.5;
-          font-size: 1rem;
         }
 
         .info-chips {
@@ -1058,108 +995,6 @@ export default function Profile() {
         .info-chip i {
           color: #ff4d6d;
           width: 16px;
-        }
-
-        .professional-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 12px;
-        }
-
-        .professional-card {
-          background: #f8f9fa;
-          padding: 16px;
-          border-radius: 16px;
-          border: 1px solid #e9ecef;
-        }
-
-        .professional-label {
-          font-size: 0.75rem;
-          color: #6c757d;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 4px;
-        }
-
-        .professional-value {
-          font-size: 1rem;
-          font-weight: 500;
-          color: #2d2d2d;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .professional-value i {
-          color: #ff4d6d;
-          width: 18px;
-        }
-
-        .interest-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-
-        .interest-tag {
-          background: #f8f9fa;
-          padding: 8px 16px;
-          border-radius: 30px;
-          font-size: 0.9rem;
-          color: #2d2d2d;
-          border: 1px solid #e9ecef;
-          transition: all 0.2s;
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-        }
-
-        .interest-tag i {
-          color: #ff4d6d;
-        }
-
-        .verification-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 4px 12px;
-          border-radius: 30px;
-          font-size: 0.8rem;
-          font-weight: 600;
-        }
-
-        .verified-badge {
-          background: #d4edda;
-          color: #155724;
-        }
-
-        .unverified-badge {
-          background: #f8d7da;
-          color: #721c24;
-        }
-
-        .edit-form-control {
-          width: 100%;
-          padding: 10px 14px;
-          border: 1px solid #e0e0e0;
-          border-radius: 12px;
-          font-size: 0.95rem;
-          transition: all 0.2s;
-          background: #ffffff;
-        }
-
-        .edit-form-control:focus {
-          outline: none;
-          border-color: #ff4d6d;
-          box-shadow: 0 0 0 3px rgba(255,77,109,0.1);
-        }
-
-        .edit-form-label {
-          font-size: 0.8rem;
-          color: #6c757d;
-          font-weight: 500;
-          margin-bottom: 4px;
-          display: block;
         }
 
         .photo-gallery-grid {
@@ -1226,16 +1061,12 @@ export default function Profile() {
           gap: 6px;
         }
 
-        .gallery-item-btn:hover {
-          transform: scale(1.04);
+        .gallery-item-btn.main-btn {
+          color: #ff4d6d;
         }
 
         .gallery-item-btn.delete-btn {
           color: #dc3545;
-        }
-
-        .gallery-item-btn.main-btn {
-          color: #ff4d6d;
         }
 
         .main-photo-badge {
@@ -1274,14 +1105,6 @@ export default function Profile() {
           background: #fff0f3;
         }
 
-        .upload-placeholder i {
-          font-size: 1.5rem;
-        }
-
-        .upload-placeholder span {
-          font-size: 0.75rem;
-        }
-
         .action-buttons {
           display: flex;
           justify-content: center;
@@ -1313,11 +1136,6 @@ export default function Profile() {
           border: 1px solid #2d2d2d;
         }
 
-        .action-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
         .alert-overlay {
           position: absolute;
           top: 80px;
@@ -1334,61 +1152,15 @@ export default function Profile() {
           .photo-gallery {
             height: 50vh;
           }
-
-          .main-photo {
-            width: 100%;
-            height: auto;
-            max-height: 100%;
-          }
-
-          .gallery-name {
-            font-size: 2rem;
-          }
-
-          .gallery-age {
-            font-size: 1.4rem;
-          }
-
+          
           .profile-content {
             margin-top: -20px;
-          }
-
-          .photo-indicators {
-            bottom: 80px;
-          }
-
-          .photo-indicator {
-            width: 30px;
-          }
-
-          .photo-indicator.active {
-            width: 45px;
-          }
-
-          .photo-count {
-            right: 72px;
-            padding: 8px 12px;
-          }
-
-          .gallery-save-btn span {
-            display: none;
-          }
-
-          .gallery-save-btn {
-            width: 44px;
-            padding: 0;
-          }
-          
-          .alert-overlay {
-            top: 70px;
-            min-width: 260px;
           }
         }
       `}</style>
 
       <div className="profile-page">
         <div className="photo-gallery">
-          {/* Alert messages - now positioned absolutely inside photo-gallery */}
           {(error || success) && (
             <div className="alert-overlay">
               {error && (
@@ -1518,6 +1290,7 @@ export default function Profile() {
         </div>
 
         <div className="profile-content">
+          {/* Rest of your profile content - unchanged */}
           <div className="profile-section pt-3 pb-0">
             <div className="d-flex justify-content-end">
               {user?.is_verified ? (
@@ -1582,6 +1355,7 @@ export default function Profile() {
               </>
             ) : (
               <div className="row g-3">
+                {/* Edit form fields - keep as is */}
                 <div className="col-12">
                   <label className="edit-form-label">Bio</label>
                   <textarea
@@ -1593,7 +1367,6 @@ export default function Profile() {
                     placeholder="Tell others about yourself..."
                   />
                 </div>
-
                 <div className="col-md-6">
                   <label className="edit-form-label">First Name</label>
                   <input
@@ -1604,7 +1377,6 @@ export default function Profile() {
                     onChange={handleInputChange}
                   />
                 </div>
-
                 <div className="col-md-6">
                   <label className="edit-form-label">Last Name</label>
                   <input
@@ -1615,7 +1387,6 @@ export default function Profile() {
                     onChange={handleInputChange}
                   />
                 </div>
-
                 <div className="col-md-6">
                   <label className="edit-form-label">Birth Date</label>
                   <input
@@ -1626,7 +1397,6 @@ export default function Profile() {
                     onChange={handleInputChange}
                   />
                 </div>
-
                 <div className="col-md-6">
                   <label className="edit-form-label">Height (cm)</label>
                   <input
@@ -1638,7 +1408,6 @@ export default function Profile() {
                     placeholder="e.g. 175"
                   />
                 </div>
-
                 <div className="col-md-6">
                   <label className="edit-form-label">Gender</label>
                   <select
@@ -1653,7 +1422,6 @@ export default function Profile() {
                     <option value="other">Other</option>
                   </select>
                 </div>
-
                 <div className="col-md-6">
                   <label className="edit-form-label">Interested In</label>
                   <select
@@ -1668,7 +1436,6 @@ export default function Profile() {
                     <option value="everyone">Everyone</option>
                   </select>
                 </div>
-
                 <div className="col-12">
                   <label className="edit-form-label">Location</label>
                   <input

@@ -3,6 +3,9 @@ from django.conf import settings
 from django.utils import timezone
 from matches.models import Match  # Import your existing Match model
 
+
+
+
 class Conversation(models.Model):
     """
     Represents a chat conversation between two users (linked to a match)
@@ -15,6 +18,8 @@ class Conversation(models.Model):
     )
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+    first_message_at = models.DateTimeField(null=True, blank=True)  # 👈 ADD THIS
+    last_message_at = models.DateTimeField(null=True, blank=True)   # 👈 ADD THIS
     
     class Meta:
         ordering = ['-updated_at']
@@ -44,6 +49,12 @@ class Conversation(models.Model):
             ~models.Q(sender=user),  # Not sent by this user
             read=False                # Not read yet
         ).count()
+    
+    def has_started(self):
+        """Check if conversation has started (at least one message)"""
+        return self.first_message_at is not None
+
+
 
 
 class Message(models.Model):
@@ -72,7 +83,24 @@ class Message(models.Model):
         if not self.read:
             self.read = True
             self.save(update_fields=['read'])
-
+    
+    # 👇 ADD THIS SAVE METHOD
+    def save(self, *args, **kwargs):
+        is_new = not self.pk  # Check if this is a new message
+        
+        super().save(*args, **kwargs)  # Save the message first
+        
+        if is_new:
+            # Update conversation timestamps
+            conversation = self.conversation
+            
+            # If this is the first message, set first_message_at
+            if conversation.messages.count() == 1:
+                conversation.first_message_at = self.created_at
+            
+            # Always update last_message_at
+            conversation.last_message_at = self.created_at
+            conversation.save(update_fields=['first_message_at', 'last_message_at', 'updated_at'])
 
 
 
