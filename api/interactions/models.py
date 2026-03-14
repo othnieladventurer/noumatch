@@ -4,7 +4,6 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 
-
 class Like(models.Model):
     from_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -17,6 +16,7 @@ class Like(models.Model):
         related_name='likes_received'
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    notification_sent = models.BooleanField(default=False)  # 👈 ADD THIS FIELD
 
     class Meta:
         unique_together = ('from_user', 'to_user')  # prevent duplicate likes
@@ -29,7 +29,6 @@ class Like(models.Model):
     def save(self, *args, **kwargs):
         self.clean()
         super().save(*args, **kwargs)
-
 
 
 class Pass(models.Model):

@@ -5,6 +5,9 @@ from django.utils import timezone
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 
+
+
+
 class Notification(models.Model):
     class Type(models.TextChoices):
         # Welcome
@@ -81,12 +84,20 @@ class Notification(models.Model):
     
     class Meta:
         ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['recipient', '-created_at']),
-            models.Index(fields=['recipient', 'is_read', '-created_at']),
-            models.Index(fields=['type']),
-            models.Index(fields=['created_at']),
+        constraints = [
+            models.UniqueConstraint(
+                fields=['recipient', 'type', 'object_id'],
+                name='unique_notification_per_object'
+            )
         ]
+
+        
+    indexes = [
+        models.Index(fields=['recipient', '-created_at']),
+        models.Index(fields=['recipient', 'is_read', '-created_at']),
+        models.Index(fields=['type']),
+        models.Index(fields=['created_at']),
+    ]
     
     def __str__(self):
         return f"{self.recipient.email} - {self.type} - {self.created_at}"

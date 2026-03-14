@@ -356,7 +356,6 @@ class GetSwipeLimitsView(APIView):
         return Response(serializer.data)
 
 
-
 class IncrementLikeView(APIView):
     """Handle like action with swipe counting"""
     permission_classes = [permissions.IsAuthenticated]
@@ -399,8 +398,11 @@ class IncrementLikeView(APIView):
                 print(f"✅ New like created: {user.id} -> {to_user_id}")
                 DailySwipe.increment_swipe(user, 'like')
                 
+                # 👇 ADD THIS: Send like notification to the person being liked
+                from notifications.utils import send_like_notification
+                send_like_notification(like)
+                
                 # 🔥 CHECK FOR MUTUAL LIKE AND CREATE MATCH
-                # Does the other user already like us?
                 reverse_like = Like.objects.filter(
                     from_user_id=to_user_id,
                     to_user=user
@@ -409,40 +411,18 @@ class IncrementLikeView(APIView):
                 if reverse_like:
                     print(f"🎉 MUTUAL LIKE DETECTED! Creating match...")
                     
-                    # Prepare match data
-                    match_data = {
-                        'user1_id': user.id,
-                        'user2_id': to_user_id
-                    }
+                    # Create match
+                    from matches.models import Match
+                    match, created = Match.objects.get_or_create(
+                        user1_id=min(user.id, to_user_id),
+                        user2_id=max(user.id, to_user_id)
+                    )
                     
-                    # Call your existing match creation endpoint
-                    from rest_framework.test import APIRequestFactory
-                    from .views import MatchCreateView
-                    
-                    factory = APIRequestFactory()
-                    match_request = factory.post('/api/matches/match/create/', match_data, format='json')
-                    match_request.user = user  # Set the user
-                    
-                    match_view = MatchCreateView()
-                    match_response = match_view.post(match_request)
-                    
-                    if match_response.status_code in [200, 201]:
+                    if created:
                         print(f"✅ Match created successfully")
                         # Send match notifications
                         from notifications.utils import send_match_notification
-                        from matches.models import Match
-                        
-                        # Get the match that was just created
-                        match = Match.objects.filter(
-                            user1_id=min(user.id, to_user_id),
-                            user2_id=max(user.id, to_user_id)
-                        ).first()
-                        
-                        if match:
-                            other_user = reverse_like.from_user
-                            send_match_notification(match, user, other_user)
-                    else:
-                        print(f"❌ Failed to create match: {match_response.data}")
+                        send_match_notification(match, user, reverse_like.from_user)
                 
                 return Response(
                     {"success": True, "message": "Like recorded"},
@@ -461,7 +441,6 @@ class IncrementLikeView(APIView):
                 {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
 
 
 
