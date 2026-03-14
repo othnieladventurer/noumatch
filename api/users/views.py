@@ -304,14 +304,20 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
 
 
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def heartbeat(request):
-    """Update user's last activity timestamp"""
-    request.user.update_last_activity()
-    return Response({"status": "ok"}, status=status.HTTP_200_OK)
-
+    """Update user's last activity timestamp and trigger notification checks"""
+    user = request.user
+    
+    # Update last activity
+    user.update_last_activity()
+    return Response({
+        "status": "ok",
+        "user_id": user.id,
+        "timestamp": timezone.now(),
+        "unread_notifications": user.notifications.filter(is_read=False).count()
+    }, status=status.HTTP_200_OK)
 
 
 

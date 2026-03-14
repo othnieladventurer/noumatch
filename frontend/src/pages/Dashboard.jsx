@@ -54,16 +54,13 @@ export default function Dashboard() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [userToReport, setUserToReport] = useState(null);
 
-  // NEW: Swipe limits state
+  // Swipe limits state
   const [swipeLimits, setSwipeLimits] = useState({
     can_like: true,
     likes_remaining: 10,
     likes_today: 0,
     daily_limit: 10
   });
-
-  // Helper function to format name
-  // Now imported from helpers
 
   // Check if user is matched with a profile
   const isMatched = (profileId) => matchesIds.includes(profileId);
@@ -74,7 +71,7 @@ export default function Dashboard() {
   // Check if user is blocked
   const isBlocked = (profileId) => blockedIds.includes(profileId);
 
-  // NEW: Fetch swipe limits
+  // Fetch swipe limits
   const fetchSwipeLimits = async () => {
     try {
       const token = localStorage.getItem("access");
@@ -148,13 +145,12 @@ export default function Dashboard() {
   const goToProfile = (profileId) => navigate(`/profile/${profileId}`);
   const goToMyProfile = () => navigate('/profile');
 
-  // Fetch user photos - FIXED: Using the correct endpoint
+  // Fetch user photos
   const fetchUserPhotos = async (userId) => {
     if (!userId) return [];
     
     try {
       const token = localStorage.getItem("access");
-      // Using the correct endpoint from your URLs
       const response = await fetch(`http://127.0.0.1:8000/api/users/${userId}/photos/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -204,11 +200,6 @@ export default function Dashboard() {
     }
   };
 
-
-
-
-  
-
   // Fetch authenticated user
   useEffect(() => {
     const token = localStorage.getItem("access");
@@ -248,7 +239,7 @@ export default function Dashboard() {
     fetchUser();
   }, [navigate]);
 
-  // NEW: Fetch swipe limits when user loads
+  // Fetch swipe limits when user loads
   useEffect(() => {
     if (user) {
       fetchSwipeLimits();
@@ -505,27 +496,22 @@ export default function Dashboard() {
     }
   };
 
-  // UPDATED: Track pass in database with comprehensive debugging
+  // Track pass in database
   const trackPass = async (profileId) => {
     console.log("🔍 ===== PASS TRACKING DEBUG =====");
     console.log("🔍 Attempting to track pass for user ID:", profileId);
     console.log("🔍 Current user:", user?.id, user?.email);
     console.log("🔍 Token exists:", !!localStorage.getItem("access"));
     
-    // Check if trying to pass on self
     if (user?.id === profileId) {
       console.error("❌ Cannot pass on yourself!");
       return;
     }
     
-    // Check if already liked
     if (isLiked(profileId)) {
       console.error("❌ Cannot pass on someone you've already liked!");
       return;
     }
-    
-    // Check if already passed
-    // Note: We don't have a state for passed IDs yet, so we'll let the API handle this
     
     try {
       const token = localStorage.getItem("access");
@@ -543,7 +529,6 @@ export default function Dashboard() {
       
       console.log("🔍 Response status:", response.status);
       
-      // Try to get response body
       let responseData;
       try {
         responseData = await response.json();
@@ -556,13 +541,11 @@ export default function Dashboard() {
       
       if (response.ok) {
         console.log("✅ Pass recorded successfully for user:", profileId);
-        // Optionally refresh swipe limits after pass
         fetchSwipeLimits();
       } else {
         console.error("❌ Failed to record pass. Status:", response.status);
         console.error("❌ Error details:", responseData);
         
-        // Specific error handling
         if (response.status === 400) {
           if (responseData?.error?.includes("already passed")) {
             console.warn("⚠️ You have already passed on this user");
@@ -825,8 +808,8 @@ export default function Dashboard() {
         last_name: profile.last_name || "",
         age: profile.age || calculateAge(profile.birth_date),
         bio: profile.bio || "",
-        profile_photo: getProfilePhotoUrl(profile.profile_photo), // Main profile photo
-        photos: [], // Will be populated when fetched
+        profile_photo: getProfilePhotoUrl(profile.profile_photo),
+        photos: [],
         location: profile.location || "",
         gender: profile.gender,
         interested_in: profile.interested_in,
@@ -843,7 +826,6 @@ export default function Dashboard() {
       setProfiles(shuffledProfiles);
       setProfileIndex(0);
       
-      // Fetch photos for first profile
       if (shuffledProfiles.length > 0) {
         fetchUserPhotos(shuffledProfiles[0].id);
       }
@@ -892,13 +874,12 @@ export default function Dashboard() {
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
 
-  // Get photos for current profile - FIXED: Returns all photos including main profile photo
+  // Get photos for current profile
   const getCurrentProfilePhotos = useCallback(() => {
     if (!currentProfile) return [];
     
     const photos = [];
     
-    // Add main profile photo first if it exists
     if (currentProfile.profile_photo) {
       photos.push({
         id: 'main',
@@ -907,7 +888,6 @@ export default function Dashboard() {
       });
     }
     
-    // Add gallery photos
     const galleryPhotos = userPhotos[currentProfile.id] || [];
     galleryPhotos.forEach(photo => {
       photos.push(photo);
@@ -916,7 +896,7 @@ export default function Dashboard() {
     return photos;
   }, [currentProfile, userPhotos]);
 
-  // Get current photo URL - FIXED: Returns the current photo based on index
+  // Get current photo URL
   const getCurrentPhotoUrl = useCallback(() => {
     if (!currentProfile) return null;
     
@@ -964,7 +944,6 @@ export default function Dashboard() {
     setPhotoSlideDirection(null);
     setIsPhotoAnimating(false);
     
-    // Fetch photos for new profile
     if (currentProfile?.id) {
       fetchUserPhotos(currentProfile.id);
     }
@@ -1054,25 +1033,23 @@ export default function Dashboard() {
     });
   };
 
-  // UPDATED: handlePass with swipe limit check and debugging
+  // UPDATED: handlePass
   const handlePass = () => {
     if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;
     
     console.log("👆 Pass button clicked for user:", currentProfile.id, currentProfile.first_name);
     
-    // Track the pass in database
     trackPass(currentProfile.id);
     triggerSlide("left");
   };
   
-  // UPDATED: handleLike with swipe limit check and new endpoint
+  // UPDATED: handleLike - NOW CALLS BOTH ENDPOINTS
   const handleLike = async () => {
     if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;
     
     console.log("❤️ Like button clicked for user:", currentProfile.id, currentProfile.first_name);
     console.log("📊 Current swipe limits:", swipeLimits);
     
-    // Check if user can like based on daily limits
     if (!swipeLimits.can_like) {
       alert(`Daily like limit reached (${swipeLimits.daily_limit}/day). Upgrade to premium for more!`);
       return;
@@ -1080,7 +1057,9 @@ export default function Dashboard() {
     
     try {
       const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/swipe/like/", {
+      
+      // 1. First create the actual Like (this triggers the notification via signal)
+      const likeResponse = await fetch("http://127.0.0.1:8000/api/interactions/like/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1091,29 +1070,42 @@ export default function Dashboard() {
         }),
       });
 
-      console.log("❤️ Like response status:", response.status);
+      console.log("❤️ Like response status:", likeResponse.status);
 
-      if (response.status === 401) {
+      if (likeResponse.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
         return;
       }
 
-      if (response.status === 429) {
-        const data = await response.json();
+      if (likeResponse.status === 429) {
+        const data = await likeResponse.json();
         alert(`Daily like limit reached (${data.limit}/day)!`);
-        fetchSwipeLimits(); // Refresh limits
+        fetchSwipeLimits();
         return;
       }
 
-      if (response.ok) {
-        console.log("✅ Like recorded successfully");
+      if (likeResponse.ok) {
+        console.log("✅ Like recorded successfully in database");
+        
+        // 2. Then track the swipe count separately
+        await fetch("http://127.0.0.1:8000/api/interactions/swipe/like/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ 
+            to_user_id: currentProfile.id 
+          }),
+        }).catch(err => console.warn("Swipe tracking failed but like was created:", err));
+        
         setSentLikesIds(prev => [...prev, currentProfile.id]);
         await checkForMatch(currentProfile.id);
-        fetchSwipeLimits(); // Refresh limits after successful like
+        fetchSwipeLimits();
       } else {
-        const error = await response.json();
+        const error = await likeResponse.json();
         console.error("❌ Échec du like:", error);
       }
     } catch (error) {
@@ -1124,9 +1116,8 @@ export default function Dashboard() {
   };
 
   const openLikeModal = (p) => {
-    // Only open like modal for premium and god mode users
     if (user?.account_type === "free") {
-      return; // Do nothing for free users
+      return;
     }
     
     setSelectedLike(p);
@@ -1289,7 +1280,7 @@ export default function Dashboard() {
                   handleBlock={handleBlock}
                   centerCardStyle={centerCardStyle}
                   reloadProfiles={reloadProfiles}
-                  swipeLimits={swipeLimits} // Pass swipe limits to CenterBlock
+                  swipeLimits={swipeLimits}
                 />
               </div>
 
@@ -1350,6 +1341,3 @@ export default function Dashboard() {
     </>
   );
 }
-
-
-

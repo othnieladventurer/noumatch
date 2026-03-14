@@ -2,6 +2,9 @@
 import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 
+// Context Providers
+import { NotificationProvider } from "./context/NotificationContext"; // ADD THIS
+
 // Components
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./components/Footer.jsx";
@@ -21,8 +24,9 @@ import ResetPasswordDone from "./pages/ResetSuccess.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Profile from './pages/Profile';
 import ProfileDetail from './pages/ProfileDetail';
-import Messages from './pages/Messages'; // IMPORT Messages
-import Conversation from './pages/Conversation'; // IMPORT Conversation
+import Messages from './pages/Messages';
+import Conversation from './pages/Conversation';
+import Notifications from './pages/Notifications'; // ADD THIS
 
 export default function App() {
   const location = useLocation();
@@ -32,8 +36,10 @@ export default function App() {
     "/dashboard",
     "/profile",
     "/profile/",
-    "/messages", // ADD messages routes
-    "/messages/", // ADD messages routes
+    "/messages",
+    "/messages/",
+    "/notifications", // ADD notifications route
+    "/notifications/", // ADD notifications route
     "/login",
     "/register",
     "/verify-email",
@@ -48,36 +54,41 @@ export default function App() {
   );
 
   return (
-    <div className="App">
-      {!shouldHideLayout && <Navbar />}
+    <NotificationProvider> {/* WRAP THE APP WITH NOTIFICATIONPROVIDER */}
+      <div className="App">
+        {!shouldHideLayout && <Navbar />}
 
-      <main>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+        <main>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
-          {/* Email Verification */}
-          <Route path="/verify-email" element={<EmailVerify />} />
-          <Route path="/email-verified" element={<EmailVerified />} />
+            {/* Email Verification */}
+            <Route path="/verify-email" element={<EmailVerify />} />
+            <Route path="/email-verified" element={<EmailVerified />} />
 
-          {/* Password Reset */}
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
-          <Route path="/reset-password-done" element={<ResetPasswordDone />} />
+            {/* Password Reset */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/reset-password-done" element={<ResetPasswordDone />} />
 
-          {/* Dashboard Routes */}
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/profile/:id" element={<ProfileDetail />} />
+            {/* Dashboard Routes */}
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/:id" element={<ProfileDetail />} />
 
-          {/* MESSAGES ROUTES - ADD THESE */}
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/messages/:id" element={<Conversation />} />
-        </Routes>
-      </main>
+            {/* Messages Routes */}
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/messages/:id" element={<Conversation />} />
 
-      {!shouldHideLayout && <Footer />}
-    </div>
+            {/* Notifications Route - ADD THIS */}
+            <Route path="/notifications" element={<Notifications />} />
+          </Routes>
+        </main>
+
+        {!shouldHideLayout && <Footer />}
+      </div>
+    </NotificationProvider>
   );
 }

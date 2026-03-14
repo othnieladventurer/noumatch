@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHeart, FaBell, FaEnvelope } from "react-icons/fa";
+import { FaHeart, FaEnvelope } from "react-icons/fa";
+import NotificationBell from "./NotificationBell";
 
 export default function DashboardNavbar({ user }) {
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
-  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState({
     messages: true,
     notifications: true
@@ -24,7 +24,6 @@ export default function DashboardNavbar({ user }) {
               "Content-Type": "application/json"
             }
           });
-          console.log("💓 Heartbeat envoyé");
         } catch (error) {
           console.error("Erreur Heartbeat:", error);
         }
@@ -53,7 +52,6 @@ export default function DashboardNavbar({ user }) {
     if (user && user.id) {
       fetchConversations();
       fetchUnreadCount();
-      setNotifications([]);
       setLoading((prev) => ({ ...prev, notifications: false }));
     }
   }, [user]);
@@ -82,7 +80,6 @@ export default function DashboardNavbar({ user }) {
       }
 
       const data = await response.json();
-      console.log("✅ Conversations récupérées:", data);
 
       const formattedMessages = data.map((conv) => {
         const otherUser = conv.other_user;
@@ -123,7 +120,6 @@ export default function DashboardNavbar({ user }) {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Nombre de messages non lus:", data);
         setUnreadCount(data.total_unread || 0);
       }
     } catch (error) {
@@ -174,7 +170,6 @@ export default function DashboardNavbar({ user }) {
     return "Hors ligne";
   };
 
-  // UPDATED: Handle message click to navigate with conversation ID
   const handleMessageClick = (conversationId) => {
     navigate(`/messages?conversation=${conversationId}`);
   };
@@ -404,27 +399,7 @@ export default function DashboardNavbar({ user }) {
               </ul>
             </div>
 
-            <div className="dropdown">
-              <button className="nm-nav-icon-btn" data-bs-toggle="dropdown" type="button">
-                <FaBell size={18} />
-              </button>
-
-              <ul
-                className="dropdown-menu dropdown-menu-end nm-dropdown-menu p-2"
-                style={{ width: "280px", maxWidth: "90vw" }}
-              >
-                <li className="dropdown-header fw-bold">Notifications</li>
-                <li className="text-center py-4">
-                  <div className="text-secondary">
-                    <FaBell size={24} className="mb-2 opacity-50" />
-                    <p className="small mb-0">Pas encore de notifications</p>
-                    <p className="small text-secondary mt-1">
-                      Nous vous notifierons quand quelque chose se produira
-                    </p>
-                  </div>
-                </li>
-              </ul>
-            </div>
+            <NotificationBell />
 
             <div className="dropdown">
               <button className="nm-profile-btn" data-bs-toggle="dropdown" type="button">
