@@ -1,0 +1,15 @@
+# Ignore Python files
+*.py
+*.pyc
+__pycache__/
+requirements.txt
+Pipfile
+Pipfile.lock
+*.sqlite3
+
+# Ignore backend folders
+api/
+api/
+venv/
+env/
+myenv/
