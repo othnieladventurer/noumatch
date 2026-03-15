@@ -1,7 +1,9 @@
+// components/DashboardNavbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaHeart, FaEnvelope } from "react-icons/fa";
 import NotificationBell from "./NotificationBell";
+import { useNotifications } from '../context/NotificationContext'; // 👈 ADD THIS
 
 export default function DashboardNavbar({ user }) {
   const navigate = useNavigate();
@@ -11,6 +13,9 @@ export default function DashboardNavbar({ user }) {
     notifications: true
   });
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // 👇 Get notifications from context
+  const { notifications } = useNotifications();
 
   useEffect(() => {
     const sendHeartbeat = async () => {
@@ -55,6 +60,17 @@ export default function DashboardNavbar({ user }) {
       setLoading((prev) => ({ ...prev, notifications: false }));
     }
   }, [user]);
+
+  // 👇 REAL‑TIME UPDATE FOR NEW MESSAGES
+  useEffect(() => {
+    if (!user || !notifications.length) return;
+    const lastNotif = notifications[0];
+    if (lastNotif.type === 'new_message') {
+      console.log("💬 [NAVBAR] New message notification – refreshing conversations");
+      fetchConversations();
+      fetchUnreadCount();
+    }
+  }, [notifications, user]);
 
   const fetchConversations = async () => {
     try {

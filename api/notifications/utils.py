@@ -7,7 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from .models import Notification
 from .serializers import NotificationSerializer
-from interactions.models import Like  # Add this import
+from interactions.models import Like
 
 def send_realtime_notification(user, notification):
     """Send notification to user's WebSocket connection"""
@@ -70,10 +70,6 @@ def send_like_notification(like):
         print(f"❌ Error in send_like_notification: {e}")
         return None
 
-
-
-
-
 def send_match_notification(match, user1, user2):
     """Send notification to both users when they match"""
     try:
@@ -108,3 +104,55 @@ def send_match_notification(match, user1, user2):
     except Exception as e:
         print(f"❌ Error creating match notifications: {e}")
         return []
+
+
+
+
+
+# notifications/utils.py
+def send_message_notification(message):
+    print(f"\n📬 [UTILS] send_message_notification called for message {message.id}")
+    
+    try:
+        conversation = message.conversation
+        sender = message.sender
+        recipient = conversation.get_other_user(sender)
+        
+        if not recipient:
+            print("   ❌ No recipient found")
+            return None
+
+        # 🔍 DEBUG: Check if there are any existing notifications for this recipient
+        existing_all = Notification.objects.filter(recipient=recipient).order_by('-created_at')[:5]
+        print(f"🔍 [DEBUG] Last 5 notifications for user {recipient.id}:")
+        for n in existing_all:
+            print(f"   - ID: {n.id}, type: {n.type}, is_read: {n.is_read}, read_at: {n.read_at}, created: {n.created_at}")
+
+        # Check for existing message notifications in this conversation
+        content_type = ContentType.objects.get_for_model(conversation)
+        existing_msg_notif = Notification.objects.filter(
+            recipient=recipient,
+            type='new_message',
+            content_type=content_type,
+            object_id=conversation.id
+        ).first()
+        
+        if existing_msg_notif:
+            print(f"🔍 [DEBUG] Found existing notification ID {existing_msg_notif.id} for this conversation")
+            print(f"   - Current is_read: {existing_msg_notif.is_read}")
+            print(f"   - Current read_at: {existing_msg_notif.read_at}")
+            
+            if existing_msg_notif.is_read:
+                print(f"⚠️ [DEBUG] This notification was READ but we're about to update it!")
+        
+        # Rest of your function...
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+    
+
+
+    
