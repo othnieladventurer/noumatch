@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/**/*": {
-      "runtime": "nodejs@18.x"
-    }
-  },
   "builds": [
     {
       "src": "package.json",
@@ -22,22 +17,6 @@
     {
       "src": "/favicon.ico",
       "dest": "/favicon.ico"
-    },
-    {
-      "src": "/asset-manifest.json",
-      "dest": "/asset-manifest.json"
-    },
-    {
-      "src": "/manifest.json",
-      "dest": "/manifest.json"
-    },
-    {
-      "src": "/logo.*",
-      "dest": "/$0"
-    },
-    {
-      "src": "/(.*\\..*)$",
-      "dest": "/$1"
     },
     {
       "src": "/(.*)",
