@@ -1,15 +1,29 @@
-# Ignore Python files
-*.py
-*.pyc
-__pycache__/
-requirements.txt
-Pipfile
-Pipfile.lock
-*.sqlite3
+# Ignore everything in /api folder
+api/
+/api/
 
-# Ignore backend folders
-api/
-api/
-venv/
-env/
-myenv/
+# Ignore all Python files anywhere
+**/*.py
+**/*.pyc
+**/__pycache__/
+**/requirements.txt
+**/Pipfile
+**/Pipfile.lock
+**/manage.py
+**/*.sqlite3
+
+# Ignore backend virtual environments
+**/venv/
+**/env/
+**/myenv/
+**/.venv/
+
+# Keep only frontend files
+!src/
+!public/
+!index.html
+!package.json
+!package-lock.json
+!vercel.json
+!.vercelignore
+!vite.config.js
