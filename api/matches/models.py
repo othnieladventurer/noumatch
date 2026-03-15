@@ -32,3 +32,7 @@ class Match(models.Model):
 
     def __str__(self):
         return f"Match: {self.user1.username} & {self.user2.username}"
+
+
+
+        

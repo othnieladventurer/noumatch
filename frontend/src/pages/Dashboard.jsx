@@ -6,6 +6,7 @@ import CenterBlock from "../components/CenterBlock";
 import RightBlock from "../components/RightBlock";
 import Modals from "../components/Modals";
 import { getProfilePhotoUrl, calculateAge, shuffleArray, formatName } from "../utils/helpers";
+import { useNotifications } from '../context/NotificationContext';
 import "../styles/Dashboard.css";
 
 export default function Dashboard() {
@@ -61,6 +62,9 @@ export default function Dashboard() {
     likes_today: 0,
     daily_limit: 10
   });
+
+  // Get notifications from context
+  const { notifications } = useNotifications();
 
   // Check if user is matched with a profile
   const isMatched = (profileId) => matchesIds.includes(profileId);
@@ -178,6 +182,7 @@ export default function Dashboard() {
 
   // Fetch conversations
   const fetchConversations = async () => {
+    console.log("📡 [DASHBOARD] fetchConversations called");
     try {
       const token = localStorage.getItem("access");
       const response = await fetch("http://127.0.0.1:8000/api/chat/conversations/", {
@@ -290,6 +295,7 @@ export default function Dashboard() {
 
   // Fetch likes received
   const fetchLikesReceived = async (currentBlockedIds = blockedIds) => {
+    console.log("📡 [DASHBOARD] fetchLikesReceived called with blockedIds:", currentBlockedIds);
     try {
       const token = localStorage.getItem("access");
       const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/received/", {
@@ -358,6 +364,7 @@ export default function Dashboard() {
 
   // Fetch matches
   const fetchMatches = async (currentBlockedIds = blockedIds) => {
+    console.log("📡 [DASHBOARD] fetchMatches called with blockedIds:", currentBlockedIds);
     if (!user) return;
     
     try {
@@ -738,6 +745,60 @@ export default function Dashboard() {
     setUserToReport(null);
     document.body.style.overflow = 'unset';
   };
+
+  // 👇 DIAGNOSTIC REAL‑TIME UPDATES FROM NOTIFICATIONS
+  useEffect(() => {
+    if (!user) {
+      console.log("⏸️ [DASHBOARD] No user yet, skipping notification effect");
+      return;
+    }
+    
+    console.log("🔔 [DASHBOARD] notifications array changed, length:", notifications.length);
+    console.log("   Current notifications:", notifications.map(n => ({ id: n.id, type: n.type, read: n.is_read })));
+    
+    if (!notifications.length) {
+      console.log("   No notifications, skipping refresh");
+      return;
+    }
+    
+    const lastNotif = notifications[0];
+    console.log("🔄 [DASHBOARD] New notification detected:", lastNotif.type, "ID:", lastNotif.id);
+    
+    const refreshData = async () => {
+      console.log("   [DASHBOARD] blockedIds at refresh time:", blockedIds);
+      
+      if (lastNotif.type === 'new_match') {
+        console.log("🎯 [DASHBOARD] Refreshing matches...");
+        try {
+          await fetchMatches(blockedIds);
+          await fetchConversations();
+          console.log("✅ [DASHBOARD] Matches refreshed");
+        } catch (err) {
+          console.error("❌ [DASHBOARD] Error refreshing matches:", err);
+        }
+      } else if (lastNotif.type === 'new_like') {
+        console.log("💕 [DASHBOARD] Refreshing likes...");
+        try {
+          await fetchLikesReceived(blockedIds);
+          console.log("✅ [DASHBOARD] Likes refreshed");
+        } catch (err) {
+          console.error("❌ [DASHBOARD] Error refreshing likes:", err);
+        }
+      } else if (lastNotif.type === 'new_message') {
+        console.log("💬 [DASHBOARD] Refreshing conversations...");
+        try {
+          await fetchConversations();
+          console.log("✅ [DASHBOARD] Conversations refreshed");
+        } catch (err) {
+          console.error("❌ [DASHBOARD] Error refreshing conversations:", err);
+        }
+      } else {
+        console.log("❓ [DASHBOARD] Unknown notification type:", lastNotif.type);
+      }
+    };
+    
+    refreshData();
+  }, [notifications, user, blockedIds]);
 
   // Fetch profiles
   const fetchProfilesBasedOnUser = async (currentBlockedIds = blockedIds) => {

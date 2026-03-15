@@ -21,7 +21,7 @@ urlpatterns = [
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
 
 
-    # Alternative explicit routes if you prefer not to use ViewSet
+   
     path('<int:user_id>/photos/', 
          views.UserPhotoListView.as_view(), 
          name='user-photos-list'),
