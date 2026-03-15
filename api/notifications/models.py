@@ -6,8 +6,6 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 
 
-
-
 class Notification(models.Model):
     class Type(models.TextChoices):
         # Welcome
@@ -64,6 +62,19 @@ class Notification(models.Model):
     object_id = models.PositiveIntegerField(null=True, blank=True)
     related_object = GenericForeignKey('content_type', 'object_id')
     
+    # 🆕 NEW: Count for grouped notifications (e.g., multiple messages)
+    count = models.PositiveIntegerField(
+        default=1, 
+        help_text="Number of aggregated events (e.g., message count)"
+    )
+    
+    # 🆕 NEW: Metadata JSON field for additional data
+    metadata = models.JSONField(
+        default=dict, 
+        blank=True,
+        help_text="Additional data like message IDs, sender info, etc."
+    )
+    
     # Metadata
     priority = models.CharField(
         max_length=10,
@@ -84,20 +95,18 @@ class Notification(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', '-created_at']),
+            models.Index(fields=['recipient', 'is_read', '-created_at']),
+            models.Index(fields=['type']),
+            models.Index(fields=['created_at']),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=['recipient', 'type', 'object_id'],
                 name='unique_notification_per_object'
             )
         ]
-
-        
-    indexes = [
-        models.Index(fields=['recipient', '-created_at']),
-        models.Index(fields=['recipient', 'is_read', '-created_at']),
-        models.Index(fields=['type']),
-        models.Index(fields=['created_at']),
-    ]
     
     def __str__(self):
         return f"{self.recipient.email} - {self.type} - {self.created_at}"
@@ -123,7 +132,25 @@ class Notification(models.Model):
             is_read=True,
             read_at=timezone.now()
         )
+    
+    # 🆕 NEW: Helper method to increment count
+    def increment_count(self, additional_metadata=None):
+        """Increment the notification count and update metadata"""
+        self.count += 1
+        if additional_metadata:
+            if not self.metadata:
+                self.metadata = {}
+            self.metadata.update(additional_metadata)
+        self.save(update_fields=['count', 'metadata'])
+    
+    # 🆕 NEW: Helper to get display title with count
+    def get_display_title(self):
+        """Return title with count if > 1"""
+        if self.type == 'new_message' and self.count > 1:
+            return f"{self.count}x {self.title}"
+        return self.title
 
 
 
+        
         

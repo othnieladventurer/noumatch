@@ -14,6 +14,8 @@ from .serializers import (
     UserChatSerializer
 )
 
+from notifications.utils import send_message_notification
+
 
 class ConversationListView(generics.ListAPIView):
     """List all conversations for the authenticated user"""
@@ -86,10 +88,14 @@ class SendMessageView(generics.CreateAPIView):
         if self.request.user not in [conversation.match.user1, conversation.match.user2]:
             self.permission_denied("You are not part of this conversation")
 
-        serializer.save(
+        message = serializer.save(
             conversation=conversation,
-            sender=self.request.user  # Set sender directly from authenticated user
+            sender=self.request.user
         )
+
+        # 👇 TRIGGER REAL‑TIME NOTIFICATION FOR THE RECIPIENT
+        send_message_notification(message)
+
     
 
 
