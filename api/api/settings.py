@@ -27,7 +27,11 @@ DEBUG = True
 
 ALLOWED_HOSTS = [ '127.0.0.1', 'localhost', 
     "noumatchhti.up.railway.app",
+    '.vercel.app',  
+    'noumatch.vercel.app',
 ]
+
+
 
 
 # Application definition
@@ -88,8 +92,11 @@ WSGI_APPLICATION = 'api.wsgi.application'
 ASGI_APPLICATION = 'api.asgi.application'
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    'http://localhost:3000',  
+    'http://localhost:5173',  
+    'https://noumatch.vercel.app', 
 ]
+
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -98,6 +105,20 @@ from corsheaders.defaults import default_headers
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
 ]
+
+CORS_ALLOW_CREDENTIALS = True
+
+
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://noumatch.vercel.app',
+]
+
+
+
+
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
