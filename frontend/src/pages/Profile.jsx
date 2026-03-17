@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
-import API from "../api/axios"; // 👈 CONFIGURED AXIOS INSTANCE
+import API from '@/api/axios'; // 👈 CONFIGURED AXIOS INSTANCE
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 

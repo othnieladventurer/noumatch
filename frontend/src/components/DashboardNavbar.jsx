@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { FaHeart, FaEnvelope } from "react-icons/fa";
 import NotificationBell from "./NotificationBell";
 import { useNotifications } from '../context/NotificationContext';
-import API from "../api/axios"; // 👈 ADD THIS IMPORT
+import API from '@/api/axios'; // 👈 ADD THIS IMPORT
 
 export default function DashboardNavbar({ user }) {
   const navigate = useNavigate();
