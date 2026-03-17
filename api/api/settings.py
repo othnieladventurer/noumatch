@@ -29,9 +29,9 @@ ALLOWED_HOSTS = [
     'api.noumatch.com', 
     'noumatch.com', 
     'www.noumatch.com',
-    'localhost',           # for local development
-    '127.0.0.1',           # for local development
-    '.vercel.app',          # allows all vercel.app subdomains (backup)
+    'localhost',          
+    '127.0.0.1',        
+    '.vercel.app',          
 ]
 
 
