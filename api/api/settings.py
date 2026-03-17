@@ -25,12 +25,14 @@ SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [ '127.0.0.1', 'localhost', 
-    "noumatchhti.up.railway.app",
-    '.vercel.app',  
-    'noumatch.vercel.app',
+ALLOWED_HOSTS = [
+    'api.noumatch.com', 
+    'noumatch.com', 
+    'www.noumatch.com',
+    'localhost',           # for local development
+    '127.0.0.1',           # for local development
+    '.vercel.app',          # allows all vercel.app subdomains (backup)
 ]
-
 
 
 
@@ -91,11 +93,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'api.wsgi.application'
 ASGI_APPLICATION = 'api.asgi.application'
 
+
+
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',  
-    'http://localhost:5173',  
-    'https://noumatch.vercel.app', 
+    'https://noumatch.com',
+    'https://www.noumatch.com',
+    'http://localhost:5173',   # Vite default dev port
+    'http://localhost:3000',    # Alternative dev port
+    'http://127.0.0.1:5173',    # IP equivalent
+    'http://127.0.0.1:3000',    # IP equivalent
 ]
+
+
+
 
 
 CORS_ALLOW_CREDENTIALS = True
@@ -110,12 +120,15 @@ CORS_ALLOW_CREDENTIALS = True
 
 
 
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'https://noumatch.vercel.app',
-]
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://noumatch.com',
+    'https://www.noumatch.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+]
 
 
 
