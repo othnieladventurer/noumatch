@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom"; // Add useLocation
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
+import API from "../api/axios"; // 👈 ADD THIS IMPORT
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
 export default function Messages() {
   const navigate = useNavigate();
-  const location = useLocation(); // Add this
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
@@ -21,7 +22,7 @@ export default function Messages() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Heartbeat to keep user online
+  // Heartbeat to keep user online – still uses fetch (doesn't need API)
   useEffect(() => {
     const sendHeartbeat = async () => {
       const token = localStorage.getItem("access");
@@ -77,21 +78,15 @@ export default function Messages() {
 
     const fetchUser = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/users/me/", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (response.status === 401) {
+        const response = await API.get("/users/me/");
+        setUser(response.data);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        if (error.response?.status === 401) {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
           navigate("/login");
-          return;
         }
-
-        const data = await response.json();
-        setUser(data);
-      } catch (error) {
-        console.error("Error fetching user:", error);
       }
     };
 
@@ -99,7 +94,7 @@ export default function Messages() {
     fetchConversations();
   }, [navigate]);
 
-  // NEW: Auto-select conversation from URL parameter
+  // Auto-select conversation from URL parameter
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const conversationId = params.get('conversation');
@@ -114,20 +109,11 @@ export default function Messages() {
 
   const fetchConversations = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/chat/conversations/", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch conversations");
-      }
-
-      const data = await response.json();
-      console.log("✅ Conversations:", data);
+      const response = await API.get("/chat/conversations/");
+      console.log("✅ Conversations:", response.data);
       
       // Sort conversations by most recent message
-      const sorted = data.sort((a, b) => {
+      const sorted = response.data.sort((a, b) => {
         const timeA = a.last_message?.created_at || a.created_at;
         const timeB = b.last_message?.created_at || b.created_at;
         return new Date(timeB) - new Date(timeA);
@@ -136,7 +122,12 @@ export default function Messages() {
       setConversations(sorted);
     } catch (error) {
       console.error("Error fetching conversations:", error);
-      setError(error.message);
+      setError(error.response?.data?.message || error.message);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     } finally {
       setLoading(false);
     }
@@ -145,22 +136,13 @@ export default function Messages() {
   const selectConversation = async (conversation) => {
     setActiveConversation(conversation);
     
-    // Update URL with conversation ID (optional but good for bookmarking)
+    // Update URL with conversation ID
     navigate(`/messages?conversation=${conversation.id}`, { replace: true });
     
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/chat/conversations/${conversation.id}/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch conversation");
-      }
-
-      const data = await response.json();
-      console.log("✅ Conversation detail:", data);
-      setMessages(data.messages || []);
+      const response = await API.get(`/chat/conversations/${conversation.id}/`);
+      console.log("✅ Conversation detail:", response.data);
+      setMessages(response.data.messages || []);
       
       // Mark conversation as read
       setConversations(prev => prev.map(c => 
@@ -170,7 +152,12 @@ export default function Messages() {
       if (mobileView) setShowSidebar(false);
     } catch (error) {
       console.error("Error fetching conversation:", error);
-      setError(error.message);
+      setError(error.response?.data?.message || error.message);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
@@ -198,22 +185,11 @@ export default function Messages() {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/chat/conversations/${activeConversation.id}/send/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ content: messageContent }),
+      const response = await API.post(`/chat/conversations/${activeConversation.id}/send/`, {
+        content: messageContent
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to send message");
-      }
-
-      const sentMessage = await response.json();
+      const sentMessage = response.data;
       
       // Replace temp message with real one
       setMessages(prev => prev.map(msg => msg.id === tempMessage.id ? sentMessage : msg));
@@ -243,7 +219,12 @@ export default function Messages() {
       // Remove temp message on error
       setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
       setNewMessage(messageContent);
-      setError(error.message);
+      setError(error.response?.data?.message || error.message);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -297,7 +278,6 @@ export default function Messages() {
     setActiveConversation(null);
     setMessages([]);
     setShowSidebar(true);
-    // Remove conversation from URL when going back
     navigate('/messages', { replace: true });
   };
 

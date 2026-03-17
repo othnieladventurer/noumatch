@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
+import API from "../api/axios"; // 👈 CONFIGURED AXIOS INSTANCE
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -46,8 +47,6 @@ export default function Profile() {
   });
 
   const [photoPreview, setPhotoPreview] = useState(null);
-
-  const API_BASE_URL = "http://127.0.0.1:8000/api";
 
   const getProfilePhotoUrl = (path) => {
     if (!path) return null;
@@ -122,25 +121,23 @@ export default function Profile() {
 
   const fetchUserPhotos = async (userId) => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`${API_BASE_URL}/users/${userId}/photos/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const photos = data.map((photo) => ({
-          id: photo.id,
-          image: getProfilePhotoUrl(photo.image),
-          uploaded_at: photo.uploaded_at,
-        }));
-        setUserPhotos(photos);
-        return photos;
-      }
+      const response = await API.get(`/users/${userId}/photos/`);
+      const photos = response.data.map((photo) => ({
+        id: photo.id,
+        image: getProfilePhotoUrl(photo.image),
+        uploaded_at: photo.uploaded_at,
+      }));
+      setUserPhotos(photos);
+      return photos;
     } catch (error) {
       console.error("Error fetching user photos:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
+      return [];
     }
-    return [];
   };
 
   const handlePhotoUpload = async (e) => {
@@ -151,20 +148,12 @@ export default function Profile() {
     setError(null);
 
     try {
-      const token = localStorage.getItem("access");
       const uploadData = new FormData();
-
       files.forEach((file) => uploadData.append("images", file));
 
-      const response = await fetch(`${API_BASE_URL}/users/photos/upload-multiple/`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: uploadData,
+      await API.post("/users/photos/upload-multiple/", uploadData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to upload photos");
-      }
 
       if (user) {
         await fetchUserPhotos(user.id);
@@ -173,7 +162,12 @@ export default function Profile() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.message || "Failed to upload photos");
+      setError(error.response?.data?.message || error.message || "Failed to upload photos");
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     } finally {
       setUploadingPhotos(false);
       e.target.value = null;
@@ -186,15 +180,7 @@ export default function Profile() {
     setDeletingPhoto(photoToDelete.id);
 
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`${API_BASE_URL}/users/photos/${photoToDelete.id}/delete/`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok && response.status !== 204) {
-        throw new Error("Failed to delete photo");
-      }
+      await API.delete(`/users/photos/${photoToDelete.id}/delete/`);
 
       const deletedImage = photoToDelete.image;
       const remainingPhotos = userPhotos.filter((p) => p.id !== photoToDelete.id);
@@ -214,7 +200,12 @@ export default function Profile() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.message || "Failed to delete photo");
+      setError(error.response?.data?.message || error.message || "Failed to delete photo");
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     } finally {
       setDeletingPhoto(null);
     }
@@ -222,31 +213,29 @@ export default function Profile() {
 
   const handleSetMainPhoto = async (photoUrl, photoId) => {
     try {
-      const token = localStorage.getItem("access");
       const photo = userPhotos.find((p) => p.id === photoId);
-
       if (!photo) return;
 
       const submitData = new FormData();
       const filename = photo.image.split("/").pop();
       submitData.append("profile_photo", filename);
 
-      const response = await fetch(`${API_BASE_URL}/users/profile/update/`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-        body: submitData,
+      const response = await API.put("/users/profile/update/", submitData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
-      if (!response.ok) throw new Error("Failed to set main photo");
-
-      const updatedUser = await response.json();
-      setUser((prev) => ({ ...prev, ...updatedUser }));
+      setUser((prev) => ({ ...prev, ...response.data }));
       setPhotoPreview(photoUrl);
       setActivePhotoIndex(0);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.message || "Failed to set main photo");
+      setError(error.response?.data?.message || error.message || "Failed to set main photo");
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
@@ -259,24 +248,12 @@ export default function Profile() {
 
     const fetchUserProfile = async () => {
       try {
-        const meResponse = await fetch(`${API_BASE_URL}/users/me/`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const meResponse = await API.get("/users/me/");
+        const meData = meResponse.data;
 
-        if (meResponse.status === 401) {
-          localStorage.removeItem("access");
-          localStorage.removeItem("refresh");
-          navigate("/login");
-          return;
-        }
+        const profileResponse = await API.get(`/users/profiles/${meData.id}/`);
+        const profileData = profileResponse.data;
 
-        const meData = await meResponse.json();
-
-        const profileResponse = await fetch(`${API_BASE_URL}/users/profiles/${meData.id}/`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const profileData = profileResponse.ok ? await profileResponse.json() : {};
         const fullUserData = { ...meData, ...profileData };
 
         setUser(fullUserData);
@@ -304,6 +281,11 @@ export default function Profile() {
         }
       } catch (error) {
         setError("Failed to load profile");
+        if (error.response?.status === 401) {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          navigate("/login");
+        }
       } finally {
         setLoading(false);
       }
@@ -350,7 +332,6 @@ export default function Profile() {
     setError(null);
 
     try {
-      const token = localStorage.getItem("access");
       const formDataToSend = new FormData();
 
       Object.keys(formData).forEach((key) => {
@@ -361,26 +342,26 @@ export default function Profile() {
         }
       });
 
-      const response = await fetch(`${API_BASE_URL}/users/profile/update/`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formDataToSend,
+      const response = await API.put("/users/profile/update/", formDataToSend, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
-      if (!response.ok) throw new Error("Failed to update profile");
+      setUser((prev) => ({ ...prev, ...response.data }));
 
-      const updatedUser = await response.json();
-      setUser((prev) => ({ ...prev, ...updatedUser }));
-
-      if (updatedUser.profile_photo) {
-        setPhotoPreview(getProfilePhotoUrl(updatedUser.profile_photo));
+      if (response.data.profile_photo) {
+        setPhotoPreview(getProfilePhotoUrl(response.data.profile_photo));
       }
 
       setSuccess(true);
       setEditing(false);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.message || "Failed to update profile");
+      setError(error.response?.data?.message || error.message || "Failed to update profile");
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     } finally {
       setSaving(false);
     }
@@ -1290,7 +1271,6 @@ export default function Profile() {
         </div>
 
         <div className="profile-content">
-          {/* Rest of your profile content - unchanged */}
           <div className="profile-section pt-3 pb-0">
             <div className="d-flex justify-content-end">
               {user?.is_verified ? (
@@ -1355,7 +1335,6 @@ export default function Profile() {
               </>
             ) : (
               <div className="row g-3">
-                {/* Edit form fields - keep as is */}
                 <div className="col-12">
                   <label className="edit-form-label">Bio</label>
                   <textarea

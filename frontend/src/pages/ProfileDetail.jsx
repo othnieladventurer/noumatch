@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import ReportModal from "../components/ReportModal"; // Import ReportModal
+import API from "../api/axios"; // 👈 ADD THIS IMPORT
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -34,25 +35,23 @@ export default function ProfileDetail() {
   // Fetch user photos
   const fetchUserPhotos = async (userId) => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/users/${userId}/photos/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const photos = data.map(photo => ({
-          id: photo.id,
-          image: getProfilePhotoUrl(photo.image_url || photo.image),
-          uploaded_at: photo.uploaded_at
-        }));
-        setUserPhotos(photos);
-        return photos;
-      }
+      const response = await API.get(`/users/${userId}/photos/`);
+      const photos = response.data.map(photo => ({
+        id: photo.id,
+        image: getProfilePhotoUrl(photo.image_url || photo.image),
+        uploaded_at: photo.uploaded_at
+      }));
+      setUserPhotos(photos);
+      return photos;
     } catch (error) {
       console.error("Error fetching user photos:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
+      return [];
     }
-    return [];
   };
 
   // Fetch current user and profile data
@@ -65,43 +64,30 @@ export default function ProfileDetail() {
 
     const fetchData = async () => {
       try {
-        const userResponse = await fetch("http://127.0.0.1:8000/api/users/me/", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (userResponse.status === 401) {
-          localStorage.removeItem("access");
-          localStorage.removeItem("refresh");
-          navigate("/login");
-          return;
-        }
-
-        if (!userResponse.ok) {
-          throw new Error("Failed to fetch user data");
-        }
-
-        const userData = await userResponse.json();
+        const userResponse = await API.get("/users/me/");
+        const userData = userResponse.data;
         setUser(userData);
 
-        const profileResponse = await fetch(`http://127.0.0.1:8000/api/users/profiles/${id}/`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!profileResponse.ok) {
-          throw new Error("Failed to fetch profile");
-        }
-
-        const profileData = await profileResponse.json();
+        const profileResponse = await API.get(`/users/profiles/${id}/`);
+        const profileData = profileResponse.data;
         setProfile(profileData);
 
         // Fetch user photos
         await fetchUserPhotos(id);
 
-        await checkRelationshipStatus(id, token);
+        await checkRelationshipStatus(id);
 
       } catch (error) {
         console.error("Error fetching data:", error);
-        setError(error.message);
+        if (error.response?.status === 401) {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          navigate("/login");
+        } else if (error.response?.status === 404) {
+          setError("Profile not found");
+        } else {
+          setError(error.response?.data?.message || error.message || "Failed to fetch profile");
+        }
       } finally {
         setLoading(false);
       }
@@ -110,46 +96,33 @@ export default function ProfileDetail() {
     fetchData();
   }, [id, navigate]);
 
-  const checkRelationshipStatus = async (profileId, token) => {
+  const checkRelationshipStatus = async (profileId) => {
     try {
-      const likesResponse = await fetch("http://127.0.0.1:8000/api/interactions/likes/sent/", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const likesResponse = await API.get("/interactions/likes/sent/");
+      const liked = likesResponse.data.some(like => like.to_user.id === parseInt(profileId));
+      setIsLiked(liked);
+
+      const matchesResponse = await API.get("/matches/matches/");
+      const match = matchesResponse.data.find(m => 
+        (m.user1.id === parseInt(profileId) || m.user2.id === parseInt(profileId))
+      );
       
-      if (likesResponse.ok) {
-        const likesData = await likesResponse.json();
-        const liked = likesData.some(like => like.to_user.id === parseInt(profileId));
-        setIsLiked(liked);
+      if (match) {
+        setIsMatched(true);
+        setMatchId(match.id);
       }
 
-      const matchesResponse = await fetch("http://127.0.0.1:8000/api/matches/matches/", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (matchesResponse.ok) {
-        const matchesData = await matchesResponse.json();
-        const match = matchesData.find(m => 
-          (m.user1.id === parseInt(profileId) || m.user2.id === parseInt(profileId))
-        );
-        
-        if (match) {
-          setIsMatched(true);
-          setMatchId(match.id);
-        }
-      }
-
-      const blocksResponse = await fetch("http://127.0.0.1:8000/api/blocked/blocks/", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (blocksResponse.ok) {
-        const blocksData = await blocksResponse.json();
-        const blocked = blocksData.some(block => block.blocked === parseInt(profileId));
-        setIsBlocked(blocked);
-      }
+      const blocksResponse = await API.get("/blocked/blocks/");
+      const blocked = blocksResponse.data.some(block => block.blocked === parseInt(profileId));
+      setIsBlocked(blocked);
 
     } catch (error) {
       console.error("Error checking relationship:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
@@ -184,121 +157,99 @@ export default function ProfileDetail() {
 
   const handleLike = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/like/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ to_user_id: profile.id }),
-      });
-
-      if (response.ok) {
-        setIsLiked(true);
-        await checkForMatch();
-      }
+      const response = await API.post("/interactions/like/", { to_user_id: profile.id });
+      setIsLiked(true);
+      await checkForMatch();
     } catch (error) {
       console.error("Error liking profile:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
   const handleUnlike = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/interactions/unlike/${profile.id}/`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        setIsLiked(false);
-        if (isMatched) {
-          setIsMatched(false);
-          setMatchId(null);
-        }
+      await API.delete(`/interactions/unlike/${profile.id}/`);
+      setIsLiked(false);
+      if (isMatched) {
+        setIsMatched(false);
+        setMatchId(null);
       }
     } catch (error) {
       console.error("Error unliking profile:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
   const handleUnmatch = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/matches/unmatch/${matchId}/`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        setIsMatched(false);
-        setMatchId(null);
-      }
+      await API.delete(`/matches/unmatch/${matchId}/`);
+      setIsMatched(false);
+      setMatchId(null);
     } catch (error) {
       console.error("Error unmatching:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
   const handleBlock = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/blocked/blocks/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ blocked: profile.id }),
-      });
-
-      if (response.ok) {
-        setIsBlocked(true);
-        navigate(-1);
-      }
+      await API.post("/blocked/blocks/", { blocked: profile.id });
+      setIsBlocked(true);
+      navigate(-1);
     } catch (error) {
       console.error("Error blocking user:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
   const handleUnblock = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/blocked/blocks/${profile.id}/unblock/`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        setIsBlocked(false);
-      }
+      await API.delete(`/blocked/blocks/${profile.id}/unblock/`);
+      setIsBlocked(false);
     } catch (error) {
       console.error("Error unblocking user:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
   const checkForMatch = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/matches/match/create/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          user1_id: user.id,
-          user2_id: profile.id,
-        }),
+      const response = await API.post("/matches/match/create/", {
+        user1_id: user.id,
+        user2_id: profile.id,
       });
 
-      const data = await response.json();
       if (response.status === 201 || response.status === 200) {
         setIsMatched(true);
-        setMatchId(data.id);
+        setMatchId(response.data.id);
       }
     } catch (error) {
       console.error("Error creating match:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 

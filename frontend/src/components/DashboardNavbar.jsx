@@ -3,7 +3,8 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaHeart, FaEnvelope } from "react-icons/fa";
 import NotificationBell from "./NotificationBell";
-import { useNotifications } from '../context/NotificationContext'; // 👈 ADD THIS
+import { useNotifications } from '../context/NotificationContext';
+import API from "../api/axios"; // 👈 ADD THIS IMPORT
 
 export default function DashboardNavbar({ user }) {
   const navigate = useNavigate();
@@ -80,24 +81,9 @@ export default function DashboardNavbar({ user }) {
         return;
       }
 
-      const response = await fetch("http://127.0.0.1:8000/api/chat/conversations/", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        navigate("/login");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Échec de la récupération des conversations");
-      }
-
-      const data = await response.json();
-
-      const formattedMessages = data.map((conv) => {
+      const response = await API.get("/chat/conversations/");
+      
+      const formattedMessages = response.data.map((conv) => {
         const otherUser = conv.other_user;
         const lastMessage = conv.last_message;
 
@@ -120,6 +106,11 @@ export default function DashboardNavbar({ user }) {
       setMessages(formattedMessages);
     } catch (error) {
       console.error("Erreur lors de la récupération des conversations:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     } finally {
       setLoading((prev) => ({ ...prev, messages: false }));
     }
@@ -127,19 +118,15 @@ export default function DashboardNavbar({ user }) {
 
   const fetchUnreadCount = async () => {
     try {
-      const token = localStorage.getItem("access");
-      if (!token) return;
-
-      const response = await fetch("http://127.0.0.1:8000/api/chat/unread-count/", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.total_unread || 0);
-      }
+      const response = await API.get("/chat/unread-count/");
+      setUnreadCount(response.data.total_unread || 0);
     } catch (error) {
       console.error("Erreur lors de la récupération des messages non lus:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
@@ -479,3 +466,5 @@ export default function DashboardNavbar({ user }) {
     </>
   );
 }
+
+

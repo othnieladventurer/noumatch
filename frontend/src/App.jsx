@@ -4,7 +4,7 @@ import { Routes, Route, useLocation } from "react-router-dom";
 
 // Context Providers
 import { NotificationProvider } from "./context/NotificationContext"; // ADD THIS
-
+import './api/axios';
 // Components
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./components/Footer.jsx";

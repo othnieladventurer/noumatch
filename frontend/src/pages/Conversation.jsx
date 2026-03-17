@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
+import API from "../api/axios"; // 👈 ADD THIS IMPORT
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -37,21 +38,15 @@ export default function Conversation() {
 
     const fetchUser = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/users/me/", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (response.status === 401) {
+        const response = await API.get("/users/me/");
+        setUser(response.data);
+      } catch (error) {
+        console.error("Error fetching user:", error);
+        if (error.response?.status === 401) {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
           navigate("/login");
-          return;
         }
-
-        const data = await response.json();
-        setUser(data);
-      } catch (error) {
-        console.error("Error fetching user:", error);
       }
     };
 
@@ -61,27 +56,17 @@ export default function Conversation() {
 
   const fetchConversation = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/chat/conversations/${id}/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 404) {
+      const response = await API.get(`/chat/conversations/${id}/`);
+      console.log("✅ Conversation:", response.data);
+      setConversation(response.data);
+      setMessages(response.data.messages || []);
+    } catch (error) {
+      console.error("Error fetching conversation:", error);
+      if (error.response?.status === 404) {
         navigate("/messages");
         return;
       }
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch conversation");
-      }
-
-      const data = await response.json();
-      console.log("✅ Conversation:", data);
-      setConversation(data);
-      setMessages(data.messages || []);
-    } catch (error) {
-      console.error("Error fetching conversation:", error);
-      setError(error.message);
+      setError(error.response?.data?.message || error.message);
     } finally {
       setLoading(false);
     }
@@ -111,48 +96,24 @@ export default function Conversation() {
     setMessages(prev => [...prev, tempMessage]);
 
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/chat/conversations/${id}/send/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ 
-          content: messageContent 
-          // The backend expects 'content' field, which is correct
-        }),
+      const response = await API.post(`/chat/conversations/${id}/send/`, {
+        content: messageContent
       });
 
-      // Log response for debugging
       console.log("📥 Response status:", response.status);
-      
-      const responseData = await response.json().catch(() => null);
-      console.log("📥 Response data:", responseData);
-
-      if (!response.ok) {
-        // Handle validation errors
-        if (responseData) {
-          const errorMessage = typeof responseData === 'object' 
-            ? Object.entries(responseData).map(([key, val]) => `${key}: ${val}`).join(', ')
-            : responseData.message || "Failed to send message";
-          throw new Error(errorMessage);
-        } else {
-          throw new Error(`Server error: ${response.status}`);
-        }
-      }
+      console.log("📥 Response data:", response.data);
 
       // Replace temp message with real one
       setMessages(prev => 
         prev.map(msg => 
-          msg.id === tempMessage.id ? responseData : msg
+          msg.id === tempMessage.id ? response.data : msg
         )
       );
 
       // Update conversation last message
       setConversation(prev => ({
         ...prev,
-        last_message: responseData,
+        last_message: response.data,
         updated_at: new Date().toISOString()
       }));
 
@@ -161,10 +122,31 @@ export default function Conversation() {
 
     } catch (error) {
       console.error("❌ Error sending message:", error);
+      
       // Remove temp message on error
       setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
       setNewMessage(messageContent); // Restore message
-      setError(error.message);
+      
+      // Handle validation errors
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        if (typeof errorData === 'object') {
+          const errorMessage = Object.entries(errorData)
+            .map(([key, val]) => `${key}: ${val}`)
+            .join(', ');
+          setError(errorMessage);
+        } else {
+          setError(errorData.message || errorData || "Failed to send message");
+        }
+      } else {
+        setError(error.message || "Failed to send message");
+      }
+      
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     } finally {
       setSending(false);
       inputRef.current?.focus();

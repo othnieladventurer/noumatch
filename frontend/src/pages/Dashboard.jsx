@@ -7,6 +7,7 @@ import RightBlock from "../components/RightBlock";
 import Modals from "../components/Modals";
 import { getProfilePhotoUrl, calculateAge, shuffleArray, formatName } from "../utils/helpers";
 import { useNotifications } from '../context/NotificationContext';
+import API from "../api/axios"; // 👈 IMPORT THE CONFIGURED AXIOS INSTANCE
 import "../styles/Dashboard.css";
 
 export default function Dashboard() {
@@ -78,17 +79,16 @@ export default function Dashboard() {
   // Fetch swipe limits
   const fetchSwipeLimits = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/swipe/limits/", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSwipeLimits(data);
-        console.log("📊 Swipe limits updated:", data);
-      }
+      const response = await API.get("/interactions/swipe/limits/");
+      setSwipeLimits(response.data);
+      console.log("📊 Swipe limits updated:", response.data);
     } catch (error) {
       console.error("Error fetching swipe limits:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
@@ -106,7 +106,6 @@ export default function Dashboard() {
       navigate(`/messages?conversation=${conversationId}`);
     } else {
       try {
-        const token = localStorage.getItem("access");
         const match = matchesList.find(m => m.id === profileId);
         
         if (!match) {
@@ -115,32 +114,18 @@ export default function Dashboard() {
           return;
         }
         
-        const response = await fetch("http://127.0.0.1:8000/api/chat/conversations/create/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ match_id: match.match_id }),
-        });
-
-        if (response.status === 401) {
+        const response = await API.post("/chat/conversations/create/", { match_id: match.match_id });
+        await fetchConversations();
+        navigate(`/messages?conversation=${response.data.id}`);
+      } catch (error) {
+        console.error("Erreur lors de la création de la conversation:", error);
+        if (error.response?.status === 401) {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
           navigate("/login");
-          return;
-        }
-
-        if (response.ok) {
-          const newConversation = await response.json();
-          await fetchConversations();
-          navigate(`/messages?conversation=${newConversation.id}`);
         } else {
           navigate('/messages');
         }
-      } catch (error) {
-        console.error("Erreur lors de la création de la conversation:", error);
-        navigate('/messages');
       }
     }
   };
@@ -154,54 +139,43 @@ export default function Dashboard() {
     if (!userId) return [];
     
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/users/${userId}/photos/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const photos = data.map(photo => ({
-          id: photo.id,
-          image: getProfilePhotoUrl(photo.image_url || photo.image),
-          uploaded_at: photo.uploaded_at
-        }));
-        
-        setUserPhotos(prev => ({
-          ...prev,
-          [userId]: photos
-        }));
-        
-        return photos;
-      }
+      const response = await API.get(`/users/${userId}/photos/`);
+      const photos = response.data.map(photo => ({
+        id: photo.id,
+        image: getProfilePhotoUrl(photo.image_url || photo.image),
+        uploaded_at: photo.uploaded_at
+      }));
+      
+      setUserPhotos(prev => ({
+        ...prev,
+        [userId]: photos
+      }));
+      
+      return photos;
     } catch (error) {
       console.error(`Erreur lors de la récupération des photos pour l'utilisateur ${userId}:`, error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
+      return [];
     }
-    return [];
   };
 
   // Fetch conversations
   const fetchConversations = async () => {
     console.log("📡 [DASHBOARD] fetchConversations called");
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/chat/conversations/", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401) {
+      const response = await API.get("/chat/conversations/");
+      setConversations(response.data);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des conversations:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return;
       }
-
-      if (response.ok) {
-        const data = await response.json();
-        setConversations(data);
-      }
-    } catch (error) {
-      console.error("Erreur lors de la récupération des conversations:", error);
     }
   };
 
@@ -215,26 +189,15 @@ export default function Dashboard() {
 
     const fetchUser = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/users/me/", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (response.status === 401) {
-          localStorage.removeItem("access");
-          localStorage.removeItem("refresh");
-          navigate("/login");
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`Échec de la récupération de l'utilisateur: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setUser(data);
-        console.log("👤 User loaded:", data.email, "Account type:", data.account_type);
+        const response = await API.get("/users/me/");
+        setUser(response.data);
+        console.log("👤 User loaded:", response.data.email, "Account type:", response.data.account_type);
       } catch (error) {
         console.error("Erreur lors de la récupération de l'utilisateur:", error);
+        if (error.response?.status === 401) {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+        }
         navigate("/login");
       } finally {
         setLoading(false);
@@ -254,41 +217,32 @@ export default function Dashboard() {
   // Fetch blocked users
   const fetchBlockedUsers = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/blocked/blocks/", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await API.get("/blocked/blocks/");
       
-      if (response.status === 401) {
+      const blocked = response.data.map(block => ({
+        id: block.blocked,
+        first_name: block.blocked_user.first_name || "",
+        last_name: block.blocked_user.last_name || "",
+        age: block.blocked_user.age,
+        bio: block.blocked_user.bio || "",
+        photo: getProfilePhotoUrl(block.blocked_user.profile_photo),
+        gender: block.blocked_user.gender,
+        block_id: block.id,
+        created_at: block.created_at
+      }));
+      
+      setBlockedList(blocked);
+      const blockedIdsArray = blocked.map(b => b.id);
+      setBlockedIds(blockedIdsArray);
+      
+      return blockedIdsArray;
+    } catch (error) {
+      console.error("Erreur lors de la récupération des utilisateurs bloqués:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return;
       }
-      
-      if (response.ok) {
-        const data = await response.json();
-        
-        const blocked = data.map(block => ({
-          id: block.blocked,
-          first_name: block.blocked_user.first_name || "",
-          last_name: block.blocked_user.last_name || "",
-          age: block.blocked_user.age,
-          bio: block.blocked_user.bio || "",
-          photo: getProfilePhotoUrl(block.blocked_user.profile_photo),
-          gender: block.blocked_user.gender,
-          block_id: block.id,
-          created_at: block.created_at
-        }));
-        
-        setBlockedList(blocked);
-        const blockedIdsArray = blocked.map(b => b.id);
-        setBlockedIds(blockedIdsArray);
-        
-        return blockedIdsArray;
-      }
-    } catch (error) {
-      console.error("Erreur lors de la récupération des utilisateurs bloqués:", error);
       return [];
     }
   };
@@ -297,68 +251,50 @@ export default function Dashboard() {
   const fetchLikesReceived = async (currentBlockedIds = blockedIds) => {
     console.log("📡 [DASHBOARD] fetchLikesReceived called with blockedIds:", currentBlockedIds);
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/received/", {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await API.get("/interactions/likes/received/");
+      
+      const likes = response.data.map(like => {
+        let age = like.from_user.age;
+        if (!age && like.from_user.birth_date) {
+          age = calculateAge(like.from_user.birth_date);
+        }
+        
+        return {
+          id: like.from_user.id,
+          first_name: like.from_user.first_name || "",
+          last_name: like.from_user.last_name || "",
+          age: age,
+          bio: like.from_user.bio || "",
+          photo: getProfilePhotoUrl(like.from_user.profile_photo),
+          gender: like.from_user.gender,
+        };
       });
       
-      if (response.status === 401) {
+      const filteredLikes = likes.filter(like => !currentBlockedIds.includes(like.id));
+      setLikesList(filteredLikes);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des likes reçus:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return;
       }
-      
-      if (response.ok) {
-        const data = await response.json();
-        
-        const likes = data.map(like => {
-          let age = like.from_user.age;
-          if (!age && like.from_user.birth_date) {
-            age = calculateAge(like.from_user.birth_date);
-          }
-          
-          return {
-            id: like.from_user.id,
-            first_name: like.from_user.first_name || "",
-            last_name: like.from_user.last_name || "",
-            age: age,
-            bio: like.from_user.bio || "",
-            photo: getProfilePhotoUrl(like.from_user.profile_photo),
-            gender: like.from_user.gender,
-          };
-        });
-        
-        const filteredLikes = likes.filter(like => !currentBlockedIds.includes(like.id));
-        setLikesList(filteredLikes);
-      }
-    } catch (error) {
-      console.error("Erreur lors de la récupération des likes reçus:", error);
     }
   };
 
   // Fetch likes sent
   const fetchSentLikes = async () => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/sent/", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.status === 401) {
+      const response = await API.get("/interactions/likes/sent/");
+      const likedUserIds = response.data.map(like => like.to_user.id);
+      setSentLikesIds(likedUserIds);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des likes envoyés:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return;
       }
-      
-      if (response.ok) {
-        const data = await response.json();
-        const likedUserIds = data.map(like => like.to_user.id);
-        setSentLikesIds(likedUserIds);
-      }
-    } catch (error) {
-      console.error("Erreur lors de la récupération des likes envoyés:", error);
     }
   };
 
@@ -368,77 +304,53 @@ export default function Dashboard() {
     if (!user) return;
     
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/matches/matches/", {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await API.get("/matches/matches/");
+      
+      const matches = response.data.map(match => {
+        const otherUser = match.user1.id === user.id ? match.user2 : match.user1;
+        return {
+          id: otherUser.id,
+          first_name: otherUser.first_name || "",
+          last_name: otherUser.last_name || "",
+          age: otherUser.age,
+          bio: otherUser.bio || "",
+          photo: getProfilePhotoUrl(otherUser.profile_photo),
+          gender: otherUser.gender,
+          match_id: match.id,
+          created_at: match.created_at
+        };
       });
       
-      if (response.status === 401) {
+      const filteredMatches = matches.filter(match => !currentBlockedIds.includes(match.id));
+      setMatchesList(filteredMatches);
+      setMatchesIds(filteredMatches.map(m => m.id));
+    } catch (error) {
+      console.error("Erreur lors de la récupération des matches:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return;
       }
-      
-      if (response.ok) {
-        const data = await response.json();
-        
-        const matches = data.map(match => {
-          const otherUser = match.user1.id === user.id ? match.user2 : match.user1;
-          return {
-            id: otherUser.id,
-            first_name: otherUser.first_name || "",
-            last_name: otherUser.last_name || "",
-            age: otherUser.age,
-            bio: otherUser.bio || "",
-            photo: getProfilePhotoUrl(otherUser.profile_photo),
-            gender: otherUser.gender,
-            match_id: match.id,
-            created_at: match.created_at
-          };
-        });
-        
-        const filteredMatches = matches.filter(match => !currentBlockedIds.includes(match.id));
-        setMatchesList(filteredMatches);
-        setMatchesIds(filteredMatches.map(m => m.id));
-      }
-    } catch (error) {
-      console.error("Erreur lors de la récupération des matches:", error);
     }
   };
 
   // Create match
   const createMatch = async (otherUserId) => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/matches/match/create/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          user1_id: user.id,
-          user2_id: otherUserId
-        }),
+      const response = await API.post("/matches/match/create/", {
+        user1_id: user.id,
+        user2_id: otherUserId
       });
       
-      if (response.status === 401) {
+      // 201 or 200 indicate success
+      return response.status === 201 || response.status === 200;
+    } catch (error) {
+      console.error("Erreur lors de la création du match:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return false;
       }
-      
-      const data = await response.json();
-      
-      if (response.status === 201 || response.status === 200) {
-        return true;
-      } else {
-        return false;
-      }
-    } catch (error) {
-      console.error("Erreur lors de la création du match:", error);
       return false;
     }
   };
@@ -446,28 +358,15 @@ export default function Dashboard() {
   // Delete like
   const deleteLike = async (profileId) => {
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/interactions/unlike/${profileId}/`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
+      await API.delete(`/interactions/unlike/${profileId}/`);
+      return true;
+    } catch (error) {
+      console.error("Erreur lors de la suppression du like:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return false;
       }
-
-      if (response.ok || response.status === 204) {
-        return true;
-      } else {
-        return false;
-      }
-    } catch (error) {
-      console.error("Erreur lors de la suppression du like:", error);
       return false;
     }
   };
@@ -477,28 +376,15 @@ export default function Dashboard() {
     if (!matchId) return false;
     
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/matches/unmatch/${matchId}/`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 401) {
+      await API.delete(`/matches/unmatch/${matchId}/`);
+      return true;
+    } catch (error) {
+      console.error("Erreur lors de la suppression du match:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return false;
       }
-
-      if (response.ok || response.status === 204) {
-        return true;
-      } else {
-        return false;
-      }
-    } catch (error) {
-      console.error("Erreur lors de la suppression du match:", error);
       return false;
     }
   };
@@ -521,54 +407,32 @@ export default function Dashboard() {
     }
     
     try {
-      const token = localStorage.getItem("access");
-      const requestBody = JSON.stringify({ to_user_id: profileId });
-      console.log("🔍 Request body:", requestBody);
-      
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/swipe/pass/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: requestBody,
-      });
-      
-      console.log("🔍 Response status:", response.status);
-      
-      let responseData;
-      try {
-        responseData = await response.json();
-        console.log("🔍 Response data:", responseData);
-      } catch (e) {
-        console.log("🔍 Could not parse response as JSON");
-        responseData = await response.text();
-        console.log("🔍 Response text:", responseData);
-      }
-      
-      if (response.ok) {
-        console.log("✅ Pass recorded successfully for user:", profileId);
-        fetchSwipeLimits();
-      } else {
-        console.error("❌ Failed to record pass. Status:", response.status);
-        console.error("❌ Error details:", responseData);
-        
-        if (response.status === 400) {
-          if (responseData?.error?.includes("already passed")) {
+      const response = await API.post("/interactions/swipe/pass/", { to_user_id: profileId });
+      console.log("✅ Pass recorded successfully for user:", profileId);
+      fetchSwipeLimits();
+    } catch (error) {
+      console.error("❌ Failed to record pass.", error);
+      if (error.response) {
+        console.error("❌ Error details:", error.response.data);
+        if (error.response.status === 400) {
+          if (error.response.data?.error?.includes("already passed")) {
             console.warn("⚠️ You have already passed on this user");
-          } else if (responseData?.error?.includes("already liked")) {
+          } else if (error.response.data?.error?.includes("already liked")) {
             console.warn("⚠️ You cannot pass on someone you've already liked");
-          } else if (responseData?.error?.includes("pass on yourself")) {
+          } else if (error.response.data?.error?.includes("pass on yourself")) {
             console.warn("⚠️ Cannot pass on yourself");
           }
-        } else if (response.status === 401) {
+        } else if (error.response.status === 401) {
           console.error("❌ Authentication error - token may be expired");
-        } else if (response.status === 429) {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          navigate("/login");
+        } else if (error.response.status === 429) {
           console.error("❌ Rate limit exceeded");
         }
+      } else if (error.request) {
+        console.error("❌ No response from server");
       }
-    } catch (error) {
-      console.error("❌ Network error tracking pass:", error);
     }
     console.log("🔍 ===== END PASS DEBUG =====");
   };
@@ -623,72 +487,55 @@ export default function Dashboard() {
     if (!profile) return;
     
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/blocked/blocks/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ 
-          blocked: profile.id 
-        }),
-      });
+      const response = await API.post("/blocked/blocks/", { blocked: profile.id });
 
-      if (response.status === 401) {
+      const data = response.data;
+      
+      if (sentLikesIds.includes(profile.id)) {
+        await deleteLike(profile.id);
+      }
+      
+      if (matchesIds.includes(profile.id)) {
+        const match = matchesList.find(m => m.id === profile.id);
+        if (match && match.match_id) {
+          await deleteMatch(match.match_id);
+        }
+      }
+      
+      const newBlockedIds = [...blockedIds, profile.id];
+      setBlockedIds(newBlockedIds);
+      
+      const blockedProfile = {
+        id: profile.id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        age: profile.age,
+        bio: profile.bio,
+        photo: profile.photo,
+        gender: profile.gender,
+        block_id: data.id
+      };
+      
+      setBlockedList(prev => {
+        if (prev.some(b => b.id === profile.id)) return prev;
+        return [blockedProfile, ...prev];
+      });
+      
+      removeFromMatches(profile.id);
+      removeFromLikes(profile.id);
+      removeFromDiscover(profile.id);
+      
+      if (likeModalOpen) closeLikeModal();
+      if (matchModalOpen) closeMatchModal();
+      
+      fetchConversations();
+    } catch (error) {
+      console.error("Erreur lors du blocage de l'utilisateur:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return;
       }
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (sentLikesIds.includes(profile.id)) {
-          await deleteLike(profile.id);
-        }
-        
-        if (matchesIds.includes(profile.id)) {
-          const match = matchesList.find(m => m.id === profile.id);
-          if (match && match.match_id) {
-            await deleteMatch(match.match_id);
-          }
-        }
-        
-        const newBlockedIds = [...blockedIds, profile.id];
-        setBlockedIds(newBlockedIds);
-        
-        const blockedProfile = {
-          id: profile.id,
-          first_name: profile.first_name,
-          last_name: profile.last_name,
-          age: profile.age,
-          bio: profile.bio,
-          photo: profile.photo,
-          gender: profile.gender,
-          block_id: data.id
-        };
-        
-        setBlockedList(prev => {
-          if (prev.some(b => b.id === profile.id)) return prev;
-          return [blockedProfile, ...prev];
-        });
-        
-        removeFromMatches(profile.id);
-        removeFromLikes(profile.id);
-        removeFromDiscover(profile.id);
-        
-        if (likeModalOpen) closeLikeModal();
-        if (matchModalOpen) closeMatchModal();
-        
-        fetchConversations();
-      } else {
-        const error = await response.json();
-        console.error("❌ Échec du blocage:", error);
-      }
-    } catch (error) {
-      console.error("Erreur lors du blocage de l'utilisateur:", error);
     }
   };
 
@@ -697,39 +544,27 @@ export default function Dashboard() {
     if (!profile) return;
     
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch(`http://127.0.0.1:8000/api/blocked/blocks/${profile.id}/unblock/`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      await API.delete(`/blocked/blocks/${profile.id}/unblock/`);
 
-      if (response.status === 401) {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        navigate("/login");
-        return;
-      }
-
-      if (response.ok || response.status === 204) {
-        const newBlockedIds = blockedIds.filter(id => id !== profile.id);
-        setBlockedIds(newBlockedIds);
-        setBlockedList(prev => prev.filter(b => b.id !== profile.id));
-        setUnblockModalOpen(false);
-        setSelectedBlocked(null);
-        
-        if (user) {
-          fetchProfilesBasedOnUser(newBlockedIds);
-          fetchLikesReceived(newBlockedIds);
-          fetchMatches(newBlockedIds);
-          fetchConversations();
-        }
-      } else {
-        console.error("❌ Échec du déblocage");
+      const newBlockedIds = blockedIds.filter(id => id !== profile.id);
+      setBlockedIds(newBlockedIds);
+      setBlockedList(prev => prev.filter(b => b.id !== profile.id));
+      setUnblockModalOpen(false);
+      setSelectedBlocked(null);
+      
+      if (user) {
+        fetchProfilesBasedOnUser(newBlockedIds);
+        fetchLikesReceived(newBlockedIds);
+        fetchMatches(newBlockedIds);
+        fetchConversations();
       }
     } catch (error) {
       console.error("Erreur lors du déblocage de l'utilisateur:", error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     }
   };
 
@@ -808,12 +643,6 @@ export default function Dashboard() {
     setApiError(null);
     
     try {
-      const token = localStorage.getItem("access");
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
       let genderFilter = '';
       if (user.interested_in === 'male') {
         genderFilter = 'male';
@@ -823,35 +652,18 @@ export default function Dashboard() {
         // No filter
       }
 
-      const queryParams = new URLSearchParams();
+      const params = {};
       if (genderFilter) {
-        queryParams.append('gender', genderFilter);
+        params.gender = genderFilter;
       }
       
-      const apiUrl = `http://127.0.0.1:8000/api/users/profiles/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      
-      const response = await fetch(apiUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.status === 401) {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        navigate("/login");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`Erreur API: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const response = await API.get("/users/profiles/", { params });
 
       let profilesArray = [];
-      if (Array.isArray(data)) {
-        profilesArray = data;
-      } else if (data.results && Array.isArray(data.results)) {
-        profilesArray = data.results;
+      if (Array.isArray(response.data)) {
+        profilesArray = response.data;
+      } else if (response.data.results && Array.isArray(response.data.results)) {
+        profilesArray = response.data.results;
       }
 
       const filteredById = profilesArray.filter(profile => 
@@ -895,6 +707,11 @@ export default function Dashboard() {
       console.error("Erreur lors de la récupération des profils:", error);
       setApiError(error.message);
       setProfiles([]);
+      if (error.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        navigate("/login");
+      }
     } finally {
       setProfilesLoading(false);
     }
@@ -1117,60 +934,33 @@ export default function Dashboard() {
     }
     
     try {
-      const token = localStorage.getItem("access");
-      
       // 1. First create the actual Like (this triggers the notification via signal)
-      const likeResponse = await fetch("http://127.0.0.1:8000/api/interactions/like/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ 
-          to_user_id: currentProfile.id 
-        }),
-      });
+      const likeResponse = await API.post("/interactions/like/", { to_user_id: currentProfile.id });
 
       console.log("❤️ Like response status:", likeResponse.status);
 
-      if (likeResponse.status === 401) {
+      if (likeResponse.status === 429) {
+        alert(`Daily like limit reached (${likeResponse.data.limit}/day)!`);
+        fetchSwipeLimits();
+        return;
+      }
+
+      console.log("✅ Like recorded successfully in database");
+      
+      // 2. Then track the swipe count separately
+      await API.post("/interactions/swipe/like/", { to_user_id: currentProfile.id })
+        .catch(err => console.warn("Swipe tracking failed but like was created:", err));
+      
+      setSentLikesIds(prev => [...prev, currentProfile.id]);
+      await checkForMatch(currentProfile.id);
+      fetchSwipeLimits();
+    } catch (error) {
+      console.error("❌ Erreur lors du like du profil:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return;
       }
-
-      if (likeResponse.status === 429) {
-        const data = await likeResponse.json();
-        alert(`Daily like limit reached (${data.limit}/day)!`);
-        fetchSwipeLimits();
-        return;
-      }
-
-      if (likeResponse.ok) {
-        console.log("✅ Like recorded successfully in database");
-        
-        // 2. Then track the swipe count separately
-        await fetch("http://127.0.0.1:8000/api/interactions/swipe/like/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ 
-            to_user_id: currentProfile.id 
-          }),
-        }).catch(err => console.warn("Swipe tracking failed but like was created:", err));
-        
-        setSentLikesIds(prev => [...prev, currentProfile.id]);
-        await checkForMatch(currentProfile.id);
-        fetchSwipeLimits();
-      } else {
-        const error = await likeResponse.json();
-        console.error("❌ Échec du like:", error);
-      }
-    } catch (error) {
-      console.error("❌ Erreur lors du like du profil:", error);
     }
 
     triggerSlide("right");
@@ -1200,36 +990,18 @@ export default function Dashboard() {
     if (!selectedLike) return;
 
     try {
-      const token = localStorage.getItem("access");
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/like/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ 
-          to_user_id: selectedLike.id 
-        }),
-      });
+      const response = await API.post("/interactions/like/", { to_user_id: selectedLike.id });
 
-      if (response.status === 401) {
+      setSentLikesIds(prev => [...prev, selectedLike.id]);
+      await checkForMatch(selectedLike.id);
+      closeLikeModal();
+    } catch (error) {
+      console.error("❌ Échec du like retourné:", error);
+      if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
-        return;
       }
-
-      if (response.ok) {
-        setSentLikesIds(prev => [...prev, selectedLike.id]);
-        await checkForMatch(selectedLike.id);
-        closeLikeModal();
-      } else {
-        const error = await response.json();
-        console.error("❌ Échec du like retourné:", error);
-        closeLikeModal();
-      }
-    } catch (error) {
-      console.error("Erreur lors du like retourné:", error);
       closeLikeModal();
     }
   };

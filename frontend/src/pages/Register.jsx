@@ -1,6 +1,8 @@
+// src/pages/Register.jsx
 import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import API from "../api/axios"; // 👈 ADD THIS IMPORT
 
 export default function Register() {
   const navigate = useNavigate();
@@ -158,7 +160,7 @@ export default function Register() {
     data.append("gender", formData.gender);
     data.append("interested_in", formData.interested_in);
     data.append("password", formData.password);
-    data.append("password2", formData.password2); // Make sure password2 is included
+    data.append("password2", formData.password2);
     data.append("country", formData.country);
 
     if (formData.profile_photo) {
@@ -174,38 +176,41 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        "http://127.0.0.1:8000/api/users/register/",
-        {
-          method: "POST",
-          body: data,
-        }
-      );
+      // 👇 USING CONFIGURED AXIOS INSTANCE
+      const response = await API.post("users/register/", data, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
 
-      const result = await response.json();
+      // Save tokens
+      localStorage.setItem("access", response.data.access);
+      localStorage.setItem("refresh", response.data.refresh);
 
-      if (response.ok) {
-        // Save tokens
-        localStorage.setItem("access", result.access);
-        localStorage.setItem("refresh", result.refresh);
-
-        // Redirect to dashboard
-        navigate("/dashboard");
-      } else {
-        let message = "";
-        if (typeof result === "object") {
-          for (let key in result) {
-            message += `${key}: ${result[key]}\n`;
-          }
-        } else {
-          message = JSON.stringify(result);
-        }
-        setErrorMessage(message);
-        console.error("Registration error response:", result);
-      }
+      // Redirect to dashboard
+      navigate("/dashboard");
+      
     } catch (error) {
       console.error("Registration error:", error);
-      setErrorMessage("Network error. Please try again.");
+      
+      // Handle error response
+      if (error.response) {
+        // Server responded with error
+        let message = "";
+        if (typeof error.response.data === "object") {
+          for (let key in error.response.data) {
+            message += `${key}: ${error.response.data[key]}\n`;
+          }
+        } else {
+          message = error.response.data || "Registration failed";
+        }
+        setErrorMessage(message);
+        console.error("Registration error response:", error.response.data);
+      } else if (error.request) {
+        // Request made but no response
+        setErrorMessage("Network error. Please try again.");
+      } else {
+        // Something else happened
+        setErrorMessage("An error occurred. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -587,11 +592,7 @@ export default function Register() {
                 </button>
               ) : (
                 <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleSubmit(e);
-                  }}
+                  type="submit"
                   className="btn btn-danger w-100 btn-lg"
                   disabled={loading || !formData.profile_photo}
                   style={{ borderRadius: "16px" }}

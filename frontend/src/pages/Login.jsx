@@ -2,6 +2,7 @@
 import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import API from "../api/axios"; // 👈 ADD THIS IMPORT
 
 export default function Login() {
   const navigate = useNavigate();
@@ -24,36 +25,38 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/users/login/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      // 👇 USING CONFIGURED AXIOS INSTANCE
+      const response = await API.post("users/login/", formData);
+      
+      // Save tokens for auto-login
+      localStorage.setItem("access", response.data.access);
+      localStorage.setItem("refresh", response.data.refresh);
 
-      const result = await response.json();
-
-      if (response.ok) {
-        // Save tokens for auto-login
-        localStorage.setItem("access", result.access);
-        localStorage.setItem("refresh", result.refresh);
-
-        // Redirect to dashboard
-        navigate("/dashboard");
-      } else {
-        // Show backend errors
+      // Redirect to dashboard
+      navigate("/dashboard");
+      
+    } catch (error) {
+      console.error("Login error:", error);
+      
+      // Handle error response
+      if (error.response) {
+        // Server responded with error
         let message = "";
-        if (typeof result === "object") {
-          for (let key in result) {
-            message += `${key}: ${result[key]}\n`;
+        if (typeof error.response.data === "object") {
+          for (let key in error.response.data) {
+            message += `${key}: ${error.response.data[key]}\n`;
           }
         } else {
-          message = JSON.stringify(result);
+          message = error.response.data || "Login failed";
         }
         setErrorMessage(message);
+      } else if (error.request) {
+        // Request made but no response
+        setErrorMessage("Network or server error. Please try again.");
+      } else {
+        // Something else happened
+        setErrorMessage("An error occurred. Please try again.");
       }
-    } catch (error) {
-      console.error("Network error:", error);
-      setErrorMessage("Network or server error. Please try again.");
     } finally {
       setLoading(false);
     }
