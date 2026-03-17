@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
+
 class Match(models.Model):
     user1 = models.ForeignKey(
         settings.AUTH_USER_MODEL,
