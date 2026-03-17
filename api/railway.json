@@ -6,5 +6,3 @@
     "startCommand": "daphne -b 0.0.0.0 -p $PORT api.asgi:application"
   }
 }
-
-
