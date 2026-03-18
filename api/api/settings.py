@@ -25,6 +25,8 @@ SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+
+
 ALLOWED_HOSTS = [
     'api.noumatch.com', 
     'noumatch.com', 
@@ -156,12 +158,16 @@ SIMPLE_JWT = {
 
 
 
+import os
+
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [os.environ.get('REDIS_URL', 'redis://localhost:6379')],
+        },
     },
 }
-
 
 TIME_ZONE = 'America/New_York'  # Change this to your local timezone
 
