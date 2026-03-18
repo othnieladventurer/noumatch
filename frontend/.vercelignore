@@ -1,5 +1,4 @@
-# Ignore everything in /api folder
-api/
+# Ignore backend root api folder only (not src/api)
 /api/
 
 # Ignore all Python files anywhere
@@ -18,7 +17,7 @@ api/
 **/myenv/
 **/.venv/
 
-# Keep only frontend files
+# Keep frontend files
 !src/
 !public/
 !index.html
