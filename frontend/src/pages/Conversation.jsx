@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
-import API from '../api/axios'; // 👈 ADD THIS IMPORT
+import API from '../api/axios.js'; // 👈 ADD THIS IMPORT
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
