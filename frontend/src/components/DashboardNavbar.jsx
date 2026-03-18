@@ -1,10 +1,11 @@
 // components/DashboardNavbar.jsx
+// components/DashboardNavbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaHeart, FaEnvelope } from "react-icons/fa";
 import NotificationBell from "./NotificationBell";
 import { useNotifications } from '../context/NotificationContext';
-import API from '../api/axios.js'; // 👈 ADD THIS IMPORT
+import API from '../api/axios.js';
 
 export default function DashboardNavbar({ user }) {
   const navigate = useNavigate();
@@ -15,15 +16,17 @@ export default function DashboardNavbar({ user }) {
   });
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // 👇 Get notifications from context
   const { notifications } = useNotifications();
+
+  // Use environment variable for base URL
+  const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => {
     const sendHeartbeat = async () => {
       const token = localStorage.getItem("access");
       if (token && user) {
         try {
-          await fetch("http://127.0.0.1:8000/api/users/heartbeat/", {
+          await fetch(`${BASE_URL}/api/users/heartbeat/`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -41,7 +44,7 @@ export default function DashboardNavbar({ user }) {
 
     const handleBeforeUnload = () => {
       navigator.sendBeacon(
-        "http://127.0.0.1:8000/api/users/heartbeat/",
+        `${BASE_URL}/api/users/heartbeat/`,
         new Blob([JSON.stringify({})], { type: "application/json" })
       );
     };
@@ -52,7 +55,7 @@ export default function DashboardNavbar({ user }) {
       clearInterval(interval);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [user]);
+  }, [user, BASE_URL]);
 
   useEffect(() => {
     if (user && user.id) {
@@ -62,7 +65,6 @@ export default function DashboardNavbar({ user }) {
     }
   }, [user]);
 
-  // 👇 REAL‑TIME UPDATE FOR NEW MESSAGES
   useEffect(() => {
     if (!user || !notifications.length) return;
     const lastNotif = notifications[0];
@@ -139,8 +141,10 @@ export default function DashboardNavbar({ user }) {
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/40";
     if (path.startsWith("http")) return path;
-    if (path.startsWith("/media")) return `http://127.0.0.1:8000${path}`;
-    return `http://127.0.0.1:8000${path}`;
+    // Use the same base URL as the API
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
+    return `${baseUrl}${normalizedPath}`;
   };
 
   const formatMessageTime = (timeString) => {

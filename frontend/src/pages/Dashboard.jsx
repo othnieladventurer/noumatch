@@ -862,7 +862,7 @@ export default function Dashboard() {
   };
 
   const reloadProfiles = () => {
-    window.location.reload();
+    fetchProfilesBasedOnUser(blockedIds);
   };
 
   const triggerSlide = (direction) => {
