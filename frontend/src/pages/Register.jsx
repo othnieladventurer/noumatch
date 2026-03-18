@@ -2,7 +2,7 @@
 import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import API from '../api/axios.js'; // 👈 ADD THIS IMPORT
+import API from '@/api/axios'; // 👈 ADD THIS IMPORT
 
 export default function Register() {
   const navigate = useNavigate();
