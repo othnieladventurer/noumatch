@@ -11,30 +11,9 @@
   ],
   "routes": [
     {
-      "src": "/assets/(.*)\\.js",
-      "dest": "/assets/$1.js",
-      "headers": {
-        "Content-Type": "application/javascript"
-      }
-    },
-    {
-      "src": "/assets/(.*)\\.css",
-      "dest": "/assets/$1.css",
-      "headers": {
-        "Content-Type": "text/css"
-      }
-    },
-    {
-      "src": "/assets/(.*)\\.(png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)",
-      "dest": "/assets/$1.$2"
-    },
-    {
-      "src": "/vite.svg",
-      "dest": "/vite.svg"
-    },
-    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
   ]
 }
+
