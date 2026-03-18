@@ -7,7 +7,7 @@ import RightBlock from "../components/RightBlock";
 import Modals from "../components/Modals";
 import { getProfilePhotoUrl, calculateAge, shuffleArray, formatName } from "../utils/helpers";
 import { useNotifications } from '../context/NotificationContext';
-import API from '@/api/axios'; // 👈 IMPORT THE CONFIGURED AXIOS INSTANCE
+import API from '../api/axios'; // 👈 IMPORT THE CONFIGURED AXIOS INSTANCE
 import "../styles/Dashboard.css";
 
 export default function Dashboard() {

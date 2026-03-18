@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import ReportModal from "../components/ReportModal"; // Import ReportModal
-import API from '@/api/axios'; // 👈 ADD THIS IMPORT
+import API from '../api/axios'; // 👈 ADD THIS IMPORT
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
