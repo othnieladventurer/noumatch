@@ -10,7 +10,7 @@ export const NotificationProvider = ({ children }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
-  
+
   // Use refs to prevent re-render loops
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -19,6 +19,19 @@ export const NotificationProvider = ({ children }) => {
   const connectionAttemptRef = useRef(0);
   const mountedRef = useRef(true);
 
+  // --- CRITICAL FIX: Use environment variable with fallback ---
+  const getBaseUrl = () => {
+    // Use the same pattern as axios.js
+    if (import.meta.env.PROD) {
+      return import.meta.env.VITE_API_URL || "https://api.noumatch.com";
+    }
+    return import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+  };
+
+  const BASE_URL = getBaseUrl();
+  // For WebSocket, replace http(s) with ws(s)
+  const WS_BASE_URL = BASE_URL.replace(/^http/, 'ws');
+
   const isAuthenticated = () => {
     return !!localStorage.getItem('access');
   };
@@ -26,32 +39,32 @@ export const NotificationProvider = ({ children }) => {
   const fetchNotifications = async () => {
     // Prevent multiple simultaneous fetches
     if (fetchNotifications.isFetching) return;
-    
+
     try {
       fetchNotifications.isFetching = true;
-      
+
       const token = localStorage.getItem('access');
       if (!token) {
         setLoading(false);
         return;
       }
-      
+
       console.log("🔍 [CONTEXT] Fetching notifications...");
-      const response = await fetch('http://127.0.0.1:8000/api/notifications/', {
-        headers: { 
+      const response = await fetch(`${BASE_URL}/api/notifications/`, {
+        headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log("✅ [CONTEXT] Notifications fetched:", data.length);
-        
+
         setNotifications(prev => {
           // Merge with existing state to preserve read status
           const existingMap = new Map(prev.map(n => [n.id, n]));
-          
+
           const merged = data.map(serverNotif => {
             const existing = existingMap.get(serverNotif.id);
             if (existing && existing.is_read && !serverNotif.is_read) {
@@ -59,10 +72,10 @@ export const NotificationProvider = ({ children }) => {
             }
             return serverNotif;
           });
-          
+
           return merged;
         });
-        
+
         setUnreadCount(data.filter(n => !n.is_read).length);
       }
     } catch (error) {
@@ -102,12 +115,9 @@ export const NotificationProvider = ({ children }) => {
       }
     }
 
-    const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    // IMPORTANT: Add token as query parameter for authentication
-    const wsUrl = `${wsScheme}://127.0.0.1:8000/ws/notifications/?token=${token}`;
-    
+    const wsUrl = `${WS_BASE_URL}/ws/notifications/?token=${token}`;
     console.log(`🔌 [CONTEXT] Attempting to connect to WebSocket: ${wsUrl}`);
-    
+
     try {
       socketRef.current = new WebSocket(wsUrl);
 
@@ -115,7 +125,7 @@ export const NotificationProvider = ({ children }) => {
         console.log('✅ [CONTEXT] Notification WebSocket connected successfully');
         setIsConnected(true);
         connectionAttemptRef.current = 0; // Reset counter on successful connection
-        
+
         // Clear any existing reconnect timeout
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
@@ -141,7 +151,7 @@ export const NotificationProvider = ({ children }) => {
 
           if (data.type === 'new_notification' || data.type === 'new_message') {
             const notification = data.notification || data;
-            
+
             setNotifications(prev => {
               // Check for duplicate
               if (prev.some(n => n.id === notification.id)) {
@@ -151,7 +161,7 @@ export const NotificationProvider = ({ children }) => {
               console.log('   [CONTEXT] Adding new notification to state');
               return [notification, ...prev];
             });
-            
+
             setUnreadCount(prev => {
               console.log(`   [CONTEXT] Incrementing unread count from ${prev} to ${prev + 1}`);
               return prev + 1;
@@ -171,13 +181,13 @@ export const NotificationProvider = ({ children }) => {
       socketRef.current.onclose = (event) => {
         console.log(`🔌 [CONTEXT] WebSocket disconnected: ${event.code} - ${event.reason || 'No reason'}`);
         setIsConnected(false);
-        
+
         // Clear heartbeat
         if (heartbeatRef.current) {
           clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
         }
-        
+
         // Only attempt reconnect if component is mounted and we haven't exceeded attempts
         // Don't reconnect on normal closure (1000)
         if (mountedRef.current && event.code !== 1000 && connectionAttemptRef.current <= 5) {
@@ -198,12 +208,12 @@ export const NotificationProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ [CONTEXT] Failed to create WebSocket:', error);
     }
-  }, []);
+  }, [WS_BASE_URL]);
 
   // Initialize on mount
   useEffect(() => {
     mountedRef.current = true;
-    
+
     if (!isAuthenticated()) {
       console.log("⏳ [CONTEXT] User not authenticated, skipping notification setup");
       setLoading(false);
@@ -211,7 +221,7 @@ export const NotificationProvider = ({ children }) => {
     }
 
     console.log("🔧 [CONTEXT] Initializing notifications for authenticated user");
-    
+
     // Initial fetch
     fetchNotifications();
 
@@ -232,12 +242,12 @@ export const NotificationProvider = ({ children }) => {
     return () => {
       console.log("🧹 [CONTEXT] Cleaning up notification connections");
       mountedRef.current = false;
-      
+
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
       }
-      
+
       if (socketRef.current) {
         // Send normal closure
         socketRef.current.close(1000, "Component unmounting");
@@ -262,20 +272,20 @@ export const NotificationProvider = ({ children }) => {
       const timer = setTimeout(() => {
         connectWebSocket();
       }, 1000);
-      
+
       return () => clearTimeout(timer);
     }
   }, [connectWebSocket]);
 
   const markAsRead = useCallback(async (notificationId) => {
     if (!notificationId) return;
-    
+
     console.log(`📝 [CONTEXT] Marking notification ${notificationId} as read`);
-    
+
     // Store original for potential revert
     const originalNotifications = [...notifications];
     const originalUnreadCount = unreadCount;
-    
+
     // Optimistic update
     setNotifications(prev =>
       prev.map(n =>
@@ -286,7 +296,7 @@ export const NotificationProvider = ({ children }) => {
 
     try {
       const token = localStorage.getItem('access');
-      const response = await fetch('http://127.0.0.1:8000/api/notifications/mark-read/', {
+      const response = await fetch(`${BASE_URL}/api/notifications/mark-read/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -294,11 +304,11 @@ export const NotificationProvider = ({ children }) => {
         },
         body: JSON.stringify({ notification_ids: [notificationId] }),
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to mark as read');
       }
-      
+
       const result = await response.json();
       console.log('✅ [CONTEXT] Mark as read successful:', result);
     } catch (error) {
@@ -307,15 +317,15 @@ export const NotificationProvider = ({ children }) => {
       setNotifications(originalNotifications);
       setUnreadCount(originalUnreadCount);
     }
-  }, [notifications, unreadCount]);
+  }, [notifications, unreadCount, BASE_URL]);
 
   const markAllAsRead = useCallback(async () => {
     console.log("📝 [CONTEXT] Marking all notifications as read");
-    
+
     // Store current state for revert
     const previousNotifications = [...notifications];
     const previousUnreadCount = unreadCount;
-    
+
     // Optimistic update
     setNotifications(prev =>
       prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
@@ -324,7 +334,7 @@ export const NotificationProvider = ({ children }) => {
 
     try {
       const token = localStorage.getItem('access');
-      const response = await fetch('http://127.0.0.1:8000/api/notifications/mark-read/', {
+      const response = await fetch(`${BASE_URL}/api/notifications/mark-read/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -332,11 +342,11 @@ export const NotificationProvider = ({ children }) => {
         },
         body: JSON.stringify({ mark_all: true }),
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to mark all as read');
       }
-      
+
       const result = await response.json();
       console.log('✅ [CONTEXT] Mark all as read successful:', result);
     } catch (error) {
@@ -345,7 +355,7 @@ export const NotificationProvider = ({ children }) => {
       setNotifications(previousNotifications);
       setUnreadCount(previousUnreadCount);
     }
-  }, [notifications, unreadCount]);
+  }, [notifications, unreadCount, BASE_URL]);
 
   const refresh = useCallback(() => {
     if (isAuthenticated()) {
