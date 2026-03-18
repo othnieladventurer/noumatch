@@ -4,6 +4,7 @@
       "src": "frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
+        "installCommand": "npm install",
         "buildCommand": "npm run build",
         "outputDirectory": "dist"
       }
@@ -12,7 +13,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/frontend/dist/index.html"
+      "dest": "/index.html"
     }
   ]
 }
