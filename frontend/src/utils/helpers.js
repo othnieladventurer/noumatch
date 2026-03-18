@@ -35,9 +35,14 @@ export const shuffleArray = (array) => {
 // Photo URL helper
 export const getProfilePhotoUrl = (path) => {
   if (!path) return null;
-  if (path.startsWith('http')) return path;
-  if (path.startsWith('/media')) return `http://127.0.0.1:8000${path}`;
-  return `http://127.0.0.1:8000${path}`;
-};
+  if (path.startsWith('http')) return path; // already absolute
 
+  // Use the same base URL as axios – from environment or fallback to localhost
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+  // Ensure the path starts with a slash and includes /media
+  const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
+
+  return `${baseUrl}${normalizedPath}`;
+};
 
