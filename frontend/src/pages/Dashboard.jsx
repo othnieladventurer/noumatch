@@ -405,7 +405,7 @@ export default function Dashboard() {
     }
   };
 
-  // Create match
+  // Create 
   const createMatch = async (otherUserId) => {
     try {
       const response = await API.post("/matches/match/create/", {
