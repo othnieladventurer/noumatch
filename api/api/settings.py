@@ -26,17 +26,51 @@ SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj
 DEBUG = True
 
 
-
 ALLOWED_HOSTS = [
     'api.noumatch.com', 
     'noumatch.com', 
     'www.noumatch.com',
+    'noumatch.netlify.app',          # optional – for direct API access from Netlify (if needed)
     'localhost',          
     '127.0.0.1',        
-    '.vercel.app',          
+    '.vercel.app',                   # keeps old Vercel domain working
+    '.netlify.app',                   # optional – allows any Netlify subdomain (preview branches)
 ]
 
+CORS_ALLOWED_ORIGINS = [
+    'https://noumatch.com',
+    'https://www.noumatch.com',
+    'https://noumatch.netlify.app',   # 👈 ADD YOUR NETLIFY DOMAIN
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+]
 
+# Optional: If you want to allow any Netlify preview URL, you can use this instead of the exact domain above
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.netlify\.app$',
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "authorization",
+]
+
+# (Duplicate CORS_ALLOW_CREDENTIALS line removed – you had it twice)
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://noumatch.com',
+    'https://www.noumatch.com',
+    'https://noumatch.netlify.app',   # 👈 ADD YOUR NETLIFY DOMAIN
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+]
 
 # Application definition
 
@@ -96,41 +130,6 @@ WSGI_APPLICATION = 'api.wsgi.application'
 ASGI_APPLICATION = 'api.asgi.application'
 
 
-
-CORS_ALLOWED_ORIGINS = [
-    'https://noumatch.com',
-    'https://www.noumatch.com',
-    'http://localhost:5173',   # Vite default dev port
-    'http://localhost:3000',    # Alternative dev port
-    'http://127.0.0.1:5173',    # IP equivalent
-    'http://127.0.0.1:3000',    # IP equivalent
-]
-
-
-
-
-
-CORS_ALLOW_CREDENTIALS = True
-
-from corsheaders.defaults import default_headers
-
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    "authorization",
-]
-
-CORS_ALLOW_CREDENTIALS = True
-
-
-
-
-CSRF_TRUSTED_ORIGINS = [
-    'https://noumatch.com',
-    'https://www.noumatch.com',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000',
-]
 
 
 
