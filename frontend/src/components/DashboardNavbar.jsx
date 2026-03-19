@@ -1,5 +1,4 @@
 // components/DashboardNavbar.jsx
-// components/DashboardNavbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FaHeart, FaEnvelope } from "react-icons/fa";
@@ -15,11 +14,21 @@ export default function DashboardNavbar({ user }) {
     notifications: true
   });
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const { notifications } = useNotifications();
 
   // Use environment variable for base URL
   const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+  // Track when user is fully loaded
+  useEffect(() => {
+    if (user && user.id) {
+      setIsInitialized(true);
+    } else {
+      setIsInitialized(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     const sendHeartbeat = async () => {
@@ -180,6 +189,23 @@ export default function DashboardNavbar({ user }) {
   const handleMessageClick = (conversationId) => {
     navigate(`/messages?conversation=${conversationId}`);
   };
+
+  // Show loading navbar if user isn't ready yet
+  if (!isInitialized || !user) {
+    return (
+      <nav className="navbar navbar-expand-lg nm-navbar">
+        <div className="container">
+          <Link className="navbar-brand d-flex align-items-center" to="/dashboard">
+            <FaHeart className="text-danger me-2" />
+            <span className="fw-bold fs-4" style={{ color: "#ff4d6d" }}>NM</span>
+          </Link>
+          <div className="d-flex align-items-center gap-3 ms-auto">
+            <div className="spinner-border spinner-border-sm text-danger" role="status" />
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <>
@@ -434,9 +460,9 @@ export default function DashboardNavbar({ user }) {
               >
                 <li className="px-3 py-2">
                   <div className="fw-semibold">
-                    {user?.first_name} {user?.last_name}
+                    {user.first_name || ''} {user.last_name || ''}
                   </div>
-                  <div className="small text-secondary text-truncate">{user?.email}</div>
+                  <div className="small text-secondary text-truncate">{user.email}</div>
                   <div className="small mt-1" style={{ color: "#4ade80" }}>
                     <i className="fas fa-circle me-1" style={{ fontSize: "0.5rem" }}></i>
                     En ligne
@@ -470,5 +496,3 @@ export default function DashboardNavbar({ user }) {
     </>
   );
 }
-
-
