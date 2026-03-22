@@ -25,7 +25,9 @@ import Profile from './pages/Profile';
 import ProfileDetail from './pages/ProfileDetail';
 import Messages from './pages/Messages';
 import Conversation from './pages/Conversation';
-import Notifications from './pages/Notifications'; // ADD THIS
+import Notifications from './pages/Notifications'; 
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Terms from "./pages/Terms";
 
 export default function App() {
   const location = useLocation();
@@ -83,6 +85,9 @@ export default function App() {
 
             {/* Notifications Route - ADD THIS */}
             <Route path="/notifications" element={<Notifications />} />
+
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
           </Routes>
         </main>
 

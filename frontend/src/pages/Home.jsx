@@ -42,7 +42,7 @@ export default function Home() {
           data-aos="fade-down"
           style={{
             minHeight: "90vh",
-            backgroundImage: "url('https://images.pexels.com/photos/1415131/pexels-photo-1415131.jpeg')",
+            backgroundImage: "url('https://images.pexels.com/photos/6579000/pexels-photo-6579000.jpeg')",
             backgroundSize: "cover",
             backgroundPosition: "center",
             position: "relative",
@@ -51,16 +51,16 @@ export default function Home() {
           <div className="position-absolute w-100 h-100 bg-dark opacity-50"></div>
           <div className="container position-relative px-3">
             <h1 className="display-5 fw-bold">
-              Des rencontres sincères.<br />
-              <span className="text-primary">Des connexions qui durent.</span>
+              NouMatch : Rencontrez des hommes et femmes<br />
+              <span className="text-primary">authentiques et sincères près de chez vous</span>
             </h1>
             <p className="lead mt-3 mb-4">
-              NouMatch est une plateforme de rencontres pensée pour ceux qui recherchent
-              plus qu’un simple swipe. Ici, tout commence par le respect et l’authenticité.
+              Un endroit où les rencontres sont vraies, avec un peu de fun et beaucoup de sincérité. Ici, chaque connexion compte !
             </p>
             <a href="/register" className="btn btn-danger btn-lg px-4">Créer mon profil</a>
           </div>
         </section>
+
 
         {/* WHO WE ARE */}
         <section id="who" data-aos="fade-up" className="py-5 bg-light">
@@ -74,7 +74,7 @@ export default function Home() {
               </div>
               <div className="col-lg-6">
                 <img
-                  src="https://images.pexels.com/photos/984941/pexels-photo-984941.jpeg"
+                  src="https://img.freepik.com/premium-photo/happy-love-relax-couple-walking-city-date-together-their-getaway-break-summer-travel-smile-with-young-black-man-woman-holding-hands-street-their-vacation-trip_590464-81239.jpg?w=360"
                   alt="Deux amis discutant"
                   className="img-fluid rounded shadow w-100"
                   style={{ maxHeight: "400px", objectFit: "cover" }}

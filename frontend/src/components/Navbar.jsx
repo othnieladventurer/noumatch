@@ -1,14 +1,13 @@
 // src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHeart } from "react-icons/fa";
+import { FaHeart, FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
 import "./Navbar.css";
 
 export default function Navbar() {
   const navigate = useNavigate();
   const [userLoggedIn, setUserLoggedIn] = useState(false);
 
-  // Check login status on mount
   useEffect(() => {
     const accessToken = localStorage.getItem("access");
     setUserLoggedIn(!!accessToken);
@@ -87,13 +86,21 @@ export default function Navbar() {
             ) : (
               <>
                 <li className="nav-item mt-2 mt-lg-0">
-                  <Link className="btn btn-primary w-100 w-lg-auto" to="/dashboard">
-                    Dashboard
+                  <Link
+                    className="btn btn-danger d-flex justify-content-center align-items-center p-2"
+                    to="/dashboard"
+                    title="Dashboard"
+                  >
+                    <FaTachometerAlt size={20} />
                   </Link>
                 </li>
                 <li className="nav-item mt-2 mt-lg-0">
-                  <button className="btn btn-secondary w-100 w-lg-auto" onClick={handleLogout}>
-                    Déconnexion
+                  <button
+                    className="btn btn-secondary d-flex justify-content-center align-items-center p-2"
+                    onClick={handleLogout}
+                    title="Déconnexion"
+                  >
+                    <FaSignOutAlt size={20} />
                   </button>
                 </li>
               </>
