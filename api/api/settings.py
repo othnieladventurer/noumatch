@@ -258,23 +258,12 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
-
-
-if DEBUG:
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-        },
-    }
-else:
+if not DEBUG:
     CLOUDFLARE_R2_BUCKET = config("CLOUDFLARE_R2_BUCKET")
     CLOUDFLARE_R2_ACCOUNT_ID = config("CLOUDFLARE_R2_ACCOUNT_ID")
     CLOUDFLARE_R2_ACCESS_KEY_ID = config("CLOUDFLARE_R2_ACCESS_KEY_ID")
     CLOUDFLARE_R2_SECRET_KEY = config("CLOUDFLARE_R2_SECRET_KEY")
-    CLOUDFLARE_R2_PUBLIC_URL = config("CLOUDFLARE_R2_PUBLIC_URL", default=None)  # 👈 ADD THIS
+    CLOUDFLARE_R2_PUBLIC_URL = config("CLOUDFLARE_R2_PUBLIC_URL", default=None)
 
     AWS_ACCESS_KEY_ID = CLOUDFLARE_R2_ACCESS_KEY_ID
     AWS_SECRET_ACCESS_KEY = CLOUDFLARE_R2_SECRET_KEY
@@ -289,6 +278,10 @@ else:
         "CacheControl": "max-age=86400",
     }
 
+    # 👇 Add this line – tells Django to use the public URL when generating URLs
+    if CLOUDFLARE_R2_PUBLIC_URL:
+        AWS_S3_CUSTOM_DOMAIN = CLOUDFLARE_R2_PUBLIC_URL.replace('https://', '')
+
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
@@ -300,13 +293,14 @@ else:
 
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 
-    # 👈 USE THE PUBLIC URL
     if CLOUDFLARE_R2_PUBLIC_URL:
         MEDIA_URL = f"{CLOUDFLARE_R2_PUBLIC_URL}/media/"
     else:
         MEDIA_URL = f"https://{CLOUDFLARE_R2_BUCKET}.{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com/media/"
 
 
+
+        
 
 
 AUTH_PASSWORD_VALIDATORS = [
