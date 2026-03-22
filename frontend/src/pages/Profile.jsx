@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
-import API from '@/api/axios'; // 👈 CONFIGURED AXIOS INSTANCE
+import API from '@/api/axios';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -35,7 +35,6 @@ export default function Profile() {
     bio: "",
     birth_date: "",
     gender: "",
-    interested_in: "",
     location: "",
     height: "",
     passions: "",
@@ -51,8 +50,9 @@ export default function Profile() {
   const getProfilePhotoUrl = (path) => {
     if (!path) return null;
     if (path.startsWith("http")) return path;
-    if (path.startsWith("/media")) return `http://127.0.0.1:8000${path}`;
-    return `http://127.0.0.1:8000${path}`;
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
+    return `${baseUrl}${normalizedPath}`;
   };
 
   const getAllPhotos = () => {
@@ -124,7 +124,7 @@ export default function Profile() {
       const response = await API.get(`/users/${userId}/photos/`);
       const photos = response.data.map((photo) => ({
         id: photo.id,
-        image: getProfilePhotoUrl(photo.image),
+        image: photo.image_url || getProfilePhotoUrl(photo.image),
         uploaded_at: photo.uploaded_at,
       }));
       setUserPhotos(photos);
@@ -265,7 +265,6 @@ export default function Profile() {
           bio: fullUserData.bio || "",
           birth_date: fullUserData.birth_date ? fullUserData.birth_date.split("T")[0] : "",
           gender: fullUserData.gender || "",
-          interested_in: fullUserData.interested_in || "",
           location: fullUserData.location || "",
           height: fullUserData.height || "",
           passions: fullUserData.passions || "",
@@ -277,7 +276,7 @@ export default function Profile() {
         });
 
         if (fullUserData.profile_photo) {
-          setPhotoPreview(getProfilePhotoUrl(fullUserData.profile_photo));
+          setPhotoPreview(fullUserData.profile_photo_url || getProfilePhotoUrl(fullUserData.profile_photo));
         }
       } catch (error) {
         setError("Failed to load profile");
@@ -349,7 +348,7 @@ export default function Profile() {
       setUser((prev) => ({ ...prev, ...response.data }));
 
       if (response.data.profile_photo) {
-        setPhotoPreview(getProfilePhotoUrl(response.data.profile_photo));
+        setPhotoPreview(response.data.profile_photo_url || getProfilePhotoUrl(response.data.profile_photo));
       }
 
       setSuccess(true);
@@ -377,7 +376,6 @@ export default function Profile() {
         bio: user.bio || "",
         birth_date: user.birth_date ? user.birth_date.split("T")[0] : "",
         gender: user.gender || "",
-        interested_in: user.interested_in || "",
         location: user.location || "",
         height: user.height || "",
         passions: user.passions || "",
@@ -388,7 +386,7 @@ export default function Profile() {
         profile_photo: null,
       });
 
-      setPhotoPreview(getProfilePhotoUrl(user.profile_photo));
+      setPhotoPreview(user.profile_photo_url || getProfilePhotoUrl(user.profile_photo));
       setActivePhotoIndex(0);
     }
   };
@@ -1086,6 +1084,46 @@ export default function Profile() {
           background: #fff0f3;
         }
 
+        .edit-form-label {
+          font-size: 0.85rem;
+          font-weight: 600;
+          margin-bottom: 6px;
+          color: #2d2d2d;
+        }
+
+        .edit-form-control {
+          width: 100%;
+          padding: 10px 14px;
+          border: 1px solid #dee2e6;
+          border-radius: 12px;
+          font-size: 0.9rem;
+          transition: all 0.2s;
+          background: #fff;
+        }
+
+        .edit-form-control:focus {
+          outline: none;
+          border-color: #ff4d6d;
+          box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.1);
+        }
+
+        .edit-form-control::placeholder {
+          color: #adb5bd;
+        }
+
+        textarea.edit-form-control {
+          resize: vertical;
+          min-height: 80px;
+        }
+
+        select.edit-form-control {
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23495057' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 12px center;
+          background-size: 14px;
+        }
+
         .action-buttons {
           display: flex;
           justify-content: center;
@@ -1307,17 +1345,6 @@ export default function Profile() {
                     </span>
                   )}
 
-                  {user?.interested_in && (
-                    <span className="info-chip">
-                      <i className="fas fa-heart"></i>
-                      {user.interested_in === "male"
-                        ? "Men"
-                        : user.interested_in === "female"
-                        ? "Women"
-                        : "Everyone"}
-                    </span>
-                  )}
-
                   {user?.height && (
                     <span className="info-chip">
                       <i className="fas fa-ruler"></i>
@@ -1399,20 +1426,6 @@ export default function Profile() {
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                     <option value="other">Other</option>
-                  </select>
-                </div>
-                <div className="col-md-6">
-                  <label className="edit-form-label">Interested In</label>
-                  <select
-                    className="edit-form-control"
-                    name="interested_in"
-                    value={formData.interested_in}
-                    onChange={handleInputChange}
-                  >
-                    <option value="">Select preference</option>
-                    <option value="male">Men</option>
-                    <option value="female">Women</option>
-                    <option value="everyone">Everyone</option>
                   </select>
                 </div>
                 <div className="col-12">

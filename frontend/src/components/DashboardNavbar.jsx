@@ -110,7 +110,9 @@ export default function DashboardNavbar({ user }) {
           unread_count: conv.unread_count || 0,
           match_id: conv.match_id,
           is_online: otherUser?.is_online || false,
-          online_status: otherUser?.online_status || "offline"
+          online_status: otherUser?.online_status || "offline",
+          // Use profile_photo_url if available, otherwise fallback to profile_photo
+          profile_photo: otherUser?.profile_photo_url || otherUser?.profile_photo
         };
       });
 
@@ -351,7 +353,7 @@ export default function DashboardNavbar({ user }) {
                       >
                         <div className="position-relative">
                           <img
-                            src={getProfilePhotoUrl(msg.other_user?.profile_photo || msg.other_user?.profile_photo_url)}
+                            src={getProfilePhotoUrl(msg.profile_photo || msg.other_user?.profile_photo_url)}
                             alt={msg.sender}
                             className="rounded-circle"
                             width="32"

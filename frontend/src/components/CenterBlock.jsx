@@ -113,12 +113,41 @@ export default function CenterBlock({
     );
   }
 
+  // Safe wrapper for photo navigation to prevent DOM errors
+  const safeGoToPrevPhoto = (e) => {
+    if (!currentProfile) return;
+    const photos = getCurrentProfilePhotos();
+    if (isPhotoAnimating || !photos || photos.length <= 1) return;
+    goToPrevPhoto(e);
+  };
+
+  const safeGoToNextPhoto = (e) => {
+    if (!currentProfile) return;
+    const photos = getCurrentProfilePhotos();
+    if (isPhotoAnimating || !photos || photos.length <= 1) return;
+    goToNextPhoto(e);
+  };
+
+  const safeOpenPhotoModal = () => {
+    if (!currentProfile) return;
+    const photos = getCurrentProfilePhotos();
+    if (!photos || photos.length === 0) return;
+    openPhotoModal(getCurrentPhotoUrl(), currentProfile.id);
+  };
+
+  const safeSetCurrentPhotoIndex = (idx) => {
+    if (!currentProfile) return;
+    const photos = getCurrentProfilePhotos();
+    if (!photos || idx >= photos.length) return;
+    setCurrentPhotoIndex(idx);
+  };
+
   return (
     <div className="center-card" style={centerCardStyle}>
       {/* Image du profil avec navigation photo */}
       <div 
         className="image-container" 
-        onClick={() => openPhotoModal(getCurrentPhotoUrl(), currentProfile.id)}
+        onClick={safeOpenPhotoModal}
       >
         {getCurrentPhotoUrl() ? (
           <>
@@ -132,7 +161,13 @@ export default function CenterBlock({
               }}
               onError={(e) => {
                 e.target.style.display = 'none';
-                e.target.parentElement.innerHTML += '<div class="p-5 text-secondary">Photo non disponible</div>';
+                const parent = e.target.parentElement;
+                if (parent && !parent.querySelector('.photo-error-message')) {
+                  const errorDiv = document.createElement('div');
+                  errorDiv.className = 'p-5 text-secondary photo-error-message';
+                  errorDiv.textContent = 'Photo non disponible';
+                  parent.appendChild(errorDiv);
+                }
               }}
             />
             
@@ -145,9 +180,7 @@ export default function CenterBlock({
                     className={`photo-dot ${idx === currentPhotoIndex ? 'active' : 'inactive'}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (idx !== currentPhotoIndex) {
-                        setCurrentPhotoIndex(idx);
-                      }
+                      safeSetCurrentPhotoIndex(idx);
                     }}
                   />
                 ))}
@@ -159,7 +192,7 @@ export default function CenterBlock({
               <>
                 <button
                   className="photo-nav-arrow left"
-                  onClick={goToPrevPhoto}
+                  onClick={safeGoToPrevPhoto}
                   disabled={isPhotoAnimating}
                   style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
                 >
@@ -168,7 +201,7 @@ export default function CenterBlock({
                 
                 <button
                   className="photo-nav-arrow right"
-                  onClick={goToNextPhoto}
+                  onClick={safeGoToNextPhoto}
                   disabled={isPhotoAnimating}
                   style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
                 >
@@ -368,6 +401,3 @@ export default function CenterBlock({
     </div>
   );
 }
-
-
-

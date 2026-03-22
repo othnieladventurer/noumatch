@@ -23,21 +23,15 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils import timezone
 
 
-
-
-
-
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
 
 
-
-
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
-    permission_classes = [AllowAny]   # 👈 ADD THIS
+    permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -75,11 +69,8 @@ class LoginView(generics.GenericAPIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        # Update last_login timestamp
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
-        
-        # Also update last_activity if you want to track online status
         user.update_last_activity()
 
         refresh = RefreshToken.for_user(user)
@@ -90,16 +81,12 @@ class LoginView(generics.GenericAPIView):
         })
     
 
-
 class MeView(APIView):
-    permission_classes = [IsAuthenticated]  # ✅ only authenticated users
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         serializer = MeSerializer(request.user)
         return Response(serializer.data)
-
-
-
 
 
 class LogoutView(generics.GenericAPIView):
@@ -113,10 +100,6 @@ class LogoutView(generics.GenericAPIView):
             return Response(status=status.HTTP_205_RESET_CONTENT)
         except Exception:
             return Response(status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
 
 
 class ChangePasswordView(generics.UpdateAPIView):
@@ -138,10 +121,6 @@ class ChangePasswordView(generics.UpdateAPIView):
         return Response({"detail": "Password updated successfully"})
 
 
-
-
-
-# Add this new view for profile discovery
 class UserProfileListView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -153,13 +132,10 @@ class UserProfileListView(generics.ListAPIView):
         print(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
         print(f"🔍 USER GENDER: {user.gender}")
         
-        # START WITH ABSOLUTELY NOTHING
         queryset = User.objects.none()
         
         try:
-            # Determine who to show based on user's gender
             if user.gender == 'male':
-                # Men see women
                 queryset = User.objects.filter(
                     is_active=True,
                     gender='female'
@@ -167,7 +143,6 @@ class UserProfileListView(generics.ListAPIView):
                 print(f"🔍 Man looking for women")
                 
             elif user.gender == 'female':
-                # Women see men
                 queryset = User.objects.filter(
                     is_active=True,
                     gender='male'
@@ -175,54 +150,29 @@ class UserProfileListView(generics.ListAPIView):
                 print(f"🔍 Woman looking for men")
                 
             else:
-                # If gender not set, show everyone
                 queryset = User.objects.filter(
                     is_active=True
                 )
                 print(f"🔍 Showing all users")
             
-            # 👇 EXCLUDE ALL SUPERUSERS (ADMINS)
             queryset = queryset.filter(is_superuser=False)
             
-            # ===== PERMANENT EXCLUSIONS =====
-            
-            # 1. Users they've liked (permanent)
             liked_ids = Like.objects.filter(from_user=user).values_list('to_user_id', flat=True)
-            print(f"🔍 Excluding {len(liked_ids)} liked users")
-            
-            # 2. Users they've matched with (permanent)
             matches_as_user1 = Match.objects.filter(user1=user).values_list('user2_id', flat=True)
             matches_as_user2 = Match.objects.filter(user2=user).values_list('user1_id', flat=True)
             matched_ids = list(matches_as_user1) + list(matches_as_user2)
-            print(f"🔍 Excluding {len(matched_ids)} matched users")
-            
-            # 3. Users they've blocked (permanent)
             blocked_ids = Block.objects.filter(blocker=user).values_list('blocked_id', flat=True)
-            print(f"🔍 Excluding {len(blocked_ids)} blocked users")
-            
-            # Combine all permanent exclusions
-            permanent_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids)
-            
-            # ===== TEMPORARY EXCLUSIONS =====
-            
-            # 4. Users they've passed on that haven't expired yet (72 hours)
             active_pass_ids = Pass.objects.filter(
                 from_user=user,
                 expires_at__gt=now
             ).values_list('to_user_id', flat=True)
-            print(f"🔍 Temporarily excluding {len(active_pass_ids)} passed users (active for 72h)")
             
-            # Combine ALL exclusions
-            all_exclusions = permanent_exclusions | set(active_pass_ids)
-            all_exclusions.add(user.id)  # Always exclude self
+            all_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids) | set(active_pass_ids)
+            all_exclusions.add(user.id)
             
-            # Apply all exclusions
             queryset = queryset.exclude(id__in=all_exclusions)
-            
-            # FINAL SAFETY: NEVER include the current user (redundant but safe)
             queryset = queryset.exclude(id=user.id)
             
-            # Log the results
             print(f"🔍 FINAL RESULTS: {queryset.count()} profiles")
             for profile in queryset[:5]:
                 print(f"  ✅ Profile ID: {profile.id}, Username: {profile.username}, Gender: {profile.gender}")
@@ -237,24 +187,20 @@ class UserProfileListView(generics.ListAPIView):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         
+        # 🔍 DEBUG - Print the first profile's photo URL
+        if serializer.data:
+            print("🔍 DEBUG - First profile data:")
+            print(f"   profile_photo: {serializer.data[0].get('profile_photo')}")
+            print(f"   profile_photo_url: {serializer.data[0].get('profile_photo_url')}")
+        
         print(f"🔍 RETURNING {len(serializer.data)} profiles to frontend")
         return Response(serializer.data)
-        
 
 
-# Optional: Add view for single profile details
 class UserDetailView(generics.RetrieveAPIView):
-    """
-    API endpoint to get a specific user's profile by ID
-    GET /api/users/profiles/<int:pk>/
-    """
     queryset = User.objects.filter(is_active=True)
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
-
-
-
-
 
 
 class ProfileUpdateView(generics.RetrieveUpdateAPIView):
@@ -265,18 +211,15 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         return self.request.user
     
     def put(self, request, *args, **kwargs):
-        # Log the request data for debugging
         print("🔍 Request data:", request.data)
         print("🔍 Request FILES:", request.FILES)
-        
-        # Try to parse as partial update first
         return self.partial_update(request, *args, **kwargs)
     
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', True)  # Set partial to True by default
+        partial = kwargs.pop('partial', True)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         
@@ -291,14 +234,10 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def heartbeat(request):
-    """Update user's last activity timestamp and trigger notification checks"""
     user = request.user
-    
-    # Update last activity
     user.update_last_activity()
     return Response({
         "status": "ok",
@@ -308,51 +247,28 @@ def heartbeat(request):
     }, status=status.HTTP_200_OK)
 
 
-
-
-
-
-
-
-
-
-
 class UserPhotoViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet for viewing and editing user photos.
-    Provides list, create, retrieve, update, delete actions.
-    """
     serializer_class = UserPhotoSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
-        """Filter photos based on URL parameters or current user"""
         user_id = self.kwargs.get('user_id')
-        
         if user_id:
-            # Viewing photos of a specific user (for profile viewing)
             return UserPhoto.objects.filter(user_id=user_id)
         else:
-            # Viewing own photos (for management)
             return UserPhoto.objects.filter(user=self.request.user)
 
     def get_serializer_context(self):
-        """Add request to serializer context for absolute URLs"""
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
 
     def perform_create(self, serializer):
-        """Set the user to current user when creating a photo"""
         serializer.save(user=self.request.user)
 
     @action(detail=False, methods=['post'], url_path='upload-multiple')
     def upload_multiple(self, request):
-        """
-        Upload multiple photos at once.
-        Expects 'images' as a list of files in the request.
-        """
         files = request.FILES.getlist('images')
         
         if not files:
@@ -395,10 +311,8 @@ class UserPhotoViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['delete'], url_path='delete')
     def delete_photo(self, request, pk=None):
-        """Delete a specific photo"""
         photo = self.get_object()
         
-        # Check if user owns this photo
         if photo.user != request.user:
             return Response(
                 {"error": "You don't have permission to delete this photo"},
@@ -413,7 +327,6 @@ class UserPhotoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['delete'], url_path='delete-all')
     def delete_all_photos(self, request):
-        """Delete all photos of the current user"""
         count = request.user.photos.count()
         request.user.photos.all().delete()
         return Response(
@@ -421,10 +334,8 @@ class UserPhotoViewSet(viewsets.ModelViewSet):
             status=status.HTTP_204_NO_CONTENT
         )
 
+
 class UserPhotoListView(generics.ListAPIView):
-    """
-    List all photos of a specific user (public view)
-    """
     serializer_class = UserPhotoSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -437,10 +348,8 @@ class UserPhotoListView(generics.ListAPIView):
         context['request'] = self.request
         return context
 
+
 class UserPhotoUploadView(generics.CreateAPIView):
-    """
-    Upload a single photo for the current user
-    """
     serializer_class = UserPhotoSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -453,15 +362,10 @@ class UserPhotoUploadView(generics.CreateAPIView):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+
 class UserPhotoDeleteView(generics.DestroyAPIView):
-    """
-    Delete a specific photo (only if owned by current user)
-    """
     serializer_class = UserPhotoSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return UserPhoto.objects.filter(user=self.request.user)
-
-
-

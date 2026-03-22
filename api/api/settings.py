@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 
 ALLOWED_HOSTS = [
@@ -161,14 +161,21 @@ SIMPLE_JWT = {
 
 import os
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [os.environ.get('REDIS_URL', 'redis://localhost:6379')],
+if os.environ.get('DATABASE_URL'):  # Production on Railway
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                "hosts": [os.environ.get('REDIS_URL', 'redis://localhost:6379')],
+            },
         },
-    },
-}
+    }
+else:  # Local development
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 TIME_ZONE = 'America/New_York'  # Change this to your local timezone
 
@@ -193,22 +200,21 @@ DEBUG = True if ENVIRONMENT == "development" else False
 
 
 
-if ENVIRONMENT == 'production':
-    # Use local SQLite for dev
+if ENVIRONMENT == "production":
+    # ✅ Production uses PostgreSQL from DATABASE_URL
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': os.path.join(os.path.dirname(os.path.dirname(__file__)), 'db.sqlite3'),
+        "default": dj_database_url.parse(config("DATABASE_URL"))
+    }
+    print("Using Production DB: PostgreSQL")
+else:
+    # Development uses SQLite
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.path.join(os.path.dirname(os.path.dirname(__file__)), "db.sqlite3"),
         }
     }
     print("Using Development DB: SQLite")
-else:
-    # Use PostgreSQL via DATABASE_URL in production
-    DATABASES = {
-        'default': dj_database_url.parse(config('DATABASE_URL'))
-    }
-    print(f"Using Production DB")
-
 
 
 
@@ -268,6 +274,7 @@ else:
     CLOUDFLARE_R2_ACCOUNT_ID = config("CLOUDFLARE_R2_ACCOUNT_ID")
     CLOUDFLARE_R2_ACCESS_KEY_ID = config("CLOUDFLARE_R2_ACCESS_KEY_ID")
     CLOUDFLARE_R2_SECRET_KEY = config("CLOUDFLARE_R2_SECRET_KEY")
+    CLOUDFLARE_R2_PUBLIC_URL = config("CLOUDFLARE_R2_PUBLIC_URL", default=None)  # 👈 ADD THIS
 
     AWS_ACCESS_KEY_ID = CLOUDFLARE_R2_ACCESS_KEY_ID
     AWS_SECRET_ACCESS_KEY = CLOUDFLARE_R2_SECRET_KEY
@@ -293,7 +300,11 @@ else:
 
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
 
-    MEDIA_URL = f"https://{CLOUDFLARE_R2_BUCKET}.{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com/media/"
+    # 👈 USE THE PUBLIC URL
+    if CLOUDFLARE_R2_PUBLIC_URL:
+        MEDIA_URL = f"{CLOUDFLARE_R2_PUBLIC_URL}/media/"
+    else:
+        MEDIA_URL = f"https://{CLOUDFLARE_R2_BUCKET}.{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com/media/"
 
 
 

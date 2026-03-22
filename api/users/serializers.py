@@ -5,14 +5,17 @@ from django.utils import timezone
 from django.conf import settings
 from datetime import timedelta, date
 from django.contrib.auth.password_validation import validate_password
-from django.utils.text import slugify
-from django.contrib.auth import get_user_model
-from rest_framework import serializers
-from datetime import date
 from django.core.files.storage import default_storage
 import random
 import string
 import time
+
+
+def get_absolute_image_url(file_field):
+    """Get absolute URL for image file (works with Cloudflare R2)"""
+    if file_field:
+        return file_field.url
+    return None
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -26,17 +29,20 @@ class UserSerializer(serializers.ModelSerializer):
             "username",
             "first_name",
             "last_name",
+            "birth_date",
+            "gender",
+            "location",
             "profile_photo",
-            "profile_photo_url",  # ✅ absolute URL
-            # ...other fields
+            "profile_photo_url",
+            "is_active",
+            "is_verified",
+            "date_joined",
         ]
+        read_only_fields = ["id", "date_joined", "is_verified"]
 
     def get_profile_photo_url(self, obj):
         return get_absolute_image_url(obj.profile_photo)
 
-
-
-        
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -50,7 +56,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             'first_name', 
             'last_name', 
             'birth_date', 
-            'gender',   # Only gender – no interested_in
+            'gender',
             'profile_photo', 
             'password', 
             'password2',
@@ -70,7 +76,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         return data
 
     def validate_birth_date(self, value):
-        from datetime import date
         today = date.today()
         age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
         if age < 18:
@@ -92,9 +97,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
-
-
-
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -114,8 +116,6 @@ class LoginSerializer(serializers.Serializer):
 
         attrs["user"] = user
         return attrs
-
-
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -143,8 +143,9 @@ class ChangePasswordSerializer(serializers.Serializer):
         return user
 
 
-
 class MeSerializer(serializers.ModelSerializer):
+    profile_photo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
@@ -156,14 +157,22 @@ class MeSerializer(serializers.ModelSerializer):
             "bio",
             "birth_date",
             "profile_photo",
+            "profile_photo_url",
             "account_type",
         ]
         read_only_fields = ["id", "email", "username"]
+
+    def get_profile_photo_url(self, obj):
+        return get_absolute_image_url(obj.profile_photo)
+
+
+
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
     age = serializers.SerializerMethodField()
     online_status = serializers.SerializerMethodField()
+    profile_photo_url = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -171,6 +180,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'bio', 'birth_date', 'age',
             'gender', 'location', 'profile_photo',
+            'profile_photo_url',  # Add this field
             'height', 'passions', 'career', 'education', 'hobbies',
             'favorite_music', 'is_verified', 'is_active',
             'is_online', 'last_activity', 'online_status'
@@ -209,7 +219,16 @@ class UserProfileSerializer(serializers.ModelSerializer):
                 return f"Active {days} day{'s' if days != 1 else ''} ago"
             else:
                 return f"Last seen {obj.last_activity.strftime('%b %d, %Y')}"
-        return "Offline"        
+        return "Offline"
+    
+    def get_profile_photo_url(self, obj):
+        """Return the absolute URL for the profile photo"""
+        if obj.profile_photo:
+            return obj.profile_photo.url
+        return None
+
+
+
 
 
 
@@ -232,22 +251,11 @@ class UserPhotoSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "user", "uploaded_at"]
 
     def get_image_url(self, obj):
-        """
-        Always return an absolute URL using default_storage.url,
-        which works for both local dev and Cloudflare R2 production.
-        """
         if obj.image:
-            try:
-                return default_storage.url(obj.image.name)
-            except Exception:
-                # Fallback in case storage fails
-                return f"{settings.MEDIA_URL}{obj.image.name}"
+            return obj.image.url
         return None
 
     def get_user_name(self, obj):
-        """
-        Construct a readable name from first_name + last_name, fallback to username.
-        """
         if obj.user:
             if obj.user.first_name and obj.user.last_name:
                 return f"{obj.user.first_name} {obj.user.last_name}"
@@ -255,17 +263,10 @@ class UserPhotoSerializer(serializers.ModelSerializer):
         return None
 
     def validate(self, data):
-        """
-        Limit user uploads to 10 photos max.
-        """
         user = self.context['request'].user
         if not self.instance and user.photos.count() >= 10:
             raise serializers.ValidationError(
                 "You cannot upload more than 10 photos."
             )
         return data
-
-
-
-
 

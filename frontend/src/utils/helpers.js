@@ -32,17 +32,16 @@ export const shuffleArray = (array) => {
   return shuffled;
 };
 
-// Photo URL helper
+// Photo URL helper - handles Cloudflare R2 URLs and local development
 export const getProfilePhotoUrl = (path) => {
   if (!path) return null;
-  if (path.startsWith('http')) return path; // already absolute
+  
+  // If it's already a full URL (from Cloudflare R2 or other CDN), return it directly
+  if (path.startsWith('http')) return path;
 
-  // Use the same base URL as axios – from environment or fallback to localhost
+  // For local development or relative paths (fallback)
   const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-
-  // Ensure the path starts with a slash and includes /media
   const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
-
+  
   return `${baseUrl}${normalizedPath}`;
 };
-

@@ -74,13 +74,16 @@ export default function LeftBlock({
   openUnblockModal,
   goToMyProfile 
 }) {
+  // Use profile_photo_url if available, otherwise fallback to profile_photo
+  const userPhoto = user?.profile_photo_url || user?.profile_photo;
+
   return (
     <div className="scrollable-card p-3">
       {/* Profil utilisateur cliquable */}
       <div className="d-flex align-items-center gap-3 clickable-profile" onClick={goToMyProfile}>
         <div className="position-relative flex-shrink-0">
           <img
-            src={getProfilePhotoUrl(user?.profile_photo) || "https://via.placeholder.com/70"}
+            src={getProfilePhotoUrl(userPhoto) || "https://via.placeholder.com/70"}
             alt="profil"
             className="rounded-circle shadow-sm"
             width="70"
@@ -147,6 +150,3 @@ export default function LeftBlock({
     </div>
   );
 }
-
-
-

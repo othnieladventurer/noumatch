@@ -78,10 +78,7 @@ export default function RightBlock({
           <div className="d-flex align-items-center gap-2">
             <i className="fas fa-heart text-secondary flex-shrink-0" style={{ width: 20 }} />
             <span className="text-secondary small text-truncate-custom">
-              Intéressé par: {currentProfile.interested_in ? 
-                (currentProfile.interested_in === 'male' ? 'Hommes' : 
-                 currentProfile.interested_in === 'female' ? 'Femmes' : 'Tout le monde') 
-                : "Non spécifié"}
+              Genre recherché: {currentProfile.gender === 'male' ? 'Femmes' : currentProfile.gender === 'female' ? 'Hommes' : 'Tout le monde'}
             </span>
           </div>
           <div className="d-flex align-items-center gap-2">

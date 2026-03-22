@@ -19,15 +19,23 @@ export default function Dashboard() {
   // Global error catcher
   useEffect(() => {
     const handleError = (event) => {
-      console.error('🔥 Caught error:', event.error);
-      setCrashError(event.error?.toString() || 'Unknown error');
-      event.preventDefault();
+      try {
+        console.error('🔥 Caught error:', event.error);
+        setCrashError(event.error?.toString() || 'Unknown error');
+        event.preventDefault();
+      } catch (e) {
+        console.error('Error in error handler:', e);
+      }
     };
 
     const handleRejection = (event) => {
-      console.error('🔥 Unhandled rejection:', event.reason);
-      setCrashError(event.reason?.toString() || 'Unhandled promise rejection');
-      event.preventDefault();
+      try {
+        console.error('🔥 Unhandled rejection:', event.reason);
+        setCrashError(event.reason?.toString() || 'Unhandled promise rejection');
+        event.preventDefault();
+      } catch (e) {
+        console.error('Error in rejection handler:', e);
+      }
     };
 
     window.addEventListener('error', handleError);
@@ -98,7 +106,7 @@ export default function Dashboard() {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [photoSlideDirection, setPhotoSlideDirection] = useState(null);
   const [isPhotoAnimating, setIsPhotoAnimating] = useState(false);
-  const [userPhotos, setUserPhotos] = useState({}); // Store photos by user ID
+  const [userPhotos, setUserPhotos] = useState({});
 
   // Photo modal state
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
@@ -135,19 +143,12 @@ export default function Dashboard() {
     daily_limit: 10
   });
 
-  // Get notifications from context
   const { notifications } = useNotifications();
 
-  // Check if user is matched with a profile
   const isMatched = (profileId) => matchesIds.includes(profileId);
-
-  // Check if user has liked a profile
   const isLiked = (profileId) => sentLikesIds.includes(profileId);
-
-  // Check if user is blocked
   const isBlocked = (profileId) => blockedIds.includes(profileId);
 
-  // Fetch swipe limits
   const fetchSwipeLimits = async () => {
     try {
       const response = await API.get("/interactions/swipe/limits/");
@@ -163,13 +164,11 @@ export default function Dashboard() {
     }
   };
 
-  // Get conversation ID for a matched user
   const getConversationId = (userId) => {
     const conversation = conversations.find(conv => conv.other_user?.id === userId);
     return conversation?.id;
   };
 
-  // Navigate to messenger
   const goToMessenger = async (profileId) => {
     const conversationId = getConversationId(profileId);
     
@@ -205,7 +204,6 @@ export default function Dashboard() {
   const goToProfile = (profileId) => navigate(`/profile/${profileId}`);
   const goToMyProfile = () => navigate('/profile');
 
-  // Fetch user photos
   const fetchUserPhotos = async (userId) => {
     if (!userId) return [];
     
@@ -213,7 +211,7 @@ export default function Dashboard() {
       const response = await API.get(`/users/${userId}/photos/`);
       const photos = response.data.map(photo => ({
         id: photo.id,
-        image: getProfilePhotoUrl(photo.image_url || photo.image),
+        image: photo.image_url || getProfilePhotoUrl(photo.image),
         uploaded_at: photo.uploaded_at
       }));
       
@@ -234,7 +232,6 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch conversations
   const fetchConversations = async () => {
     console.log("📡 [DASHBOARD] fetchConversations called");
     try {
@@ -250,7 +247,6 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch authenticated user
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (!token) {
@@ -261,7 +257,10 @@ export default function Dashboard() {
     const fetchUser = async () => {
       try {
         const response = await API.get("/users/me/");
-        setUser(response.data);
+        setUser({
+          ...response.data,
+          profile_photo: response.data.profile_photo_url || response.data.profile_photo
+        });
         console.log("👤 User loaded:", response.data.email, "Account type:", response.data.account_type);
       } catch (error) {
         console.error("Erreur lors de la récupération de l'utilisateur:", error);
@@ -278,14 +277,12 @@ export default function Dashboard() {
     fetchUser();
   }, [navigate]);
 
-  // Fetch swipe limits when user loads
   useEffect(() => {
     if (user) {
       fetchSwipeLimits();
     }
   }, [user]);
 
-  // Fetch blocked users
   const fetchBlockedUsers = async () => {
     try {
       const response = await API.get("/blocked/blocks/");
@@ -296,7 +293,7 @@ export default function Dashboard() {
         last_name: block.blocked_user.last_name || "",
         age: block.blocked_user.age,
         bio: block.blocked_user.bio || "",
-        photo: getProfilePhotoUrl(block.blocked_user.profile_photo),
+        photo: block.blocked_user.profile_photo_url || getProfilePhotoUrl(block.blocked_user.profile_photo),
         gender: block.blocked_user.gender,
         block_id: block.id,
         created_at: block.created_at
@@ -318,7 +315,6 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch likes received
   const fetchLikesReceived = async (currentBlockedIds = blockedIds) => {
     console.log("📡 [DASHBOARD] fetchLikesReceived called with blockedIds:", currentBlockedIds);
     try {
@@ -336,7 +332,7 @@ export default function Dashboard() {
           last_name: like.from_user.last_name || "",
           age: age,
           bio: like.from_user.bio || "",
-          photo: getProfilePhotoUrl(like.from_user.profile_photo),
+          photo: like.from_user.profile_photo_url || getProfilePhotoUrl(like.from_user.profile_photo),
           gender: like.from_user.gender,
         };
       });
@@ -353,7 +349,6 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch likes sent
   const fetchSentLikes = async () => {
     try {
       const response = await API.get("/interactions/likes/sent/");
@@ -369,7 +364,6 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch matches
   const fetchMatches = async (currentBlockedIds = blockedIds) => {
     console.log("📡 [DASHBOARD] fetchMatches called with blockedIds:", currentBlockedIds);
     if (!user) return;
@@ -385,7 +379,7 @@ export default function Dashboard() {
           last_name: otherUser.last_name || "",
           age: otherUser.age,
           bio: otherUser.bio || "",
-          photo: getProfilePhotoUrl(otherUser.profile_photo),
+          photo: otherUser.profile_photo_url || getProfilePhotoUrl(otherUser.profile_photo),
           gender: otherUser.gender,
           match_id: match.id,
           created_at: match.created_at
@@ -405,7 +399,6 @@ export default function Dashboard() {
     }
   };
 
-  // Create match
   const createMatch = async (otherUserId) => {
     try {
       const response = await API.post("/matches/match/create/", {
@@ -425,7 +418,6 @@ export default function Dashboard() {
     }
   };
 
-  // Delete like
   const deleteLike = async (profileId) => {
     try {
       await API.delete(`/interactions/unlike/${profileId}/`);
@@ -441,7 +433,6 @@ export default function Dashboard() {
     }
   };
 
-  // Delete match
   const deleteMatch = async (matchId) => {
     if (!matchId) return false;
     
@@ -459,7 +450,6 @@ export default function Dashboard() {
     }
   };
 
-  // Track pass in database
   const trackPass = async (profileId) => {
     console.log("🔍 ===== PASS TRACKING DEBUG =====");
     console.log("🔍 Attempting to track pass for user ID:", profileId);
@@ -507,7 +497,6 @@ export default function Dashboard() {
     console.log("🔍 ===== END PASS DEBUG =====");
   };
 
-  // Unlike a profile
   const handleUnlike = async (profileId) => {
     const success = await deleteLike(profileId);
     if (success) {
@@ -520,7 +509,6 @@ export default function Dashboard() {
     return success;
   };
 
-  // Unmatch a profile
   const handleUnmatch = async (profile) => {
     if (!profile || !profile.match_id) return;
     
@@ -532,7 +520,6 @@ export default function Dashboard() {
     }
   };
 
-  // Check for match
   const checkForMatch = async (likedUserId) => {
     if (isBlocked(likedUserId)) return;
     
@@ -552,7 +539,6 @@ export default function Dashboard() {
     }
   };
 
-  // Block a user
   const handleBlock = async (profile) => {
     if (!profile) return;
     
@@ -609,7 +595,6 @@ export default function Dashboard() {
     }
   };
 
-  // Unblock a user
   const handleUnblock = async (profile) => {
     if (!profile) return;
     
@@ -638,7 +623,6 @@ export default function Dashboard() {
     }
   };
 
-  // Report functions
   const openReportModal = (user) => {
     setUserToReport(user);
     setReportModalOpen(true);
@@ -651,7 +635,6 @@ export default function Dashboard() {
     document.body.style.overflow = 'unset';
   };
 
-  // DIAGNOSTIC REAL‑TIME UPDATES FROM NOTIFICATIONS
   useEffect(() => {
     if (!user) {
       console.log("⏸️ [DASHBOARD] No user yet, skipping notification effect");
@@ -705,7 +688,6 @@ export default function Dashboard() {
     refreshData();
   }, [notifications, user, blockedIds]);
 
-  // Fetch profiles - UPDATED with gender-based filtering
   const fetchProfilesBasedOnUser = async (currentBlockedIds = blockedIds) => {
     if (!user || !user.id) {
       console.log("⚠️ Cannot fetch profiles: user not ready");
@@ -718,14 +700,12 @@ export default function Dashboard() {
     setApiError(null);
     
     try {
-      // Determine which gender to show based on user's gender
       let genderFilter = '';
       if (user.gender === 'male') {
-        genderFilter = 'female';  // Men see women
+        genderFilter = 'female';
       } else if (user.gender === 'female') {
-        genderFilter = 'male';    // Women see men
+        genderFilter = 'male';
       }
-      // If gender is 'other' or not set, show everyone (no filter)
 
       const params = {};
       if (genderFilter) {
@@ -745,7 +725,6 @@ export default function Dashboard() {
         profile.id !== user.id && !safeBlockedIds.includes(profile.id)
       );
 
-      // Apply gender filter based on user's gender
       let genderFilteredProfiles = filteredById;
       if (genderFilter) {
         genderFilteredProfiles = filteredById.filter(profile => profile.gender === genderFilter);
@@ -757,11 +736,10 @@ export default function Dashboard() {
         last_name: profile.last_name || "",
         age: profile.age || calculateAge(profile.birth_date),
         bio: profile.bio || "",
-        profile_photo: getProfilePhotoUrl(profile.profile_photo),
+        profile_photo: profile.profile_photo_url || getProfilePhotoUrl(profile.profile_photo),
         photos: [],
         location: profile.location || "",
         gender: profile.gender,
-        interested_in: profile.interested_in,
         height: profile.height,
         passions: profile.passions,
         career: profile.career,
@@ -793,12 +771,10 @@ export default function Dashboard() {
     }
   };
 
-  // Fetch profiles when user or blockedIds change
   useEffect(() => {
     fetchProfilesBasedOnUser();
   }, [user, blockedIds]);
 
-  // Fetch all interactions when user loads
   useEffect(() => {
     if (!user || !user.id) return;
     
@@ -815,7 +791,6 @@ export default function Dashboard() {
     fetchAllInteractions();
   }, [user]);
 
-  // Get current profile
   const currentProfile = useMemo(() => {
     if (!profiles || profiles.length === 0) return null;
     if (profileIndex >= profiles.length) return null;
@@ -828,7 +803,6 @@ export default function Dashboard() {
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
 
-  // Get photos for current profile
   const getCurrentProfilePhotos = useCallback(() => {
     if (!currentProfile) return [];
     
@@ -850,7 +824,6 @@ export default function Dashboard() {
     return photos;
   }, [currentProfile, userPhotos]);
 
-  // Get current photo URL
   const getCurrentPhotoUrl = useCallback(() => {
     if (!currentProfile) return null;
     
@@ -861,7 +834,6 @@ export default function Dashboard() {
     return currentProfile.profile_photo;
   }, [currentProfile, currentPhotoIndex, getCurrentProfilePhotos]);
 
-  // Photo navigation
   const goToNextPhoto = (e) => {
     e?.stopPropagation();
     const photos = getCurrentProfilePhotos();
@@ -892,7 +864,6 @@ export default function Dashboard() {
     }, 200);
   };
 
-  // Reset photo index when profile changes
   useEffect(() => {
     setCurrentPhotoIndex(0);
     setPhotoSlideDirection(null);
@@ -903,20 +874,15 @@ export default function Dashboard() {
     }
   }, [currentProfile]);
 
-  // Open photo modal
   const openPhotoModal = (photoUrl, profileId) => {
     if (!currentProfile) return;
     
     const photos = getCurrentProfilePhotos();
-    if (photos.length > 0) {
-      setModalPhotos(photos.map(p => p.image));
-      const index = photos.findIndex(p => p.image === photoUrl);
-      setModalPhotoIndex(index >= 0 ? index : currentPhotoIndex);
-    } else {
-      setModalPhotos([currentProfile.profile_photo]);
-      setModalPhotoIndex(0);
-    }
+    if (!photos.length) return;
     
+    setModalPhotos(photos.map(p => p.image));
+    const index = photos.findIndex(p => p.image === photoUrl);
+    setModalPhotoIndex(index >= 0 ? index : currentPhotoIndex);
     setSelectedPhoto(photoUrl);
     setPhotoModalOpen(true);
     document.body.style.overflow = 'hidden';
