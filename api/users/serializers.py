@@ -9,33 +9,34 @@ from django.utils.text import slugify
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from datetime import date
+from django.core.files.storage import default_storage
 import random
 import string
 import time
 
 
-
 class UserSerializer(serializers.ModelSerializer):
+    profile_photo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        # Fields you want superuser to see
         fields = [
             "id",
             "email",
             "username",
-            "first_name",      # 👈 ADD THIS
-            "last_name",       # 👈 ADD THIS
-            "birth_date",
-            "gender",
-            "location",
+            "first_name",
+            "last_name",
             "profile_photo",
-            "is_active",
-            "is_verified",
-            "date_joined",
+            "profile_photo_url",  # ✅ absolute URL
+            # ...other fields
         ]
-        read_only_fields = ["id", "date_joined", "is_verified"]
+
+    def get_profile_photo_url(self, obj):
+        return get_absolute_image_url(obj.profile_photo)
 
 
+
+        
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -143,7 +144,6 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 
-
 class MeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -151,14 +151,14 @@ class MeSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "username",
-            "first_name",      
-            "last_name",      
+            "first_name",
+            "last_name",
             "bio",
             "birth_date",
             "profile_photo",
             "account_type",
         ]
-
+        read_only_fields = ["id", "email", "username"]
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -213,50 +213,57 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 
 
-
 class UserPhotoSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     user_email = serializers.ReadOnlyField(source='user.email')
     user_name = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = UserPhoto
         fields = [
-            'id', 
-            'user', 
-            'user_email',
-            'user_name',
-            'image', 
-            'image_url', 
-            'uploaded_at'
+            "id",
+            "user",
+            "user_email",
+            "user_name",
+            "image",
+            "image_url",
+            "uploaded_at",
         ]
-        read_only_fields = ['id', 'user', 'uploaded_at']
-    
+        read_only_fields = ["id", "user", "uploaded_at"]
+
     def get_image_url(self, obj):
+        """
+        Always return an absolute URL using default_storage.url,
+        which works for both local dev and Cloudflare R2 production.
+        """
         if obj.image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.image.url)
-            return f"{settings.MEDIA_URL}{obj.image.url}"
+            try:
+                return default_storage.url(obj.image.name)
+            except Exception:
+                # Fallback in case storage fails
+                return f"{settings.MEDIA_URL}{obj.image.name}"
         return None
-    
+
     def get_user_name(self, obj):
+        """
+        Construct a readable name from first_name + last_name, fallback to username.
+        """
         if obj.user:
             if obj.user.first_name and obj.user.last_name:
                 return f"{obj.user.first_name} {obj.user.last_name}"
             return obj.user.first_name or obj.user.last_name or obj.user.username
         return None
-    
+
     def validate(self, data):
-        """Validate that user doesn't exceed 10 photos"""
+        """
+        Limit user uploads to 10 photos max.
+        """
         user = self.context['request'].user
         if not self.instance and user.photos.count() >= 10:
             raise serializers.ValidationError(
                 "You cannot upload more than 10 photos."
             )
         return data
-    
-
 
 
 
