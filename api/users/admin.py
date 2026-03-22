@@ -29,7 +29,7 @@ class UserAdmin(BaseUserAdmin):
         "is_staff", 
         "is_active", 
         "gender", 
-        "interested_in"
+ 
     )
 
     # Fields for creating or editing a user - added account_type to Personal Info
@@ -42,7 +42,7 @@ class UserAdmin(BaseUserAdmin):
                 "bio",
                 "birth_date",
                 "gender",
-                "interested_in",
+              
                 "location",
                 "profile_photo",
                 "height",

@@ -27,7 +27,6 @@ class UserSerializer(serializers.ModelSerializer):
             "last_name",       # 👈 ADD THIS
             "birth_date",
             "gender",
-            "interested_in",
             "location",
             "profile_photo",
             "is_active",
@@ -35,7 +34,6 @@ class UserSerializer(serializers.ModelSerializer):
             "date_joined",
         ]
         read_only_fields = ["id", "date_joined", "is_verified"]
-
 
 
 
@@ -51,8 +49,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             'first_name', 
             'last_name', 
             'birth_date', 
-            'gender', 
-            'interested_in', 
+            'gender',   # Only gender – no interested_in
             'profile_photo', 
             'password', 
             'password2',
@@ -63,7 +60,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             'last_name': {'required': True},
             'birth_date': {'required': True},
             'gender': {'required': True},
-            'interested_in': {'required': True},
             'profile_photo': {'required': False},
         }
 
@@ -73,7 +69,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         return data
 
     def validate_birth_date(self, value):
-        """Validate that user is at least 18 years old"""
         from datetime import date
         today = date.today()
         age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
@@ -82,7 +77,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
 
     def validate_email(self, value):
-        """Check if email already exists"""
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("A user with this email already exists.")
         return value
@@ -90,16 +84,11 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password2')
         password = validated_data.pop('password')
-        
-        # Set username from email (since field is removed but model requires it)
         validated_data['username'] = validated_data['email'].split('@')[0]
-        
         user = User(**validated_data)
         user.set_password(password)
         user.save()
         return user
-
-
 
 
 
@@ -172,7 +161,6 @@ class MeSerializer(serializers.ModelSerializer):
 
 
 
-
 class UserProfileSerializer(serializers.ModelSerializer):
     age = serializers.SerializerMethodField()
     online_status = serializers.SerializerMethodField()
@@ -182,7 +170,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'bio', 'birth_date', 'age',
-            'gender', 'interested_in', 'location', 'profile_photo',
+            'gender', 'location', 'profile_photo',
             'height', 'passions', 'career', 'education', 'hobbies',
             'favorite_music', 'is_verified', 'is_active',
             'is_online', 'last_activity', 'online_status'
@@ -199,7 +187,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
         return None
     
     def get_online_status(self, obj):
-        """Return online status with time"""
         from django.utils import timezone
         from datetime import timedelta
         
@@ -222,9 +209,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
                 return f"Active {days} day{'s' if days != 1 else ''} ago"
             else:
                 return f"Last seen {obj.last_activity.strftime('%b %d, %Y')}"
-        return "Offline"
-
-        
+        return "Offline"        
 
 
 

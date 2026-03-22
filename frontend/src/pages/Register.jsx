@@ -2,7 +2,7 @@
 import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import API from '@/api/axios'; // 👈 ADD THIS IMPORT
+import API from '@/api/axios';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -18,7 +18,6 @@ export default function Register() {
     password: "",
     password2: "",
     gender: "",
-    interested_in: "",
     profile_photo: null,
     country: "", // Country name
   });
@@ -115,8 +114,8 @@ export default function Register() {
     }
 
     if (step === 2) {
-      if (!formData.gender || !formData.interested_in) {
-        setErrorMessage("Please select your gender and preference");
+      if (!formData.gender) {
+        setErrorMessage("Please select your gender");
         return;
       }
     }
@@ -158,7 +157,6 @@ export default function Register() {
     data.append("email", formData.email);
     data.append("birth_date", formData.birth_date);
     data.append("gender", formData.gender);
-    data.append("interested_in", formData.interested_in);
     data.append("password", formData.password);
     data.append("password2", formData.password2);
     data.append("country", formData.country);
@@ -176,7 +174,6 @@ export default function Register() {
     setLoading(true);
 
     try {
-      // 👇 USING CONFIGURED AXIOS INSTANCE
       const response = await API.post("users/register/", data, {
         headers: { "Content-Type": "multipart/form-data" }
       });
@@ -299,7 +296,7 @@ export default function Register() {
               >
                 2
               </div>
-              <small>Preferences</small>
+              <small>Gender</small>
             </div>
             <div className={`text-center ${step >= 3 ? 'text-danger' : 'text-muted'}`}>
               <div 
@@ -386,7 +383,6 @@ export default function Register() {
                             boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
                           }}
                           onError={(e) => {
-                            // Fallback to hide if flag fails to load
                             e.target.style.display = 'none';
                           }}
                         />
@@ -467,7 +463,7 @@ export default function Register() {
               </div>
             )}
 
-            {/* STEP 2: Preferences */}
+            {/* STEP 2: Gender Only */}
             {step === 2 && (
               <div className="row">
                 <div className="col-12 mb-3">
@@ -484,29 +480,9 @@ export default function Register() {
                     <option value="" disabled>Select your gender</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
-                    <option value="other">Other</option>
                   </select>
                 </div>
 
-                <div className="col-12 mb-3">
-                  <label className="form-label">Interested In</label>
-                  <select
-                    name="interested_in"
-                    className="form-control form-control-lg"
-                    required
-                    onChange={handleChange}
-                    value={formData.interested_in}
-                    onKeyPress={handleKeyPress}
-                    style={{ borderRadius: "16px" }}
-                  >
-                    <option value="" disabled>Select your preference</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="everyone">Everyone</option>
-                  </select>
-                </div>
-
-                {/* Hidden country field - auto-detected */}
                 <input type="hidden" name="country" value={formData.country} />
               </div>
             )}

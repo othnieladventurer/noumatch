@@ -151,46 +151,38 @@ class UserProfileListView(generics.ListAPIView):
         now = timezone.now()
         
         print(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
-        print(f"🔍 INTERESTED IN: {user.interested_in}")
+        print(f"🔍 USER GENDER: {user.gender}")
         
         # START WITH ABSOLUTELY NOTHING
         queryset = User.objects.none()
         
         try:
-            # Get gender filter from query params
-            gender = self.request.query_params.get('gender', None)
-            
-            # Build base query based on user's interests
-            if user.interested_in == 'male':
-                # User wants to see males
-                queryset = User.objects.filter(
-                    is_active=True,
-                    gender='male'
-                )
-                print(f"🔍 Filtering for male users")
-                
-            elif user.interested_in == 'female':
-                # User wants to see females
+            # Determine who to show based on user's gender
+            if user.gender == 'male':
+                # Men see women
                 queryset = User.objects.filter(
                     is_active=True,
                     gender='female'
                 )
-                print(f"🔍 Filtering for female users")
+                print(f"🔍 Man looking for women")
                 
-            elif user.interested_in == 'everyone':
-                # User wants to see everyone
+            elif user.gender == 'female':
+                # Women see men
+                queryset = User.objects.filter(
+                    is_active=True,
+                    gender='male'
+                )
+                print(f"🔍 Woman looking for men")
+                
+            else:
+                # If gender not set, show everyone
                 queryset = User.objects.filter(
                     is_active=True
                 )
-                print(f"🔍 Filtering for all users")
+                print(f"🔍 Showing all users")
             
             # 👇 EXCLUDE ALL SUPERUSERS (ADMINS)
             queryset = queryset.filter(is_superuser=False)
-            
-            # ALSO apply gender filter from query param if provided (double filter)
-            if gender and gender in ['male', 'female']:
-                queryset = queryset.filter(gender=gender)
-                print(f"🔍 Additional gender filter: {gender}")
             
             # ===== PERMANENT EXCLUSIONS =====
             
@@ -216,7 +208,7 @@ class UserProfileListView(generics.ListAPIView):
             # 4. Users they've passed on that haven't expired yet (72 hours)
             active_pass_ids = Pass.objects.filter(
                 from_user=user,
-                expires_at__gt=now  # Only passes that haven't expired
+                expires_at__gt=now
             ).values_list('to_user_id', flat=True)
             print(f"🔍 Temporarily excluding {len(active_pass_ids)} passed users (active for 72h)")
             
@@ -232,7 +224,7 @@ class UserProfileListView(generics.ListAPIView):
             
             # Log the results
             print(f"🔍 FINAL RESULTS: {queryset.count()} profiles")
-            for profile in queryset[:5]:  # Log first 5 only
+            for profile in queryset[:5]:
                 print(f"  ✅ Profile ID: {profile.id}, Username: {profile.username}, Gender: {profile.gender}")
             
         except Exception as e:
@@ -245,12 +237,8 @@ class UserProfileListView(generics.ListAPIView):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         
-        # Return as a simple array
         print(f"🔍 RETURNING {len(serializer.data)} profiles to frontend")
         return Response(serializer.data)
-
-        
-
         
 
 

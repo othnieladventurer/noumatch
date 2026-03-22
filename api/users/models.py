@@ -59,13 +59,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     ]
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True)
 
-    INTEREST_CHOICES = [
-        ("male", "Male"),
-        ("female", "Female"),
-        ("everyone", "Everyone"),
-    ]
-    interested_in = models.CharField(max_length=10, choices=INTEREST_CHOICES, blank=True)
-
+    
     location = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)  # New country field
 

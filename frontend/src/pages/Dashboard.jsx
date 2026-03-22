@@ -405,7 +405,7 @@ export default function Dashboard() {
     }
   };
 
-  // Create 
+  // Create match
   const createMatch = async (otherUserId) => {
     try {
       const response = await API.post("/matches/match/create/", {
@@ -705,7 +705,7 @@ export default function Dashboard() {
     refreshData();
   }, [notifications, user, blockedIds]);
 
-  // Fetch profiles
+  // Fetch profiles - UPDATED with gender-based filtering
   const fetchProfilesBasedOnUser = async (currentBlockedIds = blockedIds) => {
     if (!user || !user.id) {
       console.log("⚠️ Cannot fetch profiles: user not ready");
@@ -718,14 +718,14 @@ export default function Dashboard() {
     setApiError(null);
     
     try {
+      // Determine which gender to show based on user's gender
       let genderFilter = '';
-      if (user.interested_in === 'male') {
-        genderFilter = 'male';
-      } else if (user.interested_in === 'female') {
-        genderFilter = 'female';
-      } else if (user.interested_in === 'everyone') {
-        // No filter
+      if (user.gender === 'male') {
+        genderFilter = 'female';  // Men see women
+      } else if (user.gender === 'female') {
+        genderFilter = 'male';    // Women see men
       }
+      // If gender is 'other' or not set, show everyone (no filter)
 
       const params = {};
       if (genderFilter) {
@@ -745,6 +745,7 @@ export default function Dashboard() {
         profile.id !== user.id && !safeBlockedIds.includes(profile.id)
       );
 
+      // Apply gender filter based on user's gender
       let genderFilteredProfiles = filteredById;
       if (genderFilter) {
         genderFilteredProfiles = filteredById.filter(profile => profile.gender === genderFilter);

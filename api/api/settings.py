@@ -9,12 +9,13 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
+import dj_database_url
 import os
 from pathlib import Path
-
+from decouple import config
+from urllib.parse import urlparse
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -93,7 +94,8 @@ INSTALLED_APPS = [
     "chat",
     "block",
     'report',
-    'notifications'
+    'notifications',
+    'storages',
 ]
 
 MIDDLEWARE = [
@@ -186,12 +188,28 @@ PASS_EXPIRY_HOURS = 1/60
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+ENVIRONMENT = config("ENVIRONMENT", default="production").lower()
+DEBUG = True if ENVIRONMENT == "development" else False
+
+
+
+if ENVIRONMENT == 'production':
+    # Use local SQLite for dev
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(os.path.dirname(os.path.dirname(__file__)), 'db.sqlite3'),
+        }
     }
-}
+    print("Using Development DB: SQLite")
+else:
+    # Use PostgreSQL via DATABASE_URL in production
+    DATABASES = {
+        'default': dj_database_url.parse(config('DATABASE_URL'))
+    }
+    print(f"Using Production DB")
+
+
 
 
 # Password validation
@@ -231,15 +249,51 @@ USE_TZ = True
 # Static files settings
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
 
+if DEBUG:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+else:
+    CLOUDFLARE_R2_BUCKET = config("CLOUDFLARE_R2_BUCKET")
+    CLOUDFLARE_R2_ACCOUNT_ID = config("CLOUDFLARE_R2_ACCOUNT_ID")
+    CLOUDFLARE_R2_ACCESS_KEY_ID = config("CLOUDFLARE_R2_ACCESS_KEY_ID")
+    CLOUDFLARE_R2_SECRET_KEY = config("CLOUDFLARE_R2_SECRET_KEY")
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+    AWS_ACCESS_KEY_ID = CLOUDFLARE_R2_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY = CLOUDFLARE_R2_SECRET_KEY
+    AWS_STORAGE_BUCKET_NAME = CLOUDFLARE_R2_BUCKET
+    AWS_S3_ENDPOINT_URL = f"https://{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+    AWS_S3_REGION_NAME = "auto"
+    AWS_S3_ADDRESSING_STYLE = "virtual"
+    AWS_DEFAULT_ACL = "public-read"
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "max-age=86400",
+    }
 
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
 
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+
+    MEDIA_URL = f"https://{CLOUDFLARE_R2_BUCKET}.{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com/media/"
 
 
 
@@ -274,5 +328,13 @@ DEFAULT_FROM_EMAIL = 'NouMatch <noreply@noumatch.com>'
 # Frontend URL for email links
 FRONTEND_URL = 'http://localhost:5173'
 
+
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+
+print(ENVIRONMENT)
 
 
