@@ -177,8 +177,13 @@ export default function Register() {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      // ✅ UPDATED: Navigate to OTP verification with user_id instead of dashboard
-      navigate("/verify-otp", { state: { userId: response.data.user_id } });
+      // ✅ UPDATED: Navigate to OTP verification with user_id AND email
+      navigate("/verify-otp", { 
+        state: { 
+          userId: response.data.user_id,
+          email: formData.email  // Pass email to verification page
+        } 
+      });
       
     } catch (error) {
       console.error("Registration error:", error);

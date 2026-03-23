@@ -337,7 +337,7 @@ else:
     DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='NouMatch <no-reply@noumatch.com>')
 
 
-
+BREVO_API_KEY = config('BREVO_API_KEY', default='')
     
 # Frontend URL for email links
 FRONTEND_URL = 'http://localhost:5173'

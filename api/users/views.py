@@ -1,3 +1,4 @@
+import threading
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -24,13 +25,13 @@ from django.utils import timezone
 from .models import OTP
 from .utils import generate_otp, send_otp_email
 from rest_framework import status
+from .email_api import send_otp_via_api
 
 
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
-
 
 
 
@@ -48,19 +49,37 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Generate and save OTP
+        # Generate OTP
         otp_code = generate_otp()
+        
+        # Save OTP to database
         OTP.objects.update_or_create(
             user=user,
             defaults={'code': otp_code, 'is_used': False}
         )
-        # Send OTP email
-        send_otp_email(user, otp_code)
+        
+        # Send email in background thread (so registration returns instantly)
+        def send_email_background():
+            try:
+                send_otp_via_api(user, otp_code)
+            except Exception as e:
+                print(f"Background email failed: {e}")
+        
+        # Start background thread
+        thread = threading.Thread(target=send_email_background)
+        thread.daemon = True
+        thread.start()
+        
+        # Log for debugging (remove in production)
+        print(f"🔐 Registration: {user.email} | OTP: {otp_code}")
 
+        # Return immediately - don't wait for email
         return Response({
-            "message": "Registration successful. Please verify your email with the OTP sent.",
+            "message": "Registration successful. Please verify your email.",
             "user_id": user.id,
         }, status=status.HTTP_201_CREATED)
+
+
 
 
 
@@ -111,33 +130,43 @@ class VerifyOTPView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-
 class ResendOTPView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
         user_id = request.data.get('user_id')
-        if not user_id:
-            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-
+        
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             return Response({'error': 'Invalid user'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Generate new OTP and update
+        # Generate new OTP
         otp_code = generate_otp()
+        
+        # Update OTP in database
         OTP.objects.update_or_create(
             user=user,
-            defaults={'code': otp_code, 'is_used': False}
+            defaults={'code': otp_code, 'is_used': False, 'attempts': 0}
         )
-        send_otp_email(user, otp_code)
-
-        return Response({'message': 'New OTP sent to your email'}, status=status.HTTP_200_OK)
-
-
-
         
+        # Send email in background
+        def send_email_background():
+            try:
+                send_otp_via_api(user, otp_code)
+            except Exception as e:
+                print(f"Resend email failed: {e}")
+        
+        thread = threading.Thread(target=send_email_background)
+        thread.daemon = True
+        thread.start()
+
+        return Response(
+            {'message': 'New verification code sent to your email'}, 
+            status=status.HTTP_200_OK
+        )
+
+
 
 
 class LoginView(generics.GenericAPIView):
