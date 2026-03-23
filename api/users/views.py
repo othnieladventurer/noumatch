@@ -130,6 +130,7 @@ class VerifyOTPView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+
 class ResendOTPView(APIView):
     permission_classes = [AllowAny]
 
@@ -144,10 +145,15 @@ class ResendOTPView(APIView):
         # Generate new OTP
         otp_code = generate_otp()
         
-        # Update OTP in database
+        # Update OTP in database - reset attempts and timer
         OTP.objects.update_or_create(
             user=user,
-            defaults={'code': otp_code, 'is_used': False, 'attempts': 0}
+            defaults={
+                'code': otp_code, 
+                'is_used': False, 
+                'attempts': 0,
+                'created_at': timezone.now()  # Reset creation time
+            }
         )
         
         # Send email in background
@@ -165,7 +171,7 @@ class ResendOTPView(APIView):
             {'message': 'New verification code sent to your email'}, 
             status=status.HTTP_200_OK
         )
-
+        
 
 
 

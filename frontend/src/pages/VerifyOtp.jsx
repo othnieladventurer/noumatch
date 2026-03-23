@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '@/api/axios';
-import { FaHeart, FaSpinner, FaCheckCircle, FaEnvelope } from 'react-icons/fa';
+import { FaHeart, FaSpinner, FaCheckCircle, FaEnvelope, FaClock } from 'react-icons/fa';
 
 export default function VerifyOtp() {
   const location = useLocation();
@@ -13,7 +13,7 @@ export default function VerifyOtp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [timeLeft, setTimeLeft] = useState(600);
+  const [timeLeft, setTimeLeft] = useState(90); // Changed from 600 to 90 seconds
   const [canResend, setCanResend] = useState(false);
   const [emailSending, setEmailSending] = useState(true);
   const intervalRef = useRef(null);
@@ -47,10 +47,14 @@ export default function VerifyOtp() {
     return () => clearInterval(intervalRef.current);
   }, [timeLeft]);
 
+  // Format time for 90 seconds display
   const formatTime = (seconds) => {
+    if (seconds <= 90) {
+      return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+    }
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const handleChange = (index, value) => {
@@ -112,7 +116,7 @@ export default function VerifyOtp() {
     try {
       await API.post('users/resend-otp/', { user_id: userId });
       setSuccess('New code sent to your email!');
-      setTimeLeft(600);
+      setTimeLeft(90); // Reset to 90 seconds
       setCanResend(false);
       
       setTimeout(() => {
@@ -197,11 +201,24 @@ export default function VerifyOtp() {
               />
             ))}
           </div>
+          <div className="mt-2 text-center">
+            <small className="text-warning">
+              <FaClock className="me-1" />
+              ⚠️ Code expires in 90 seconds for security
+            </small>
+          </div>
         </div>
 
         <div className="d-flex justify-content-between align-items-center mb-4">
-          <span className="text-muted">
-            {timeLeft > 0 ? `Code expires in ${formatTime(timeLeft)}` : 'Code expired'}
+          <span className={`${timeLeft <= 30 ? 'text-danger fw-bold' : 'text-muted'}`}>
+            {timeLeft > 0 ? (
+              <>
+                <FaClock className="me-1" />
+                Code expires in {formatTime(timeLeft)}
+              </>
+            ) : (
+              'Code expired - please request a new one'
+            )}
           </span>
           <button
             type="button"

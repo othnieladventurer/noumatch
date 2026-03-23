@@ -152,26 +152,35 @@ class UserPhoto(models.Model):
 
 
 
-
 class OTP(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='otp')
     code = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    max_attempts = models.IntegerField(default=5)
 
     def is_valid(self):
-        # Check if OTP is not used and not older than 10 minutes
+        """Check if OTP is still valid (not used and within 90 seconds)"""
         if self.is_used:
             return False
         now = timezone.now()
-        if (now - self.created_at).total_seconds() > 600:  # 10 minutes
+        # Changed from 600 seconds (10 minutes) to 90 seconds (1.5 minutes)
+        if (now - self.created_at).total_seconds() > 90:
             return False
         return True
 
+    def can_attempt(self):
+        """Check if user can still attempt verification"""
+        return self.attempts < self.max_attempts
+
+    def increment_attempts(self):
+        """Increment attempt counter"""
+        self.attempts += 1
+        self.save(update_fields=['attempts'])
+
     def __str__(self):
         return f"{self.user.email} - {self.code}"
-
-
 
 
 
