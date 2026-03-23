@@ -542,7 +542,7 @@ export default function Register() {
               </div>
             )}
 
-            {/* Navigation Buttons */}
+            {/* Navigation Button */}
             <div className="d-flex gap-2 mt-4">
               {step > 1 && (
                 <button
