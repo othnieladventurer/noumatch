@@ -1,4 +1,3 @@
-// src/pages/Register.jsx
 import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
@@ -178,12 +177,8 @@ export default function Register() {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      // Save tokens
-      localStorage.setItem("access", response.data.access);
-      localStorage.setItem("refresh", response.data.refresh);
-
-      // Redirect to dashboard
-      navigate("/dashboard");
+      // ✅ UPDATED: Navigate to OTP verification with user_id instead of dashboard
+      navigate("/verify-otp", { state: { userId: response.data.user_id } });
       
     } catch (error) {
       console.error("Registration error:", error);

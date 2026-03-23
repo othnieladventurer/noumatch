@@ -322,14 +322,23 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Email settings (for verification emails)
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # or your email provider
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'your-email@gmail.com'  # Your email
-EMAIL_HOST_PASSWORD = 'your-app-password'  # Your app password
-DEFAULT_FROM_EMAIL = 'NouMatch <noreply@noumatch.com>'
+if DEBUG:
+    # Development: Print emails to console (no actual sending)
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    DEFAULT_FROM_EMAIL = 'NouMatch <no-reply@noumatch.com>'
+else:
+    # Production: Use Brevo SMTP
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = config('EMAIL_HOST', default='smtp-relay.brevo.com')
+    EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+    EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+    EMAIL_HOST_USER = config('EMAIL_HOST_USER')
+    EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+    DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='NouMatch <no-reply@noumatch.com>')
 
+
+
+    
 # Frontend URL for email links
 FRONTEND_URL = 'http://localhost:5173'
 

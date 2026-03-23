@@ -27,6 +27,7 @@ import Messages from './pages/Messages';
 import Conversation from './pages/Conversation';
 import Notifications from './pages/Notifications'; 
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import VerifyOtp from "./pages/VerifyOtp";
 import Terms from "./pages/Terms";
 
 export default function App() {
@@ -88,6 +89,7 @@ export default function App() {
 
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/verify-otp" element={<VerifyOtp />} />
           </Routes>
         </main>
 

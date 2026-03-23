@@ -148,3 +148,35 @@ class UserPhoto(models.Model):
         return f"{self.user.email} photo"
 
 
+
+
+
+
+
+class OTP(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='otp')
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def is_valid(self):
+        # Check if OTP is not used and not older than 10 minutes
+        if self.is_used:
+            return False
+        now = timezone.now()
+        if (now - self.created_at).total_seconds() > 600:  # 10 minutes
+            return False
+        return True
+
+    def __str__(self):
+        return f"{self.user.email} - {self.code}"
+
+
+
+
+
+
+
+
+
+

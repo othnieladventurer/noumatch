@@ -21,12 +21,22 @@ from .serializers import (RegisterSerializer, LoginSerializer,
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils import timezone
+from .models import OTP
+from .utils import generate_otp, send_otp_email
+from rest_framework import status
 
 
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
+
+
+
+
+
+
+
 
 
 class RegisterView(generics.CreateAPIView):
@@ -38,16 +48,96 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
+        # Generate and save OTP
+        otp_code = generate_otp()
+        OTP.objects.update_or_create(
+            user=user,
+            defaults={'code': otp_code, 'is_used': False}
+        )
+        # Send OTP email
+        send_otp_email(user, otp_code)
+
+        return Response({
+            "message": "Registration successful. Please verify your email with the OTP sent.",
+            "user_id": user.id,
+        }, status=status.HTTP_201_CREATED)
+
+
+
+
+
+
+class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        code = request.data.get('code')
+
+        if not user_id or not code:
+            return Response({'error': 'user_id and code are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+            otp = OTP.objects.get(user=user)
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid user'}, status=status.HTTP_404_NOT_FOUND)
+        except OTP.DoesNotExist:
+            return Response({'error': 'OTP not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not otp.is_valid():
+            return Response({'error': 'OTP is invalid or expired'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if otp.code != code:
+            return Response({'error': 'Invalid code'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Mark OTP as used and verify user
+        otp.is_used = True
+        otp.save()
+        user.is_verified = True
+        user.save()
+
+        # Generate tokens
         refresh = RefreshToken.for_user(user)
 
         return Response({
-            "user": {
-                "email": user.email,
-                "username": user.username,
-            },
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        }, status=201)    
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'username': user.username,
+            }
+        }, status=status.HTTP_200_OK)
+
+
+
+class ResendOTPView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid user'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate new OTP and update
+        otp_code = generate_otp()
+        OTP.objects.update_or_create(
+            user=user,
+            defaults={'code': otp_code, 'is_used': False}
+        )
+        send_otp_email(user, otp_code)
+
+        return Response({'message': 'New OTP sent to your email'}, status=status.HTTP_200_OK)
+
+
+
+        
 
 
 class LoginView(generics.GenericAPIView):

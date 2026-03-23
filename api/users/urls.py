@@ -3,8 +3,9 @@ from django.urls import path
 from . import views
 
 from .views import (RegisterView, LoginView, 
-                    LogoutView, ChangePasswordView,
-                    UserListView, MeView, UserProfileListView, UserDetailView, ProfileUpdateView)
+                    LogoutView, ChangePasswordView, ResendOTPView,
+                    UserListView, MeView, UserProfileListView, UserDetailView, 
+                    ProfileUpdateView, VerifyOTPView, ResendOTPView)
 
 urlpatterns = [
     path("all/", UserListView.as_view(), name="user-list"),
@@ -41,6 +42,10 @@ urlpatterns = [
     path('photos/delete-all/', 
          views.UserPhotoViewSet.as_view({'delete': 'delete_all_photos'}), 
          name='user-photos-delete-all'),
+
+
+     path('verify-otp/', VerifyOTPView.as_view(), name='verify_otp'),
+     path('resend-otp/', ResendOTPView.as_view(), name='resend_otp'),
 
 ]
 
