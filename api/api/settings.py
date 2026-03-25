@@ -31,17 +31,18 @@ ALLOWED_HOSTS = [
     'api.noumatch.com', 
     'noumatch.com', 
     'www.noumatch.com',
-    'noumatch.netlify.app',          # optional – for direct API access from Netlify (if needed)
+    'noumatch.netlify.app',  
+    'https://noumatch.onrender.com',   
     'localhost',          
     '127.0.0.1',        
-    '.vercel.app',                   # keeps old Vercel domain working
-    '.netlify.app',                   # optional – allows any Netlify subdomain (preview branches)
+    '.netlify.app',                  
 ]
 
 CORS_ALLOWED_ORIGINS = [
     'https://noumatch.com',
     'https://www.noumatch.com',
-    'https://noumatch.netlify.app',   # 👈 ADD YOUR NETLIFY DOMAIN
+    'https://noumatch.netlify.app',  
+    'https://noumatch.onrender.com',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
@@ -66,7 +67,8 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 CSRF_TRUSTED_ORIGINS = [
     'https://noumatch.com',
     'https://www.noumatch.com',
-    'https://noumatch.netlify.app',   # 👈 ADD YOUR NETLIFY DOMAIN
+    'https://noumatch.netlify.app',  
+    'https://noumatch.onrender.com',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
