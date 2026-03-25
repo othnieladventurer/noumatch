@@ -6,14 +6,16 @@ import { FaHeart, FaSpinner, FaCheckCircle, FaEnvelope, FaClock } from 'react-ic
 export default function VerifyOtp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const userId = location.state?.userId;
-  const email = location.state?.email;
+  
+  // Get userId from location state OR from localStorage (for returning unverified users)
+  const userId = location.state?.userId || localStorage.getItem("unverified_user_id");
+  const email = location.state?.email || localStorage.getItem("unverified_email");
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [timeLeft, setTimeLeft] = useState(90); // Changed from 600 to 90 seconds
+  const [timeLeft, setTimeLeft] = useState(90);
   const [canResend, setCanResend] = useState(false);
   const [emailSending, setEmailSending] = useState(true);
   const intervalRef = useRef(null);
@@ -21,7 +23,7 @@ export default function VerifyOtp() {
   // Redirect if no userId
   useEffect(() => {
     if (!userId) {
-      navigate('/register');
+      navigate('/login');
     }
     
     // Simulate email delivery (actual email arrives in 2-5 seconds)
@@ -47,10 +49,9 @@ export default function VerifyOtp() {
     return () => clearInterval(intervalRef.current);
   }, [timeLeft]);
 
-  // Format time for 90 seconds display
   const formatTime = (seconds) => {
     if (seconds <= 90) {
-      return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+      return `${seconds} seconde${seconds !== 1 ? 's' : ''}`;
     }
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -85,7 +86,7 @@ export default function VerifyOtp() {
   const handleVerify = async () => {
     const code = otp.join('');
     if (code.length !== 6) {
-      setError('Please enter the 6-digit code');
+      setError('Veuillez entrer le code à 6 chiffres');
       return;
     }
 
@@ -96,12 +97,21 @@ export default function VerifyOtp() {
         user_id: userId,
         code: code,
       });
-      localStorage.setItem('access', response.data.access);
-      localStorage.setItem('refresh', response.data.refresh);
+      
+      // Store tokens
+      if (response.data.access) {
+        localStorage.setItem('access', response.data.access);
+        localStorage.setItem('refresh', response.data.refresh);
+      }
+      
+      // Clear unverified user data
+      localStorage.removeItem("unverified_user_id");
+      localStorage.removeItem("unverified_email");
+      
       navigate('/dashboard');
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.response?.data?.error || 'Verification failed. Please try again.');
+      setError(err.response?.data?.error || 'Code invalide. Veuillez réessayer.');
     } finally {
       setLoading(false);
     }
@@ -115,8 +125,8 @@ export default function VerifyOtp() {
     
     try {
       await API.post('users/resend-otp/', { user_id: userId });
-      setSuccess('New code sent to your email!');
-      setTimeLeft(90); // Reset to 90 seconds
+      setSuccess('Un nouveau code a été envoyé à votre email !');
+      setTimeLeft(90);
       setCanResend(false);
       
       setTimeout(() => {
@@ -124,7 +134,7 @@ export default function VerifyOtp() {
       }, 3000);
     } catch (err) {
       console.error('Resend error:', err);
-      setError(err.response?.data?.error || 'Failed to resend code.');
+      setError(err.response?.data?.error || 'Échec de l\'envoi du code.');
       setEmailSending(false);
     } finally {
       setLoading(false);
@@ -156,23 +166,22 @@ export default function VerifyOtp() {
             <FaHeart className="text-danger me-2" />
             <span className="text-primary">NouMatch</span>
           </h1>
-          <p className="text-muted">Verify your email</p>
+          <p className="text-muted">Vérifiez votre email</p>
         </div>
 
-        {/* Email sending status */}
         {emailSending ? (
           <div className="alert alert-info rounded-3 text-center">
             <FaSpinner className="me-2" style={{ animation: 'spin 1s linear infinite' }} />
-            Sending verification code to <strong>{email || 'your email'}</strong>...
+            Envoi du code de vérification à <strong>{email || 'votre email'}</strong>...
             <br />
-            <small className="text-muted">Should arrive in a few seconds</small>
+            <small className="text-muted">Devrait arriver dans quelques secondes</small>
           </div>
         ) : (
           <div className="alert alert-success rounded-3 text-center">
             <FaCheckCircle className="me-2" />
-            Code sent to <strong>{email || 'your email'}</strong>
+            Code envoyé à <strong>{email || 'votre email'}</strong>
             <br />
-            <small className="text-muted">Check your inbox (or spam folder)</small>
+            <small className="text-muted">Vérifiez votre boîte de réception (ou les spams)</small>
           </div>
         )}
 
@@ -184,7 +193,7 @@ export default function VerifyOtp() {
         )}
 
         <div className="mb-4">
-          <label className="form-label">Enter the 6-digit code</label>
+          <label className="form-label">Entrez le code à 6 chiffres</label>
           <div className="d-flex justify-content-between gap-2">
             {otp.map((digit, idx) => (
               <input
@@ -204,7 +213,7 @@ export default function VerifyOtp() {
           <div className="mt-2 text-center">
             <small className="text-warning">
               <FaClock className="me-1" />
-              ⚠️ Code expires in 90 seconds for security
+              ⚠️ Le code expire dans 90 secondes pour des raisons de sécurité
             </small>
           </div>
         </div>
@@ -214,10 +223,10 @@ export default function VerifyOtp() {
             {timeLeft > 0 ? (
               <>
                 <FaClock className="me-1" />
-                Code expires in {formatTime(timeLeft)}
+                Le code expire dans {formatTime(timeLeft)}
               </>
             ) : (
-              'Code expired - please request a new one'
+              'Code expiré - veuillez en demander un nouveau'
             )}
           </span>
           <button
@@ -226,7 +235,7 @@ export default function VerifyOtp() {
             onClick={handleResend}
             disabled={loading || !canResend || emailSending}
           >
-            Resend code
+            Renvoyer le code
           </button>
         </div>
 
@@ -236,13 +245,13 @@ export default function VerifyOtp() {
           disabled={loading || otp.join('').length !== 6 || emailSending}
           style={{ borderRadius: '16px' }}
         >
-          {loading ? 'Verifying...' : 'Verify Email'}
+          {loading ? 'Vérification...' : 'Vérifier mon email'}
         </button>
 
         <div className="text-center mt-3">
           <small className="text-muted">
             <FaEnvelope className="me-1" />
-            Didn't receive the code? Check your spam folder
+            Vous n'avez pas reçu le code ? Vérifiez vos spams
           </small>
         </div>
       </div>

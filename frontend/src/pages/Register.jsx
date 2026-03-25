@@ -7,8 +7,8 @@ export default function Register() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
-  const [detectingCountry, setDetectingCountry] = useState(true);
-  const [countryCode, setCountryCode] = useState(""); // Store country code for flag
+  const [detectingLocation, setDetectingLocation] = useState(true);
+  const [countryCode, setCountryCode] = useState("");
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -18,45 +18,90 @@ export default function Register() {
     password2: "",
     gender: "",
     profile_photo: null,
-    country: "", // Country name
+    country: "",
+    city: "",
+    latitude: "",
+    longitude: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Auto-detect user's country on component mount
+  // Auto-detect user's location on component mount
   useEffect(() => {
-    detectUserCountry();
+    detectUserLocation();
   }, []);
 
-  const detectUserCountry = async () => {
+  const detectUserLocation = async () => {
     try {
-      setDetectingCountry(true);
+      setDetectingLocation(true);
       
-      // Using ipapi.co (free, no API key required for basic usage)
-      const response = await fetch('https://ipapi.co/json/');
-      const data = await response.json();
+      // Try multiple free APIs as fallback
+      let data = null;
       
-      if (data.country_name) {
-        setFormData(prev => ({ ...prev, country: data.country_name }));
-        setCountryCode(data.country_code.toLowerCase()); // Store country code for flag
-        console.log("📍 Country detected:", data.country_name, data.country_code);
+      // Try ipapi.co first
+      try {
+        const response = await fetch('https://ipapi.co/json/', { timeout: 5000 });
+        if (response.ok) {
+          data = await response.json();
+        }
+      } catch (e) {
+        console.log("ipapi.co failed, trying fallback...");
+      }
+      
+      // Fallback to ip-api.com (no API key required)
+      if (!data || !data.country_name) {
+        const response = await fetch('http://ip-api.com/json/');
+        if (response.ok) {
+          const fallbackData = await response.json();
+          if (fallbackData.status === 'success') {
+            data = {
+              country_name: fallbackData.country,
+              city: fallbackData.city,
+              latitude: fallbackData.lat,
+              longitude: fallbackData.lon,
+              country_code: fallbackData.countryCode.toLowerCase()
+            };
+          }
+        }
+      }
+      
+      if (data && data.country_name) {
+        setFormData(prev => ({ 
+          ...prev, 
+          country: data.country_name,
+          city: data.city || "",
+          latitude: data.latitude ? String(data.latitude) : "",
+          longitude: data.longitude ? String(data.longitude) : ""
+        }));
+        setCountryCode(data.country_code?.toLowerCase() || "");
+        console.log("📍 Localisation détectée:", data.city, data.country_name);
       } else {
-        // Fallback to a default or empty
-        setFormData(prev => ({ ...prev, country: "" }));
+        console.log("No location data found");
+        setFormData(prev => ({ 
+          ...prev, 
+          country: "", 
+          city: "", 
+          latitude: "", 
+          longitude: "" 
+        }));
         setCountryCode("");
       }
     } catch (error) {
-      console.error("Error detecting country:", error);
-      // Fallback to empty on error
-      setFormData(prev => ({ ...prev, country: "" }));
+      console.error("Erreur lors de la détection:", error);
+      setFormData(prev => ({ 
+        ...prev, 
+        country: "", 
+        city: "", 
+        latitude: "", 
+        longitude: "" 
+      }));
       setCountryCode("");
     } finally {
-      setDetectingCountry(false);
+      setDetectingLocation(false);
     }
   };
 
-  // Calculate age from birth date
   const calculateAge = (birthDate) => {
     if (!birthDate) return null;
     const today = new Date();
@@ -79,49 +124,46 @@ export default function Register() {
     }
   };
 
-  // Handle Enter key press - completely disable on step 3
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       if (step < 3) {
         nextStep();
       }
-      // On step 3, Enter does absolutely nothing
     }
   };
 
   const nextStep = () => {
     setErrorMessage("");
 
-    // Validate current step before proceeding
     if (step === 1) {
       if (!formData.first_name || !formData.last_name || !formData.email || !formData.birth_date || !formData.password || !formData.password2) {
-        setErrorMessage("Please fill in all fields");
+        setErrorMessage("Veuillez remplir tous les champs");
         return;
       }
       
       const age = calculateAge(formData.birth_date);
       if (age < 18) {
-        setErrorMessage("You must be at least 18 years old to register.");
+        setErrorMessage("Vous devez avoir au moins 18 ans pour vous inscrire.");
         return;
       }
 
       if (formData.password !== formData.password2) {
-        setErrorMessage("Passwords do not match.");
+        setErrorMessage("Les mots de passe ne correspondent pas.");
         return;
       }
     }
 
     if (step === 2) {
       if (!formData.gender) {
-        setErrorMessage("Please select your gender");
+        setErrorMessage("Veuillez sélectionner votre genre");
         return;
       }
     }
 
     if (step === 3) {
       if (!formData.profile_photo) {
-        setErrorMessage("Profile photo is required");
+        setErrorMessage("La photo de profil est requise");
         return;
       }
     }
@@ -137,16 +179,14 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Only allow submit on step 3 via button click
     if (step !== 3) {
       return;
     }
     
     setErrorMessage("");
 
-    // Final validation for profile photo
     if (!formData.profile_photo) {
-      setErrorMessage("Profile photo is required");
+      setErrorMessage("La photo de profil est requise");
       return;
     }
 
@@ -159,16 +199,24 @@ export default function Register() {
     data.append("password", formData.password);
     data.append("password2", formData.password2);
     data.append("country", formData.country);
+    data.append("city", formData.city);
+    
+    if (formData.latitude) {
+      data.append("latitude", formData.latitude);
+    }
+    if (formData.longitude) {
+      data.append("longitude", formData.longitude);
+    }
 
     if (formData.profile_photo) {
       data.append("profile_photo", formData.profile_photo);
     }
 
-    // Log FormData contents for debugging
-    console.log("Submitting form data:");
-    for (let pair of data.entries()) {
-      console.log(pair[0] + ': ' + (pair[0].includes('password') ? '***' : pair[1]));
-    }
+    console.log("Envoi des données:");
+    console.log("Country:", formData.country);
+    console.log("City:", formData.city);
+    console.log("Latitude:", formData.latitude);
+    console.log("Longitude:", formData.longitude);
 
     setLoading(true);
 
@@ -177,43 +225,36 @@ export default function Register() {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      // ✅ UPDATED: Navigate to OTP verification with user_id AND email
       navigate("/verify-otp", { 
         state: { 
           userId: response.data.user_id,
-          email: formData.email  // Pass email to verification page
+          email: formData.email
         } 
       });
       
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("Erreur d'inscription:", error);
       
-      // Handle error response
       if (error.response) {
-        // Server responded with error
         let message = "";
         if (typeof error.response.data === "object") {
           for (let key in error.response.data) {
             message += `${key}: ${error.response.data[key]}\n`;
           }
         } else {
-          message = error.response.data || "Registration failed";
+          message = error.response.data || "Échec de l'inscription";
         }
         setErrorMessage(message);
-        console.error("Registration error response:", error.response.data);
       } else if (error.request) {
-        // Request made but no response
-        setErrorMessage("Network error. Please try again.");
+        setErrorMessage("Erreur réseau. Veuillez réessayer.");
       } else {
-        // Something else happened
-        setErrorMessage("An error occurred. Please try again.");
+        setErrorMessage("Une erreur est survenue. Veuillez réessayer.");
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Progress bar width based on step
   const progressWidth = `${(step / 3) * 100}%`;
 
   return (
@@ -221,14 +262,13 @@ export default function Register() {
       className="vh-100 d-flex align-items-center justify-content-center position-relative"
       style={{
         backgroundImage:
-          "url('https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51961.jpg?semt=ais_user_personalization&w=740&q=80')",
+          "url('https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51961.jpg')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
         padding: "1rem",
       }}
     >
-      {/* Dark overlay */}
       <div
         className="position-absolute top-0 start-0 w-100 h-100"
         style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
@@ -253,16 +293,14 @@ export default function Register() {
             borderRadius: "24px",
           }}
         >
-          {/* Branding */}
           <div className="text-center mb-4">
             <h1 className="d-flex justify-content-center align-items-center fw-bold">
               <FaHeart className="text-danger me-2" />
               <span className="text-primary">NouMatch</span>
             </h1>
-            <p className="text-muted mb-0">Create your account</p>
+            <p className="text-muted mb-0">Créez votre compte</p>
           </div>
 
-          {/* Progress Bar */}
           <div className="progress mb-4" style={{ height: "8px", borderRadius: "20px" }}>
             <div
               className="progress-bar bg-danger"
@@ -272,13 +310,9 @@ export default function Register() {
                 borderRadius: "20px",
                 transition: "width 0.3s ease"
               }}
-              aria-valuenow={step}
-              aria-valuemin="0"
-              aria-valuemax="3"
             ></div>
           </div>
 
-          {/* Step Indicators */}
           <div className="d-flex justify-content-between mb-4">
             <div className={`text-center ${step >= 1 ? 'text-danger' : 'text-muted'}`}>
               <div 
@@ -287,7 +321,7 @@ export default function Register() {
               >
                 1
               </div>
-              <small>Basic Info</small>
+              <small>Informations</small>
             </div>
             <div className={`text-center ${step >= 2 ? 'text-danger' : 'text-muted'}`}>
               <div 
@@ -296,7 +330,7 @@ export default function Register() {
               >
                 2
               </div>
-              <small>Gender</small>
+              <small>Genre</small>
             </div>
             <div className={`text-center ${step >= 3 ? 'text-danger' : 'text-muted'}`}>
               <div 
@@ -316,35 +350,32 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit}>
-            {/* STEP 1: Basic Info */}
             {step === 1 && (
               <div className="row">
                 <div className="col-12 col-md-6 mb-3">
-                  <label className="form-label">First Name</label>
+                  <label className="form-label">Prénom</label>
                   <input
                     type="text"
                     name="first_name"
                     className="form-control form-control-lg"
-                    placeholder="Enter your first name"
+                    placeholder="Entrez votre prénom"
                     required
                     value={formData.first_name}
                     onChange={handleChange}
-                    onKeyPress={handleKeyPress}
                     style={{ borderRadius: "16px" }}
                   />
                 </div>
 
                 <div className="col-12 col-md-6 mb-3">
-                  <label className="form-label">Last Name</label>
+                  <label className="form-label">Nom</label>
                   <input
                     type="text"
                     name="last_name"
                     className="form-control form-control-lg"
-                    placeholder="Enter your last name"
+                    placeholder="Entrez votre nom"
                     required
                     value={formData.last_name}
                     onChange={handleChange}
-                    onKeyPress={handleKeyPress}
                     style={{ borderRadius: "16px" }}
                   />
                 </div>
@@ -355,69 +386,85 @@ export default function Register() {
                     type="email"
                     name="email"
                     className="form-control form-control-lg"
-                    placeholder="Enter your email address"
+                    placeholder="Entrez votre adresse email"
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    onKeyPress={handleKeyPress}
                     style={{ borderRadius: "16px" }}
                   />
                 </div>
 
-                {/* Country Field with Real Flag - Unclickable, displayed under email */}
+                {/* COUNTRY FIELD - READ ONLY WITH FLAG */}
                 <div className="col-12 mb-3">
-                  <label className="form-label">Country</label>
-                  <div className="position-relative">
-                    <div className="d-flex align-items-center">
-                      {countryCode && !detectingCountry && (
-                        <img 
-                          src={`https://flagcdn.com/w40/${countryCode}.png`}
-                          srcSet={`https://flagcdn.com/w80/${countryCode}.png 2x`}
-                          width="30"
-                          height="22.5"
-                          alt={`${formData.country} flag`}
-                          style={{ 
-                            marginRight: "10px",
-                            borderRadius: "4px",
-                            objectFit: "cover",
-                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-                          }}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      )}
-                      <input
-                        type="text"
-                        name="country"
-                        className="form-control form-control-lg bg-light"
-                        placeholder={detectingCountry ? "Detecting location..." : "Country not detected"}
-                        value={formData.country || ""}
-                        readOnly
-                        disabled
+                  <label className="form-label">Pays</label>
+                  <div className="d-flex align-items-center">
+                    {countryCode && !detectingLocation && countryCode !== "" && (
+                      <img 
+                        src={`https://flagcdn.com/w40/${countryCode}.png`}
+                        srcSet={`https://flagcdn.com/w80/${countryCode}.png 2x`}
+                        width="30"
+                        height="22.5"
+                        alt={formData.country}
                         style={{ 
-                          borderRadius: "16px",
-                          cursor: "not-allowed",
-                          opacity: 0.9,
-                          color: "#495057",
-                          backgroundColor: "#e9ecef",
-                          flex: 1
+                          marginRight: "10px",
+                          borderRadius: "4px",
+                          objectFit: "cover"
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
                         }}
                       />
-                    </div>
-                    {detectingCountry && (
-                      <div className="position-absolute top-50 end-0 translate-middle-y me-3">
-                        <div className="spinner-border spinner-border-sm text-secondary" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </div>
-                      </div>
                     )}
+                    <input
+                      type="text"
+                      className="form-control form-control-lg"
+                      value={formData.country}
+                      readOnly
+                      disabled={detectingLocation}
+                      placeholder={detectingLocation ? "Détection en cours..." : "Pays détecté"}
+                      style={{ 
+                        borderRadius: "16px",
+                        backgroundColor: detectingLocation ? "#e9ecef" : "#f8f9fa",
+                        cursor: detectingLocation ? "wait" : "not-allowed"
+                      }}
+                    />
                   </div>
-                  <small className="text-muted">Auto-detected from your location</small>
+                  {detectingLocation && (
+                    <div className="mt-1">
+                      <div className="spinner-border spinner-border-sm text-secondary me-2" role="status">
+                        <span className="visually-hidden">Chargement...</span>
+                      </div>
+                      <small className="text-muted">Détection de votre localisation...</small>
+                    </div>
+                  )}
+                  {!detectingLocation && formData.country && (
+                    <small className="text-muted">Pays automatiquement détecté</small>
+                  )}
+                </div>
+
+                {/* CITY FIELD - EDITABLE */}
+                <div className="col-12 mb-3">
+                  <label className="form-label">Ville</label>
+                  <input
+                    type="text"
+                    name="city"
+                    className="form-control form-control-lg"
+                    placeholder={detectingLocation ? "Détection de votre ville..." : "Entrez votre ville"}
+                    value={formData.city}
+                    onChange={handleChange}
+                    disabled={detectingLocation}
+                    style={{ 
+                      borderRadius: "16px",
+                      backgroundColor: detectingLocation ? "#e9ecef" : "#fff"
+                    }}
+                  />
+                  {!detectingLocation && (
+                    <small className="text-muted">Vous pouvez modifier votre ville si nécessaire</small>
+                  )}
                 </div>
 
                 <div className="col-12 mb-3">
-                  <label className="form-label">Birth Date</label>
+                  <label className="form-label">Date de naissance</label>
                   <input
                     type="date"
                     name="birth_date"
@@ -425,74 +472,71 @@ export default function Register() {
                     required
                     value={formData.birth_date}
                     onChange={handleChange}
-                    onKeyPress={handleKeyPress}
                     style={{ borderRadius: "16px" }}
                   />
-                  <small className="text-muted">You must be 18 or older to register</small>
+                  <small className="text-muted">Vous devez avoir au moins 18 ans</small>
                 </div>
 
                 <div className="col-12 col-md-6 mb-3">
-                  <label className="form-label">Password</label>
+                  <label className="form-label">Mot de passe</label>
                   <input
                     type="password"
                     name="password"
                     className="form-control form-control-lg"
-                    placeholder="Create a password"
+                    placeholder="Créez un mot de passe"
                     required
                     value={formData.password}
                     onChange={handleChange}
-                    onKeyPress={handleKeyPress}
                     style={{ borderRadius: "16px" }}
                   />
                 </div>
 
                 <div className="col-12 col-md-6 mb-3">
-                  <label className="form-label">Confirm Password</label>
+                  <label className="form-label">Confirmer</label>
                   <input
                     type="password"
                     name="password2"
                     className="form-control form-control-lg"
-                    placeholder="Confirm your password"
+                    placeholder="Confirmez"
                     required
                     value={formData.password2}
                     onChange={handleChange}
-                    onKeyPress={handleKeyPress}
                     style={{ borderRadius: "16px" }}
                   />
                 </div>
               </div>
             )}
 
-            {/* STEP 2: Gender Only */}
             {step === 2 && (
               <div className="row">
                 <div className="col-12 mb-3">
-                  <label className="form-label">Gender</label>
+                  <label className="form-label">Genre</label>
                   <select
                     name="gender"
                     className="form-control form-control-lg"
                     required
                     onChange={handleChange}
                     value={formData.gender}
-                    onKeyPress={handleKeyPress}
                     style={{ borderRadius: "16px" }}
                   >
-                    <option value="" disabled>Select your gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
+                    <option value="" disabled>Sélectionnez votre genre</option>
+                    <option value="male">Homme</option>
+                    <option value="female">Femme</option>
                   </select>
                 </div>
 
                 <input type="hidden" name="country" value={formData.country} />
+                <input type="hidden" name="city" value={formData.city} />
+                <input type="hidden" name="latitude" value={formData.latitude} />
+                <input type="hidden" name="longitude" value={formData.longitude} />
               </div>
             )}
 
-            {/* STEP 3: Profile Photo (Required) */}
             {step === 3 && (
               <div className="row">
                 <div className="col-12 mb-3">
                   <label className="form-label">
-                    Profile Photo <span className="text-danger">*</span>
+                    Photo de profil <span className="text-danger">*</span>
                   </label>
                   <input
                     type="file"
@@ -507,27 +551,26 @@ export default function Register() {
                     }}
                   />
                   <small className="text-muted">
-                    Upload a clear photo of yourself (required)
+                    Téléchargez une photo claire de vous-même (requis)
                   </small>
                   
                   {formData.profile_photo ? (
                     <div className="mt-2 text-success">
                       <i className="fas fa-check-circle me-1"></i>
-                      Photo selected: {formData.profile_photo.name}
+                      Photo sélectionnée: {formData.profile_photo.name}
                     </div>
                   ) : (
                     <div className="mt-2 text-danger">
                       <i className="fas fa-exclamation-circle me-1"></i>
-                      Profile photo is required
+                      La photo de profil est requise
                     </div>
                   )}
 
-                  {/* Preview selected image */}
                   {formData.profile_photo && (
                     <div className="mt-3 text-center">
                       <img
                         src={URL.createObjectURL(formData.profile_photo)}
-                        alt="Preview"
+                        alt="Aperçu"
                         className="rounded-circle"
                         style={{
                           width: "100px",
@@ -539,10 +582,14 @@ export default function Register() {
                     </div>
                   )}
                 </div>
+                
+                <input type="hidden" name="country" value={formData.country} />
+                <input type="hidden" name="city" value={formData.city} />
+                <input type="hidden" name="latitude" value={formData.latitude} />
+                <input type="hidden" name="longitude" value={formData.longitude} />
               </div>
             )}
 
-            {/* Navigation Button */}
             <div className="d-flex gap-2 mt-4">
               {step > 1 && (
                 <button
@@ -552,7 +599,7 @@ export default function Register() {
                   disabled={loading}
                   style={{ borderRadius: "16px" }}
                 >
-                  Back
+                  Retour
                 </button>
               )}
               
@@ -564,7 +611,7 @@ export default function Register() {
                   disabled={loading}
                   style={{ borderRadius: "16px" }}
                 >
-                  Continue
+                  Continuer
                 </button>
               ) : (
                 <button
@@ -573,7 +620,7 @@ export default function Register() {
                   disabled={loading || !formData.profile_photo}
                   style={{ borderRadius: "16px" }}
                 >
-                  {loading ? "Creating Account..." : "Create Account"}
+                  {loading ? "Création du compte..." : "Créer mon compte"}
                 </button>
               )}
             </div>
@@ -581,12 +628,9 @@ export default function Register() {
 
           <div className="text-center mt-3">
             <small className="text-muted">
-              Already have an account?{" "}
-              <Link
-                to="/login"
-                className="text-danger text-decoration-none fw-semibold"
-              >
-                Login
+              Vous avez déjà un compte?{" "}
+              <Link to="/login" className="text-danger text-decoration-none fw-semibold">
+                Se connecter
               </Link>
             </small>
           </div>
@@ -595,5 +639,3 @@ export default function Register() {
     </div>
   );
 }
-
-

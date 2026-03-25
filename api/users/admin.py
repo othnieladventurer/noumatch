@@ -1,38 +1,77 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User
+from .models import User, OTP
+from django.utils.html import format_html
+
+# Inline for OTP - to show OTP inside user detail page
+class OTPInline(admin.TabularInline):
+    model = OTP
+    fields = ('code', 'created_at', 'is_used', 'attempts', 'status')
+    readonly_fields = ('code', 'created_at', 'is_used', 'attempts', 'status')
+    can_delete = False
+    extra = 0
+    max_num = 1
+    
+    def status(self, obj):
+        if obj.is_used:
+            return format_html('<span style="color: red;">❌ Used</span>')
+        if obj.is_valid():
+            return format_html('<span style="color: green;">✅ Valid</span>')
+        return format_html('<span style="color: orange;">⏰ Expired</span>')
+    status.short_description = "Status"
+    
+    def has_add_permission(self, request, obj=None):
+        return False
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     model = User
+    
+    # Add OTP inline
+    inlines = [OTPInline]
 
-    # Fields to display in the admin list view - added account_type
+    # Custom method to display coordinates nicely
+    def coordinates_display(self, obj):
+        if obj.latitude and obj.longitude:
+            return format_html(
+                '<span style="font-family: monospace;">{}, {}</span>',
+                obj.latitude,
+                obj.longitude
+            )
+        return "-"
+    coordinates_display.short_description = "Coordinates"
+    coordinates_display.admin_order_field = "latitude"
+
+    # Fields to display in the admin list view
     list_display = (
         "email",
         "username",
         "first_name",
         "last_name",
-        "account_type",  # Added account type
+        "account_type",
+        "city",
+        "country",
+        "coordinates_display",
         "is_verified",
         "is_staff",
         "is_active",
         "date_joined",
     )
 
-    # Add search capability for email and username, plus first/last name
-    search_fields = ("email", "username", "first_name", "last_name")
+    # Add search capability
+    search_fields = ("email", "username", "first_name", "last_name", "city", "country")
 
-    # Filters in sidebar - added account_type
+    # Filters in sidebar
     list_filter = (
-        "account_type",  # Added account type filter
+        "account_type",
         "is_verified", 
         "is_staff", 
         "is_active", 
-        "gender", 
- 
+        "gender",
+        "country",
     )
 
-    # Fields for creating or editing a user - added account_type to Personal Info
+    # Fields for creating or editing a user
     fieldsets = (
         ("Login Info", {"fields": ("email", "username", "password")}),
         ("Personal Info", {
@@ -42,8 +81,6 @@ class UserAdmin(BaseUserAdmin):
                 "bio",
                 "birth_date",
                 "gender",
-              
-                "location",
                 "profile_photo",
                 "height",
                 "passions",
@@ -51,14 +88,24 @@ class UserAdmin(BaseUserAdmin):
                 "education",
                 "hobbies",
                 "favorite_music",
-                "account_type",  # Added account type here
+                "account_type",
             )
+        }),
+        ("Location Info", {
+            "fields": (
+                "location",
+                "country",
+                "city",
+                ("latitude", "longitude"),
+            ),
+            "classes": ("wide",),
+            "description": "📍 Geolocation information automatically captured from IP address during registration"
         }),
         ("Permissions", {"fields": ("is_verified", "is_staff", "is_active", "is_superuser", "groups", "user_permissions")}),
         ("Important Dates", {"fields": ("last_login", "date_joined")}),
     )
 
-    # Fields to use when adding a new user via admin - added account_type
+    # Fields to use when adding a new user via admin
     add_fieldsets = (
         (
             None,
@@ -71,7 +118,7 @@ class UserAdmin(BaseUserAdmin):
                     "last_name",
                     "password1",
                     "password2",
-                    "account_type",  # Added account type to add form
+                    "account_type",
                     "is_active",
                     "is_staff"
                 ),
@@ -81,7 +128,18 @@ class UserAdmin(BaseUserAdmin):
 
     ordering = ("email",)
     filter_horizontal = ("groups", "user_permissions")
-
-
-
     
+    # Make latitude and longitude read-only in admin (they're auto-captured)
+    readonly_fields = ("latitude", "longitude")
+
+
+# Optional: Keep OTP admin list view as well
+@admin.register(OTP)
+class OTPAdmin(admin.ModelAdmin):
+    list_display = ("user", "code", "created_at", "is_used", "attempts")
+    list_filter = ("is_used", "created_at")
+    search_fields = ("user__email", "code")
+    readonly_fields = ("created_at", "code", "user", "attempts")
+    
+    def has_add_permission(self, request):
+        return False

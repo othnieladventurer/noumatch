@@ -480,7 +480,7 @@ export default function CenterBlock({
             flex: 1.5 !important;
           }
           .card-content {
-            padding-bottom: 20px !important;
+            padding-bottom: 0 !important;
             overflow-y: visible !important;
           }
         }

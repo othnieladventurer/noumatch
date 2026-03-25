@@ -1493,8 +1493,11 @@ export default function Dashboard() {
 
             {/* Mobile Layout - visible only on small screens */}
             <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-                {renderMobileContent()}
+              {/* Content area - fills available space */}
+              <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+                <div style={{ height: '100%', overflowY: 'auto' }}>
+                  {renderMobileContent()}
+                </div>
               </div>
             </div>
 
@@ -1556,6 +1559,17 @@ export default function Dashboard() {
         /* Ensure proper scrolling on all devices */
         .dashboard-container {
           -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Remove any extra space on mobile */
+        @media (max-width: 991.98px) {
+          .dashboard-container {
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .center-card {
+            margin-bottom: 0 !important;
+          }
         }
       `}</style>
     </>

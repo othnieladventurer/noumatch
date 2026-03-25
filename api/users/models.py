@@ -40,8 +40,6 @@ class UserManager(BaseUserManager):
 
 
 
-
-
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30, unique=False)
@@ -61,7 +59,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     
     location = models.CharField(max_length=100, blank=True)
-    country = models.CharField(max_length=100, blank=True)  # New country field
+    country = models.CharField(max_length=100, blank=True)  # Country field
+    city = models.CharField(max_length=100, blank=True)  # City field
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)  # Latitude
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)  # Longitude
 
     # MAIN PROFILE PHOTO
     profile_photo = models.ImageField(upload_to="profiles/main/", blank=True, null=True)
@@ -123,7 +124,9 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.save(update_fields=['is_online'])
 
 
+
             
+                        
 
 
 class UserPhoto(models.Model):

@@ -39,13 +39,13 @@ class UserListView(generics.ListAPIView):
 
 
 
-
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        # Pass the request to serializer context
+        serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
@@ -58,7 +58,7 @@ class RegisterView(generics.CreateAPIView):
             defaults={'code': otp_code, 'is_used': False}
         )
         
-        # Send email in background thread (so registration returns instantly)
+        # Send email in background thread
         def send_email_background():
             try:
                 send_otp_via_api(user, otp_code)
@@ -70,15 +70,15 @@ class RegisterView(generics.CreateAPIView):
         thread.daemon = True
         thread.start()
         
-        # Log for debugging (remove in production)
+        # Log for debugging
         print(f"🔐 Registration: {user.email} | OTP: {otp_code}")
+        print(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
 
-        # Return immediately - don't wait for email
+        # Return immediately
         return Response({
             "message": "Registration successful. Please verify your email.",
             "user_id": user.id,
         }, status=status.HTTP_201_CREATED)
-
 
 
 
@@ -171,7 +171,7 @@ class ResendOTPView(APIView):
             {'message': 'New verification code sent to your email'}, 
             status=status.HTTP_200_OK
         )
-        
+    
 
 
 
