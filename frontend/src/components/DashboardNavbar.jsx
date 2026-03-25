@@ -111,7 +111,6 @@ export default function DashboardNavbar({ user }) {
           match_id: conv.match_id,
           is_online: otherUser?.is_online || false,
           online_status: otherUser?.online_status || "offline",
-          // Use profile_photo_url if available, otherwise fallback to profile_photo
           profile_photo: otherUser?.profile_photo_url || otherUser?.profile_photo
         };
       });
@@ -152,7 +151,6 @@ export default function DashboardNavbar({ user }) {
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/40";
     if (path.startsWith("http")) return path;
-    // Use the same base URL as the API
     const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
     const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
     return `${baseUrl}${normalizedPath}`;
@@ -273,10 +271,15 @@ export default function DashboardNavbar({ user }) {
           box-shadow: 0 10px 30px rgba(0,0,0,0.08);
           overflow: hidden;
           margin-top: 10px !important;
+          max-width: calc(100vw - 20px);
+          width: auto;
+          min-width: 280px;
         }
 
         .nm-dropdown-menu .dropdown-item {
           border-radius: 10px;
+          white-space: normal;
+          word-wrap: break-word;
         }
 
         .nm-dropdown-menu .dropdown-item:active {
@@ -284,6 +287,7 @@ export default function DashboardNavbar({ user }) {
           color: #212529;
         }
 
+        /* Responsive dropdown positioning */
         @media (max-width: 768px) {
           .nm-navbar {
             min-height: 64px;
@@ -291,6 +295,32 @@ export default function DashboardNavbar({ user }) {
 
           .nm-navbar .container {
             min-height: 64px;
+          }
+
+          .nm-dropdown-menu {
+            position: fixed !important;
+            top: auto !important;
+            bottom: auto !important;
+            left: 10px !important;
+            right: 10px !important;
+            width: calc(100% - 20px) !important;
+            max-width: none !important;
+            transform: none !important;
+            margin-top: 10px;
+          }
+          
+          /* For messages dropdown on mobile */
+          .dropdown-menu.show {
+            display: block;
+          }
+        }
+
+        /* For very small screens */
+        @media (max-width: 480px) {
+          .nm-dropdown-menu {
+            left: 5px !important;
+            right: 5px !important;
+            width: calc(100% - 10px) !important;
           }
         }
       `}</style>
@@ -305,10 +335,12 @@ export default function DashboardNavbar({ user }) {
           </Link>
 
           <div className="d-flex align-items-center gap-3 ms-auto">
+            {/* Messages Button */}
             <div className="dropdown">
               <button
                 className="nm-nav-icon-btn"
                 data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
                 disabled={loading.messages || !user}
                 type="button"
               >
@@ -323,6 +355,7 @@ export default function DashboardNavbar({ user }) {
               <ul
                 className="dropdown-menu dropdown-menu-end nm-dropdown-menu p-2"
                 style={{ width: "320px", maxWidth: "90vw" }}
+                data-bs-popper="static"
               >
                 <li className="dropdown-header fw-bold d-flex justify-content-between align-items-center">
                   <span>Messages ({messages.length})</span>
@@ -333,17 +366,18 @@ export default function DashboardNavbar({ user }) {
                   )}
                 </li>
 
-                {loading.messages ? (
-                  <li className="text-center py-3">
-                    <div className="spinner-border spinner-border-sm text-danger" role="status">
-                      <span className="visually-hidden">Chargement...</span>
+                <li style={{ maxHeight: "400px", overflowY: "auto" }}>
+                  {loading.messages ? (
+                    <div className="text-center py-3">
+                      <div className="spinner-border spinner-border-sm text-danger" role="status">
+                        <span className="visually-hidden">Chargement...</span>
+                      </div>
+                      <p className="small text-secondary mt-2 mb-0">Chargement des messages...</p>
                     </div>
-                    <p className="small text-secondary mt-2 mb-0">Chargement des messages...</p>
-                  </li>
-                ) : messages.length > 0 ? (
-                  messages.map((msg) => (
-                    <li key={msg.id}>
+                  ) : messages.length > 0 ? (
+                    messages.map((msg) => (
                       <button
+                        key={msg.id}
                         onClick={() => handleMessageClick(msg.conversation_id)}
                         className={`dropdown-item d-flex align-items-start gap-2 py-2 px-3 ${
                           msg.unread_count > 0 ? "bg-light" : ""
@@ -351,7 +385,7 @@ export default function DashboardNavbar({ user }) {
                         style={{ border: "none", width: "100%", textAlign: "left" }}
                         type="button"
                       >
-                        <div className="position-relative">
+                        <div className="position-relative flex-shrink-0">
                           <img
                             src={getProfilePhotoUrl(msg.profile_photo || msg.other_user?.profile_photo_url)}
                             alt={msg.sender}
@@ -373,8 +407,8 @@ export default function DashboardNavbar({ user }) {
 
                         <div className="flex-grow-1" style={{ minWidth: 0 }}>
                           <div className="d-flex justify-content-between align-items-center">
-                            <span className="fw-semibold small">{msg.sender}</span>
-                            <span className="text-secondary" style={{ fontSize: "0.7rem" }}>
+                            <span className="fw-semibold small text-truncate">{msg.sender}</span>
+                            <span className="text-secondary flex-shrink-0" style={{ fontSize: "0.7rem" }}>
                               {formatMessageTime(msg.time)}
                             </span>
                           </div>
@@ -405,19 +439,19 @@ export default function DashboardNavbar({ user }) {
                           </p>
                         </div>
                       </button>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-center py-4">
-                    <div className="text-secondary">
-                      <FaEnvelope size={24} className="mb-2 opacity-50" />
-                      <p className="small mb-0">Pas encore de messages</p>
-                      <p className="small text-secondary mt-1">
-                        Quand vous matchez avec quelqu'un, vous pourrez discuter ici
-                      </p>
+                    ))
+                  ) : (
+                    <div className="text-center py-4">
+                      <div className="text-secondary">
+                        <FaEnvelope size={24} className="mb-2 opacity-50" />
+                        <p className="small mb-0">Pas encore de messages</p>
+                        <p className="small text-secondary mt-1">
+                          Quand vous matchez avec quelqu'un, vous pourrez discuter ici
+                        </p>
+                      </div>
                     </div>
-                  </li>
-                )}
+                  )}
+                </li>
 
                 <li>
                   <hr className="dropdown-divider" />
@@ -436,8 +470,9 @@ export default function DashboardNavbar({ user }) {
 
             <NotificationBell />
 
+            {/* Profile Dropdown */}
             <div className="dropdown">
-              <button className="nm-profile-btn" data-bs-toggle="dropdown" type="button">
+              <button className="nm-profile-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" type="button">
                 <div className="position-relative">
                   <img
                     src={getProfilePhotoUrl(user?.profile_photo)}
@@ -458,10 +493,11 @@ export default function DashboardNavbar({ user }) {
 
               <ul
                 className="dropdown-menu dropdown-menu-end nm-dropdown-menu"
-                style={{ width: "200px", maxWidth: "90vw" }}
+                style={{ width: "280px", maxWidth: "90vw" }}
+                data-bs-popper="static"
               >
                 <li className="px-3 py-2">
-                  <div className="fw-semibold">
+                  <div className="fw-semibold text-truncate">
                     {user.first_name || ''} {user.last_name || ''}
                   </div>
                   <div className="small text-secondary text-truncate">{user.email}</div>
@@ -470,6 +506,26 @@ export default function DashboardNavbar({ user }) {
                     En ligne
                   </div>
                 </li>
+                
+                {/* Account Type Badge - Show only, no upgrade option */}
+                <li className="px-3 py-1">
+                  {user.account_type === 'free' && (
+                    <span className="badge bg-secondary w-100 py-2">
+                      Compte Gratuit
+                    </span>
+                  )}
+                  {user.account_type === 'premium' && (
+                    <span className="badge bg-warning text-dark w-100 py-2">
+                      ⭐ Compte Premium
+                    </span>
+                  )}
+                  {user.account_type === 'god_mode' && (
+                    <span className="badge bg-danger w-100 py-2">
+                      👑 God Mode
+                    </span>
+                  )}
+                </li>
+                
                 <li>
                   <hr className="dropdown-divider" />
                 </li>
@@ -482,6 +538,9 @@ export default function DashboardNavbar({ user }) {
                     Mon profil
                   </Link>
                 </li>
+                
+                {/* Premium upgrade option removed - not showing for free users */}
+                
                 <li>
                   <hr className="dropdown-divider" />
                 </li>

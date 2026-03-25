@@ -142,12 +142,47 @@ export default function CenterBlock({
     setCurrentPhotoIndex(idx);
   };
 
+  // Responsive styles - rounded corners only on desktop
+  const responsiveCardStyle = {
+    ...centerCardStyle,
+    borderRadius: typeof window !== 'undefined' && window.innerWidth < 992 ? '0px' : '24px',
+    height: '100%',
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    marginBottom: 0,
+    paddingBottom: 0,
+    overflow: 'hidden'
+  };
+
+  // Image container style - balanced height on desktop
+  const imageContainerStyle = {
+    position: 'relative',
+    width: '100%',
+    cursor: 'pointer',
+    overflow: 'hidden',
+    backgroundColor: '#f8f9fa',
+    flex: typeof window !== 'undefined' && window.innerWidth < 992 ? 1.2 : 1.5,
+    minHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? '50vh' : '350px'
+  };
+
+  // Get location display - handle empty location
+  const getLocationDisplay = () => {
+    if (currentProfile.location && currentProfile.location.trim()) {
+      return currentProfile.location;
+    }
+    return null;
+  };
+
+  const locationDisplay = getLocationDisplay();
+
   return (
-    <div className="center-card" style={centerCardStyle}>
+    <div className="center-card" style={responsiveCardStyle}>
       {/* Image du profil avec navigation photo */}
       <div 
         className="image-container" 
         onClick={safeOpenPhotoModal}
+        style={imageContainerStyle}
       >
         {getCurrentPhotoUrl() ? (
           <>
@@ -158,6 +193,9 @@ export default function CenterBlock({
                 transition: 'transform 0.2s ease, opacity 0.2s ease',
                 transform: 'translateX(0) scale(1)',
                 opacity: 1,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
               }}
               onError={(e) => {
                 e.target.style.display = 'none';
@@ -232,20 +270,32 @@ export default function CenterBlock({
         )}
       </div>
 
-      <div className="card-content">
-        <div className="d-flex align-items-center mb-2">
-          {/* Nom cliquable - Va vers le profil */}
-          <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
-            {formatName(currentProfile)}
-            {currentProfile.age ? `, ${currentProfile.age}` : ''}
-          </h2>
-          {isMatched(currentProfile.id) && (
-            <span className="status-badge matched-badge">Match</span>
-          )}
-          {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
-            <span className="status-badge liked-badge">Aimé</span>
+      {/* Content area - NO SCROLLBAR on desktop */}
+      <div className="card-content" style={{ flex: 1, overflowY: 'visible', padding: '16px' }}>
+        <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+          {/* Name and Age - left side */}
+          <div className="d-flex align-items-center gap-2 flex-wrap">
+            <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
+              {formatName(currentProfile)}
+              {currentProfile.age ? `, ${currentProfile.age}` : ''}
+            </h2>
+            {isMatched(currentProfile.id) && (
+              <span className="status-badge matched-badge">Match</span>
+            )}
+            {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
+              <span className="status-badge liked-badge">Aimé</span>
+            )}
+          </div>
+          
+          {/* Location - right side on same line (only if location exists) */}
+          {locationDisplay && (
+            <div className="d-flex align-items-center text-secondary" style={{ fontSize: '0.9rem' }}>
+              <i className="fas fa-map-marker-alt me-1" style={{ fontSize: '0.8rem' }} />
+              <span className="text-truncate" style={{ maxWidth: '150px' }}>{locationDisplay}</span>
+            </div>
           )}
         </div>
+        
         <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "Pas encore de bio"}</p>
 
         {isMatched(currentProfile.id) ? (
@@ -398,6 +448,43 @@ export default function CenterBlock({
           </div>
         )}
       </div>
+
+      <style>{`
+        @media (max-width: 991.98px) {
+          .center-card {
+            border-radius: 0 !important;
+            margin: 0 !important;
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+            height: 100% !important;
+          }
+          .image-container {
+            border-radius: 0 !important;
+            min-height: 50vh !important;
+            flex: 1.2 !important;
+          }
+          .card-content {
+            padding: 12px 16px !important;
+            flex: 0.9 !important;
+            overflow-y: auto !important;
+            padding-bottom: 20px !important;
+          }
+        }
+        
+        @media (min-width: 992px) {
+          .center-card {
+            border-radius: 24px !important;
+          }
+          .image-container {
+            min-height: 350px !important;
+            flex: 1.5 !important;
+          }
+          .card-content {
+            padding-bottom: 20px !important;
+            overflow-y: visible !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

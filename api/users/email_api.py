@@ -1,23 +1,34 @@
 import requests
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import logging
 from django.conf import settings
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 def send_otp_via_api(user, otp_code):
-    """Send OTP using Brevo API with SMTP fallback"""
+    """Send OTP using Brevo API with full logging"""
     
-    # Try API first
     try:
         url = "https://api.brevo.com/v3/smtp/email"
         
-        # HTML Email Template with 90 seconds expiration
+        # Debug: Check if API key exists
+        api_key = getattr(settings, 'BREVO_API_KEY', None)
+        if not api_key:
+            error_msg = "❌ BREVO_API_KEY is NOT configured in environment variables!"
+            logger.error(error_msg)
+            print(error_msg)
+            return False
+        
+        # Log API key presence (first few chars only for security)
+        print(f"🔑 API Key loaded: {api_key[:15]}... (length: {len(api_key)})")
+        logger.info(f"API Key loaded: {api_key[:15]}... (length: {len(api_key)})")
+        
+        # HTML Email Template
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Verify Your NouMatch Account</title>
             <style>
                 body {{
@@ -154,107 +165,49 @@ If you didn't request this verification, please ignore this email.
         
         headers = {
             "accept": "application/json",
-            "api-key": settings.BREVO_API_KEY,
+            "api-key": api_key,
             "content-type": "application/json"
         }
         
-        # Debug logging
+        # Log email attempt
         print(f"📧 Attempting to send OTP to {user.email}")
         print(f"🔐 OTP Code: {otp_code}")
+        logger.info(f"Attempting to send OTP to {user.email}")
         
+        # Make the API call
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         
-        print(f"📡 Response status: {response.status_code}")
+        # Log response
+        print(f"📡 Response Status: {response.status_code}")
+        print(f"📡 Response Body: {response.text}")
+        logger.info(f"Brevo API Response: {response.status_code}")
         
         if response.status_code == 201:
-            print(f"✅ API: OTP sent successfully to {user.email}")
+            print(f"✅ SUCCESS: OTP sent successfully to {user.email}")
+            logger.info(f"OTP sent successfully to {user.email}")
             return True
         else:
-            print(f"⚠️ API failed ({response.status_code}): {response.text}")
-            print(f"🔄 Falling back to SMTP...")
-            return send_otp_via_smtp(user, otp_code)
+            error_msg = f"❌ API Error: {response.status_code} - {response.text}"
+            print(error_msg)
+            logger.error(error_msg)
+            return False
             
     except requests.exceptions.Timeout:
-        print(f"⏰ API timeout, falling back to SMTP")
-        return send_otp_via_smtp(user, otp_code)
-    except Exception as e:
-        print(f"⚠️ API error: {e}, falling back to SMTP")
-        return send_otp_via_smtp(user, otp_code)
-
-
-def send_otp_via_smtp(user, otp_code):
-    """Fallback to SMTP if API fails"""
-    try:
-        subject = "Your NouMatch Verification Code (Expires in 90 Seconds)"
-        
-        # HTML content for SMTP
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Verify Your NouMatch Account</title>
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #ff4d6d, #ff8fa3); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">NouMatch</h1>
-                </div>
-                <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-                    <h2>Hello {user.first_name}!</h2>
-                    <p>Thank you for joining NouMatch. Use the code below to verify your email address:</p>
-                    <div style="background: white; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px; border: 2px solid #ff4d6d;">
-                        <span style="font-size: 36px; font-weight: bold; letter-spacing: 5px; color: #ff4d6d;">{otp_code}</span>
-                    </div>
-                    <div style="color: #ff4d6d; font-weight: bold; text-align: center; margin: 15px 0; padding: 10px; background: #fff0f0; border-radius: 5px;">
-                        ⚠️ This code expires in <strong>90 seconds</strong> for security reasons!
-                    </div>
-                    <p>If you didn't request this verification, please ignore this email.</p>
-                    <hr style="margin: 20px 0;">
-                    <p style="font-size: 12px; color: #999;">© 2026 NouMatch. All rights reserved.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        
-        # Plain text content
-        plain_content = f"""
-Hello {user.first_name}!
-
-Thank you for joining NouMatch. Use the code below to verify your email address:
-
-{otp_code}
-
-⚠️ IMPORTANT: This code expires in 90 seconds for security reasons!
-
-If you didn't request this verification, please ignore this email.
-
-© 2026 NouMatch. All rights reserved.
-"""
-        
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = settings.DEFAULT_FROM_EMAIL
-        msg['To'] = user.email
-        
-        # Attach both plain text and HTML versions
-        part1 = MIMEText(plain_content, 'plain')
-        part2 = MIMEText(html_content, 'html')
-        
-        msg.attach(part1)
-        msg.attach(part2)
-        
-        # Send email
-        with smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT) as server:
-            server.starttls()
-            server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
-            server.send_message(msg)
-        
-        print(f"✅ SMTP: OTP sent successfully to {user.email}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ SMTP failed: {e}")
+        error_msg = f"⏰ Timeout sending OTP to {user.email}"
+        print(error_msg)
+        logger.error(error_msg)
         return False
+        
+    except requests.exceptions.ConnectionError:
+        error_msg = f"🔌 Connection error sending OTP to {user.email}"
+        print(error_msg)
+        logger.error(error_msg)
+        return False
+        
+    except Exception as e:
+        error_msg = f"❌ Unexpected error: {e}"
+        print(error_msg)
+        logger.error(error_msg)
+        return False
+
+        

@@ -15,6 +15,20 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [crashError, setCrashError] = useState(null);
+  const [activeMobileTab, setActiveMobileTab] = useState('center');
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  // Track window resize for responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Global error catcher
   useEffect(() => {
@@ -130,8 +144,6 @@ export default function Dashboard() {
   const [matchedProfile, setMatchedProfile] = useState(null);
   const [unblockModalOpen, setUnblockModalOpen] = useState(false);
   const [selectedBlocked, setSelectedBlocked] = useState(null);
-  
-  // Report modal state
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [userToReport, setUserToReport] = useState(null);
 
@@ -1087,7 +1099,7 @@ export default function Dashboard() {
   };
 
   const centerCardStyle = {
-    borderRadius: "24px",
+    borderRadius: windowWidth < 992 ? "0px" : "24px",
     transition: "transform 0.3s ease, opacity 0.3s ease",
     transform:
       slideDirection === "left"
@@ -1101,122 +1113,451 @@ export default function Dashboard() {
     flexDirection: "column",
     overflow: "hidden",
     backgroundColor: "#ffffff",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+    boxShadow: windowWidth < 992 ? "none" : "0 4px 20px rgba(0,0,0,0.1)",
+  };
+
+  // Mobile bottom navigation component with reduced height
+  const MobileBottomNav = () => {
+    const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
+    
+    return (
+      <div 
+        className="d-block d-lg-none" 
+        style={{ 
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background: '#ffffff',
+          borderTop: '1px solid #e9ecef',
+          padding: '8px 0',
+          zIndex: 1000,
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+        }}
+      >
+        <div className="d-flex justify-content-around align-items-center">
+          <button
+            onClick={() => setActiveMobileTab('center')}
+            className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'center' ? 'text-danger' : 'text-secondary'}`}
+            style={{ transition: 'all 0.2s' }}
+          >
+            <i className={`fas ${activeMobileTab === 'center' ? 'fa-compass' : 'fa-compass'} fs-5`}></i>
+            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Découvrir</span>
+          </button>
+
+          {/* Only show Likes tab for Premium/God users */}
+          {isPremiumOrGod && (
+            <button
+              onClick={() => setActiveMobileTab('likes')}
+              className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 position-relative ${activeMobileTab === 'likes' ? 'text-danger' : 'text-secondary'}`}
+            >
+              <i className="fas fa-heart fs-5"></i>
+              {likesList.length > 0 && (
+                <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.6rem', padding: '2px 4px' }}>
+                  {likesList.length}
+                </span>
+              )}
+              <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Likes</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => setActiveMobileTab('matches')}
+            className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 position-relative ${activeMobileTab === 'matches' ? 'text-danger' : 'text-secondary'}`}
+          >
+            <i className="fas fa-comments fs-5"></i>
+            {matchesList.length > 0 && (
+              <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.6rem', padding: '2px 4px' }}>
+                {matchesList.length}
+              </span>
+            )}
+            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Matches</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMobileTab('blocks')}
+            className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 position-relative ${activeMobileTab === 'blocks' ? 'text-danger' : 'text-secondary'}`}
+          >
+            <i className="fas fa-ban fs-5"></i>
+            {blockedList.length > 0 && (
+              <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-secondary" style={{ fontSize: '0.6rem', padding: '2px 4px' }}>
+                {blockedList.length}
+              </span>
+            )}
+            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Bloqués</span>
+          </button>
+
+          <button
+            onClick={() => setActiveMobileTab('profile')}
+            className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'profile' ? 'text-danger' : 'text-secondary'}`}
+          >
+            <img
+              src={getProfilePhotoUrl(user?.profile_photo)}
+              alt="profile"
+              className="rounded-circle"
+              style={{ width: '20px', height: '20px', objectFit: 'cover' }}
+            />
+            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Profil</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper components for mobile
+  const AvatarRow = ({ items, onClickAvatar }) => (
+    <div className="d-flex align-items-center gap-2 flex-wrap mt-3">
+      {items.slice(0, 8).map((p) => {
+        const displayName = p.first_name && p.last_name 
+          ? `${p.first_name} ${p.last_name}` 
+          : p.first_name || p.last_name || "";
+        
+        return (
+          <button
+            key={p.id}
+            type="button"
+            className="p-0 border-0 bg-transparent"
+            onClick={() => onClickAvatar?.(p)}
+            style={{ lineHeight: 0 }}
+            aria-label={displayName ? `Ouvrir le profil de ${displayName}` : "Ouvrir le profil"}
+          >
+            <div className="position-relative">
+              <img
+                src={p.photo || "https://via.placeholder.com/42"}
+                alt={displayName || "Utilisateur"}
+                className="rounded-circle"
+                width="42"
+                height="42"
+                style={{
+                  objectFit: "cover",
+                  border: "2px solid #fff",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  cursor: "pointer",
+                  transition: "transform 0.2s",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.1)"}
+                onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+              />
+            </div>
+          </button>
+        );
+      })}
+
+      {items.length > 8 && (
+        <span className="badge bg-light text-dark rounded-pill px-3 py-2" style={{ fontSize: "0.85rem" }}>
+          +{items.length - 8}
+        </span>
+      )}
+    </div>
+  );
+
+  const SectionCard = ({ title, count, children }) => (
+    <div
+      className="p-3 mt-3"
+      style={{
+        borderRadius: "20px",
+        background: "linear-gradient(145deg, #ffffff, #f8f9fa)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
+      }}
+    >
+      <div className="d-flex justify-content-between align-items-center mb-2">
+        <span className="fw-semibold" style={{ fontSize: "0.95rem", color: "#2c3e50" }}>{title}</span>
+        <span className="badge rounded-pill" style={{ background: "#e9ecef", color: "#495057", padding: "6px 12px" }}>{count}</span>
+      </div>
+      {children}
+    </div>
+  );
+
+  // Mobile content renderer
+  const renderMobileContent = () => {
+    switch(activeMobileTab) {
+      case 'likes':
+        return (
+          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
+            <div className="scrollable-card p-3">
+              <SectionCard title="Qui vous aiment" count={likesList.length}>
+                {likesList.length > 0 ? (
+                  <AvatarRow items={likesList} onClickAvatar={openLikeModal} />
+                ) : (
+                  <div className="text-center py-3">
+                    <div className="text-secondary small">
+                      <i className="far fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
+                      <div>Aucun like pour le moment</div>
+                    </div>
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+          </div>
+        );
+      case 'matches':
+        return (
+          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
+            <div className="scrollable-card p-3">
+              <SectionCard title="Matches" count={matchesList.length}>
+                {matchesList.length > 0 ? (
+                  <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} />
+                ) : (
+                  <div className="text-center py-3">
+                    <div className="text-secondary small">
+                      <i className="fas fa-heart me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
+                      <div>Pas encore de matches</div>
+                    </div>
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+          </div>
+        );
+      case 'blocks':
+        return (
+          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
+            <div className="scrollable-card p-3">
+              <SectionCard title="Bloqués" count={blockedList.length}>
+                {blockedList.length > 0 ? (
+                  <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} />
+                ) : (
+                  <div className="text-center py-3">
+                    <div className="text-secondary small">
+                      <i className="fas fa-ban me-2" style={{ opacity: 0.5, fontSize: "1.2rem" }}></i>
+                      <div>Aucun utilisateur bloqué</div>
+                    </div>
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+          </div>
+        );
+      case 'profile':
+        return (
+          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
+            <div className="scrollable-card p-3">
+              <div className="text-center">
+                <img
+                  src={getProfilePhotoUrl(user?.profile_photo)}
+                  alt="profile"
+                  className="rounded-circle mb-3"
+                  style={{ width: '100px', height: '100px', objectFit: 'cover', border: '3px solid #ff4d6d' }}
+                />
+                <h5 className="fw-bold">
+                  {user?.first_name} {user?.last_name}
+                </h5>
+                <p className="text-secondary small">{user?.email}</p>
+                <div className="mt-3">
+                  <button
+                    onClick={goToMyProfile}
+                    className="btn btn-outline-danger w-100 mb-2"
+                    style={{ borderRadius: '30px' }}
+                  >
+                    Voir mon profil
+                  </button>
+                  <button
+                    onClick={() => {
+                      localStorage.removeItem("access");
+                      localStorage.removeItem("refresh");
+                      navigate("/login");
+                    }}
+                    className="btn btn-outline-secondary w-100"
+                    style={{ borderRadius: '30px' }}
+                  >
+                    Déconnexion
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return (
+          <div className="h-100" style={{ height: '100%' }}>
+            <CenterBlock
+              profilesLoading={profilesLoading}
+              apiError={apiError}
+              profiles={profiles}
+              profileIndex={profileIndex}
+              currentProfile={currentProfile}
+              getCurrentPhotoUrl={getCurrentPhotoUrl}
+              openPhotoModal={openPhotoModal}
+              getCurrentProfilePhotos={getCurrentProfilePhotos}
+              currentPhotoIndex={currentPhotoIndex}
+              setCurrentPhotoIndex={setCurrentPhotoIndex}
+              goToPrevPhoto={goToPrevPhoto}
+              goToNextPhoto={goToNextPhoto}
+              isPhotoAnimating={isPhotoAnimating}
+              isMatched={isMatched}
+              isLiked={isLiked}
+              goToProfile={goToProfile}
+              handlePass={handlePass}
+              handleLike={handleLike}
+              isAnimating={isAnimating}
+              goToMessenger={goToMessenger}
+              setMatchedProfile={setMatchedProfile}
+              setMatchModalOpen={setMatchModalOpen}
+              openReportModal={openReportModal}
+              handleBlock={handleBlock}
+              centerCardStyle={centerCardStyle}
+              reloadProfiles={reloadProfiles}
+              swipeLimits={swipeLimits}
+            />
+          </div>
+        );
+    }
   };
 
   return (
     <>
       <DashboardNavbar user={user} />
       
-      <div className="dashboard-container container">
+      {/* Main container with responsive height */}
+      <div 
+        className="dashboard-container" 
+        style={{ 
+          height: windowWidth < 768 ? 'calc(100vh - 64px)' : 'calc(100vh - 72px)',
+          overflow: 'hidden',
+          position: 'relative',
+          margin: 0,
+          padding: 0
+        }}
+      >
         {loading ? (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
             <div className="spinner-border text-primary" role="status" />
           </div>
         ) : user ? (
-          <div className="container-fluid h-100 py-3">
-            <div className="row g-3 h-100 dashboard-row">
-              {/* LEFT BLOCK */}
-              <div className="col-lg-3 col-md-4 order-2 order-md-1 h-100 dashboard-col">
-                <LeftBlock 
-                  user={user}
-                  likesList={likesList}
-                  matchesList={matchesList}
-                  blockedList={blockedList}
-                  openLikeModal={openLikeModal}
-                  openMatchModalFor={openMatchModalFor}
-                  openUnblockModal={openUnblockModal}
-                  goToMyProfile={goToMyProfile}
-                />
-              </div>
+          <>
+            {/* Desktop/Tablet Layout - visible on md and up */}
+            <div className={`${windowWidth < 992 ? 'd-none' : 'd-block'}`} style={{ height: '100%', overflow: 'auto' }}>
+              <div className={`${windowWidth >= 1200 ? 'container' : 'container-fluid'} h-100 py-3`}>
+                <div className="row g-3 h-100 dashboard-row">
+                  {/* LEFT BLOCK - visible on md and up */}
+                  <div className={`${windowWidth >= 992 ? 'col-lg-3 col-md-4' : 'd-none'} order-2 order-md-1 h-100 dashboard-col`}>
+                    <LeftBlock 
+                      user={user}
+                      likesList={likesList}
+                      matchesList={matchesList}
+                      blockedList={blockedList}
+                      openLikeModal={openLikeModal}
+                      openMatchModalFor={openMatchModalFor}
+                      openUnblockModal={openUnblockModal}
+                      goToMyProfile={goToMyProfile}
+                    />
+                  </div>
 
-              {/* CENTER BLOCK */}
-              <div className="col-lg-6 col-md-8 order-1 order-md-2 h-100 dashboard-col center-col">
-                <CenterBlock
-                  profilesLoading={profilesLoading}
-                  apiError={apiError}
-                  profiles={profiles}
-                  profileIndex={profileIndex}
-                  currentProfile={currentProfile}
-                  getCurrentPhotoUrl={getCurrentPhotoUrl}
-                  openPhotoModal={openPhotoModal}
-                  getCurrentProfilePhotos={getCurrentProfilePhotos}
-                  currentPhotoIndex={currentPhotoIndex}
-                  setCurrentPhotoIndex={setCurrentPhotoIndex}
-                  goToPrevPhoto={goToPrevPhoto}
-                  goToNextPhoto={goToNextPhoto}
-                  isPhotoAnimating={isPhotoAnimating}
-                  isMatched={isMatched}
-                  isLiked={isLiked}
-                  goToProfile={goToProfile}
-                  handlePass={handlePass}
-                  handleLike={handleLike}
-                  isAnimating={isAnimating}
-                  goToMessenger={goToMessenger}
-                  setMatchedProfile={setMatchedProfile}
-                  setMatchModalOpen={setMatchModalOpen}
-                  openReportModal={openReportModal}
-                  handleBlock={handleBlock}
-                  centerCardStyle={centerCardStyle}
-                  reloadProfiles={reloadProfiles}
-                  swipeLimits={swipeLimits}
-                />
-              </div>
+                  {/* CENTER BLOCK - always visible */}
+                  <div className={`${windowWidth >= 992 ? 'col-lg-6 col-md-8' : 'col-12'} order-1 order-md-2 h-100 dashboard-col center-col`}>
+                    <CenterBlock
+                      profilesLoading={profilesLoading}
+                      apiError={apiError}
+                      profiles={profiles}
+                      profileIndex={profileIndex}
+                      currentProfile={currentProfile}
+                      getCurrentPhotoUrl={getCurrentPhotoUrl}
+                      openPhotoModal={openPhotoModal}
+                      getCurrentProfilePhotos={getCurrentProfilePhotos}
+                      currentPhotoIndex={currentPhotoIndex}
+                      setCurrentPhotoIndex={setCurrentPhotoIndex}
+                      goToPrevPhoto={goToPrevPhoto}
+                      goToNextPhoto={goToNextPhoto}
+                      isPhotoAnimating={isPhotoAnimating}
+                      isMatched={isMatched}
+                      isLiked={isLiked}
+                      goToProfile={goToProfile}
+                      handlePass={handlePass}
+                      handleLike={handleLike}
+                      isAnimating={isAnimating}
+                      goToMessenger={goToMessenger}
+                      setMatchedProfile={setMatchedProfile}
+                      setMatchModalOpen={setMatchModalOpen}
+                      openReportModal={openReportModal}
+                      handleBlock={handleBlock}
+                      centerCardStyle={centerCardStyle}
+                      reloadProfiles={reloadProfiles}
+                      swipeLimits={swipeLimits}
+                    />
+                  </div>
 
-              {/* RIGHT BLOCK */}
-              <div className="col-lg-3 d-none d-lg-block order-3 h-100 dashboard-col">
-                <RightBlock
-                  currentProfile={currentProfile}
-                  getCurrentProfilePhotos={getCurrentProfilePhotos}
-                  isMatched={isMatched}
-                  isLiked={isLiked}
-                  goToProfile={goToProfile}
-                  goToMessenger={goToMessenger}
-                />
+                  {/* RIGHT BLOCK - visible on lg and up */}
+                  <div className={`${windowWidth >= 992 ? 'col-lg-3 d-block' : 'd-none'} order-3 h-100 dashboard-col`}>
+                    <RightBlock
+                      currentProfile={currentProfile}
+                      getCurrentProfilePhotos={getCurrentProfilePhotos}
+                      isMatched={isMatched}
+                      isLiked={isLiked}
+                      goToProfile={goToProfile}
+                      goToMessenger={goToMessenger}
+                    />
+                  </div>
+                </div>
               </div>
-
-              {/* MODALS */}
-              <Modals
-                user={user}
-                likeModalOpen={likeModalOpen}
-                closeLikeModal={closeLikeModal}
-                selectedLike={selectedLike}
-                openPhotoModal={openPhotoModal}
-                isMatched={isMatched}
-                goToProfile={goToProfile}
-                goToMessenger={goToMessenger}
-                handleUnlikeFromModal={handleUnlikeFromModal}
-                handleBlock={handleBlock}
-                openReportModal={openReportModal}
-                handlePassFromLikeModal={handlePassFromLikeModal}
-                handleLikeBack={handleLikeBack}
-                matchModalOpen={matchModalOpen}
-                closeMatchModal={closeMatchModal}
-                matchedProfile={matchedProfile}
-                handleUnmatch={handleUnmatch}
-                unblockModalOpen={unblockModalOpen}
-                closeUnblockModal={closeUnblockModal}
-                selectedBlocked={selectedBlocked}
-                handleUnblock={handleUnblock}
-                photoModalOpen={photoModalOpen}
-                closePhotoModal={closePhotoModal}
-                modalPhotos={modalPhotos}
-                modalPhotoIndex={modalPhotoIndex}
-                setModalPhotoIndex={setModalPhotoIndex}
-                selectedPhoto={selectedPhoto}
-                setSelectedPhoto={setSelectedPhoto}
-                reportModalOpen={reportModalOpen}
-                closeReportModal={closeReportModal}
-                userToReport={userToReport}
-              />
             </div>
-          </div>
+
+            {/* Mobile Layout - visible only on small screens */}
+            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                {renderMobileContent()}
+              </div>
+            </div>
+
+            {/* Mobile bottom navigation - only on small screens */}
+            {windowWidth < 992 && <MobileBottomNav />}
+
+            {/* MODALS */}
+            <Modals
+              user={user}
+              likeModalOpen={likeModalOpen}
+              closeLikeModal={closeLikeModal}
+              selectedLike={selectedLike}
+              openPhotoModal={openPhotoModal}
+              isMatched={isMatched}
+              goToProfile={goToProfile}
+              goToMessenger={goToMessenger}
+              handleUnlikeFromModal={handleUnlikeFromModal}
+              handleBlock={handleBlock}
+              openReportModal={openReportModal}
+              handlePassFromLikeModal={handlePassFromLikeModal}
+              handleLikeBack={handleLikeBack}
+              matchModalOpen={matchModalOpen}
+              closeMatchModal={closeMatchModal}
+              matchedProfile={matchedProfile}
+              handleUnmatch={handleUnmatch}
+              unblockModalOpen={unblockModalOpen}
+              closeUnblockModal={closeUnblockModal}
+              selectedBlocked={selectedBlocked}
+              handleUnblock={handleUnblock}
+              photoModalOpen={photoModalOpen}
+              closePhotoModal={closePhotoModal}
+              modalPhotos={modalPhotos}
+              modalPhotoIndex={modalPhotoIndex}
+              setModalPhotoIndex={setModalPhotoIndex}
+              selectedPhoto={selectedPhoto}
+              setSelectedPhoto={setSelectedPhoto}
+              reportModalOpen={reportModalOpen}
+              closeReportModal={closeReportModal}
+              userToReport={userToReport}
+            />
+          </>
         ) : (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
             <p className="text-secondary">Impossible de charger les données utilisateur.</p>
           </div>
         )}
       </div>
+
+      <style>{`
+        /* Smooth transitions for responsive changes */
+        .dashboard-col {
+          transition: all 0.3s ease;
+        }
+        
+        .center-card {
+          transition: all 0.3s ease;
+        }
+        
+        /* Ensure proper scrolling on all devices */
+        .dashboard-container {
+          -webkit-overflow-scrolling: touch;
+        }
+      `}</style>
     </>
   );
 }

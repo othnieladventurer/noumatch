@@ -40,8 +40,8 @@ export default function App() {
     "/profile/",
     "/messages",
     "/messages/",
-    "/notifications", // ADD notifications route
-    "/notifications/", // ADD notifications route
+    "/notifications",
+    "/notifications/",
     "/login",
     "/register",
     "/verify-email",
@@ -49,6 +49,7 @@ export default function App() {
     "/forgot-password",
     "/reset-password",
     "/reset-password-done",
+    "/verify-otp",  // ✅ Added verify-otp to hide navbar and footer
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -56,7 +57,7 @@ export default function App() {
   );
 
   return (
-    <NotificationProvider> {/* WRAP THE APP WITH NOTIFICATIONPROVIDER */}
+    <NotificationProvider>
       <div className="App">
         {!shouldHideLayout && <Navbar />}
 
@@ -84,7 +85,7 @@ export default function App() {
             <Route path="/messages" element={<Messages />} />
             <Route path="/messages/:id" element={<Conversation />} />
 
-            {/* Notifications Route - ADD THIS */}
+            {/* Notifications Route */}
             <Route path="/notifications" element={<Notifications />} />
 
             <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -98,3 +99,5 @@ export default function App() {
     </NotificationProvider>
   );
 }
+
+

@@ -195,7 +195,7 @@ PASS_EXPIRY_HOURS = 1/60
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-ENVIRONMENT = config("ENVIRONMENT", default="production").lower()
+ENVIRONMENT = config("ENVIRONMENT", default="development").lower()
 DEBUG = True if ENVIRONMENT == "development" else False
 
 
