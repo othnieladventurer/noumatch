@@ -25,37 +25,49 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // 👇 USING CONFIGURED AXIOS INSTANCE
       const response = await API.post("users/login/", formData);
       
-      // Save tokens for auto-login
+      // Store tokens
       localStorage.setItem("access", response.data.access);
       localStorage.setItem("refresh", response.data.refresh);
-
-      // Redirect to dashboard
-      navigate("/dashboard");
+      
+      // Get user info to check verification status
+      const userResponse = await API.get("users/me/");
+      const user = userResponse.data;
+      
+      console.log("User verification status:", user.is_verified);
+      
+      if (user.is_verified === true) {
+        // Verified user - go to dashboard
+        navigate("/dashboard");
+      } else {
+        // Unverified user - store info and redirect to OTP
+        localStorage.setItem("unverified_user_id", user.id);
+        localStorage.setItem("unverified_email", user.email);
+        navigate("/verify-otp");
+      }
       
     } catch (error) {
-      console.error("Login error:", error);
+      console.error("Erreur de connexion:", error);
       
-      // Handle error response
       if (error.response) {
-        // Server responded with error
-        let message = "";
-        if (typeof error.response.data === "object") {
-          for (let key in error.response.data) {
-            message += `${key}: ${error.response.data[key]}\n`;
-          }
+        if (error.response.status === 401 || error.response.status === 404) {
+          setErrorMessage("Email ou mot de passe incorrect");
         } else {
-          message = error.response.data || "Login failed";
+          let message = "";
+          if (typeof error.response.data === "object") {
+            for (let key in error.response.data) {
+              message += `${key}: ${error.response.data[key]}\n`;
+            }
+          } else {
+            message = error.response.data || "Échec de la connexion";
+          }
+          setErrorMessage(message);
         }
-        setErrorMessage(message);
       } else if (error.request) {
-        // Request made but no response
-        setErrorMessage("Network or server error. Please try again.");
+        setErrorMessage("Erreur réseau ou serveur. Veuillez réessayer.");
       } else {
-        // Something else happened
-        setErrorMessage("An error occurred. Please try again.");
+        setErrorMessage("Une erreur est survenue. Veuillez réessayer.");
       }
     } finally {
       setLoading(false);
@@ -73,13 +85,13 @@ export default function Login() {
         backgroundRepeat: "no-repeat",
       }}
     >
-      {/* Dark overlay */}
+      {/* Overlay sombre */}
       <div
         className="position-absolute top-0 start-0 w-100 h-100"
         style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
       ></div>
 
-      {/* Login Card */}
+      {/* Carte de connexion */}
       <div
         className="card shadow-lg border-0 rounded-4 p-4 position-relative"
         style={{ width: "100%", maxWidth: "400px" }}
@@ -90,10 +102,10 @@ export default function Login() {
               <FaHeart className="text-danger me-2" />
               <span className="text-primary">NouMatch</span>
             </h1>
-            <p className="text-muted mb-0">Find your perfect match</p>
+            <p className="text-muted mb-0">Trouvez votre âme sœur</p>
           </div>
 
-          {/* Error message */}
+          {/* Message d'erreur */}
           {errorMessage && (
             <div className="alert alert-danger white-space-pre-wrap">
               {errorMessage}
@@ -109,20 +121,20 @@ export default function Login() {
                 value={formData.email}
                 onChange={handleChange}
                 className="form-control form-control-lg"
-                placeholder="you@example.com"
+                placeholder="vous@exemple.com"
                 required
               />
             </div>
 
             <div className="mb-3">
-              <label className="form-label">Password</label>
+              <label className="form-label">Mot de passe</label>
               <input
                 type="password"
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
                 className="form-control form-control-lg"
-                placeholder="Enter your password"
+                placeholder="Entrez votre mot de passe"
                 required
               />
             </div>
@@ -132,18 +144,18 @@ export default function Login() {
               className="btn btn-danger w-100 btn-lg"
               disabled={loading}
             >
-              {loading ? "Logging in..." : "Login"}
+              {loading ? "Connexion en cours..." : "Se connecter"}
             </button>
           </form>
 
           <div className="text-center mt-3">
             <small className="text-muted">
-              Don’t have an account?{" "}
+              Vous n'avez pas de compte ?{" "}
               <Link
                 to="/register"
                 className="text-danger text-decoration-none fw-semibold"
               >
-                Sign Up
+                S'inscrire
               </Link>
             </small>
           </div>
