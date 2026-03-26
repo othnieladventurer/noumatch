@@ -271,7 +271,7 @@ export default function CenterBlock({
       </div>
 
       {/* Content area - NO SCROLLBAR on desktop */}
-      <div className="card-content" style={{ flex: 1, overflowY: 'visible', padding: '16px' }}>
+      <div className="card-content" style={{ flex: 1, overflowY: 'visible', padding: '16px', margin: 0 }}>
         <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
           {/* Name and Age - left side */}
           <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -299,7 +299,7 @@ export default function CenterBlock({
         <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "Pas encore de bio"}</p>
 
         {isMatched(currentProfile.id) ? (
-          <div className="d-flex justify-content-center gap-2 flex-wrap mt-3">
+          <div className="d-flex justify-content-center gap-2 flex-wrap mt-3" style={{ marginBottom: 0, paddingBottom: 0 }}>
             <button
               onClick={handlePass}
               disabled={isAnimating}
@@ -373,7 +373,7 @@ export default function CenterBlock({
             />
           </div>
         ) : (
-          <div className="d-flex justify-content-center gap-3 mt-3">
+          <div className="d-flex justify-content-center gap-3 mt-3" style={{ marginBottom: 0, paddingBottom: 0 }}>
             <button
               onClick={handlePass}
               disabled={isAnimating}
@@ -454,33 +454,54 @@ export default function CenterBlock({
           .center-card {
             border-radius: 0 !important;
             margin: 0 !important;
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
+            padding: 0 !important;
             height: 100% !important;
+            width: 100% !important;
+            box-shadow: none !important;
           }
+          
           .image-container {
             border-radius: 0 !important;
-            min-height: 50vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
             flex: 1.2 !important;
+            min-height: 50vh !important;
           }
+          
           .card-content {
             padding: 12px 16px !important;
+            margin: 0 !important;
             flex: 0.9 !important;
             overflow-y: auto !important;
-            padding-bottom: 20px !important;
+            padding-bottom: 0 !important;
+            margin-bottom: 0 !important;
+          }
+          
+          /* Remove any possible margin on paragraphs or buttons */
+          .card-content p,
+          .card-content div,
+          .card-content button {
+            margin-bottom: 0 !important;
+          }
+          
+          /* Ensure action buttons don't create space */
+          .card-content .d-flex {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
           }
         }
         
         @media (min-width: 992px) {
           .center-card {
             border-radius: 24px !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
           }
           .image-container {
             min-height: 350px !important;
             flex: 1.5 !important;
           }
           .card-content {
-            padding-bottom: 0 !important;
+            padding-bottom: 20px !important;
             overflow-y: visible !important;
           }
         }
@@ -488,3 +509,5 @@ export default function CenterBlock({
     </div>
   );
 }
+
+

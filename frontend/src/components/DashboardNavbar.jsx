@@ -30,6 +30,7 @@ export default function DashboardNavbar({ user }) {
     }
   }, [user]);
 
+  // Heartbeat to keep user online
   useEffect(() => {
     const sendHeartbeat = async () => {
       const token = localStorage.getItem("access");
@@ -66,6 +67,7 @@ export default function DashboardNavbar({ user }) {
     };
   }, [user, BASE_URL]);
 
+  // Fetch conversations and unread count
   useEffect(() => {
     if (user && user.id) {
       fetchConversations();
@@ -74,6 +76,7 @@ export default function DashboardNavbar({ user }) {
     }
   }, [user]);
 
+  // Refresh conversations when new message notification arrives
   useEffect(() => {
     if (!user || !notifications.length) return;
     const lastNotif = notifications[0];
@@ -287,14 +290,18 @@ export default function DashboardNavbar({ user }) {
           color: #212529;
         }
 
-        /* Responsive dropdown positioning */
-        @media (max-width: 768px) {
+        /* Remove any bottom margin from navbar on mobile */
+        @media (max-width: 991.98px) {
           .nm-navbar {
             min-height: 64px;
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
           }
 
           .nm-navbar .container {
             min-height: 64px;
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
           }
 
           .nm-dropdown-menu {
@@ -309,7 +316,6 @@ export default function DashboardNavbar({ user }) {
             margin-top: 10px;
           }
           
-          /* For messages dropdown on mobile */
           .dropdown-menu.show {
             display: block;
           }
@@ -507,7 +513,7 @@ export default function DashboardNavbar({ user }) {
                   </div>
                 </li>
                 
-                {/* Account Type Badge - Show only, no upgrade option */}
+                {/* Account Type Badge */}
                 <li className="px-3 py-1">
                   {user.account_type === 'free' && (
                     <span className="badge bg-secondary w-100 py-2">
@@ -538,8 +544,6 @@ export default function DashboardNavbar({ user }) {
                     Mon profil
                   </Link>
                 </li>
-                
-                {/* Premium upgrade option removed - not showing for free users */}
                 
                 <li>
                   <hr className="dropdown-divider" />

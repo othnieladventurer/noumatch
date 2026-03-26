@@ -1132,7 +1132,8 @@ export default function Dashboard() {
           borderTop: '1px solid #e9ecef',
           padding: '8px 0',
           zIndex: 1000,
-          boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
+          margin: 0,
         }}
       >
         <div className="d-flex justify-content-around align-items-center">
@@ -1369,7 +1370,7 @@ export default function Dashboard() {
         );
       default:
         return (
-          <div className="h-100" style={{ height: '100%' }}>
+          <div className="h-100" style={{ height: '100%', margin: 0, padding: 0 }}>
             <CenterBlock
               profilesLoading={profilesLoading}
               apiError={apiError}
@@ -1492,10 +1493,28 @@ export default function Dashboard() {
             </div>
 
             {/* Mobile Layout - visible only on small screens */}
-            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ 
+              height: '100%', 
+              display: 'flex', 
+              flexDirection: 'column',
+              margin: 0,
+              padding: 0
+            }}>
               {/* Content area - fills available space */}
-              <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-                <div style={{ height: '100%', overflowY: 'auto' }}>
+              <div style={{ 
+                flex: 1, 
+                minHeight: 0, 
+                position: 'relative',
+                margin: 0,
+                padding: 0
+              }}>
+                <div style={{ 
+                  height: '100%', 
+                  width: '100%',
+                  overflowY: 'auto',
+                  margin: 0,
+                  padding: 0
+                }}>
                   {renderMobileContent()}
                 </div>
               </div>
@@ -1569,6 +1588,7 @@ export default function Dashboard() {
           }
           .center-card {
             margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
           }
         }
       `}</style>
