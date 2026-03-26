@@ -31,21 +31,8 @@ export default function Login() {
       localStorage.setItem("access", response.data.access);
       localStorage.setItem("refresh", response.data.refresh);
       
-      // Get user info to check verification status
-      const userResponse = await API.get("users/me/");
-      const user = userResponse.data;
-      
-      console.log("User verification status:", user.is_verified);
-      
-      if (user.is_verified === true) {
-        // Verified user - go to dashboard
-        navigate("/dashboard");
-      } else {
-        // Unverified user - store info and redirect to OTP
-        localStorage.setItem("unverified_user_id", user.id);
-        localStorage.setItem("unverified_email", user.email);
-        navigate("/verify-otp");
-      }
+      // Go directly to dashboard (no verification check)
+      navigate("/dashboard");
       
     } catch (error) {
       console.error("Erreur de connexion:", error);

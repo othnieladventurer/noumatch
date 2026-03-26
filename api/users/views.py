@@ -175,6 +175,7 @@ class ResendOTPView(APIView):
 
 
 
+
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny] 
@@ -204,7 +205,9 @@ class LoginView(generics.GenericAPIView):
             "access": str(refresh.access_token),
             "refresh": str(refresh),
         })
-    
+ 
+
+
 
 class MeView(APIView):
     permission_classes = [IsAuthenticated]

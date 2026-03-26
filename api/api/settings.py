@@ -31,8 +31,7 @@ ALLOWED_HOSTS = [
     'api.noumatch.com', 
     'noumatch.com', 
     'www.noumatch.com',
-    'noumatch.netlify.app',  
-    'noumatchht.netlify.app',
+    'https://noumatch.onrender.com',
     'localhost',          
     '127.0.0.1',        
     '.netlify.app',                  
@@ -41,8 +40,6 @@ ALLOWED_HOSTS = [
 CORS_ALLOWED_ORIGINS = [
     'https://noumatch.com',
     'https://www.noumatch.com',
-    'https://noumatch.netlify.app',
-    'https://noumatchht.netlify.app', 
     'https://noumatch.onrender.com', 
     'http://localhost:5173',
     'http://localhost:3000',
@@ -68,7 +65,6 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 CSRF_TRUSTED_ORIGINS = [
     'https://noumatch.com',
     'https://www.noumatch.com',
-    'https://noumatch.netlify.app',  
     'https://noumatch.onrender.com',
     'http://localhost:5173',
     'http://localhost:3000',
@@ -78,8 +74,6 @@ CSRF_TRUSTED_ORIGINS = [
 
 
 
-
-CORS_ALLOW_ALL_ORIGINS = True
 
 # Application definition
 

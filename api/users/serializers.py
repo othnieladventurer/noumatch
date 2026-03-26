@@ -6,6 +6,7 @@ from django.conf import settings
 from datetime import timedelta, date
 from django.contrib.auth.password_validation import validate_password
 from django.core.files.storage import default_storage
+from rest_framework_simplejwt.tokens import RefreshToken
 import random
 import string
 import time
@@ -190,7 +191,6 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 
-
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
@@ -212,6 +212,8 @@ class LoginSerializer(serializers.Serializer):
         return attrs
 
 
+
+        
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
