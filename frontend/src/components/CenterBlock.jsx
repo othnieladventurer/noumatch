@@ -113,7 +113,7 @@ export default function CenterBlock({
     );
   }
 
-  // Safe wrapper for photo navigation to prevent DOM errors
+  // Safe wrapper for photo navigation
   const safeGoToPrevPhoto = (e) => {
     if (!currentProfile) return;
     const photos = getCurrentProfilePhotos();
@@ -142,7 +142,6 @@ export default function CenterBlock({
     setCurrentPhotoIndex(idx);
   };
 
-  // Responsive styles - rounded corners only on desktop
   const responsiveCardStyle = {
     ...centerCardStyle,
     borderRadius: typeof window !== 'undefined' && window.innerWidth < 992 ? '0px' : '24px',
@@ -150,23 +149,21 @@ export default function CenterBlock({
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
-    marginBottom: 0,
-    paddingBottom: 0,
+    margin: 0,
+    padding: 0,
     overflow: 'hidden'
   };
 
-  // Image container style - balanced height on desktop
   const imageContainerStyle = {
     position: 'relative',
     width: '100%',
     cursor: 'pointer',
     overflow: 'hidden',
     backgroundColor: '#f8f9fa',
-    flex: typeof window !== 'undefined' && window.innerWidth < 992 ? 1.2 : 1.5,
-    minHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? '50vh' : '350px'
+    flex: typeof window !== 'undefined' && window.innerWidth < 992 ? '0 0 auto' : 1.5,
+    minHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? 'auto' : '350px'
   };
 
-  // Get location display - handle empty location
   const getLocationDisplay = () => {
     if (currentProfile.location && currentProfile.location.trim()) {
       return currentProfile.location;
@@ -178,7 +175,6 @@ export default function CenterBlock({
 
   return (
     <div className="center-card" style={responsiveCardStyle}>
-      {/* Image du profil avec navigation photo */}
       <div 
         className="image-container" 
         onClick={safeOpenPhotoModal}
@@ -209,7 +205,6 @@ export default function CenterBlock({
               }}
             />
             
-            {/* Photo indicators */}
             {getCurrentProfilePhotos().length > 1 && (
               <div className="photo-indicators">
                 {getCurrentProfilePhotos().map((_, idx) => (
@@ -225,7 +220,6 @@ export default function CenterBlock({
               </div>
             )}
             
-            {/* Navigation arrows */}
             {getCurrentProfilePhotos().length > 1 && (
               <>
                 <button
@@ -236,7 +230,6 @@ export default function CenterBlock({
                 >
                   <i className="fas fa-chevron-left" style={{ color: '#333', fontSize: '1rem' }} />
                 </button>
-                
                 <button
                   className="photo-nav-arrow right"
                   onClick={safeGoToNextPhoto}
@@ -248,7 +241,6 @@ export default function CenterBlock({
               </>
             )}
             
-            {/* Photo count */}
             {getCurrentProfilePhotos().length > 1 && (
               <div style={{
                 position: 'absolute',
@@ -270,10 +262,8 @@ export default function CenterBlock({
         )}
       </div>
 
-      {/* Content area - NO SCROLLBAR on desktop */}
-      <div className="card-content" style={{ flex: 1, overflowY: 'visible', padding: '16px', margin: 0 }}>
+      <div className="card-content" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', margin: 0 }}>
         <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-          {/* Name and Age - left side */}
           <div className="d-flex align-items-center gap-2 flex-wrap">
             <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
               {formatName(currentProfile)}
@@ -286,8 +276,6 @@ export default function CenterBlock({
               <span className="status-badge liked-badge">Aimé</span>
             )}
           </div>
-          
-          {/* Location - right side on same line (only if location exists) */}
           {locationDisplay && (
             <div className="d-flex align-items-center text-secondary" style={{ fontSize: '0.9rem' }}>
               <i className="fas fa-map-marker-alt me-1" style={{ fontSize: '0.8rem' }} />
@@ -299,7 +287,7 @@ export default function CenterBlock({
         <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "Pas encore de bio"}</p>
 
         {isMatched(currentProfile.id) ? (
-          <div className="d-flex justify-content-center gap-2 flex-wrap mt-3" style={{ marginBottom: 0, paddingBottom: 0 }}>
+          <div className="d-flex justify-content-center gap-2 flex-wrap mt-2" style={{ marginBottom: 0 }}>
             <button
               onClick={handlePass}
               disabled={isAnimating}
@@ -373,7 +361,7 @@ export default function CenterBlock({
             />
           </div>
         ) : (
-          <div className="d-flex justify-content-center gap-3 mt-3" style={{ marginBottom: 0, paddingBottom: 0 }}>
+          <div className="d-flex justify-content-center gap-3 mt-2" style={{ marginBottom: 0 }}>
             <button
               onClick={handlePass}
               disabled={isAnimating}
@@ -464,30 +452,22 @@ export default function CenterBlock({
             border-radius: 0 !important;
             margin: 0 !important;
             padding: 0 !important;
-            flex: 1.2 !important;
-            min-height: 50vh !important;
+            flex: 0 0 auto !important;
+            max-height: 45vh !important;
+          }
+          
+          .image-container img {
+            width: 100% !important;
+            height: auto !important;
+            max-height: 45vh !important;
+            object-fit: cover !important;
           }
           
           .card-content {
             padding: 12px 16px !important;
             margin: 0 !important;
-            flex: 0.9 !important;
+            flex: 1 !important;
             overflow-y: auto !important;
-            padding-bottom: 0 !important;
-            margin-bottom: 0 !important;
-          }
-          
-          /* Remove any possible margin on paragraphs or buttons */
-          .card-content p,
-          .card-content div,
-          .card-content button {
-            margin-bottom: 0 !important;
-          }
-          
-          /* Ensure action buttons don't create space */
-          .card-content .d-flex {
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
           }
         }
         
@@ -509,5 +489,3 @@ export default function CenterBlock({
     </div>
   );
 }
-
-

@@ -18,10 +18,8 @@ export default function DashboardNavbar({ user }) {
 
   const { notifications } = useNotifications();
 
-  // Use environment variable for base URL
   const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  // Track when user is fully loaded
   useEffect(() => {
     if (user && user.id) {
       setIsInitialized(true);
@@ -30,7 +28,6 @@ export default function DashboardNavbar({ user }) {
     }
   }, [user]);
 
-  // Heartbeat to keep user online
   useEffect(() => {
     const sendHeartbeat = async () => {
       const token = localStorage.getItem("access");
@@ -67,7 +64,6 @@ export default function DashboardNavbar({ user }) {
     };
   }, [user, BASE_URL]);
 
-  // Fetch conversations and unread count
   useEffect(() => {
     if (user && user.id) {
       fetchConversations();
@@ -76,7 +72,6 @@ export default function DashboardNavbar({ user }) {
     }
   }, [user]);
 
-  // Refresh conversations when new message notification arrives
   useEffect(() => {
     if (!user || !notifications.length) return;
     const lastNotif = notifications[0];
@@ -193,7 +188,6 @@ export default function DashboardNavbar({ user }) {
     navigate(`/messages?conversation=${conversationId}`);
   };
 
-  // Show loading navbar if user isn't ready yet
   if (!isInitialized || !user) {
     return (
       <nav className="navbar navbar-expand-lg nm-navbar">
@@ -290,7 +284,6 @@ export default function DashboardNavbar({ user }) {
           color: #212529;
         }
 
-        /* Remove any bottom margin from navbar on mobile */
         @media (max-width: 991.98px) {
           .nm-navbar {
             min-height: 64px;
@@ -321,7 +314,6 @@ export default function DashboardNavbar({ user }) {
           }
         }
 
-        /* For very small screens */
         @media (max-width: 480px) {
           .nm-dropdown-menu {
             left: 5px !important;
@@ -474,7 +466,8 @@ export default function DashboardNavbar({ user }) {
               </ul>
             </div>
 
-            <NotificationBell />
+            {/* Notification Bell – pass user prop */}
+            <NotificationBell user={user} />
 
             {/* Profile Dropdown */}
             <div className="dropdown">

@@ -249,6 +249,9 @@ class ChangePasswordView(generics.UpdateAPIView):
         return Response({"detail": "Password updated successfully"})
 
 
+
+
+
 class UserProfileListView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -259,10 +262,12 @@ class UserProfileListView(generics.ListAPIView):
         
         print(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
         print(f"🔍 USER GENDER: {user.gender}")
+        print(f"🔍 ACCOUNT TYPE: {user.account_type}")
         
         queryset = User.objects.none()
         
         try:
+            # Base filter by gender
             if user.gender == 'male':
                 queryset = User.objects.filter(
                     is_active=True,
@@ -283,8 +288,10 @@ class UserProfileListView(generics.ListAPIView):
                 )
                 print(f"🔍 Showing all users")
             
+            # Exclude superusers
             queryset = queryset.filter(is_superuser=False)
             
+            # Get IDs of users the current user has already interacted with
             liked_ids = Like.objects.filter(from_user=user).values_list('to_user_id', flat=True)
             matches_as_user1 = Match.objects.filter(user1=user).values_list('user2_id', flat=True)
             matches_as_user2 = Match.objects.filter(user2=user).values_list('user1_id', flat=True)
@@ -295,11 +302,27 @@ class UserProfileListView(generics.ListAPIView):
                 expires_at__gt=now
             ).values_list('to_user_id', flat=True)
             
-            all_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids) | set(active_pass_ids)
-            all_exclusions.add(user.id)
+            # Base exclusions (exclude users already interacted with)
+            base_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids) | set(active_pass_ids)
+            base_exclusions.add(user.id)
             
-            queryset = queryset.exclude(id__in=all_exclusions)
-            queryset = queryset.exclude(id=user.id)
+            # Apply account type restrictions
+            if user.account_type == 'free':
+                # Free users: ALSO exclude users who have liked them (so they can't see who liked them)
+                users_who_liked_me = Like.objects.filter(to_user=user).values_list('from_user_id', flat=True)
+                free_exclusions = set(users_who_liked_me)
+                
+                all_exclusions = base_exclusions | free_exclusions
+                queryset = queryset.exclude(id__in=all_exclusions)
+                
+                # Limit free users to 20 profiles per request
+                queryset = queryset[:20]
+                print(f"🔍 FREE USER - Excluding {len(free_exclusions)} users who liked them")
+                
+            else:  # premium or god_mode
+                # Premium/God mode users: show all profiles except those they've already interacted with
+                queryset = queryset.exclude(id__in=base_exclusions)
+                print(f"🔍 PREMIUM/GOD USER - No additional restrictions")
             
             print(f"🔍 FINAL RESULTS: {queryset.count()} profiles")
             for profile in queryset[:5]:
@@ -322,8 +345,20 @@ class UserProfileListView(generics.ListAPIView):
             print(f"   profile_photo_url: {serializer.data[0].get('profile_photo_url')}")
         
         print(f"🔍 RETURNING {len(serializer.data)} profiles to frontend")
-        return Response(serializer.data)
+        
+        # Add account type info to response for frontend
+        response_data = {
+            "profiles": serializer.data,
+            "user_account_type": request.user.account_type,
+            "can_see_who_liked": request.user.account_type != 'free'
+        }
+        
+        return Response(response_data)
 
+
+
+
+        
 
 class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.filter(is_active=True)

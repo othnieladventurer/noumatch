@@ -267,62 +267,30 @@ class MeSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     age = serializers.SerializerMethodField()
-    online_status = serializers.SerializerMethodField()
     profile_photo_url = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'first_name', 'last_name',
-            'bio', 'birth_date', 'age',
-            'gender', 'location', 'profile_photo',
-            'profile_photo_url',  # Add this field
-            'height', 'passions', 'career', 'education', 'hobbies',
-            'favorite_music', 'is_verified', 'is_active',
-            'is_online', 'last_activity', 'online_status'
+            'id', 'first_name', 'last_name', 'age', 'bio', 'profile_photo', 
+            'profile_photo_url', 'gender', 'city', 'country', 'height', 
+            'passions', 'career', 'education', 'hobbies', 'favorite_music',
+            'is_online', 'account_type'
         ]
-        read_only_fields = ['is_online', 'last_activity']
     
     def get_age(self, obj):
         if obj.birth_date:
-            from datetime import date
             today = date.today()
-            return today.year - obj.birth_date.year - (
-                (today.month, today.day) < (obj.birth_date.month, obj.birth_date.day)
-            )
+            return today.year - obj.birth_date.year - ((today.month, today.day) < (obj.birth_date.month, obj.birth_date.day))
         return None
-    
-    def get_online_status(self, obj):
-        from django.utils import timezone
-        from datetime import timedelta
-        
-        if obj.is_online:
-            return "online"
-        elif obj.last_activity:
-            now = timezone.now()
-            diff = now - obj.last_activity
-            
-            if diff < timedelta(minutes=1):
-                return "Just now"
-            elif diff < timedelta(hours=1):
-                minutes = int(diff.total_seconds() / 60)
-                return f"Active {minutes} minute{'s' if minutes != 1 else ''} ago"
-            elif diff < timedelta(days=1):
-                hours = int(diff.total_seconds() / 3600)
-                return f"Active {hours} hour{'s' if hours != 1 else ''} ago"
-            elif diff < timedelta(days=7):
-                days = diff.days
-                return f"Active {days} day{'s' if days != 1 else ''} ago"
-            else:
-                return f"Last seen {obj.last_activity.strftime('%b %d, %Y')}"
-        return "Offline"
     
     def get_profile_photo_url(self, obj):
-        """Return the absolute URL for the profile photo"""
-        if obj.profile_photo:
+        request = self.context.get('request')
+        if obj.profile_photo and hasattr(obj.profile_photo, 'url'):
+            if request:
+                return request.build_absolute_uri(obj.profile_photo.url)
             return obj.profile_photo.url
         return None
-
 
 
 

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaBell, FaCheckCircle, FaHeart, FaEnvelope, FaHandshake, FaFlag, FaStar } from 'react-icons/fa';
 import { useNotifications } from '../context/NotificationContext';
 
-export default function NotificationBell() {
+export default function NotificationBell({ user }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
@@ -18,7 +18,6 @@ export default function NotificationBell() {
   useEffect(() => {
     console.log('🔔 NotificationBell - unreadCount:', unreadCount);
     console.log('🔔 NotificationBell - notifications:', notifications);
-    console.log('🔔 NotificationBell - should show badge:', unreadCount > 0);
   }, [unreadCount, notifications]);
 
   useEffect(() => {
@@ -66,12 +65,22 @@ export default function NotificationBell() {
     return date.toLocaleDateString('fr-FR');
   };
 
-  // 🆕 Helper function to get display title with count
+  // 🆕 Helper functions to respect free/premium rules
   const getDisplayTitle = (notification) => {
+    if (user?.account_type === 'free' && notification.type === 'new_like') {
+      return "Nouveau like";
+    }
     if (notification.type === 'new_message' && notification.count > 1) {
       return `${notification.count}x ${notification.title}`;
     }
     return notification.title;
+  };
+
+  const getDisplayMessage = (notification) => {
+    if (user?.account_type === 'free' && notification.type === 'new_like') {
+      return "Quelqu'un a aimé votre profil !";
+    }
+    return notification.message;
   };
 
   const handleNotificationClick = (notification) => {
@@ -173,7 +182,7 @@ export default function NotificationBell() {
                         </small>
                       </div>
                       <p className="small text-secondary mb-0 text-truncate" style={{ fontSize: '0.75rem' }}>
-                        {notification.message}
+                        {getDisplayMessage(notification)}
                       </p>
                       <div className="d-flex align-items-center gap-2 mt-1">
                         {!notification.is_read && (
@@ -181,13 +190,11 @@ export default function NotificationBell() {
                             Nouveau
                           </span>
                         )}
-                        {/* 🆕 Show message count badge for grouped messages */}
                         {notification.type === 'new_message' && notification.count > 1 && (
                           <span className="badge bg-secondary" style={{ fontSize: '0.6rem' }}>
                             {notification.count} messages
                           </span>
                         )}
-                        {/* 🆕 Show when notification was read */}
                         {notification.is_read && notification.read_at && (
                           <span className="badge bg-light text-dark" style={{ fontSize: '0.6rem' }}>
                             Lu
