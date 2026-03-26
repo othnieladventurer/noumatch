@@ -1,3 +1,11 @@
+.env
+.env
+.env.*
+*.env
+api/.env
+
 echo ".env" >> .gitignore
 echo "api/.env" >> .gitignore
 echo ".env.*" >> .gitignore
+
+
