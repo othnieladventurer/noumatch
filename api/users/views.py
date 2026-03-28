@@ -26,6 +26,8 @@ from .models import OTP
 from .utils import generate_otp, send_otp_email
 from rest_framework import status
 from .email_api import send_otp_via_api
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
 
 
 class UserListView(generics.ListAPIView):
@@ -358,7 +360,7 @@ class UserProfileListView(generics.ListAPIView):
 
 
 
-        
+
 
 class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.filter(is_active=True)
@@ -408,6 +410,21 @@ def heartbeat(request):
         "timestamp": timezone.now(),
         "unread_notifications": user.notifications.filter(is_read=False).count()
     }, status=status.HTTP_200_OK)
+
+
+
+@require_GET
+@csrf_exempt
+def check_email(request):
+    email = request.GET.get('email', '').strip()
+    if not email:
+        return JsonResponse({'exists': False, 'error': 'No email'}, status=400)
+    exists = User.objects.filter(email=email).exists()
+    return JsonResponse({'exists': exists})
+
+
+
+
 
 
 class UserPhotoViewSet(viewsets.ModelViewSet):

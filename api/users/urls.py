@@ -5,7 +5,7 @@ from . import views
 from .views import (RegisterView, LoginView, 
                     LogoutView, ChangePasswordView, ResendOTPView,
                     UserListView, MeView, UserProfileListView, UserDetailView, 
-                    ProfileUpdateView, VerifyOTPView, ResendOTPView)
+                    ProfileUpdateView, VerifyOTPView, ResendOTPView, check_email)
 
 urlpatterns = [
     path("all/", UserListView.as_view(), name="user-list"),
@@ -46,6 +46,8 @@ urlpatterns = [
 
      path('verify-otp/', VerifyOTPView.as_view(), name='verify_otp'),
      path('resend-otp/', ResendOTPView.as_view(), name='resend_otp'),
+     
+     path('check-email/', check_email, name='check_email'),
 
 ]
 
