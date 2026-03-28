@@ -63,7 +63,7 @@ export default function Login() {
 
   return (
     <div
-      className="vh-100 d-flex align-items-center justify-content-center position-relative"
+      className="vh-100 d-flex align-items-center justify-content-center position-relative p-4"
       style={{
         backgroundImage:
           "url('https://img.freepik.com/free-photo/happy-african-loving-couple-hugging-outdoors-beach_171337-16188.jpg?semt=ais_hybrid&w=740&q=80')",

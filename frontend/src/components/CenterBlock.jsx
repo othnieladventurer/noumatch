@@ -161,7 +161,20 @@ export default function CenterBlock({
     overflow: 'hidden',
     backgroundColor: '#f8f9fa',
     flex: typeof window !== 'undefined' && window.innerWidth < 992 ? '0 0 auto' : 1.5,
-    minHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? 'auto' : '350px'
+    minHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? 'auto' : 'auto',
+    maxHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? '80vh' : 'none',
+    height: typeof window !== 'undefined' && window.innerWidth < 992 ? '80vh' : 'auto'
+  };
+
+  const imageStyle = {
+    transition: 'transform 0.2s ease, opacity 0.2s ease',
+    transform: 'translateX(0) scale(1)',
+    opacity: 1,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    display: 'block',
+    objectPosition: 'center'
   };
 
   const getLocationDisplay = () => {
@@ -185,14 +198,7 @@ export default function CenterBlock({
             <img
               src={getCurrentPhotoUrl()}
               alt={formatName(currentProfile) || "Profil"}
-              style={{
-                transition: 'transform 0.2s ease, opacity 0.2s ease',
-                transform: 'translateX(0) scale(1)',
-                opacity: 1,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover'
-              }}
+              style={imageStyle}
               onError={(e) => {
                 e.target.style.display = 'none';
                 const parent = e.target.parentElement;
@@ -361,7 +367,7 @@ export default function CenterBlock({
             />
           </div>
         ) : (
-          <div className="d-flex justify-content-center gap-3 mt-2" style={{ marginBottom: 0 }}>
+          <div className="d-flex justify-content-center gap-3 mt-2" style={{ marginBottom: 0, paddingBottom: 0 }}>
             <button
               onClick={handlePass}
               disabled={isAnimating}
@@ -446,6 +452,9 @@ export default function CenterBlock({
             height: 100% !important;
             width: 100% !important;
             box-shadow: none !important;
+            position: relative !important;
+            display: flex !important;
+            flex-direction: column !important;
           }
           
           .image-container {
@@ -453,14 +462,17 @@ export default function CenterBlock({
             margin: 0 !important;
             padding: 0 !important;
             flex: 0 0 auto !important;
-            max-height: 45vh !important;
+            width: 100% !important;
+            height: 58vh !important;
+            max-height: 58vh !important;
+            min-height: 58vh !important;
           }
           
           .image-container img {
             width: 100% !important;
-            height: auto !important;
-            max-height: 45vh !important;
+            height: 100% !important;
             object-fit: cover !important;
+            object-position: center !important;
           }
           
           .card-content {
@@ -468,6 +480,26 @@ export default function CenterBlock({
             margin: 0 !important;
             flex: 1 !important;
             overflow-y: auto !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          
+          /* Push buttons to bottom */
+          .card-content > div:last-child {
+            margin-top: auto !important;
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+          }
+          
+          /* Remove any extra spacing from buttons */
+          .card-content .d-flex {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+          }
+          
+          /* Ensure the last button container doesn't create space */
+          .d-flex.justify-content-center {
+            margin-bottom: 0 !important;
           }
         }
         
@@ -477,8 +509,13 @@ export default function CenterBlock({
             box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
           }
           .image-container {
-            min-height: 350px !important;
             flex: 1.5 !important;
+            min-height: 0 !important;
+          }
+          .image-container img {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
           }
           .card-content {
             padding-bottom: 20px !important;

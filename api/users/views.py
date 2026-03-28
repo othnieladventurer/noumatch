@@ -28,6 +28,7 @@ from rest_framework import status
 from .email_api import send_otp_via_api
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
+from django.views.decorators.csrf import csrf_exempt
 
 
 class UserListView(generics.ListAPIView):
@@ -253,7 +254,6 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 
 
-
 class UserProfileListView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -310,21 +310,20 @@ class UserProfileListView(generics.ListAPIView):
             
             # Apply account type restrictions
             if user.account_type == 'free':
-                # Free users: ALSO exclude users who have liked them (so they can't see who liked them)
-                users_who_liked_me = Like.objects.filter(to_user=user).values_list('from_user_id', flat=True)
-                free_exclusions = set(users_who_liked_me)
+                # Free users: Only exclude profiles they've already interacted with
+                # DO NOT exclude profiles that have liked them
+                queryset = queryset.exclude(id__in=base_exclusions)
                 
-                all_exclusions = base_exclusions | free_exclusions
-                queryset = queryset.exclude(id__in=all_exclusions)
-                
-                # Limit free users to 20 profiles per request
+                # Optional: Limit free users to 20 profiles per request
                 queryset = queryset[:20]
-                print(f"🔍 FREE USER - Excluding {len(free_exclusions)} users who liked them")
+                print(f"🔍 FREE USER - Showing profiles (no exclusion of users who liked them)")
+                print(f"🔍 FREE USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
                 
             else:  # premium or god_mode
                 # Premium/God mode users: show all profiles except those they've already interacted with
                 queryset = queryset.exclude(id__in=base_exclusions)
                 print(f"🔍 PREMIUM/GOD USER - No additional restrictions")
+                print(f"🔍 PREMIUM/GOD USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
             
             print(f"🔍 FINAL RESULTS: {queryset.count()} profiles")
             for profile in queryset[:5]:
@@ -332,6 +331,8 @@ class UserProfileListView(generics.ListAPIView):
             
         except Exception as e:
             print(f"❌ ERROR in get_queryset: {e}")
+            import traceback
+            traceback.print_exc()
             queryset = User.objects.none()
         
         return queryset
@@ -358,7 +359,7 @@ class UserProfileListView(generics.ListAPIView):
         return Response(response_data)
 
 
-
+        
 
 
 

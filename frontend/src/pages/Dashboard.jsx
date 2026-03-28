@@ -10,6 +10,9 @@ import { useNotifications } from '../context/NotificationContext';
 import API from '@/api/axios';
 import "../styles/Dashboard.css";
 
+// ======================= CONSTANT FOR MOBILE BOTTOM NAVIGATION HEIGHT =======================
+const MOBILE_BOTTOM_NAV_HEIGHT = 72; // pixels
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -28,7 +31,7 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Global error catcher
+  // Global error catcher (unchanged)
   useEffect(() => {
     const handleError = (event) => {
       try {
@@ -56,7 +59,7 @@ export default function Dashboard() {
     };
   }, []);
 
-  // Show error if caught
+  // Show error if caught (unchanged)
   if (crashError) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fff', color: '#333' }}>
@@ -71,7 +74,7 @@ export default function Dashboard() {
     );
   }
 
-  // Profile discovery
+  // All state declarations (unchanged)
   const [profiles, setProfiles] = useState([]);
   const [profileIndex, setProfileIndex] = useState(0);
   const [profilesLoading, setProfilesLoading] = useState(true);
@@ -79,19 +82,16 @@ export default function Dashboard() {
   const [slideDirection, setSlideDirection] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Photo gallery state
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [photoSlideDirection, setPhotoSlideDirection] = useState(null);
   const [isPhotoAnimating, setIsPhotoAnimating] = useState(false);
   const [userPhotos, setUserPhotos] = useState({});
 
-  // Photo modal state
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [modalPhotos, setModalPhotos] = useState([]);
   const [modalPhotoIndex, setModalPhotoIndex] = useState(0);
 
-  // Lists
   const [likesList, setLikesList] = useState([]);
   const [sentLikesIds, setSentLikesIds] = useState([]);
   const [matchesList, setMatchesList] = useState([]);
@@ -100,7 +100,6 @@ export default function Dashboard() {
   const [blockedIds, setBlockedIds] = useState([]);
   const [conversations, setConversations] = useState([]);
 
-  // Modals
   const [likeModalOpen, setLikeModalOpen] = useState(false);
   const [selectedLike, setSelectedLike] = useState(null);
   const [matchModalOpen, setMatchModalOpen] = useState(false);
@@ -110,7 +109,6 @@ export default function Dashboard() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [userToReport, setUserToReport] = useState(null);
 
-  // Swipe limits state
   const [swipeLimits, setSwipeLimits] = useState({
     can_like: true,
     likes_remaining: 10,
@@ -124,6 +122,7 @@ export default function Dashboard() {
   const isLiked = (profileId) => sentLikesIds.includes(profileId);
   const isBlocked = (profileId) => blockedIds.includes(profileId);
 
+  // All fetch functions (unchanged - keep all existing functions)
   const fetchSwipeLimits = async () => {
     try {
       const response = await API.get("/interactions/swipe/limits/");
@@ -459,32 +458,23 @@ export default function Dashboard() {
     return success;
   };
 
-  // ======================= FIX: handleUnmatch resets like status =======================
   const handleUnmatch = async (profile) => {
     if (!profile || !profile.match_id) return;
     const success = await deleteMatch(profile.match_id);
     if (success) {
-      // Remove from matches
       removeFromMatches(profile.id);
       closeMatchModal();
       fetchConversations();
-
-      // CRITICAL: Remove from sentLikesIds so the user can be liked again
       setSentLikesIds(prev => prev.filter(id => id !== profile.id));
-      // Also remove from likesList in case they appear there
       setLikesList(prev => prev.filter(like => like.id !== profile.id));
-
       console.log(`✅ Unmatched and reset like status for user ${profile.id}`);
     }
   };
-  // ====================================================================================
 
-  // ======================= FIX: checkForMatch prevents duplicate matches =======================
   const checkForMatch = async (likedUserId) => {
     if (isBlocked(likedUserId)) return;
     const theyLikeMe = likesList.some(like => like.id === likedUserId);
     if (theyLikeMe) {
-      // Avoid creating duplicate matches
       if (matchesIds.includes(likedUserId)) {
         console.log(`⚠️ Match already exists for user ${likedUserId}, skipping`);
         return;
@@ -502,7 +492,6 @@ export default function Dashboard() {
       }
     }
   };
-  // ====================================================================================
 
   const handleBlock = async (profile) => {
     if (!profile) return;
@@ -628,17 +617,35 @@ export default function Dashboard() {
         params.gender = genderFilter;
       }
       const response = await API.get("/users/profiles/", { params });
+      
       let profilesArray = [];
-      if (Array.isArray(response.data)) {
+      if (response.data && response.data.profiles && Array.isArray(response.data.profiles)) {
+        profilesArray = response.data.profiles;
+        console.log("✅ Found profiles in response.data.profiles, count:", profilesArray.length);
+      } else if (Array.isArray(response.data)) {
         profilesArray = response.data;
+        console.log("✅ Response is direct array, count:", profilesArray.length);
       } else if (response.data.results && Array.isArray(response.data.results)) {
         profilesArray = response.data.results;
+        console.log("✅ Found profiles in response.data.results, count:", profilesArray.length);
       }
-      const filteredById = profilesArray.filter(profile => profile.id !== user.id && !safeBlockedIds.includes(profile.id));
+      
+      if (profilesArray.length === 0) {
+        console.log("⚠️ No profiles found in response");
+        setProfiles([]);
+        setProfilesLoading(false);
+        return;
+      }
+      
+      const filteredById = profilesArray.filter(profile => 
+        profile.id !== user.id && !safeBlockedIds.includes(profile.id)
+      );
+      
       let genderFilteredProfiles = filteredById;
       if (genderFilter) {
         genderFilteredProfiles = filteredById.filter(profile => profile.gender === genderFilter);
       }
+      
       const transformedProfiles = genderFilteredProfiles.map(profile => ({
         id: profile.id,
         first_name: profile.first_name || "",
@@ -647,7 +654,7 @@ export default function Dashboard() {
         bio: profile.bio || "",
         profile_photo: profile.profile_photo_url || getProfilePhotoUrl(profile.profile_photo),
         photos: [],
-        location: profile.location || "",
+        location: profile.location || profile.city || "",
         gender: profile.gender,
         height: profile.height,
         passions: profile.passions,
@@ -657,9 +664,11 @@ export default function Dashboard() {
         favorite_music: profile.favorite_music,
         birth_date: profile.birth_date,
       }));
+      
       const shuffledProfiles = shuffleArray(transformedProfiles);
       setProfiles(shuffledProfiles);
       setProfileIndex(0);
+      
       if (shuffledProfiles.length > 0) {
         fetchUserPhotos(shuffledProfiles[0].id);
       }
@@ -835,7 +844,6 @@ export default function Dashboard() {
     });
   };
 
-  // ======================= FIX: handleLike updates sentLikesIds before checking match =======================
   const handleLike = async () => {
     if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;
     console.log("❤️ Like button clicked for user:", currentProfile.id, currentProfile.first_name);
@@ -853,8 +861,8 @@ export default function Dashboard() {
       console.log("✅ Like recorded successfully in database");
       await API.post("/interactions/swipe/like/", { to_user_id: currentProfile.id })
         .catch(err => console.warn("Swipe tracking failed but like was created:", err));
-      setSentLikesIds(prev => [...prev, currentProfile.id]);   // ← Add to sent likes
-      await checkForMatch(currentProfile.id);                   // ← Check for match after update
+      setSentLikesIds(prev => [...prev, currentProfile.id]);
+      await checkForMatch(currentProfile.id);
       fetchSwipeLimits();
     } catch (error) {
       console.error("❌ Erreur lors du like du profil:", error);
@@ -866,7 +874,6 @@ export default function Dashboard() {
     }
     triggerSlide("right");
   };
-  // ===============================================================================================
 
   const handlePass = () => {
     if (!currentProfile || isAnimating || isBlocked(currentProfile.id)) return;
@@ -955,12 +962,27 @@ export default function Dashboard() {
     boxShadow: windowWidth < 992 ? "none" : "0 4px 20px rgba(0,0,0,0.1)",
   };
 
-  // Mobile bottom navigation component (unchanged)
+  // ======================= MOBILE BOTTOM NAVIGATION WITH EXPLICIT HEIGHT =======================
   const MobileBottomNav = () => {
     const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
     return (
-      <div className="d-block d-lg-none" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#ffffff', borderTop: '1px solid #e9ecef', padding: '8px 0', zIndex: 1000, boxShadow: '0 -2px 10px rgba(0,0,0,0.05)', margin: 0 }}>
-        <div className="d-flex justify-content-around align-items-center">
+      <div 
+        className="d-block d-lg-none" 
+        style={{ 
+          position: 'fixed', 
+          bottom: 0, 
+          left: 0, 
+          right: 0, 
+          background: '#ffffff', 
+          borderTop: '1px solid #e9ecef', 
+          height: `${MOBILE_BOTTOM_NAV_HEIGHT}px`,
+          padding: '8px 0', 
+          zIndex: 1000, 
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.05)', 
+          margin: 0 
+        }}
+      >
+        <div className="d-flex justify-content-around align-items-center" style={{ height: '100%' }}>
           <button onClick={() => setActiveMobileTab('center')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'center' ? 'text-danger' : 'text-secondary'}`}>
             <i className={`fas ${activeMobileTab === 'center' ? 'fa-compass' : 'fa-compass'} fs-5`}></i>
             <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Découvrir</span>
@@ -1030,7 +1052,7 @@ export default function Dashboard() {
     </div>
   );
 
-  // Mobile content renderer (unchanged)
+  // Mobile content renderer
   const renderMobileContent = () => {
     switch(activeMobileTab) {
       case 'likes':
@@ -1126,7 +1148,7 @@ export default function Dashboard() {
           </div>
         ) : user ? (
           <>
-            {/* Desktop/Tablet Layout */}
+            {/* Desktop/Tablet Layout - unchanged */}
             <div className={`${windowWidth < 992 ? 'd-none' : 'd-block'}`} style={{ height: '100%', overflow: 'auto' }}>
               <div className={`${windowWidth >= 1200 ? 'container' : 'container-fluid'} h-100 py-3`}>
                 <div className="row g-3 h-100 dashboard-row">
@@ -1186,10 +1208,31 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            {/* Mobile Layout */}
-            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column', margin: 0, padding: 0 }}>
-              <div style={{ flex: 1, minHeight: 0, position: 'relative', margin: 0, padding: 0 }}>
-                <div style={{ height: '100%', width: '100%', overflowY: 'auto', margin: 0, padding: 0 }}>
+            
+            {/* ======================= MOBILE LAYOUT - FIXED HEIGHT CALCULATION ======================= */}
+            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ 
+              height: '100%', 
+              display: 'flex', 
+              flexDirection: 'column',
+              margin: 0,
+              padding: 0,
+              position: 'relative'
+            }}>
+              {/* Content area - height calculated as 100% minus bottom nav height */}
+              <div style={{ 
+                height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px)`,
+                position: 'relative',
+                margin: 0,
+                padding: 0,
+                overflow: 'hidden'
+              }}>
+                <div style={{ 
+                  height: '100%', 
+                  width: '100%',
+                  overflowY: 'auto',
+                  margin: 0,
+                  padding: 0
+                }}>
                   {renderMobileContent()}
                 </div>
               </div>
