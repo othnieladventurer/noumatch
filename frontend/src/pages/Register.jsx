@@ -34,6 +34,7 @@ export default function Register() {
   const [emailError, setEmailError] = useState("");
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [emailAvailable, setEmailAvailable] = useState(false);
+  const [shakeEmail, setShakeEmail] = useState(false);
   const emailTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -78,6 +79,8 @@ export default function Register() {
     if (emailTimeoutRef.current) clearTimeout(emailTimeoutRef.current);
 
     const email = formData.email.trim();
+    
+    // If email is empty
     if (email === "") {
       setEmailError("");
       setEmailAvailable(false);
@@ -85,13 +88,17 @@ export default function Register() {
       return;
     }
 
+    // If email format is invalid
     if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email)) {
       setEmailError("Format d'email invalide");
       setEmailAvailable(false);
       setIsCheckingEmail(false);
+      setShakeEmail(true);
+      setTimeout(() => setShakeEmail(false), 400);
       return;
     }
 
+    // If email format is valid
     setIsCheckingEmail(true);
     setEmailError("");
 
@@ -100,15 +107,16 @@ export default function Register() {
         const response = await API.get(`/users/check-email/?email=${encodeURIComponent(email)}`);
         const exists = response.data.exists === true;
         if (exists) {
-          setEmailError("Cet email existe déjà. Retournez à la connexion.");
+          setEmailError("Votre email est deja enregistre retournez sur se connecter");
           setEmailAvailable(false);
+          setShakeEmail(true);
+          setTimeout(() => setShakeEmail(false), 400);
         } else {
           setEmailError("");
           setEmailAvailable(true);
         }
       } catch (err) {
         console.error("Email check failed:", err);
-        // If the endpoint fails, we allow the user to continue (backend will catch duplicate)
         setEmailError("Vérification indisponible. Vous pouvez continuer.");
         setEmailAvailable(true);
       } finally {
@@ -249,8 +257,15 @@ export default function Register() {
     } catch (error) {
       console.error("Registration error:", error);
       let message = "Une erreur est survenue. Veuillez réessayer.";
+      
+      // Modified catch block with specific backend error handling
       if (error.response) {
-        if (typeof error.response.data === "object") {
+        if (error.response.data.error) {
+          message = error.response.data.error;
+          setEmailError(message);
+          setShakeEmail(true);
+          setTimeout(() => setShakeEmail(false), 400);
+        } else if (typeof error.response.data === "object") {
           message = Object.values(error.response.data).flat().join("\n");
         } else {
           message = error.response.data;
@@ -347,16 +362,25 @@ export default function Register() {
                   <input
                     type="email"
                     name="email"
-                    className="form-control form-control-lg"
+                    className={`form-control form-control-lg ${shakeEmail ? 'shake' : ''}`}
                     placeholder="Entrez votre adresse email"
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    style={{ borderRadius: "16px" }}
+                    style={{ 
+                      borderRadius: "16px",
+                      borderColor: emailError ? "#dc3545" : (emailAvailable ? "#28a745" : "#ced4da")
+                    }}
                   />
+                  {/* Updated feedback messages */}
                   {emailError && (
                     <div className="text-danger small mt-1" style={{ fontSize: "0.75rem" }}>
                       {emailError}
+                    </div>
+                  )}
+                  {!emailError && emailAvailable && !isCheckingEmail && (
+                    <div className="text-success small mt-1" style={{ fontSize: "0.75rem" }}>
+                      ✓ 
                     </div>
                   )}
                   {isCheckingEmail && (

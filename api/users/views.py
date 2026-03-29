@@ -41,13 +41,20 @@ class UserListView(generics.ListAPIView):
 
 
 
-
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        # Pass the request to serializer context
+        email = request.data.get('email', '').strip()
+
+        # ✅ SIMPLE EMAIL CHECK
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {"error": "Votre email est deja enregistre retournez sur connexion"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -55,35 +62,28 @@ class RegisterView(generics.CreateAPIView):
         # Generate OTP
         otp_code = generate_otp()
         
-        # Save OTP to database
         OTP.objects.update_or_create(
             user=user,
             defaults={'code': otp_code, 'is_used': False}
         )
         
-        # Send email in background thread
         def send_email_background():
             try:
                 send_otp_via_api(user, otp_code)
             except Exception as e:
                 print(f"Background email failed: {e}")
         
-        # Start background thread
         thread = threading.Thread(target=send_email_background)
         thread.daemon = True
         thread.start()
         
-        # Log for debugging
         print(f"🔐 Registration: {user.email} | OTP: {otp_code}")
         print(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
 
-        # Return immediately
         return Response({
             "message": "Registration successful. Please verify your email.",
             "user_id": user.id,
         }, status=status.HTTP_201_CREATED)
-
-
 
 
 
@@ -359,7 +359,7 @@ class UserProfileListView(generics.ListAPIView):
         return Response(response_data)
 
 
-        
+
 
 
 

@@ -16,8 +16,7 @@ urlpatterns = [
     path('api/reports/', include('report.urls')),
     path('api/notifications/', include('notifications.urls')),
 
-    # Catch-all: serve React frontend
-    re_path(r'^(?!api/).*$', TemplateView.as_view(template_name="index.html")),
+
 ]
 
 if settings.DEBUG:

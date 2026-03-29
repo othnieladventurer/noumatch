@@ -108,7 +108,7 @@ export default function Login() {
                 value={formData.email}
                 onChange={handleChange}
                 className="form-control form-control-lg"
-                placeholder="vous@exemple.com"
+                placeholder="email@exemple.com"
                 required
               />
             </div>
