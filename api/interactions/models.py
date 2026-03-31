@@ -65,7 +65,7 @@ class Pass(models.Model):
             raise ValidationError("You cannot pass on someone you've already liked.")
 
     def save(self, *args, **kwargs):
-        # Get expiry hours from settings, default to 72 if not set
+        # Get expiry hours from settings default to 72 if not set
         expiry_hours = getattr(settings, 'PASS_EXPIRY_HOURS', 72)
         
         # Auto-set expiry
