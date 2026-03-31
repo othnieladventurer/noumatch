@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { FaHeart, FaUser, FaLock } from "react-icons/fa";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
@@ -9,6 +10,11 @@ import Contact from "../components/Contact";
 
 import AOS from "aos";
 import "aos/dist/aos.css";
+
+import createProfile from "../assets/createprofile.png";
+import verifyEmail from "../assets/emailverify.png";
+import swipeImage from "../assets/nmswipe.png";
+import conversationImage from "../assets/conversation.png";
 
 export default function Home() {
   useEffect(() => {
@@ -57,10 +63,9 @@ export default function Home() {
             <p className="lead mt-3 mb-4">
               Un endroit où les rencontres sont vraies, avec un peu de fun et beaucoup de sincérité. Ici, chaque connexion compte !
             </p>
-            <a href="/register" className="btn btn-danger btn-lg px-4">Créer mon profil</a>
+            <Link to="/waitlist" className="btn btn-danger btn-lg px-4">Joindre Liste D'attente</Link>
           </div>
         </section>
-
 
         {/* WHO WE ARE */}
         <section id="who" data-aos="fade-up" className="py-5 bg-light">
@@ -91,68 +96,97 @@ export default function Home() {
             <div className="text-center mb-5" data-aos="fade-up">
               <h2 className="fw-bold display-6">Comment ça marche</h2>
               <p className="text-muted mx-auto" style={{ maxWidth: "650px" }}>
-                Découvrez les étapes simples qui rendent l’expérience NouMatch fluide, sécurisée et authentique.
+                Découvrez les étapes simples qui rendent l'expérience NouMatch fluide, sécurisée et authentique.
               </p>
             </div>
 
-            {/* Feature 1 */}
+            {/* Step 1 - Créer son profil */}
             <div className="row align-items-center mb-4 g-4">
               <div className="col-lg-6 d-flex justify-content-center" data-aos="fade-right">
                 <img
-                  src="https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51941.jpg"
-                  alt="Profil utilisateur"
+                  src={createProfile}
+                  alt="Créer son profil"
                   className="img-fluid rounded-4 shadow"
                   style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
                 />
               </div>
               <div className="col-lg-6 d-flex" data-aos="fade-left">
                 <div className="bg-white rounded-4 shadow p-4 w-100 d-flex flex-column justify-content-center" style={{ minHeight: "350px" }}>
-                  <FaUser className="text-primary fs-2 mb-3" />
-                  <h4 className="fw-bold">Profils authentiques</h4>
+                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: "50px", height: "50px" }}>
+                    <span className="text-white fw-bold fs-5">1</span>
+                  </div>
+                  <h4 className="fw-bold">Créez votre profil</h4>
                   <p className="text-muted mb-0">
-                    Chaque membre crée un profil détaillé mettant en valeur sa personnalité, ses valeurs et ses intentions.
+                    Renseignez vos informations, ajoutez vos photos et partagez vos centres d'intérêt. Un profil complet attire des personnes qui vous correspondent vraiment.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Feature 2 */}
+            {/* Step 2 - Vérifier son profil */}
             <div className="row align-items-center mb-4 g-4 flex-lg-row-reverse">
               <div className="col-lg-6 d-flex justify-content-center" data-aos="fade-left">
                 <img
-                  src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSngOr9YpvRBsBHtQuhoiyqdfJGFkDrm5dpjw&s"
-                  alt="Matching intelligent"
+                  src={verifyEmail}
+                  alt="Vérifier son profil"
                   className="img-fluid rounded-4 shadow"
                   style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
                 />
               </div>
               <div className="col-lg-6 d-flex" data-aos="fade-right">
                 <div className="bg-white rounded-4 shadow p-4 w-100 d-flex flex-column justify-content-center" style={{ minHeight: "350px" }}>
-                  <FaHeart className="text-danger fs-2 mb-3" />
-                  <h4 className="fw-bold">Matching intelligent</h4>
+                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: "50px", height: "50px" }}>
+                    <span className="text-white fw-bold fs-5">2</span>
+                  </div>
+                  <h4 className="fw-bold">Vérifiez votre profil</h4>
                   <p className="text-muted mb-0">
-                    Nos algorithmes analysent centres d’intérêt, objectifs et compatibilités pour proposer des connexions pertinentes et durables.
+                    Confirmez votre email pour garantir l'authenticité de votre profil. Une communauté vérifiée, c'est plus de confiance et de rencontres sincères.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Feature 3 */}
-            <div className="row align-items-center g-4">
-              <div className="col-lg-6 d-flex justify-content-center" data-aos="zoom-in">
+            {/* Step 3 - Swiper, liker, matcher */}
+            <div className="row align-items-center mb-4 g-4">
+              <div className="col-lg-6 d-flex justify-content-center" data-aos="fade-right">
                 <img
-                  src="https://img.freepik.com/free-vector/cloud-computing-security-abstract-concept-illustration_335657-2105.jpg"
-                  alt="Sécurité et respect"
+                  src={swipeImage}
+                  alt="Swiper et liker"
                   className="img-fluid rounded-4 shadow"
                   style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
                 />
               </div>
-              <div className="col-lg-6 d-flex" data-aos="zoom-out">
+              <div className="col-lg-6 d-flex" data-aos="fade-left">
                 <div className="bg-white rounded-4 shadow p-4 w-100 d-flex flex-column justify-content-center" style={{ minHeight: "350px" }}>
-                  <FaLock className="text-primary fs-2 mb-3" />
-                  <h4 className="fw-bold">Sécurité & respect</h4>
+                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: "50px", height: "50px" }}>
+                    <span className="text-white fw-bold fs-5">3</span>
+                  </div>
+                  <h4 className="fw-bold">Swipez, likez et matchez</h4>
                   <p className="text-muted mb-0">
-                    Modération active, outils de signalement et protection des données assurent un environnement sûr, respectueux et fiable.
+                    Parcourez les profils près de vous, likez ceux qui vous intéressent. Quand vous matchez, c'est le début d'une belle histoire !
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 4 - Commencer la conversation */}
+            <div className="row align-items-center g-4 flex-lg-row-reverse">
+              <div className="col-lg-6 d-flex justify-content-center" data-aos="fade-left">
+                <img
+                  src={conversationImage}
+                  alt="Commencer la conversation"
+                  className="img-fluid rounded-4 shadow"
+                  style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
+                />
+              </div>
+              <div className="col-lg-6 d-flex" data-aos="fade-right">
+                <div className="bg-white rounded-4 shadow p-4 w-100 d-flex flex-column justify-content-center" style={{ minHeight: "350px" }}>
+                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: "50px", height: "50px" }}>
+                    <span className="text-white fw-bold fs-5">4</span>
+                  </div>
+                  <h4 className="fw-bold">Commencez la conversation</h4>
+                  <p className="text-muted mb-0">
+                    Une fois le match confirmé, lancez-vous ! Discutez, apprenez à vous connaître et laissez la magie opérer.
                   </p>
                 </div>
               </div>
@@ -178,9 +212,9 @@ export default function Home() {
               <div className="col-lg-6">
                 <h3 className="fw-bold mb-3">Passez du virtuel au réel</h3>
                 <p className="text-muted mb-4">
-                  Rencontrez des personnes qui partagent vos centres d’intérêt, vos valeurs et votre énergie. Discutez, riez, créez des liens et laissez la rencontre se faire naturellement.
+                  Rencontrez des personnes qui partagent vos centres d'intérêt, vos valeurs et votre énergie. Discutez, riez, créez des liens et laissez la rencontre se faire naturellement.
                 </p>
-                <a href="/login" className="btn btn-danger btn-lg px-4">Engage la conversation</a>
+                <Link to="/waitlist" className="btn btn-danger btn-lg px-4">Engage la conversation</Link>
               </div>
             </div>
           </div>
@@ -203,7 +237,7 @@ export default function Home() {
             <p className="mb-4 text-light mx-auto" style={{ maxWidth: "700px" }}>
               Connectez-vous pour continuer votre parcours vers des connexions authentiques et significatives. Accédez à votre profil et découvrez vos matchs dès maintenant.
             </p>
-            <a href="/login" className="btn btn-light btn-lg text-danger fw-semibold px-4">Se connecter</a>
+            <Link to="/waitlist" className="btn btn-light btn-lg text-danger fw-semibold px-4">Se connecter</Link>
           </div>
         </section>
 

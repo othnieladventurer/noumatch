@@ -1,42 +1,64 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* App container styles */
+.App {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Main content area - ensure it scrolls properly */
+main {
+  flex: 1;
+  width: 100%;
+  min-height: calc(100vh - 72px);
+  position: relative;
 }
 
-@keyframes logo-spin {
+/* Mobile adjustment */
+@media (max-width: 991px) {
+  main {
+    min-height: calc(100vh - 64px);
+  }
+}
+
+/* Ensure all pages have proper scrolling */
+.page-container {
+  width: 100%;
+  min-height: 100%;
+  overflow-y: auto;
+}
+
+/* Remove any overflow restrictions */
+section, div, article {
+  overflow: visible;
+}
+
+/* Smooth scrolling for all anchor links */
+a[href^="/#"] {
+  scroll-behavior: smooth;
+}
+
+/* Ensure fixed elements don't cause overflow */
+.fixed-top {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1030;
+}
+
+/* Simple fade animations if needed (optional) */
+@keyframes fadeIn {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
+    transform: translateY(20px);
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
 }

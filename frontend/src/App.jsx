@@ -3,7 +3,8 @@ import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 
 // Context Providers
-import { NotificationProvider } from "./context/NotificationContext"; // ADD THIS
+import { NotificationProvider } from "./context/NotificationContext";
+
 // Components
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./components/Footer.jsx";
@@ -12,6 +13,10 @@ import Footer from "./components/Footer.jsx";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
+import Waitlist from "./pages/Waitlist.jsx";
+import WaitlistWomen from "./pages/WaitlistWomen.jsx";
+import WaitlistMen from "./pages/WaitlistMen.jsx";
+import WaitlistStats from "./pages/WaitlistStats.jsx";
 
 import EmailVerify from "./pages/VerifyEmail.jsx";
 import EmailVerified from "./pages/VerifyEmailSuccess.jsx";
@@ -49,7 +54,7 @@ export default function App() {
     "/forgot-password",
     "/reset-password",
     "/reset-password-done",
-    "/verify-otp",  // ✅ Added verify-otp to hide navbar and footer
+    "/verify-otp",
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -63,9 +68,16 @@ export default function App() {
 
         <main>
           <Routes>
+            {/* Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/waitlist" element={<Waitlist />} />
+            <Route path="/waitlist/women" element={<WaitlistWomen />} />
+            <Route path="/waitlist/men" element={<WaitlistMen />} />
+            <Route path="/waitlist/stats" element={<WaitlistStats />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
 
             {/* Email Verification */}
             <Route path="/verify-email" element={<EmailVerify />} />
@@ -75,8 +87,9 @@ export default function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/reset-password-done" element={<ResetPasswordDone />} />
+            <Route path="/verify-otp" element={<VerifyOtp />} />
 
-            {/* Dashboard Routes */}
+            {/* Dashboard Routes - Authenticated Users */}
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/profile/:id" element={<ProfileDetail />} />
@@ -87,10 +100,6 @@ export default function App() {
 
             {/* Notifications Route */}
             <Route path="/notifications" element={<Notifications />} />
-
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/verify-otp" element={<VerifyOtp />} />
           </Routes>
         </main>
 
@@ -99,5 +108,3 @@ export default function App() {
     </NotificationProvider>
   );
 }
-
-

@@ -98,6 +98,7 @@ INSTALLED_APPS = [
     'report',
     'notifications',
     'storages',
+    'waitlist',
 ]
 
 MIDDLEWARE = [

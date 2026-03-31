@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/blocked/', include('block.urls')),
     path('api/reports/', include('report.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/waitlist/', include('waitlist.urls')),
 
 
 ]
