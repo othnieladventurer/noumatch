@@ -108,35 +108,17 @@ export default function Waitlist() {
                 Ouverture prochaine
               </div>
 
-              <h1 className="display-4 fw-bold mb-4">
-                Rejoignez les premiers à découvrir{" "}
+              <h1 className="display-5 fw-bold mb-4">
+                Découvrez{" "}
                 <span className="text-danger">NouMatch</span> en Haïti
               </h1>
 
-              <p className="lead mb-4" style={{ fontSize: "1.2rem" }}>
-                Une application de rencontres conçue pour les Haïtiens, où chaque connexion commence par la confiance et le respect. Inscrivez-vous pour être informé dès le lancement.
-              </p>
+              
 
-              <div className="d-flex justify-content-center gap-3 flex-wrap mb-4">
-                <div
-                  className="bg-white bg-opacity-10 rounded-3 px-3 py-2"
-                  style={{ backdropFilter: "blur(10px)" }}
-                >
-                  <FaUsers className="text-danger me-2" />
-                  <span>En développement actif</span>
-                </div>
-                <div
-                  className="bg-white bg-opacity-10 rounded-3 px-3 py-2"
-                  style={{ backdropFilter: "blur(10px)" }}
-                >
-                  <FaShieldAlt className="text-danger me-2" />
-                  <span>Accès prioritaire</span>
-                </div>
-              </div>
-
+              
               <p className="text-light mb-0">
                 <FaHeart className="text-danger me-1" />
-                Soyez parmi les premiers à tester NouMatch quand nous ouvrirons
+                Soyez parmi les premiers à trouvez voos "NouMatch" quand nous ouvrirons, Rejoingez la liste d'attente pour le pré-lancement.
               </p>
             </div>
           </div>

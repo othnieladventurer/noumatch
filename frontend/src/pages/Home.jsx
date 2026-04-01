@@ -58,10 +58,10 @@ export default function Home() {
           <div className="container position-relative px-3">
             <h1 className="display-5 fw-bold">
               NouMatch : Rencontrez des hommes et femmes<br />
-              <span className="text-primary">authentiques et sincères près de chez vous</span>
+              
             </h1>
             <p className="lead mt-3 mb-4">
-              Un endroit où les rencontres sont vraies, avec un peu de fun et beaucoup de sincérité. Ici, chaque connexion compte !
+              Un espace pour trouver des rencontres vraies, fun et sincères!
             </p>
             <Link to="/waitlist" className="btn btn-danger btn-lg px-4">Joindre Liste D'attente</Link>
           </div>

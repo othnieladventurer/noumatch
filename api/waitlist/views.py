@@ -8,55 +8,12 @@ from django.db import transaction
 from .models import WaitlistEntry, WaitlistStats
 from .serializers import WaitlistEntrySerializer
 from rest_framework.permissions import IsAdminUser
+import threading
 
 
 
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def join_waitlist(request):
-    stats = WaitlistStats.get_current_stats()
-    gender = request.data.get('gender')
-    
-    # Enforce balance rule for men
-    if gender == 'male' and not stats.can_accept_gender('male'):
-        return Response({
-            'success': False,
-            'message': "Accès temporairement limité. Nous avons atteint la limite d'inscriptions pour le moment afin de garantir une communauté équilibrée et des rencontres de qualité. Merci de revenir plus tard."
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Women are never blocked by ratio rule
-    if gender == 'female' and not stats.can_accept_gender('female'):
-        # This should never happen with current rules, but keeping for safety
-        return Response({
-            'success': False,
-            'message': "Inscriptions temporairement fermées. Revenez bientôt !"
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    serializer = WaitlistEntrySerializer(data=request.data)
-    if serializer.is_valid():
-        # Use transaction to prevent race conditions
-        with transaction.atomic():
-            entry = serializer.save()
-            
-            # Re-check balance after saving to ensure we didn't exceed limits
-            if gender == 'male':
-                stats.refresh_from_db()
-                if not stats.can_accept_gender('male'):
-                    entry.delete()  # Rollback if exceeded
-                    return Response({
-                        'success': False,
-                        'message': "Accès temporairement limité. Nous avons atteint la limite d'inscriptions pour le moment afin de garantir une communauté équilibrée et des rencontres de qualité. Merci de revenir plus tard."
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            
-            entry.position = WaitlistEntry.objects.filter(
-                joined_at__lte=entry.joined_at
-            ).count()
-            entry.save()
-            
-            stats.update_counts()
-        
+def send_waitlist_email_async(entry):
+    def _send():
         try:
             send_mail(
                 subject="Bienvenue sur la liste d'attente NouMatch",
@@ -79,20 +36,114 @@ L'équipe NouMatch
         except Exception as e:
             print(f"Email error: {e}")
 
-        return Response({
-            'success': True,
-            'message': 'Inscription réussie !',
-            'data': serializer.data,
-            'stats': {
-                'position': entry.position,
-                'total_waiting': stats.total_men_waiting + stats.total_women_waiting
-            }
-        }, status=status.HTTP_201_CREATED)
+    threading.Thread(target=_send, daemon=True).start()
 
-    return Response({
-        'success': False,
-        'errors': serializer.errors
-    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def join_waitlist(request):
+    gender = request.data.get("gender")
+    email = request.data.get("email", "").strip().lower()
+
+    if gender not in ["male", "female"]:
+        return Response(
+            {"success": False, "message": "Genre invalide."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Prevent duplicate registrations first
+    existing_entry = WaitlistEntry.objects.filter(email__iexact=email).first()
+    if existing_entry:
+        return Response(
+            {
+                "success": True,
+                "message": "Cet email est déjà inscrit sur la liste d'attente.",
+                "data": {
+                    "email": existing_entry.email,
+                    "first_name": existing_entry.first_name,
+                    "last_name": existing_entry.last_name,
+                    "gender": existing_entry.gender,
+                },
+                "stats": {
+                    "position": existing_entry.position,
+                    "total_waiting": WaitlistEntry.objects.count(),
+                },
+                "already_registered": True,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    serializer = WaitlistEntrySerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {"success": False, "errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        with transaction.atomic():
+            stats = WaitlistStats.get_current_stats()
+
+            # Enforce men balance rule
+            if gender == "male" and not stats.can_accept_gender("male"):
+                return Response(
+                    {
+                        "success": False,
+                        "message": "Accès temporairement limité. Nous avons atteint la limite d'inscriptions pour le moment afin de garantir une communauté équilibrée et des rencontres de qualité. Merci de revenir plus tard.",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            entry = serializer.save(email=email)
+
+            # Faster position logic if you store numeric position
+            last_position = (
+                WaitlistEntry.objects.exclude(pk=entry.pk).aggregate(
+                    max_pos=Max("position")
+                )["max_pos"]
+                or 0
+            )
+            entry.position = last_position + 1
+            entry.save(update_fields=["position"])
+
+            # Update stats after save
+            stats.update_counts()
+
+            total_waiting = stats.total_men_waiting + stats.total_women_waiting
+
+            response_data = {
+                "success": True,
+                "message": "Inscription réussie !",
+                "data": {
+                    **serializer.data,
+                    "position": entry.position,
+                },
+                "stats": {
+                    "position": entry.position,
+                    "total_waiting": total_waiting,
+                },
+            }
+
+            # Only send email after DB commit succeeds
+            transaction.on_commit(lambda: send_waitlist_email_async(entry))
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        print(f"Waitlist error: {e}")
+        return Response(
+            {
+                "success": False,
+                "message": "Une erreur est survenue. Veuillez réessayer."
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
