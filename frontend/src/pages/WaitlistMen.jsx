@@ -90,16 +90,34 @@ export default function WaitlistMen() {
 
   if (success) {
     return (
-      <div className="container py-5" style={{ paddingTop: "100px" }}>
-        <div className="card border-0 shadow-lg rounded-4 text-center p-5" data-aos="zoom-in">
+      <div className="container py-5" style={{ paddingTop: "100px", minHeight: "100vh", display: "flex", alignItems: "center" }}>
+        <div className="card border-0 shadow-lg rounded-4 text-center p-4 p-md-5 mx-auto" data-aos="zoom-in" style={{ maxWidth: "500px" }}>
           <div className="mb-4">
-            <div className="bg-success rounded-circle d-flex align-items-center justify-content-center mx-auto" style={{ width: "80px", height: "80px" }}>
+            <div 
+              className="bg-success rounded-circle d-flex align-items-center justify-content-center mx-auto" 
+              style={{ width: "80px", height: "80px", background: "linear-gradient(135deg, #28a745 0%, #20c997 100%)" }}
+            >
               <FaCheckCircle size={50} className="text-white" />
             </div>
           </div>
-          <h2 className="fw-bold mb-3">Merci {formData.first_name} !</h2>
-          <p className="lead text-muted mb-4">Votre inscription est bien enregistrée. Vous serez contacté par email dès que NouMatch sera disponible.</p>
-          <Link to="/" className="btn btn-primary px-4 mx-auto" style={{ width: "fit-content" }}>Retour à l'accueil</Link>
+          <h2 className="fw-bold mb-3" style={{ color: "#28a745" }}>Inscription confirmée !</h2>
+          <p className="lead text-muted mb-3">
+            Merci <strong>{formData.first_name}</strong> !
+          </p>
+          <p className="text-muted mb-4">
+            Votre inscription est bien enregistrée. Vous serez contacté par email dès que NouMatch sera disponible.
+          </p>
+          <div className="d-flex flex-column flex-sm-row gap-3 justify-content-center">
+            <Link to="/" className="btn btn-primary px-4 py-2 rounded-pill">
+              Retour à l'accueil
+            </Link>
+            <button
+              onClick={() => navigate("/waitlist/women")}
+              className="btn btn-outline-danger px-4 py-2 rounded-pill"
+            >
+              Inviter une amie
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -108,31 +126,32 @@ export default function WaitlistMen() {
   return (
     <div style={{ paddingTop: "60px" }}>
       {/* Hero Section */}
-    <section
-    className="position-relative d-flex align-items-center"
-    style={{
-        minHeight: "80vh",
-        backgroundImage: "url('https://img.freepik.com/premium-photo/fitness-running-smile-with-portrait-black-man-bridge-training-health-workout-sports-endurance-stamina-with-face-runner-city-exercise-cardio-challenge-goals_590464-118048.jpg?semt=ais_incoming&w=740&q=80')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        position: "relative",
-    }}>
-    {/* Dark Overlay for Readability */}
-    <div
-        className="position-absolute w-100 h-100"
+      <section
+        className="position-relative d-flex align-items-center"
         style={{
-        background: "linear-gradient(135deg, rgba(0, 123, 255, 0.85) 0%, rgba(0, 86, 179, 0.85) 100%)",
-        top: 0,
-        left: 0,
+          minHeight: "80vh",
+          backgroundImage: "url('https://img.freepik.com/premium-photo/fitness-running-smile-with-portrait-black-man-bridge-training-health-workout-sports-endurance-stamina-with-face-runner-city-exercise-cardio-challenge-goals_590464-118048.jpg?semt=ais_incoming&w=740&q=80')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          position: "relative",
         }}
-    ></div>
-    
-    <div className="container position-relative text-center text-white py-5" style={{ zIndex: 2 }}>
-        <h1 className="display-4 fw-bold mb-3">Espace Hommes</h1>
-        <p className="lead mb-0">Accédez en avant-première à NouMatch</p>
-    </div>
-    </section>
+      >
+        {/* Dark Overlay for Readability */}
+        <div
+          className="position-absolute w-100 h-100"
+          style={{
+            background: "linear-gradient(135deg, rgba(0, 123, 255, 0.85) 0%, rgba(0, 86, 179, 0.85) 100%)",
+            top: 0,
+            left: 0,
+          }}
+        ></div>
+        
+        <div className="container position-relative text-center text-white py-5" style={{ zIndex: 2 }}>
+          <h1 className="display-4 fw-bold mb-3">Espace Hommes</h1>
+          <p className="lead mb-0">Accédez en avant-première à NouMatch</p>
+        </div>
+      </section>
 
       {/* Form Section */}
       <section id="form" className="py-5 bg-light">
