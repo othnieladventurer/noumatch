@@ -1,11 +1,12 @@
 // src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { FaHeart, FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
 import "./Navbar.css";
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [userLoggedIn, setUserLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -15,8 +16,24 @@ export default function Navbar() {
 
   const handleScroll = (id) => (e) => {
     e.preventDefault();
-    const section = document.getElementById(id);
-    if (section) section.scrollIntoView({ behavior: "smooth" });
+    
+    // If we're not on the home page, navigate to home first
+    if (location.pathname !== "/") {
+      navigate("/");
+      // Wait for navigation to complete before scrolling
+      setTimeout(() => {
+        const section = document.getElementById(id);
+        if (section) {
+          section.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+    } else {
+      // Already on home page, just scroll
+      const section = document.getElementById(id);
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth" });
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -31,7 +48,7 @@ export default function Navbar() {
       <div className="container">
         <Link className="navbar-brand d-flex align-items-center" to="/">
           <FaHeart className="text-danger me-2" />
-          <span className="text-primary fw-bold fs-4">NouMatch</span>
+          <span className="text-primary fw-bold fs-4">NouMatch Staging</span>
         </Link>
 
         {/* Hamburger */}
