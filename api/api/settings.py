@@ -28,18 +28,14 @@ DEBUG = False
 
 
 ALLOWED_HOSTS = [
-    'api.noumatch.com', 
-    'noumatch.com', 
-    'www.noumatch.com',
+    'api-staging.noumatch.com', 
     'https://noumatch.onrender.com',
     'localhost',          
-    '127.0.0.1',        
-    '.netlify.app',                  
+    '127.0.0.1',                         
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    'https://noumatch.com',
-    'https://www.noumatch.com',
+    'https://staging.noumatch.com', 
     'https://noumatch.onrender.com', 
     'http://localhost:5173',
     'http://localhost:3000',
@@ -63,9 +59,8 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 # (Duplicate CORS_ALLOW_CREDENTIALS line removed – you had it twice)
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://noumatch.com',
-    'https://www.noumatch.com',
-    'https://noumatch.onrender.com',
+    'https://staging.noumatch.com',
+    'https://www.staging.noumatch.com',
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
