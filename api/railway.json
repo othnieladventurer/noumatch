@@ -3,6 +3,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "daphne -b 0.0.0.0 -p $PORT api.asgi:application"
+    "startCommand": ""python -m daphne -b 0.0.0.0 -p $PORT api.asgi:application"
   }
 }
