@@ -9,8 +9,8 @@ from .models import WaitlistEntry, WaitlistStats
 from .serializers import WaitlistEntrySerializer
 from rest_framework.permissions import IsAdminUser
 import threading
-
-
+from django.db.models import Max 
+from django.utils import timezone
 
 def send_waitlist_email_async(entry):
     def _send():
