@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useRef } from "react";
 import { formatName } from "../utils/helpers";
+import "./CenterBlock.css";
 
 const RoundActionBtn = ({ onClick, bg, border, icon, iconColor, label }) => (
   <button
@@ -11,15 +12,6 @@ const RoundActionBtn = ({ onClick, bg, border, icon, iconColor, label }) => (
       height: 64,
       background: bg,
       border: border || "none",
-      transition: "all 0.2s ease",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = "scale(1.05)";
-      e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.15)";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = "scale(1)";
-      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
     }}
     aria-label={label}
   >
@@ -54,13 +46,67 @@ export default function CenterBlock({
   openReportModal,
   handleBlock,
   centerCardStyle,
-  reloadProfiles
+  reloadProfiles,
+  swipeLimits
 }) {
+  // Swipe detection refs
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
+  const touchStartY = useRef(0);
+  const touchEndY = useRef(0);
+
+  // Handle touch start for swipe
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  // Handle touch move for swipe
+  const handleTouchMove = (e) => {
+    touchEndX.current = e.touches[0].clientX;
+    touchEndY.current = e.touches[0].clientY;
+  };
+
+  // Handle touch end for swipe - Left = Pass, Right = Like
+  const handleTouchEnd = () => {
+    const deltaX = touchEndX.current - touchStartX.current;
+    const deltaY = touchEndY.current - touchStartY.current;
+    const minSwipeDistance = 50;
+
+    // Check if horizontal swipe (ignore vertical swipes)
+    if (Math.abs(deltaX) < minSwipeDistance || Math.abs(deltaX) < Math.abs(deltaY)) {
+      // Reset values
+      touchStartX.current = 0;
+      touchEndX.current = 0;
+      touchStartY.current = 0;
+      touchEndY.current = 0;
+      return;
+    }
+
+    if (deltaX > 0) {
+      // Swipe Right - Like
+      if (!isAnimating && !isMatched(currentProfile?.id) && swipeLimits?.can_like !== false) {
+        handleLike();
+      }
+    } else {
+      // Swipe Left - Pass
+      if (!isAnimating) {
+        handlePass();
+      }
+    }
+
+    // Reset values
+    touchStartX.current = 0;
+    touchEndX.current = 0;
+    touchStartY.current = 0;
+    touchEndY.current = 0;
+  };
+
   if (profilesLoading) {
     return (
       <div className="h-100 d-flex align-items-center justify-content-center">
         <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status" style={{ width: "3rem", height: "3rem" }} />
+          <div className="spinner-border text-primary mb-3" role="status" />
           <div className="text-secondary">Chargement des profils...</div>
         </div>
       </div>
@@ -76,10 +122,7 @@ export default function CenterBlock({
           </div>
           <h5 className="fw-bold mb-2">Erreur de chargement</h5>
           <p className="text-secondary mb-3">{apiError}</p>
-          <button
-            className="btn btn-outline-primary"
-            onClick={reloadProfiles}
-          >
+          <button className="btn btn-outline-primary" onClick={reloadProfiles}>
             Réessayer
           </button>
         </div>
@@ -91,16 +134,11 @@ export default function CenterBlock({
     return (
       <div className="h-100 d-flex align-items-center justify-content-center">
         <div className="text-center p-4">
-          <div
-            className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle"
-            style={{ width: 100, height: 100, background: "rgba(255,77,109,0.1)" }}
-          >
+          <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle" style={{ width: 100, height: 100, background: "rgba(255,77,109,0.1)" }}>
             <i className="fas fa-heart" style={{ color: "#ff4d6d", fontSize: "2.5rem" }} />
           </div>
-
           <h4 className="fw-bold mb-2">Plus de profils</h4>
           <p className="text-secondary mb-4">Revenez plus tard pour découvrir de nouvelles personnes !</p>
-
           <button
             className="btn btn-primary rounded-pill px-5 py-2"
             onClick={reloadProfiles}
@@ -142,41 +180,6 @@ export default function CenterBlock({
     setCurrentPhotoIndex(idx);
   };
 
-  const responsiveCardStyle = {
-    ...centerCardStyle,
-    borderRadius: typeof window !== 'undefined' && window.innerWidth < 992 ? '0px' : '24px',
-    height: '100%',
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    margin: 0,
-    padding: 0,
-    overflow: 'hidden'
-  };
-
-  const imageContainerStyle = {
-    position: 'relative',
-    width: '100%',
-    cursor: 'pointer',
-    overflow: 'hidden',
-    backgroundColor: '#f8f9fa',
-    flex: typeof window !== 'undefined' && window.innerWidth < 992 ? '0 0 auto' : 1.5,
-    minHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? 'auto' : 'auto',
-    maxHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? '80vh' : 'none',
-    height: typeof window !== 'undefined' && window.innerWidth < 992 ? '80vh' : 'auto'
-  };
-
-  const imageStyle = {
-    transition: 'transform 0.2s ease, opacity 0.2s ease',
-    transform: 'translateX(0) scale(1)',
-    opacity: 1,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    display: 'block',
-    objectPosition: 'center'
-  };
-
   const getLocationDisplay = () => {
     if (currentProfile.location && currentProfile.location.trim()) {
       return currentProfile.location;
@@ -187,18 +190,19 @@ export default function CenterBlock({
   const locationDisplay = getLocationDisplay();
 
   return (
-    <div className="center-card" style={responsiveCardStyle}>
-      <div 
-        className="image-container" 
-        onClick={safeOpenPhotoModal}
-        style={imageContainerStyle}
-      >
+    <div 
+      className="center-card"
+      style={centerCardStyle}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="image-container" onClick={safeOpenPhotoModal}>
         {getCurrentPhotoUrl() ? (
           <>
             <img
               src={getCurrentPhotoUrl()}
               alt={formatName(currentProfile) || "Profil"}
-              style={imageStyle}
               onError={(e) => {
                 e.target.style.display = 'none';
                 const parent = e.target.parentElement;
@@ -232,7 +236,6 @@ export default function CenterBlock({
                   className="photo-nav-arrow left"
                   onClick={safeGoToPrevPhoto}
                   disabled={isPhotoAnimating}
-                  style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
                 >
                   <i className="fas fa-chevron-left" style={{ color: '#333', fontSize: '1rem' }} />
                 </button>
@@ -240,7 +243,6 @@ export default function CenterBlock({
                   className="photo-nav-arrow right"
                   onClick={safeGoToNextPhoto}
                   disabled={isPhotoAnimating}
-                  style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
                 >
                   <i className="fas fa-chevron-right" style={{ color: '#333', fontSize: '1rem' }} />
                 </button>
@@ -248,17 +250,7 @@ export default function CenterBlock({
             )}
             
             {getCurrentProfilePhotos().length > 1 && (
-              <div style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                background: 'rgba(0,0,0,0.5)',
-                color: 'white',
-                padding: '4px 12px',
-                borderRadius: '20px',
-                fontSize: '0.85rem',
-                zIndex: 15
-              }}>
+              <div className="photo-counter">
                 {currentPhotoIndex + 1} / {getCurrentProfilePhotos().length}
               </div>
             )}
@@ -268,7 +260,7 @@ export default function CenterBlock({
         )}
       </div>
 
-      <div className="card-content" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', margin: 0 }}>
+      <div className="card-content">
         <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
           <div className="d-flex align-items-center gap-2 flex-wrap">
             <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
@@ -292,6 +284,14 @@ export default function CenterBlock({
         
         <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "Pas encore de bio"}</p>
 
+        {/* Daily limit indicator */}
+        {swipeLimits && !swipeLimits.can_like && (
+          <div className="alert alert-warning text-center py-2 mb-3" style={{ fontSize: "0.85rem" }}>
+            <i className="fas fa-info-circle me-2"></i>
+            Limite quotidienne de likes atteinte ({swipeLimits.likes_today}/{swipeLimits.daily_limit})
+          </div>
+        )}
+
         {isMatched(currentProfile.id) ? (
           <div className="d-flex justify-content-center gap-2 flex-wrap mt-2" style={{ marginBottom: 0 }}>
             <button
@@ -303,15 +303,6 @@ export default function CenterBlock({
                 height: "60px",
                 background: "#ffffff",
                 border: "1px solid #e9ecef",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f8f9fa";
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#ffffff";
-                e.currentTarget.style.transform = "scale(1)";
               }}
               aria-label="Passer"
             >
@@ -377,15 +368,6 @@ export default function CenterBlock({
                 height: "60px",
                 background: "#ffffff",
                 border: "1px solid #e9ecef",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f8f9fa";
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#ffffff";
-                e.currentTarget.style.transform = "scale(1)";
               }}
               aria-label="Passer"
             >
@@ -394,22 +376,14 @@ export default function CenterBlock({
 
             <button
               onClick={handleLike}
-              disabled={isAnimating}
+              disabled={isAnimating || (swipeLimits && !swipeLimits.can_like)}
               className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
               style={{
                 width: "74px",
                 height: "74px",
                 background: "linear-gradient(145deg, #ff4d6d, #ff3355)",
                 border: "none",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.08)";
-                e.currentTarget.style.boxShadow = "0 10px 25px rgba(255,77,109,0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-                e.currentTarget.style.boxShadow = "0 8px 20px rgba(255,77,109,0.3)";
+                opacity: (swipeLimits && !swipeLimits.can_like) ? 0.5 : 1,
               }}
               aria-label="Aimer"
             >
@@ -425,15 +399,6 @@ export default function CenterBlock({
                 height: "60px",
                 background: "#ffffff",
                 border: "1px solid #e9ecef",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f8f9fa";
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#ffffff";
-                e.currentTarget.style.transform = "scale(1)";
               }}
               aria-label="Voir le profil"
             >
@@ -442,87 +407,9 @@ export default function CenterBlock({
           </div>
         )}
       </div>
-
-      <style>{`
-        @media (max-width: 991.98px) {
-          .center-card {
-            border-radius: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            height: 100% !important;
-            width: 100% !important;
-            box-shadow: none !important;
-            position: relative !important;
-            display: flex !important;
-            flex-direction: column !important;
-          }
-          
-          .image-container {
-            border-radius: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            flex: 0 0 auto !important;
-            width: 100% !important;
-            height: 58vh !important;
-            max-height: 58vh !important;
-            min-height: 58vh !important;
-          }
-          
-          .image-container img {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-            object-position: center !important;
-          }
-          
-          .card-content {
-            padding: 12px 16px !important;
-            margin: 0 !important;
-            flex: 1 !important;
-            overflow-y: auto !important;
-            display: flex !important;
-            flex-direction: column !important;
-          }
-          
-          /* Push buttons to bottom */
-          .card-content > div:last-child {
-            margin-top: auto !important;
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
-          }
-          
-          /* Remove any extra spacing from buttons */
-          .card-content .d-flex {
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
-          }
-          
-          /* Ensure the last button container doesn't create space */
-          .d-flex.justify-content-center {
-            margin-bottom: 0 !important;
-          }
-        }
-        
-        @media (min-width: 992px) {
-          .center-card {
-            border-radius: 24px !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
-          }
-          .image-container {
-            flex: 1.5 !important;
-            min-height: 0 !important;
-          }
-          .image-container img {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-          }
-          .card-content {
-            padding-bottom: 20px !important;
-            overflow-y: visible !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
+
+
+
