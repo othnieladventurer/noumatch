@@ -96,8 +96,8 @@ export default function Navbar() {
             {/* Conditional buttons */}
             {!userLoggedIn ? (
               <li className="nav-item mt-2 mt-lg-0">
-                <Link className="btn btn-danger w-100 w-lg-auto" to="/waitlist">
-                  Liste d'attente
+                <Link className="btn btn-danger w-100 w-lg-auto" to="/login">
+                  Se connecter
                 </Link>
               </li>
             ) : (

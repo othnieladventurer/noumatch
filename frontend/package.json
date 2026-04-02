@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --config vite.config.staging.js",
     "build": "vite build",
+    "build:staging": "vite build --config vite.config.staging.js",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:staging": "vite preview --config vite.config.staging.js"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",
@@ -33,3 +36,5 @@
     "vite": "^5.4.17"
   }
 }
+
+
