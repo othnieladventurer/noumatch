@@ -79,6 +79,7 @@ export default function Dashboard() {
   const { notifications } = useNotifications();
   const [isPending, startTransition] = useTransition();
   const initialFetchDone = useRef(false);
+  const interactionsFetched = useRef(false);
   
   // Helper functions
   const isMatched = useCallback((profileId) => matchesIds.includes(profileId), [matchesIds]);
@@ -840,8 +841,7 @@ export default function Dashboard() {
     }
   }, [user, fetchSwipeLimits, fetchProfilesBasedOnUser]);
   
-  // Fetch interactions after user and blockedIds are ready – only once
-  const interactionsFetched = useRef(false);
+  // Fetch interactions after user – only once
   useEffect(() => {
     if (!user || interactionsFetched.current) return;
     const fetchAllInteractions = async () => {
@@ -905,22 +905,143 @@ export default function Dashboard() {
     backfaceVisibility: "hidden",
   };
   
-  // Mobile components (unchanged – keep as in your original file)
-  // ... (I'll skip them for brevity, but you can copy them from your original Dashboard)
-  // To save space, I'm not rewriting the entire MobileBottomNav, AvatarRow, SectionCard, renderMobileContent here.
-  // They remain exactly as in your original code.
+  // ======================= MOBILE BOTTOM NAVIGATION (RESTORED) =======================
+  const MobileBottomNav = () => {
+    const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
+    return (
+      <div className="d-block d-lg-none" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#ffffff', borderTop: '1px solid #e9ecef', height: `${MOBILE_BOTTOM_NAV_HEIGHT}px`, padding: '8px 0', zIndex: 1000, boxShadow: '0 -2px 10px rgba(0,0,0,0.05)' }}>
+        <div className="d-flex justify-content-around align-items-center" style={{ height: '100%' }}>
+          <button onClick={() => setActiveMobileTab('center')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'center' ? 'text-danger' : 'text-secondary'}`}>
+            <i className="fas fa-compass fs-5"></i>
+            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Découvrir</span>
+          </button>
+          {isPremiumOrGod && (
+            <button onClick={() => setActiveMobileTab('likes')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 position-relative ${activeMobileTab === 'likes' ? 'text-danger' : 'text-secondary'}`}>
+              <i className="fas fa-heart fs-5"></i>
+              {likesList.length > 0 && <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.6rem', padding: '2px 4px' }}>{likesList.length}</span>}
+              <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Likes</span>
+            </button>
+          )}
+          <button onClick={() => setActiveMobileTab('matches')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 position-relative ${activeMobileTab === 'matches' ? 'text-danger' : 'text-secondary'}`}>
+            <i className="fas fa-comments fs-5"></i>
+            {matchesList.length > 0 && <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.6rem', padding: '2px 4px' }}>{matchesList.length}</span>}
+            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Matches</span>
+          </button>
+          <button onClick={() => setActiveMobileTab('blocks')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'blocks' ? 'text-danger' : 'text-secondary'}`}>
+            <i className="fas fa-ban fs-5"></i>
+            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Bloqués</span>
+          </button>
+          <button onClick={() => setActiveMobileTab('profile')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'profile' ? 'text-danger' : 'text-secondary'}`}>
+            <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '20px', height: '20px', objectFit: 'cover' }} />
+            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Profil</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
   
-  // For the final return, keep your existing JSX (it already uses the fixed state)
-  // The only changes are the added refs and the modified useEffect for initial fetch.
+  const AvatarRow = ({ items, onClickAvatar }) => (
+    <div className="d-flex align-items-center gap-2 flex-wrap mt-3">
+      {items.slice(0, 8).map((p) => {
+        const displayName = p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : p.first_name || p.last_name || "";
+        return (
+          <button key={p.id} type="button" className="p-0 border-0 bg-transparent" onClick={() => onClickAvatar?.(p)} style={{ lineHeight: 0 }}>
+            <div className="position-relative">
+              <img src={p.photo || "https://via.placeholder.com/42"} alt={displayName || "Utilisateur"} className="rounded-circle" width="42" height="42" style={{ objectFit: "cover", border: "2px solid #fff", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", cursor: "pointer", transition: "transform 0.2s" }} />
+            </div>
+          </button>
+        );
+      })}
+      {items.length > 8 && <span className="badge bg-light text-dark rounded-pill px-3 py-2" style={{ fontSize: "0.85rem" }}>+{items.length - 8}</span>}
+    </div>
+  );
   
-  // Make sure to include the MobileBottomNav, AvatarRow, SectionCard, renderMobileContent definitions
-  // exactly as they were in your original Dashboard (they are not changed).
+  const SectionCard = ({ title, count, children }) => (
+    <div className="p-3 mt-3" style={{ borderRadius: "20px", background: "linear-gradient(145deg, #ffffff, #f8f9fa)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
+      <div className="d-flex justify-content-between align-items-center mb-2">
+        <span className="fw-semibold" style={{ fontSize: "0.95rem", color: "#2c3e50" }}>{title}</span>
+        <span className="badge rounded-pill" style={{ background: "#e9ecef", color: "#495057", padding: "6px 12px" }}>{count}</span>
+      </div>
+      {children}
+    </div>
+  );
   
-  // I'll include a placeholder to avoid errors – you must copy your original implementations.
-  const MobileBottomNav = () => null; // REPLACE with your actual component
-  const AvatarRow = () => null;       // REPLACE with your actual component
-  const SectionCard = () => null;     // REPLACE with your actual component
-  const renderMobileContent = () => null; // REPLACE with your actual function
+  const renderMobileContent = () => {
+    switch(activeMobileTab) {
+      case 'likes':
+        return (
+          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
+            <SectionCard title="Qui vous aiment" count={likesList.length}>
+              {likesList.length > 0 ? <AvatarRow items={likesList} onClickAvatar={openLikeModal} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="far fa-heart me-2"></i><div>Aucun like pour le moment</div></div></div>}
+            </SectionCard>
+          </div>
+        );
+      case 'matches':
+        return (
+          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
+            <SectionCard title="Matches" count={matchesList.length}>
+              {matchesList.length > 0 ? <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="fas fa-heart me-2"></i><div>Pas encore de matches</div></div></div>}
+            </SectionCard>
+          </div>
+        );
+      case 'blocks':
+        return (
+          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
+            <SectionCard title="Bloqués" count={blockedList.length}>
+              {blockedList.length > 0 ? <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="fas fa-ban me-2"></i><div>Aucun utilisateur bloqué</div></div></div>}
+            </SectionCard>
+          </div>
+        );
+      case 'profile':
+        return (
+          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
+            <div className="text-center">
+              <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle mb-3" style={{ width: '100px', height: '100px', objectFit: 'cover', border: '3px solid #ff4d6d' }} />
+              <h5 className="fw-bold">{user?.first_name} {user?.last_name}</h5>
+              <p className="text-secondary small">{user?.email}</p>
+              <div className="mt-3">
+                <button onClick={goToMyProfile} className="btn btn-outline-danger w-100 mb-2" style={{ borderRadius: '30px' }}>Voir mon profil</button>
+                <button onClick={() => { localStorage.removeItem("access"); localStorage.removeItem("refresh"); navigate("/login"); }} className="btn btn-outline-secondary w-100" style={{ borderRadius: '30px' }}>Déconnexion</button>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return (
+          <div className="h-100" style={{ margin: 0, padding: 0 }}>
+            <CenterBlock
+              profilesLoading={profilesLoading}
+              apiError={apiError}
+              profiles={profiles}
+              profileIndex={profileIndex}
+              currentProfile={currentProfile}
+              getCurrentPhotoUrl={getCurrentPhotoUrl}
+              openPhotoModal={openPhotoModal}
+              getCurrentProfilePhotos={getCurrentProfilePhotos}
+              currentPhotoIndex={currentPhotoIndex}
+              setCurrentPhotoIndex={setCurrentPhotoIndex}
+              goToPrevPhoto={goToPrevPhoto}
+              goToNextPhoto={goToNextPhoto}
+              isPhotoAnimating={isPhotoAnimating}
+              isMatched={isMatched}
+              isLiked={isLiked}
+              goToProfile={goToProfile}
+              handlePass={handlePass}
+              handleLike={handleLike}
+              isAnimating={isAnimating}
+              goToMessenger={goToMessenger}
+              setMatchedProfile={setMatchedProfile}
+              setMatchModalOpen={setMatchModalOpen}
+              openReportModal={openReportModal}
+              handleBlock={handleBlock}
+              centerCardStyle={centerCardStyle}
+              reloadProfiles={reloadProfiles}
+              swipeLimits={swipeLimits}
+            />
+          </div>
+        );
+    }
+  };
   
   if (loading) {
     return (
@@ -997,7 +1118,7 @@ export default function Dashboard() {
               </div>
             </div>
             
-            {/* Mobile Layout – copy your original */}
+            {/* Mobile Layout – restored */}
             <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px)`, overflow: 'hidden' }}>
                 <div style={{ height: '100%', overflowY: 'auto' }}>
