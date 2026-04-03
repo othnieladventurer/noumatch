@@ -255,33 +255,15 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # ========== CLOUDFLARE R2 STORAGE ==========
 if ENVIRONMENT in ["production", "staging"]:
-    # Use different config keys for staging vs production
-    if ENVIRONMENT == "production":
-        bucket_config = {
-            'bucket': config('CLOUDFLARE_R2_BUCKET'),
-            'account_id': config('CLOUDFLARE_R2_ACCOUNT_ID'),
-            'access_key': config('CLOUDFLARE_R2_ACCESS_KEY_ID'),
-            'secret_key': config('CLOUDFLARE_R2_SECRET_KEY'),
-            'public_url': config('CLOUDFLARE_R2_PUBLIC_URL', default=None)
-        }
-    else:  # staging
-        bucket_config = {
-            'bucket': config('CLOUDFLARE_R2_STAGING_BUCKET', default=config('CLOUDFLARE_R2_BUCKET')),
-            'account_id': config('CLOUDFLARE_R2_STAGING_ACCOUNT_ID', default=config('CLOUDFLARE_R2_ACCOUNT_ID')),
-            'access_key': config('CLOUDFLARE_R2_STAGING_ACCESS_KEY_ID', default=config('CLOUDFLARE_R2_ACCESS_KEY_ID')),
-            'secret_key': config('CLOUDFLARE_R2_STAGING_SECRET_KEY', default=config('CLOUDFLARE_R2_SECRET_KEY')),
-            'public_url': config('CLOUDFLARE_R2_STAGING_PUBLIC_URL', default=config('CLOUDFLARE_R2_PUBLIC_URL', default=None))
-        }
-    
     if all([
-        bucket_config['bucket'],
-        bucket_config['access_key']
+        config('CLOUDFLARE_R2_BUCKET', default=None),
+        config('CLOUDFLARE_R2_ACCESS_KEY_ID', default=None)
     ]):
-        CLOUDFLARE_R2_BUCKET = bucket_config['bucket']
-        CLOUDFLARE_R2_ACCOUNT_ID = bucket_config['account_id']
-        CLOUDFLARE_R2_ACCESS_KEY_ID = bucket_config['access_key']
-        CLOUDFLARE_R2_SECRET_KEY = bucket_config['secret_key']
-        CLOUDFLARE_R2_PUBLIC_URL = bucket_config['public_url']
+        CLOUDFLARE_R2_BUCKET = config("CLOUDFLARE_R2_BUCKET")
+        CLOUDFLARE_R2_ACCOUNT_ID = config("CLOUDFLARE_R2_ACCOUNT_ID")
+        CLOUDFLARE_R2_ACCESS_KEY_ID = config("CLOUDFLARE_R2_ACCESS_KEY_ID")
+        CLOUDFLARE_R2_SECRET_KEY = config("CLOUDFLARE_R2_SECRET_KEY")
+        CLOUDFLARE_R2_PUBLIC_URL = config("CLOUDFLARE_R2_PUBLIC_URL", default=None)
 
         AWS_ACCESS_KEY_ID = CLOUDFLARE_R2_ACCESS_KEY_ID
         AWS_SECRET_ACCESS_KEY = CLOUDFLARE_R2_SECRET_KEY
@@ -317,8 +299,6 @@ if ENVIRONMENT in ["production", "staging"]:
         
         print(f"✅ Cloud Storage: {ENVIRONMENT.upper()} mode - R2 configured")
         print(f"   📦 Bucket: {CLOUDFLARE_R2_BUCKET}")
-        if ENVIRONMENT == "staging":
-            print(f"   🏷️  Using STAGING bucket")
     else:
         print(f"⚠️  Cloud Storage: {ENVIRONMENT.upper()} mode - Missing R2 credentials, using local storage")
         MEDIA_URL = '/media/'
@@ -328,12 +308,6 @@ else:
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
     print("✅ Cloud Storage: DEVELOPMENT mode - Using local storage")
 
-
-
-
-
-
-    
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',

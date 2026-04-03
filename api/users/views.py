@@ -29,7 +29,7 @@ from .email_api import send_otp_via_api
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.views.decorators.csrf import csrf_exempt
-
+from rest_framework.pagination import PageNumberPagination
 
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
@@ -253,10 +253,16 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 
 
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 15
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 
 class UserProfileListView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination  # ✅ Add pagination
 
     def get_queryset(self):
         user = self.request.user
@@ -269,65 +275,39 @@ class UserProfileListView(generics.ListAPIView):
         queryset = User.objects.none()
         
         try:
-            # Base filter by gender
             if user.gender == 'male':
-                queryset = User.objects.filter(
-                    is_active=True,
-                    gender='female'
-                )
+                queryset = User.objects.filter(is_active=True, gender='female')
                 print(f"🔍 Man looking for women")
-                
             elif user.gender == 'female':
-                queryset = User.objects.filter(
-                    is_active=True,
-                    gender='male'
-                )
+                queryset = User.objects.filter(is_active=True, gender='male')
                 print(f"🔍 Woman looking for men")
-                
             else:
-                queryset = User.objects.filter(
-                    is_active=True
-                )
+                queryset = User.objects.filter(is_active=True)
                 print(f"🔍 Showing all users")
             
-            # Exclude superusers
             queryset = queryset.filter(is_superuser=False)
             
-            # Get IDs of users the current user has already interacted with
             liked_ids = Like.objects.filter(from_user=user).values_list('to_user_id', flat=True)
             matches_as_user1 = Match.objects.filter(user1=user).values_list('user2_id', flat=True)
             matches_as_user2 = Match.objects.filter(user2=user).values_list('user1_id', flat=True)
             matched_ids = list(matches_as_user1) + list(matches_as_user2)
             blocked_ids = Block.objects.filter(blocker=user).values_list('blocked_id', flat=True)
-            active_pass_ids = Pass.objects.filter(
-                from_user=user,
-                expires_at__gt=now
-            ).values_list('to_user_id', flat=True)
+            active_pass_ids = Pass.objects.filter(from_user=user, expires_at__gt=now).values_list('to_user_id', flat=True)
             
-            # Base exclusions (exclude users already interacted with)
             base_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids) | set(active_pass_ids)
             base_exclusions.add(user.id)
             
-            # Apply account type restrictions
             if user.account_type == 'free':
-                # Free users: Only exclude profiles they've already interacted with
-                # DO NOT exclude profiles that have liked them
+                # Free users: exclude only those they've interacted with
                 queryset = queryset.exclude(id__in=base_exclusions)
-                
-                # Optional: Limit free users to 20 profiles per request
-                queryset = queryset[:20]
-                print(f"🔍 FREE USER - Showing profiles (no exclusion of users who liked them)")
                 print(f"🔍 FREE USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
-                
-            else:  # premium or god_mode
-                # Premium/God mode users: show all profiles except those they've already interacted with
+            else:
                 queryset = queryset.exclude(id__in=base_exclusions)
                 print(f"🔍 PREMIUM/GOD USER - No additional restrictions")
                 print(f"🔍 PREMIUM/GOD USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
             
-            print(f"🔍 FINAL RESULTS: {queryset.count()} profiles")
-            for profile in queryset[:5]:
-                print(f"  ✅ Profile ID: {profile.id}, Username: {profile.username}, Gender: {profile.gender}")
+            # ❌ Remove the hard limit `queryset = queryset[:20]` – pagination will handle it
+            print(f"🔍 TOTAL PROFILES AVAILABLE: {queryset.count()}")
             
         except Exception as e:
             print(f"❌ ERROR in get_queryset: {e}")
@@ -338,24 +318,27 @@ class UserProfileListView(generics.ListAPIView):
         return queryset
 
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            # Add extra fields to paginated response
+            response_data = {
+                "profiles": serializer.data,
+                "user_account_type": request.user.account_type,
+                "can_see_who_liked": request.user.account_type != 'free'
+            }
+            # Merge with pagination metadata
+            paginated_response = self.get_paginated_response(response_data)
+            return paginated_response
+        
+        # Fallback (should not happen with pagination)
         serializer = self.get_serializer(queryset, many=True)
-        
-        # 🔍 DEBUG - Print the first profile's photo URL
-        if serializer.data:
-            print("🔍 DEBUG - First profile data:")
-            print(f"   profile_photo: {serializer.data[0].get('profile_photo')}")
-            print(f"   profile_photo_url: {serializer.data[0].get('profile_photo_url')}")
-        
-        print(f"🔍 RETURNING {len(serializer.data)} profiles to frontend")
-        
-        # Add account type info to response for frontend
         response_data = {
             "profiles": serializer.data,
             "user_account_type": request.user.account_type,
             "can_see_who_liked": request.user.account_type != 'free'
         }
-        
         return Response(response_data)
 
 

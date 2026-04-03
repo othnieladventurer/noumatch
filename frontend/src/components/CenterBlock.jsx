@@ -54,6 +54,7 @@ export default function CenterBlock({
   const touchEndX = useRef(0);
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 992;
 
   // Handle touch start for swipe
   const handleTouchStart = (e) => {
@@ -102,7 +103,8 @@ export default function CenterBlock({
     touchEndY.current = 0;
   };
 
-  if (profilesLoading) {
+  // Only show loading on very first load when no profile exists
+  if (profilesLoading && !currentProfile) {
     return (
       <div className="h-100 d-flex align-items-center justify-content-center">
         <div className="text-center">
@@ -189,10 +191,15 @@ export default function CenterBlock({
 
   const locationDisplay = getLocationDisplay();
 
+  // Override styles for mobile - remove rounded corners
+  const mobileCardStyle = isMobile 
+    ? { ...centerCardStyle, borderRadius: "0px", boxShadow: "none" }
+    : centerCardStyle;
+
   return (
     <div 
       className="center-card"
-      style={centerCardStyle}
+      style={mobileCardStyle}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -410,6 +417,3 @@ export default function CenterBlock({
     </div>
   );
 }
-
-
-

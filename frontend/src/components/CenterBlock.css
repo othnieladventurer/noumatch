@@ -1,40 +1,31 @@
-/* CenterBlock.css */
+/* CenterBlock.css - Optimized for smooth swiping */
 
-/* Base styles */
+/* GPU acceleration for the main card */
 .center-card {
-  border-radius: 24px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-  height: 100%;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
 }
 
-/* Image container */
-.image-container {
-  position: relative;
-  width: 100%;
-  cursor: pointer;
-  overflow: hidden;
-  background-color: #f8f9fa;
-  flex: 1.5;
-  min-height: auto;
-  max-height: none;
-  height: auto;
-}
-
+/* Optimize image rendering */
 .image-container img {
-  transition: transform 0.2s ease, opacity 0.2s ease;
-  transform: translateX(0) scale(1);
-  opacity: 1;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  object-position: center;
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Disable tap highlight on mobile for faster response */
+.round-action-btn,
+.btn,
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 /* Photo indicators */
@@ -53,7 +44,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   cursor: pointer;
 }
 
@@ -82,7 +73,7 @@
   justify-content: center;
   cursor: pointer;
   z-index: 15;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
@@ -141,24 +132,14 @@
 /* Clickable profile */
 .clickable-profile {
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s ease;
 }
 
 .clickable-profile:hover {
   opacity: 0.8;
 }
 
-/* Round action button */
-.round-action-btn {
-  transition: all 0.2s ease;
-  position: relative;
-}
-
-.round-action-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15) !important;
-}
-
+/* Round action button tooltip */
 .round-tooltip {
   position: absolute;
   bottom: -30px;
@@ -172,7 +153,7 @@
   white-space: nowrap;
   opacity: 0;
   visibility: hidden;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   pointer-events: none;
   z-index: 20;
 }
@@ -180,12 +161,6 @@
 .round-action-btn:hover .round-tooltip {
   opacity: 1;
   visibility: visible;
-}
-
-/* Loading and error states */
-.spinner-border {
-  width: 3rem;
-  height: 3rem;
 }
 
 /* Mobile styles */
@@ -236,13 +211,11 @@
     padding-bottom: 0 !important;
   }
   
-  /* Remove any extra spacing from buttons */
   .card-content .d-flex {
     margin-bottom: 0 !important;
     padding-bottom: 0 !important;
   }
   
-  /* Ensure the last button container doesn't create space */
   .d-flex.justify-content-center {
     margin-bottom: 0 !important;
   }
