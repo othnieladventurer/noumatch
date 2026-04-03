@@ -16,6 +16,8 @@ urlpatterns = [
     path('api/reports/', include('report.urls')),
     path('api/notifications/', include('notifications.urls')),
     path('api/waitlist/', include('waitlist.urls')),
+    path('api/noumatch-admin/', include('admin_dashboard.urls')),
+
 
 
 ]

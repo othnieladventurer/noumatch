@@ -35,6 +35,10 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import VerifyOtp from "./pages/VerifyOtp";
 import Terms from "./pages/Terms";
 
+// Admin Pages
+import AdminLogin from "./pages/AdminLogin.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+
 export default function App() {
   const location = useLocation();
 
@@ -55,6 +59,8 @@ export default function App() {
     "/reset-password",
     "/reset-password-done",
     "/verify-otp",
+    "/admin/login",
+    "/admin/dashboard",
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -100,6 +106,10 @@ export default function App() {
 
             {/* Notifications Route */}
             <Route path="/notifications" element={<Notifications />} />
+
+            {/* Admin Routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
           </Routes>
         </main>
 
@@ -108,3 +118,9 @@ export default function App() {
     </NotificationProvider>
   );
 }
+
+
+
+
+
+

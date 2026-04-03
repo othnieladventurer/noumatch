@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'notifications',
     'storages',
     'waitlist',
+    'admin_dashboard',
 ]
 
 MIDDLEWARE = [
