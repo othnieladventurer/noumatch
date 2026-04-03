@@ -262,7 +262,7 @@ class ProfilePagination(PageNumberPagination):
 class UserProfileListView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
-    pagination_class = ProfilePagination  # ✅ Add pagination
+    pagination_class = ProfilePagination  
 
     def get_queryset(self):
         user = self.request.user
