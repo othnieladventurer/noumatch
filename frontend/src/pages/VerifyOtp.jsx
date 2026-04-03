@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '@/api/axios';
-import { FaHeart, FaSpinner, FaCheckCircle, FaEnvelope, FaClock } from 'react-icons/fa';
+import { FaHeart, FaSpinner, FaCheckCircle, FaEnvelope, FaClock, FaShieldAlt } from 'react-icons/fa';
 
 export default function VerifyOtp() {
   const location = useLocation();
@@ -11,14 +11,16 @@ export default function VerifyOtp() {
   const userId = location.state?.userId || localStorage.getItem("unverified_user_id");
   const email = location.state?.email || localStorage.getItem("unverified_email");
 
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState(['', '', '', '']); // Changed to 4 digits
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [timeLeft, setTimeLeft] = useState(90);
+  const [timeLeft, setTimeLeft] = useState(300); // Changed to 5 minutes (300 seconds)
   const [canResend, setCanResend] = useState(false);
   const [emailSending, setEmailSending] = useState(true);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const intervalRef = useRef(null);
+  const cooldownRef = useRef(null);
 
   // Redirect if no userId
   useEffect(() => {
@@ -34,7 +36,7 @@ export default function VerifyOtp() {
     return () => clearTimeout(timer);
   }, [userId, navigate]);
 
-  // Countdown timer
+  // Countdown timer for OTP expiry
   useEffect(() => {
     if (timeLeft <= 0) {
       setCanResend(true);
@@ -49,10 +51,24 @@ export default function VerifyOtp() {
     return () => clearInterval(intervalRef.current);
   }, [timeLeft]);
 
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) {
+          clearInterval(cooldownRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(cooldownRef.current);
+  }, [resendCooldown]);
+
   const formatTime = (seconds) => {
-    if (seconds <= 90) {
-      return `${seconds} seconde${seconds !== 1 ? 's' : ''}`;
-    }
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -60,33 +76,42 @@ export default function VerifyOtp() {
 
   const handleChange = (index, value) => {
     if (value.length > 1) return;
+    // Only allow digits
+    if (value && !/^\d+$/.test(value)) return;
+    
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
 
-    if (value && index < 5) {
+    if (value && index < 3) {
       document.getElementById(`otp-${index + 1}`).focus();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      document.getElementById(`otp-${index - 1}`).focus();
     }
   };
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pasteData = e.clipboardData.getData('text').slice(0, 6);
-    if (/^\d+$/.test(pasteData)) {
+    const pasteData = e.clipboardData.getData('text').slice(0, 4);
+    if (/^\d+$/.test(pasteData) && pasteData.length === 4) {
       const digits = pasteData.split('');
       const newOtp = [...otp];
       digits.forEach((digit, idx) => {
-        if (idx < 6) newOtp[idx] = digit;
+        if (idx < 4) newOtp[idx] = digit;
       });
       setOtp(newOtp);
-      document.getElementById('otp-5')?.focus();
+      document.getElementById('otp-3')?.focus();
     }
   };
 
   const handleVerify = async () => {
     const code = otp.join('');
-    if (code.length !== 6) {
-      setError('Veuillez entrer le code à 6 chiffres');
+    if (code.length !== 4) {
+      setError('Veuillez entrer le code à 4 chiffres');
       return;
     }
 
@@ -108,16 +133,29 @@ export default function VerifyOtp() {
       localStorage.removeItem("unverified_user_id");
       localStorage.removeItem("unverified_email");
       
-      navigate('/dashboard');
+      setSuccess('Email vérifié avec succès ! Redirection...');
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1500);
     } catch (err) {
       console.error('Verification error:', err);
-      setError(err.response?.data?.error || 'Code invalide. Veuillez réessayer.');
+      const errorMsg = err.response?.data?.error || 'Code invalide. Veuillez réessayer.';
+      setError(errorMsg);
+      
+      // Clear OTP fields on error
+      setOtp(['', '', '', '']);
+      document.getElementById('otp-0')?.focus();
     } finally {
       setLoading(false);
     }
   };
 
   const handleResend = async () => {
+    if (resendCooldown > 0) {
+      setError(`Veuillez attendre ${resendCooldown} secondes avant de renvoyer un code`);
+      return;
+    }
+    
     setLoading(true);
     setError('');
     setSuccess('');
@@ -126,8 +164,10 @@ export default function VerifyOtp() {
     try {
       await API.post('users/resend-otp/', { user_id: userId });
       setSuccess('Un nouveau code a été envoyé à votre email !');
-      setTimeLeft(90);
+      setTimeLeft(300); // Reset to 5 minutes
       setCanResend(false);
+      setResendCooldown(60); // 60 seconds cooldown
+      setOtp(['', '', '', '']); // Clear OTP fields
       
       setTimeout(() => {
         setEmailSending(false);
@@ -140,6 +180,13 @@ export default function VerifyOtp() {
       setLoading(false);
     }
   };
+
+  // Auto-submit when all 4 digits are entered
+  useEffect(() => {
+    if (otp.every(digit => digit !== '') && !loading && !emailSending && timeLeft > 0) {
+      handleVerify();
+    }
+  }, [otp]);
 
   return (
     <div
@@ -193,8 +240,8 @@ export default function VerifyOtp() {
         )}
 
         <div className="mb-4">
-          <label className="form-label">Entrez le code à 6 chiffres</label>
-          <div className="d-flex justify-content-between gap-2">
+          <label className="form-label">Entrez le code à 4 chiffres</label>
+          <div className="d-flex justify-content-between gap-3">
             {otp.map((digit, idx) => (
               <input
                 key={idx}
@@ -202,29 +249,43 @@ export default function VerifyOtp() {
                 type="text"
                 maxLength="1"
                 className="form-control text-center"
-                style={{ fontSize: '1.5rem', width: '60px' }}
+                style={{ 
+                  fontSize: '2rem', 
+                  width: '70px',
+                  height: '80px',
+                  fontWeight: 'bold',
+                  borderRadius: '12px',
+                  border: error ? '2px solid #dc3545' : '2px solid #e9ecef'
+                }}
                 value={digit}
                 onChange={(e) => handleChange(idx, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(idx, e)}
                 onPaste={idx === 0 ? handlePaste : undefined}
-                disabled={emailSending}
+                disabled={emailSending || loading || timeLeft <= 0}
+                autoFocus={idx === 0}
               />
             ))}
           </div>
-          <div className="mt-2 text-center">
-            <small className="text-warning">
-              <FaClock className="me-1" />
-              ⚠️ Le code expire dans 90 secondes pour des raisons de sécurité
-            </small>
+          
+          <div className="mt-3 text-center">
+            <div className="alert alert-warning rounded-3 p-2" style={{ fontSize: '0.8rem' }}>
+              <FaShieldAlt className="me-2" />
+              <strong>Règles de sécurité :</strong>
+              <ul className="mt-2 mb-0 text-start small">
+                <li>✓ Code valable <strong>5 minutes</strong> seulement</li>
+                <li>✓ Utilisable <strong>une seule fois</strong></li>
+                <li>✓ <strong>5 tentatives</strong> maximum</li>
+                <li>✓ Un nouveau code invalide l'ancien</li>
+              </ul>
+            </div>
           </div>
         </div>
 
         <div className="d-flex justify-content-between align-items-center mb-4">
-          <span className={`${timeLeft <= 30 ? 'text-danger fw-bold' : 'text-muted'}`}>
+          <span className={`${timeLeft <= 60 ? 'text-danger fw-bold' : 'text-muted'}`}>
+            <FaClock className="me-1" />
             {timeLeft > 0 ? (
-              <>
-                <FaClock className="me-1" />
-                Le code expire dans {formatTime(timeLeft)}
-              </>
+              `Code expire dans ${formatTime(timeLeft)}`
             ) : (
               'Code expiré - veuillez en demander un nouveau'
             )}
@@ -233,16 +294,18 @@ export default function VerifyOtp() {
             type="button"
             className="btn btn-link p-0"
             onClick={handleResend}
-            disabled={loading || !canResend || emailSending}
+            disabled={loading || (!canResend && timeLeft > 0) || emailSending || resendCooldown > 0}
           >
-            Renvoyer le code
+            {resendCooldown > 0 
+              ? `Renvoyer (${resendCooldown}s)` 
+              : 'Renvoyer le code'}
           </button>
         </div>
 
         <button
           className="btn btn-danger w-100 btn-lg"
           onClick={handleVerify}
-          disabled={loading || otp.join('').length !== 6 || emailSending}
+          disabled={loading || otp.join('').length !== 4 || emailSending || timeLeft <= 0}
           style={{ borderRadius: '16px' }}
         >
           {loading ? 'Vérification...' : 'Vérifier mon email'}

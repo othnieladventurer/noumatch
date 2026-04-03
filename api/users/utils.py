@@ -3,7 +3,7 @@ from django.conf import settings
 import random
 
 def generate_otp():
-    return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+    return ''.join([str(random.randint(0, 9)) for _ in range(4)])
 
 def send_otp_email(user, otp_code):
     subject = 'Your NouMatch Verification Code'

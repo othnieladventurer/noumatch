@@ -157,19 +157,19 @@ class UserPhoto(models.Model):
 
 class OTP(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='otp')
-    code = models.CharField(max_length=6)
+    code = models.CharField(max_length=4)  # Changed to 4 digits
     created_at = models.DateTimeField(auto_now_add=True)
     is_used = models.BooleanField(default=False)
     attempts = models.IntegerField(default=0)
-    max_attempts = models.IntegerField(default=5)
+    max_attempts = models.IntegerField(default=5)  # 5 attempts maximum
 
     def is_valid(self):
-        """Check if OTP is still valid (not used and within 90 seconds)"""
+        """Check if OTP is still valid (not used and within 5 minutes)"""
         if self.is_used:
             return False
         now = timezone.now()
-        # Changed from 600 seconds (10 minutes) to 90 seconds (1.5 minutes)
-        if (now - self.created_at).total_seconds() > 90:
+        # 5 minutes = 300 seconds
+        if (now - self.created_at).total_seconds() > 300:
             return False
         return True
 
@@ -184,7 +184,6 @@ class OTP(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.code}"
-
 
 
 

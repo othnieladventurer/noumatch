@@ -11,7 +11,7 @@ export default function RightBlock({
 }) {
   if (!currentProfile) {
     return (
-      <div className="scrollable-card p-4 text-center">
+      <div className="p-4 text-center" style={{ backgroundColor: "#fff", borderRadius: "20px" }}>
         <div className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle bg-light" style={{ width: 70, height: 70 }}>
           <i className="fas fa-user-slash text-secondary" style={{ fontSize: "2rem" }} />
         </div>
@@ -28,7 +28,14 @@ export default function RightBlock({
   };
 
   return (
-    <div className="scrollable-card p-3" style={{ backgroundColor: "#fff", borderRadius: "20px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }}>
+    <div className="p-3" style={{ 
+      backgroundColor: "#fff", 
+      borderRadius: "20px", 
+      boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+      overflow: "visible",
+      height: "auto",
+      maxHeight: "none"
+    }}>
       {/* Profile header */}
       <div className="d-flex align-items-center gap-3 mb-4 clickable-profile" onClick={() => goToProfile(currentProfile.id)} style={{ cursor: "pointer" }}>
         <img
@@ -73,7 +80,7 @@ export default function RightBlock({
         </div>
       )}
 
-      {/* Sections */}
+      {/* Sections - removed any overflow scrolling */}
       <div className="mb-4">
         <h6 className="fw-semibold mb-3 pb-1 border-bottom" style={{ color: "#ff4d6d", fontSize: "0.85rem", letterSpacing: "0.5px" }}>
           <i className="fas fa-info-circle me-2" /> INFOS DE BASE
@@ -134,13 +141,13 @@ export default function RightBlock({
         <div className="d-flex flex-column gap-2">
           <div className="d-flex align-items-center gap-3">
             <i className="fas fa-fire text-danger" style={{ width: 20 }} />
-            <span className="text-secondary small text-truncate-custom" title={currentProfile.passions}>
+            <span className="text-secondary small" title={currentProfile.passions}>
               {currentProfile.passions || "Non spécifiées"}
             </span>
           </div>
           <div className="d-flex align-items-center gap-3">
             <i className="fas fa-pencil text-danger" style={{ width: 20 }} />
-            <span className="text-secondary small text-truncate-custom" title={currentProfile.hobbies}>
+            <span className="text-secondary small" title={currentProfile.hobbies}>
               {currentProfile.hobbies || "Non spécifiés"}
             </span>
           </div>
@@ -153,7 +160,7 @@ export default function RightBlock({
         </h6>
         <div className="d-flex align-items-center gap-3">
           <i className="fas fa-headphones text-danger" style={{ width: 20 }} />
-          <span className="text-secondary small text-truncate-custom" title={currentProfile.favorite_music}>
+          <span className="text-secondary small" title={currentProfile.favorite_music}>
             {currentProfile.favorite_music || "Non spécifiée"}
           </span>
         </div>
@@ -185,4 +192,3 @@ export default function RightBlock({
     </div>
   );
 }
-

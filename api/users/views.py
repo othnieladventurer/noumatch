@@ -10,35 +10,31 @@ from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAdminUser
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-
-from .models import User, UserPhoto
-from interactions.models import Like, Pass
-from matches.models import Match
-from block.models import Block
-from .serializers import (RegisterSerializer, LoginSerializer, 
-                          ChangePasswordSerializer, UserSerializer, MeSerializer, UserProfileSerializer,
-                          UserPhotoSerializer)
-
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils import timezone
-from .models import OTP
-from .utils import generate_otp, send_otp_email
-from rest_framework import status
-from .email_api import send_otp_via_api
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.pagination import PageNumberPagination
 
+from .models import User, UserPhoto, OTP
+from interactions.models import Like, Pass
+from matches.models import Match
+from block.models import Block
+from .serializers import (
+    RegisterSerializer, LoginSerializer, 
+    ChangePasswordSerializer, UserSerializer, MeSerializer, 
+    UserProfileSerializer, UserPhotoSerializer
+)
+from .utils import generate_otp, send_otp_email
+from .email_api import send_otp_via_api
+
+
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAdminUser]
-
-
-
-
 
 
 class RegisterView(generics.CreateAPIView):
@@ -48,7 +44,7 @@ class RegisterView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         email = request.data.get('email', '').strip()
 
-        # ✅ SIMPLE EMAIL CHECK
+        # Email check
         if User.objects.filter(email=email).exists():
             return Response(
                 {"error": "Votre email est deja enregistre retournez sur connexion"},
@@ -59,12 +55,16 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Generate OTP
+        # Generate 4-digit OTP
         otp_code = generate_otp()
         
-        OTP.objects.update_or_create(
+        # Delete any existing OTP and create new one with 4 digits
+        OTP.objects.filter(user=user).delete()
+        OTP.objects.create(
             user=user,
-            defaults={'code': otp_code, 'is_used': False}
+            code=otp_code,
+            is_used=False,
+            attempts=0
         )
         
         def send_email_background():
@@ -77,16 +77,13 @@ class RegisterView(generics.CreateAPIView):
         thread.daemon = True
         thread.start()
         
-        print(f"🔐 Registration: {user.email} | OTP: {otp_code}")
+        print(f"🔐 Registration: {user.email} | OTP: {otp_code} (valid for 5 minutes)")
         print(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
 
         return Response({
-            "message": "Registration successful. Please verify your email.",
+            "message": "Registration successful. Please verify your email with the 4-digit code sent.",
             "user_id": user.id,
         }, status=status.HTTP_201_CREATED)
-
-
-
 
 
 class VerifyOTPView(APIView):
@@ -96,22 +93,65 @@ class VerifyOTPView(APIView):
         user_id = request.data.get('user_id')
         code = request.data.get('code')
 
+        # Validate input
         if not user_id or not code:
-            return Response({'error': 'user_id and code are required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'user_id and code are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate code format (must be 4 digits)
+        if not str(code).isdigit() or len(str(code)) != 4:
+            return Response(
+                {'error': 'Code must be exactly 4 digits'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             user = User.objects.get(id=user_id)
             otp = OTP.objects.get(user=user)
         except User.DoesNotExist:
-            return Response({'error': 'Invalid user'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'Invalid user'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except OTP.DoesNotExist:
-            return Response({'error': 'OTP not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'No OTP found. Please request a new code.'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
+        # Check if user can attempt (max 5 attempts)
+        if not otp.can_attempt():
+            remaining_attempts = otp.max_attempts - otp.attempts
+            return Response(
+                {'error': f'Maximum attempts exceeded ({otp.max_attempts}/5). Please request a new code.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if OTP is valid (not expired and not used)
         if not otp.is_valid():
-            return Response({'error': 'OTP is invalid or expired'}, status=status.HTTP_400_BAD_REQUEST)
+            if otp.is_used:
+                return Response(
+                    {'error': 'This code has already been used. Please request a new code.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                return Response(
+                    {'error': 'Code has expired (5 minutes). Please request a new code.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
+        # Increment attempts
+        otp.increment_attempts()
+        
+        # Verify code
         if otp.code != code:
-            return Response({'error': 'Invalid code'}, status=status.HTTP_400_BAD_REQUEST)
+            remaining = otp.max_attempts - otp.attempts
+            return Response(
+                {'error': f'Invalid code. {remaining} attempt(s) remaining.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Mark OTP as used and verify user
         otp.is_used = True
@@ -128,10 +168,10 @@ class VerifyOTPView(APIView):
             'user': {
                 'id': user.id,
                 'email': user.email,
-                'username': user.username,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
             }
         }, status=status.HTTP_200_OK)
-
 
 
 class ResendOTPView(APIView):
@@ -140,23 +180,37 @@ class ResendOTPView(APIView):
     def post(self, request):
         user_id = request.data.get('user_id')
         
+        if not user_id:
+            return Response(
+                {'error': 'user_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return Response({'error': 'Invalid user'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Generate new OTP
+            return Response(
+                {'error': 'Invalid user'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if user is already verified
+        if user.is_verified:
+            return Response(
+                {'error': 'User is already verified'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Generate new 4-digit OTP
         otp_code = generate_otp()
         
-        # Update OTP in database - reset attempts and timer
-        OTP.objects.update_or_create(
+        # Delete old OTP and create new one (invalidates any previous OTP)
+        OTP.objects.filter(user=user).delete()
+        OTP.objects.create(
             user=user,
-            defaults={
-                'code': otp_code, 
-                'is_used': False, 
-                'attempts': 0,
-                'created_at': timezone.now()  # Reset creation time
-            }
+            code=otp_code,
+            is_used=False,
+            attempts=0
         )
         
         # Send email in background
@@ -169,14 +223,53 @@ class ResendOTPView(APIView):
         thread = threading.Thread(target=send_email_background)
         thread.daemon = True
         thread.start()
+        
+        print(f"🔄 Resent OTP for {user.email}: {otp_code} (valid for 5 minutes)")
 
         return Response(
-            {'message': 'New verification code sent to your email'}, 
+            {'message': 'New 4-digit verification code sent to your email. Valid for 5 minutes.'}, 
             status=status.HTTP_200_OK
         )
+
+
+class CheckOTPStatusView(APIView):
+    """Check if user has a valid OTP (for frontend timer sync)"""
+    permission_classes = [AllowAny]
     
-
-
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        
+        if not user_id:
+            return Response(
+                {'error': 'user_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(id=user_id)
+            otp = OTP.objects.get(user=user)
+        except (User.DoesNotExist, OTP.DoesNotExist):
+            return Response({
+                'has_valid_otp': False,
+                'message': 'No OTP found'
+            }, status=status.HTTP_200_OK)
+        
+        if otp.is_valid():
+            # Calculate remaining time (5 minutes = 300 seconds)
+            elapsed = (timezone.now() - otp.created_at).total_seconds()
+            remaining = max(0, 300 - elapsed)
+            
+            return Response({
+                'has_valid_otp': True,
+                'remaining_seconds': int(remaining),
+                'attempts_used': otp.attempts,
+                'attempts_remaining': otp.max_attempts - otp.attempts
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'has_valid_otp': False,
+                'message': 'OTP expired or used'
+            }, status=status.HTTP_200_OK)
 
 
 class LoginView(generics.GenericAPIView):
@@ -197,6 +290,13 @@ class LoginView(generics.GenericAPIView):
                 {"detail": "Invalid credentials"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+        
+        # Check if user is verified
+        if not user.is_verified:
+            return Response(
+                {"detail": "Please verify your email before logging in."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
@@ -209,8 +309,6 @@ class LoginView(generics.GenericAPIView):
             "refresh": str(refresh),
         })
  
-
-
 
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
@@ -250,7 +348,6 @@ class ChangePasswordView(generics.UpdateAPIView):
         user.save()
 
         return Response({"detail": "Password updated successfully"})
-
 
 
 class ProfilePagination(PageNumberPagination):
@@ -306,7 +403,6 @@ class UserProfileListView(generics.ListAPIView):
                 print(f"🔍 PREMIUM/GOD USER - No additional restrictions")
                 print(f"🔍 PREMIUM/GOD USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
             
-            # ❌ Remove the hard limit `queryset = queryset[:20]` – pagination will handle it
             print(f"🔍 TOTAL PROFILES AVAILABLE: {queryset.count()}")
             
         except Exception as e:
@@ -340,10 +436,6 @@ class UserProfileListView(generics.ListAPIView):
             "can_see_who_liked": request.user.account_type != 'free'
         }
         return Response(response_data)
-
-
-
-
 
 
 class UserDetailView(generics.RetrieveAPIView):
@@ -396,7 +488,6 @@ def heartbeat(request):
     }, status=status.HTTP_200_OK)
 
 
-
 @require_GET
 @csrf_exempt
 def check_email(request):
@@ -405,10 +496,6 @@ def check_email(request):
         return JsonResponse({'exists': False, 'error': 'No email'}, status=400)
     exists = User.objects.filter(email=email).exists()
     return JsonResponse({'exists': exists})
-
-
-
-
 
 
 class UserPhotoViewSet(viewsets.ModelViewSet):
@@ -533,3 +620,7 @@ class UserPhotoDeleteView(generics.DestroyAPIView):
 
     def get_queryset(self):
         return UserPhoto.objects.filter(user=self.request.user)
+
+
+
+        
