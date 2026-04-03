@@ -12,6 +12,7 @@ const RoundActionBtn = ({ onClick, bg, border, icon, iconColor, label }) => (
       height: 64,
       background: bg,
       border: border || "none",
+      borderRadius: "50%", // Force round
     }}
     aria-label={label}
   >
@@ -191,10 +192,19 @@ export default function CenterBlock({
 
   const locationDisplay = getLocationDisplay();
 
-  // Override styles for mobile - remove rounded corners
+  // Override styles for mobile - remove rounded corners from card AND image container
   const mobileCardStyle = isMobile 
-    ? { ...centerCardStyle, borderRadius: "0px", boxShadow: "none" }
+    ? { 
+        ...centerCardStyle, 
+        borderRadius: "0px", 
+        boxShadow: "none",
+        overflow: "visible"
+      }
     : centerCardStyle;
+
+  const mobileImageStyle = isMobile
+    ? { borderRadius: "0px", overflow: "hidden" }
+    : {};
 
   return (
     <div 
@@ -204,7 +214,11 @@ export default function CenterBlock({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="image-container" onClick={safeOpenPhotoModal}>
+      <div 
+        className="image-container" 
+        style={mobileImageStyle}
+        onClick={safeOpenPhotoModal}
+      >
         {getCurrentPhotoUrl() ? (
           <>
             <img
@@ -310,6 +324,7 @@ export default function CenterBlock({
                 height: "60px",
                 background: "#ffffff",
                 border: "1px solid #e9ecef",
+                borderRadius: "50%",
               }}
               aria-label="Passer"
             >
@@ -375,6 +390,7 @@ export default function CenterBlock({
                 height: "60px",
                 background: "#ffffff",
                 border: "1px solid #e9ecef",
+                borderRadius: "50%",
               }}
               aria-label="Passer"
             >
@@ -391,6 +407,7 @@ export default function CenterBlock({
                 background: "linear-gradient(145deg, #ff4d6d, #ff3355)",
                 border: "none",
                 opacity: (swipeLimits && !swipeLimits.can_like) ? 0.5 : 1,
+                borderRadius: "50%",
               }}
               aria-label="Aimer"
             >
@@ -406,6 +423,7 @@ export default function CenterBlock({
                 height: "60px",
                 background: "#ffffff",
                 border: "1px solid #e9ecef",
+                borderRadius: "50%",
               }}
               aria-label="Voir le profil"
             >

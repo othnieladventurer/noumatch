@@ -164,16 +164,12 @@ button {
 }
 
 /* ============================================ */
-/* MOBILE & TABLET - NO ROUNDED CORNERS AT ALL */
+/* MOBILE & TABLET - ONLY remove outer card border-radius */
 /* ============================================ */
 @media (max-width: 991.98px) {
-  /* Target the center-card itself */
+  /* ONLY affect the outer card - remove rounded corners */
   .center-card {
     border-radius: 0 !important;
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
-    border-bottom-left-radius: 0 !important;
-    border-bottom-right-radius: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     height: 100% !important;
@@ -182,24 +178,12 @@ button {
     position: relative !important;
     display: flex !important;
     flex-direction: column !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
   
-  /* Target all direct children */
-  .center-card > * {
+  /* Keep image container as is (only border-radius removal) */
+  .image-container {
     border-radius: 0 !important;
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
-    border-bottom-left-radius: 0 !important;
-    border-bottom-right-radius: 0 !important;
-  }
-  
-  /* Target image container */
-  .image-container,
-  .center-card .image-container {
-    border-radius: 0 !important;
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
     flex: 0 0 auto !important;
@@ -210,22 +194,16 @@ button {
     overflow: hidden !important;
   }
   
-  /* Target images */
-  .image-container img,
-  .center-card .image-container img {
+  /* Keep images properly displayed */
+  .image-container img {
     width: 100% !important;
     height: 100% !important;
     object-fit: cover !important;
     object-position: center !important;
-    border-radius: 0 !important;
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
   }
   
-  /* Target card content */
-  .card-content,
-  .center-card .card-content {
-    border-radius: 0 !important;
+  /* Card content styles - keep everything as is */
+  .card-content {
     padding: 12px 16px !important;
     margin: 0 !important;
     flex: 1 !important;
@@ -248,23 +226,6 @@ button {
   
   .d-flex.justify-content-center {
     margin-bottom: 0 !important;
-  }
-  
-  /* ULTRA AGGRESSIVE - Target everything inside center-card */
-  .center-card,
-  .center-card *,
-  .center-card *:before,
-  .center-card *:after,
-  .center-card > div,
-  .center-card .image-container,
-  .center-card img,
-  .center-card .card-content,
-  .center-card .card-content * {
-    border-radius: 0 !important;
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
-    border-bottom-left-radius: 0 !important;
-    border-bottom-right-radius: 0 !important;
   }
 }
 
@@ -296,28 +257,28 @@ button {
 
 
 
-/* FORCE REMOVE ALL ROUNDED CORNERS ON MOBILE - URGENT FIX */
+
+
+
+/* FORCE remove round corners from image container on mobile ONLY */
 @media (max-width: 991.98px) {
   .center-card,
-  .center-card *,
-  .card,
-  .card *,
-  div[class*="center"],
-  div[class*="Center"] {
-    border-radius: 0 !important;
-    border-top-left-radius: 0 !important !important;
-    border-top-right-radius: 0 !important !important;
-    border-bottom-left-radius: 0 !important !important;
-    border-bottom-right-radius: 0 !important !important;
-    -webkit-border-radius: 0 !important;
-    -moz-border-radius: 0 !important;
-  }
-  
-  /* Target the actual card body */
-  .center-card .card-body,
-  .center-card > div:first-child {
+  .center-card .image-container,
+  .center-card .image-container img {
     border-radius: 0 !important;
     border-top-left-radius: 0 !important;
     border-top-right-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+  }
+  
+  /* Keep buttons round - override the above for buttons */
+  .center-card .btn,
+  .center-card button,
+  .center-card .round-action-btn,
+  .center-card .rounded-circle {
+    border-radius: 50% !important;
   }
 }
+
+

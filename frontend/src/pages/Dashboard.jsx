@@ -889,15 +889,17 @@ export default function Dashboard() {
     };
   }, []);
   
+
+  
   const centerCardStyle = {
-      borderRadius: windowWidth < 992 ? "0px !important" : "24px",
+      borderRadius: windowWidth < 992 ? "0px" : "24px",
       transition: "transform 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1), opacity 0.15s ease",
       transform: slideDirection === "left" ? "translateX(-100%) rotate(-5deg)" : slideDirection === "right" ? "translateX(100%) rotate(5deg)" : "translateX(0)",
       opacity: slideDirection ? 0 : 1,
       height: "100%",
       display: "flex",
       flexDirection: "column",
-      overflow: "hidden !important",
+      overflow: "visible", // Changed from "hidden !important" to "visible"
       backgroundColor: "#ffffff",
       boxShadow: windowWidth < 992 ? "none" : "0 4px 20px rgba(0,0,0,0.1)",
       willChange: "transform",
