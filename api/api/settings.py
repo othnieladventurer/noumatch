@@ -254,59 +254,92 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # ========== CLOUDFLARE R2 STORAGE ==========
-if ENVIRONMENT in ["production", "staging"]:
-    if all([
-        config('CLOUDFLARE_R2_BUCKET', default=None),
-        config('CLOUDFLARE_R2_ACCESS_KEY_ID', default=None)
-    ]):
-        CLOUDFLARE_R2_BUCKET = config("CLOUDFLARE_R2_BUCKET")
-        CLOUDFLARE_R2_ACCOUNT_ID = config("CLOUDFLARE_R2_ACCOUNT_ID")
-        CLOUDFLARE_R2_ACCESS_KEY_ID = config("CLOUDFLARE_R2_ACCESS_KEY_ID")
-        CLOUDFLARE_R2_SECRET_KEY = config("CLOUDFLARE_R2_SECRET_KEY")
-        CLOUDFLARE_R2_PUBLIC_URL = config("CLOUDFLARE_R2_PUBLIC_URL", default=None)
+# Separate configuration for production and staging environments
+if ENVIRONMENT == "production":
+    # Production R2 credentials
+    r2_bucket = config('CLOUDFLARE_R2_BUCKET', default=None)
+    r2_account_id = config('CLOUDFLARE_R2_ACCOUNT_ID', default=None)
+    r2_access_key = config('CLOUDFLARE_R2_ACCESS_KEY_ID', default=None)
+    r2_secret_key = config('CLOUDFLARE_R2_SECRET_KEY', default=None)
+    r2_public_url = config('CLOUDFLARE_R2_PUBLIC_URL', default=None)
+    r2_config_name = "PRODUCTION"
 
-        AWS_ACCESS_KEY_ID = CLOUDFLARE_R2_ACCESS_KEY_ID
-        AWS_SECRET_ACCESS_KEY = CLOUDFLARE_R2_SECRET_KEY
-        AWS_STORAGE_BUCKET_NAME = CLOUDFLARE_R2_BUCKET
-        AWS_S3_ENDPOINT_URL = f"https://{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-        AWS_S3_REGION_NAME = "auto"
-        AWS_S3_ADDRESSING_STYLE = "virtual"
-        AWS_DEFAULT_ACL = "public-read"
-        AWS_QUERYSTRING_AUTH = False
-        AWS_S3_FILE_OVERWRITE = False
-        AWS_S3_OBJECT_PARAMETERS = {
-            "CacheControl": "max-age=86400",
-        }
+elif ENVIRONMENT == "staging":
+    # Staging R2 credentials – using your naming: CLOUDFLARE_R2_STAGING_*
+    r2_bucket = config('CLOUDFLARE_R2_STAGING_BUCKET', default=None)
+    r2_account_id = config('CLOUDFLARE_R2_STAGING_ACCOUNT_ID', default=None)
+    r2_access_key = config('CLOUDFLARE_R2_STAGING_ACCESS_KEY_ID', default=None)
+    r2_secret_key = config('CLOUDFLARE_R2_STAGING_SECRET_KEY', default=None)
+    r2_public_url = config('CLOUDFLARE_R2_STAGING_PUBLIC_URL', default=None)
+    r2_config_name = "STAGING"
 
-        if CLOUDFLARE_R2_PUBLIC_URL:
-            AWS_S3_CUSTOM_DOMAIN = CLOUDFLARE_R2_PUBLIC_URL.replace('https://', '')
+else:  # development
+    r2_bucket = None
 
-        STORAGES = {
-            "default": {
-                "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-            },
-            "staticfiles": {
-                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-            },
-        }
+# Configure R2 only if we have the required credentials
+if ENVIRONMENT in ["production", "staging"] and all([r2_bucket, r2_account_id, r2_access_key, r2_secret_key]):
+    # Set storage backend to R2
+    AWS_ACCESS_KEY_ID = r2_access_key
+    AWS_SECRET_ACCESS_KEY = r2_secret_key
+    AWS_STORAGE_BUCKET_NAME = r2_bucket
+    AWS_S3_ENDPOINT_URL = f"https://{r2_account_id}.r2.cloudflarestorage.com"
+    AWS_S3_REGION_NAME = "auto"
+    AWS_S3_ADDRESSING_STYLE = "virtual"
+    AWS_DEFAULT_ACL = "public-read"
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_S3_OBJECT_PARAMETERS = {
+        "CacheControl": "max-age=86400",
+    }
 
-        STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+    if r2_public_url:
+        AWS_S3_CUSTOM_DOMAIN = r2_public_url.replace('https://', '')
 
-        if CLOUDFLARE_R2_PUBLIC_URL:
-            MEDIA_URL = f"{CLOUDFLARE_R2_PUBLIC_URL}/media/"
-        else:
-            MEDIA_URL = f"https://{CLOUDFLARE_R2_BUCKET}.{CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com/media/"
-        
-        print(f"✅ Cloud Storage: {ENVIRONMENT.upper()} mode - R2 configured")
-        print(f"   📦 Bucket: {CLOUDFLARE_R2_BUCKET}")
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+
+    if r2_public_url:
+        MEDIA_URL = f"{r2_public_url}/media/"
     else:
-        print(f"⚠️  Cloud Storage: {ENVIRONMENT.upper()} mode - Missing R2 credentials, using local storage")
-        MEDIA_URL = '/media/'
-        MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+        MEDIA_URL = f"https://{r2_bucket}.{r2_account_id}.r2.cloudflarestorage.com/media/"
+
+    # Debug output – clearly shows which R2 is active
+    print(f"\n{'='*50}")
+    print(f"☁️  Cloudflare R2: {r2_config_name} mode ACTIVE")
+    print(f"   📦 Bucket: {r2_bucket}")
+    print(f"   🆔 Account ID: {r2_account_id[:6]}...{r2_account_id[-4:] if len(r2_account_id) > 10 else ''}")
+    print(f"   🌐 Public URL: {r2_public_url if r2_public_url else 'Using default endpoint'}")
+    print(f"{'='*50}\n")
+
 else:
+    # Fallback to local media storage
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-    print("✅ Cloud Storage: DEVELOPMENT mode - Using local storage")
+    if ENVIRONMENT in ["production", "staging"]:
+        missing = []
+        if not r2_bucket: missing.append("BUCKET")
+        if not r2_account_id: missing.append("ACCOUNT_ID")
+        if not r2_access_key: missing.append("ACCESS_KEY")
+        if not r2_secret_key: missing.append("SECRET_KEY")
+        print(f"\n⚠️  Cloudflare R2: {ENVIRONMENT.upper()} mode - Missing {', '.join(missing)} → Using LOCAL storage")
+    else:
+        print("✅ Cloud Storage: DEVELOPMENT mode - Using local storage")
+
+
+
+
+
+
+
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {
