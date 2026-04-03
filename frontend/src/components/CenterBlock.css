@@ -167,7 +167,7 @@ button {
 /* MOBILE & TABLET - ONLY remove outer card border-radius */
 /* ============================================ */
 @media (max-width: 991.98px) {
-  /* ONLY affect the outer card - remove rounded corners */
+  /* ONLY affect the outer card's border-radius */
   .center-card {
     border-radius: 0 !important;
     margin: 0 !important;
@@ -181,7 +181,7 @@ button {
     overflow: visible !important;
   }
   
-  /* Keep image container as is (only border-radius removal) */
+  /* Keep image container with hidden overflow (needed for image display) */
   .image-container {
     border-radius: 0 !important;
     margin: 0 !important;
@@ -227,6 +227,13 @@ button {
   .d-flex.justify-content-center {
     margin-bottom: 0 !important;
   }
+  
+  /* Ensure all buttons remain round on mobile */
+  .btn.rounded-circle,
+  button.rounded-circle,
+  .round-action-btn {
+    border-radius: 50% !important;
+  }
 }
 
 /* ============================================ */
@@ -254,31 +261,3 @@ button {
     overflow-y: visible !important;
   }
 }
-
-
-
-
-
-
-/* FORCE remove round corners from image container on mobile ONLY */
-@media (max-width: 991.98px) {
-  .center-card,
-  .center-card .image-container,
-  .center-card .image-container img {
-    border-radius: 0 !important;
-    border-top-left-radius: 0 !important;
-    border-top-right-radius: 0 !important;
-    border-bottom-left-radius: 0 !important;
-    border-bottom-right-radius: 0 !important;
-  }
-  
-  /* Keep buttons round - override the above for buttons */
-  .center-card .btn,
-  .center-card button,
-  .center-card .round-action-btn,
-  .center-card .rounded-circle {
-    border-radius: 50% !important;
-  }
-}
-
-

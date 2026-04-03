@@ -128,7 +128,7 @@ export default function Dashboard() {
     );
   }
   
-  // Fetch functions
+  // Fetch functions (keep your existing implementations unchanged)
   const fetchSwipeLimits = useCallback(async () => {
     try {
       const response = await API.get("/interactions/swipe/limits/");
@@ -174,7 +174,7 @@ export default function Dashboard() {
     }
   }, [navigate]);
   
-  // Progressive profile loading – with logging to debug
+  // Progressive profile loading
   const fetchProfilesBasedOnUser = useCallback(async (page = 1, append = false) => {
     if (!user?.id) return;
     if (append && isLoadingMore) return;
@@ -199,7 +199,6 @@ export default function Dashboard() {
       let profilesArray = [];
       let hasNext = false;
   
-      // Handle both paginated and non-paginated responses
       if (response.data?.results) {
         if (Array.isArray(response.data.results)) {
           profilesArray = response.data.results;
@@ -289,7 +288,7 @@ export default function Dashboard() {
     fetchProfilesBasedOnUser(nextPage, true);
   }, [hasMoreProfiles, isLoadingMore, profilesLoading, currentPage, fetchProfilesBasedOnUser]);
   
-  // Interaction fetch functions
+  // Interaction fetch functions (keep your existing implementations)
   const fetchBlockedUsers = useCallback(async () => {
     try {
       const response = await API.get("/blocked/blocks/");
@@ -491,10 +490,19 @@ export default function Dashboard() {
     fetchProfilesBasedOnUser(1, false);
   }, [fetchProfilesBasedOnUser]);
   
-  // Profile navigation - ONLY when user swipes
+  // FIXED: goNextProfile with preloading and no flicker
   const goNextProfile = useCallback(() => {
     if (profileIndex < profiles.length - 1) {
+      // Preload next profile's main image to avoid flicker
+      const nextProfile = profiles[profileIndex + 1];
+      if (nextProfile && nextProfile.profile_photo) {
+        const img = new Image();
+        img.src = nextProfile.profile_photo;
+      }
+      
       setProfileIndex(prev => prev + 1);
+      
+      // Preload more profiles if needed
       if (profiles.length - (profileIndex + 1) <= PRELOAD_THRESHOLD && hasMoreProfiles && !isLoadingMore) {
         if (window.requestIdleCallback) {
           window.requestIdleCallback(() => loadMoreProfiles(), { timeout: 1000 });
@@ -509,9 +517,9 @@ export default function Dashboard() {
         setTimeout(() => loadMoreProfiles(), 100);
       }
     }
-  }, [profileIndex, profiles.length, hasMoreProfiles, isLoadingMore, loadMoreProfiles]);
+  }, [profileIndex, profiles, hasMoreProfiles, isLoadingMore, loadMoreProfiles]);
   
-  // FIXED: currentProfile - NO automatic advancement
+  // currentProfile memo
   const currentProfile = useMemo(() => {
     if (!profiles.length || profileIndex >= profiles.length) return null;
     if (user && profiles[profileIndex]?.id === user.id) {
@@ -520,7 +528,7 @@ export default function Dashboard() {
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
   
-  // Optimized swipe animation trigger
+  // Optimized swipe animation trigger (less aggressive)
   const triggerSlide = useCallback((direction) => {
     if (isAnimating) return;
     
@@ -547,11 +555,11 @@ export default function Dashboard() {
         }, 50);
         
         swipeTimeoutRef.current = null;
-      }, 200);
+      }, 200); // slightly shorter for smoother feel
     });
   }, [isAnimating, goNextProfile]);
   
-  // Optimized swipe actions
+  // Optimized swipe actions (unchanged)
   const handleLike = useCallback(async () => {
     if (!currentProfile || isAnimating || likeInProgress.current || isBlocked(currentProfile.id)) return;
     if (!swipeLimits.can_like) {
@@ -598,7 +606,7 @@ export default function Dashboard() {
     }, 50);
   }, [currentProfile, isAnimating, isBlocked, triggerSlide, trackPass]);
   
-  // Photo navigation
+  // Photo navigation functions (unchanged)
   const getCurrentProfilePhotos = useCallback(() => {
     if (!currentProfile) return [];
     const photos = [];
@@ -660,7 +668,7 @@ export default function Dashboard() {
     document.body.style.overflow = 'unset';
   }, []);
   
-  // Block/Unblock handlers
+  // Block/Unblock handlers (unchanged)
   const handleBlock = useCallback(async (profile) => {
     if (!profile) return;
     try {
@@ -889,25 +897,28 @@ export default function Dashboard() {
     };
   }, []);
   
-
-  
+  // FIXED: centerCardStyle with less aggressive swipe
   const centerCardStyle = {
-      borderRadius: windowWidth < 992 ? "0px" : "24px",
-      transition: "transform 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1), opacity 0.15s ease",
-      transform: slideDirection === "left" ? "translateX(-100%) rotate(-5deg)" : slideDirection === "right" ? "translateX(100%) rotate(5deg)" : "translateX(0)",
-      opacity: slideDirection ? 0 : 1,
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "visible", // Changed from "hidden !important" to "visible"
-      backgroundColor: "#ffffff",
-      boxShadow: windowWidth < 992 ? "none" : "0 4px 20px rgba(0,0,0,0.1)",
-      willChange: "transform",
-      transformStyle: "preserve-3d",
-      backfaceVisibility: "hidden",
+    borderRadius: windowWidth < 992 ? "0px" : "24px",
+    transition: "transform 0.3s cubic-bezier(0.2, 0.8, 0.4, 1), opacity 0.2s ease",
+    transform: slideDirection === "left" 
+      ? "translateX(-70%) rotate(-2deg)" 
+      : slideDirection === "right" 
+      ? "translateX(70%) rotate(2deg)" 
+      : "translateX(0)",
+    opacity: slideDirection ? 0 : 1,
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "visible",
+    backgroundColor: "#ffffff",
+    boxShadow: windowWidth < 992 ? "none" : "0 4px 20px rgba(0,0,0,0.1)",
+    willChange: "transform",
+    transformStyle: "preserve-3d",
+    backfaceVisibility: "hidden",
   };
   
-  // ======================= MOBILE BOTTOM NAVIGATION (RESTORED) =======================
+  // Mobile bottom nav (unchanged)
   const MobileBottomNav = () => {
     const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
     return (
@@ -1120,7 +1131,7 @@ export default function Dashboard() {
               </div>
             </div>
             
-            {/* Mobile Layout – restored */}
+            {/* Mobile Layout */}
             <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px)`, overflow: 'hidden' }}>
                 <div style={{ height: '100%', overflowY: 'auto' }}>

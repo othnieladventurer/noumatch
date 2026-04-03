@@ -12,7 +12,7 @@ const RoundActionBtn = ({ onClick, bg, border, icon, iconColor, label }) => (
       height: 64,
       background: bg,
       border: border || "none",
-      borderRadius: "50%", // Force round
+      borderRadius: "50%",
     }}
     aria-label={label}
   >
@@ -192,14 +192,9 @@ export default function CenterBlock({
 
   const locationDisplay = getLocationDisplay();
 
-  // Override styles for mobile - remove rounded corners from card AND image container
+  // Override styles for mobile - remove rounded corners
   const mobileCardStyle = isMobile 
-    ? { 
-        ...centerCardStyle, 
-        borderRadius: "0px", 
-        boxShadow: "none",
-        overflow: "visible"
-      }
+    ? { ...centerCardStyle, borderRadius: "0px", boxShadow: "none", overflow: "visible" }
     : centerCardStyle;
 
   const mobileImageStyle = isMobile
@@ -214,7 +209,9 @@ export default function CenterBlock({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
+      {/* FIX: key prop forces complete re-render of image container, eliminating old picture flash */}
       <div 
+        key={currentProfile.id}
         className="image-container" 
         style={mobileImageStyle}
         onClick={safeOpenPhotoModal}
