@@ -11,6 +11,18 @@ import random
 import string
 import time
 import requests
+from django.db.models import Q
+
+
+from matches.models import Match
+from report.models import Report
+from block.models import Block
+from interactions.models import Like, Pass
+
+
+
+
+
 
 
 def get_absolute_image_url(file_field):
@@ -333,4 +345,16 @@ class UserPhotoSerializer(serializers.ModelSerializer):
                 "You cannot upload more than 10 photos."
             )
         return data
+
+
+
+
+
+
+profile_photo_url = serializers.SerializerMethodField()
+
+def get_profile_photo_url(self, obj):
+    if obj.profile_photo:
+        return obj.profile_photo.url
+    return None
 

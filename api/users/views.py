@@ -623,4 +623,38 @@ class UserPhotoDeleteView(generics.DestroyAPIView):
 
 
 
+
+
+
+class UserStatsView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            stats = user.stats  # OneToOne relation
+            return Response({
+                'likes_given': stats.total_likes_given,
+                'likes_received': stats.total_likes_received,
+                'matches': stats.total_matches,
+                'active_matches': stats.active_matches,
+                'messages_sent': stats.total_messages_sent,
+                'messages_received': stats.total_messages_received,
+                'blocks_given': stats.total_blocks_given,
+                'blocks_received': stats.total_blocks_received,
+                'reports_filed': stats.total_reports_filed,
+                'reports_received': stats.total_reports_received,
+                'last_active': stats.last_active,
+                'account_age_days': stats.account_age_days,
+                'streak_days': stats.streak_days,
+            })
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+
+
+
+
+
+
         

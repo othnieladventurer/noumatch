@@ -1,6 +1,12 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, OTP
+from .models import UserStats
+
+
+
+
+
 
 # Inline for OTP - to show OTP inside user detail page
 class OTPInline(admin.TabularInline):
@@ -13,6 +19,25 @@ class OTPInline(admin.TabularInline):
     
     def has_add_permission(self, request, obj=None):
         return False
+
+
+
+
+
+
+@admin.register(UserStats)
+class UserStatsAdmin(admin.ModelAdmin):
+    list_display = ('user', 'total_likes_given', 'total_likes_received', 'total_matches', 'active_matches', 'last_active')
+    search_fields = ('user__email', 'user__first_name', 'user__last_name')
+    readonly_fields = ('updated_at',)
+    list_filter = ('active_matches',)
+
+
+
+
+
+
+
 
 
 @admin.register(User)
@@ -131,3 +156,9 @@ class OTPAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         return False
+
+
+
+
+
+

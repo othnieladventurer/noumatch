@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.utils import timezone
 
-
+from django.conf import settings
 
 
 
@@ -39,10 +39,9 @@ class UserManager(BaseUserManager):
         return self.create_user(email, username, password, **extra_fields)
 
 
-
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
-    username = models.CharField(max_length=30, unique=False)
+    username = models.CharField(max_length=30)
 
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
@@ -57,30 +56,25 @@ class User(AbstractBaseUser, PermissionsMixin):
     ]
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True)
 
-    
     location = models.CharField(max_length=100, blank=True)
-    country = models.CharField(max_length=100, blank=True)  # Country field
-    city = models.CharField(max_length=100, blank=True)  # City field
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)  # Latitude
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)  # Longitude
+    country = models.CharField(max_length=100, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
-    # MAIN PROFILE PHOTO
     profile_photo = models.ImageField(upload_to="profiles/main/", blank=True, null=True)
 
     is_verified = models.BooleanField(default=False)
 
-    # Account Type
+    # ✅ NEW: Profile completeness score
+    profile_score = models.PositiveIntegerField(default=0)
+
     ACCOUNT_TYPE_CHOICES = [
-        ("free", "Free Account"),
-        ("premium", "Premium Account"),
+        ("free", "Free"),
+        ("premium", "Premium"),
         ("god_mode", "God Mode"),
     ]
-    account_type = models.CharField(
-        max_length=20, 
-        choices=ACCOUNT_TYPE_CHOICES, 
-        default="free",
-        help_text="Account tier: Free, Premium, or God Mode"
-    )
+    account_type = models.CharField(max_length=20, choices=ACCOUNT_TYPE_CHOICES, default="free")
 
     height = models.PositiveIntegerField(null=True, blank=True)
     passions = models.TextField(blank=True)
@@ -89,14 +83,13 @@ class User(AbstractBaseUser, PermissionsMixin):
     hobbies = models.TextField(blank=True)
     favorite_music = models.TextField(blank=True)
 
-    # Online Status Fields
+    # Activity
     last_activity = models.DateTimeField(null=True, blank=True)
     is_online = models.BooleanField(default=False)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=timezone.now)
-    lock_until = models.DateTimeField(null=True, blank=True)
 
     objects = UserManager()
 
@@ -105,26 +98,116 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
-    
-    def update_last_activity(self):
-        """Update user's last activity timestamp"""
-        self.last_activity = timezone.now()
-        self.save(update_fields=['last_activity', 'is_online'])
-    
-    def set_online(self):
-        """Set user as online"""
-        if not self.is_online:
-            self.is_online = True
-            self.last_activity = timezone.now()
-            self.save(update_fields=['is_online', 'last_activity'])
-    
-    def set_offline(self):
-        if self.is_online:
-            self.is_online = False
-            self.save(update_fields=['is_online'])
 
 
 
+
+
+
+
+
+class UserStats(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='stats'
+    )
+    
+    # Swipe activity
+    total_likes_given = models.PositiveIntegerField(default=0)
+    total_likes_received = models.PositiveIntegerField(default=0)
+    total_passes_given = models.PositiveIntegerField(default=0)
+    total_passes_received = models.PositiveIntegerField(default=0)
+    
+    # Match activity
+    total_matches = models.PositiveIntegerField(default=0)
+    active_matches = models.PositiveIntegerField(default=0)  # matches with recent messages
+    
+    # Message activity
+    total_messages_sent = models.PositiveIntegerField(default=0)
+    total_messages_received = models.PositiveIntegerField(default=0)
+    
+    # Safety
+    total_blocks_given = models.PositiveIntegerField(default=0)
+    total_blocks_received = models.PositiveIntegerField(default=0)
+    total_reports_filed = models.PositiveIntegerField(default=0)
+    total_reports_received = models.PositiveIntegerField(default=0)
+    
+    # Engagement
+    last_active = models.DateTimeField(null=True, blank=True)
+    account_age_days = models.PositiveIntegerField(default=0)
+    streak_days = models.PositiveIntegerField(default=0)  # consecutive days with activity
+    
+    # Timestamp for last stats update
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "User Statistics"
+        verbose_name_plural = "User Statistics"
+    
+    def __str__(self):
+        return f"Stats for {self.user.email}"
+    
+    def update_all_stats(self):
+        """Recompute all stats from existing data"""
+        from interactions.models import Like, Pass
+        from matches.models import Match
+        from block.models import Block
+        from report.models import Report
+        from chat.models import Message
+        
+        user = self.user
+        
+        # Likes
+        self.total_likes_given = Like.objects.filter(from_user=user).count()
+        self.total_likes_received = Like.objects.filter(to_user=user).count()
+        
+        # Passes
+        self.total_passes_given = Pass.objects.filter(from_user=user).count()
+        self.total_passes_received = Pass.objects.filter(to_user=user).count()
+        
+        # Matches
+        matches = Match.objects.filter(models.Q(user1=user) | models.Q(user2=user))
+        self.total_matches = matches.count()
+        
+        # Active matches (has messages in last 7 days)
+        seven_days_ago = timezone.now() - timezone.timedelta(days=7)
+        active_match_ids = []
+        for match in matches:
+            conv = getattr(match, 'conversation', None)
+            if conv and conv.last_message_at and conv.last_message_at >= seven_days_ago:
+                active_match_ids.append(match.id)
+        self.active_matches = len(active_match_ids)
+        
+        # Messages
+        from chat.models import Message, Conversation
+        convs = Conversation.objects.filter(match__in=matches)
+        self.total_messages_sent = Message.objects.filter(conversation__in=convs, sender=user).count()
+        self.total_messages_received = Message.objects.filter(conversation__in=convs).exclude(sender=user).count()
+        
+        # Blocks
+        self.total_blocks_given = Block.objects.filter(blocker=user).count()
+        self.total_blocks_received = Block.objects.filter(blocked=user).count()
+        
+        # Reports
+        self.total_reports_filed = Report.objects.filter(reporter=user).count()
+        self.total_reports_received = Report.objects.filter(reported_user=user).count()
+        
+        # Last active
+        self.last_active = user.last_activity or user.date_joined
+        
+        # Account age in days
+        delta = timezone.now() - user.date_joined
+        self.account_age_days = delta.days
+        
+        # Streak days (simplified: count days with any activity)
+        # We'll implement a simple version using DailySwipe model
+        from interactions.models import DailySwipe
+        swipe_dates = DailySwipe.objects.filter(user=user).values_list('date', flat=True).distinct()
+        # This is basic; you can enhance later
+        self.streak_days = swipe_dates.count()
+        
+        self.save()
             
                         
 

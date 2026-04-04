@@ -9,7 +9,10 @@ from users.models import User
 from interactions.models import Like, Pass
 from matches.models import Match
 from block.models import Block
-from report.models import Report   # if you have a report app
+from report.models import Report  
+from .serializers import *
+from rest_framework import status
+
 
 
 
@@ -66,9 +69,20 @@ class AdminDashboardView(APIView):
         total_swipes = likes_today + passes_today
         match_rate = round((matches_today / total_swipes) * 100, 1) if total_swipes > 0 else 0.0
 
-        recent_blocks = Block.objects.select_related('blocker', 'blocked') \
-                          .order_by('-created_at')[:10] \
-                          .values('id', 'blocker__email', 'blocked__email', 'created_at')
+        # ✅ Get recent blocks with full names and IDs
+        recent_blocks = Block.objects.select_related('blocker', 'blocked').order_by('-created_at')[:10]
+        blocks_data = []
+        for block in recent_blocks:
+            blocker = block.blocker
+            blocked = block.blocked
+            blocks_data.append({
+                'id': block.id,
+                'blocker_id': blocker.id,
+                'blocker_name': f"{blocker.first_name} {blocker.last_name}".strip() or blocker.email,
+                'blocked_id': blocked.id,
+                'blocked_name': f"{blocked.first_name} {blocked.last_name}".strip() or blocked.email,
+                'created_at': block.created_at,
+            })
 
         return Response({
             'total_users': total_users,
@@ -77,8 +91,11 @@ class AdminDashboardView(APIView):
             'passes_today': passes_today,
             'matches_today': matches_today,
             'match_rate': match_rate,
-            'recent_blocks': list(recent_blocks),
+            'recent_blocks': blocks_data,
         })
+
+
+
 
 
 
@@ -134,4 +151,98 @@ class AdminReportResolveView(APIView):
 
 
 
+
+
+
+#Admin views 
+class AdminUsersListView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        users = User.objects.all().order_by('-date_joined')
+        serializer = AdminUserSerializer(users, many=True)
+        return Response(serializer.data)
+
+
+
+class AdminUserActionView(APIView):
+    """Ban, unban, or verify users"""
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        action = request.data.get('action')
         
+        if not user_id or not action:
+            return Response(
+                {'error': 'user_id and action are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Prevent admin from banning themselves
+        if target_user.id == request.user.id:
+            return Response(
+                {'error': 'You cannot perform actions on yourself'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if action == 'ban':
+            target_user.is_active = False
+            target_user.save()
+            return Response({
+                'message': f'User {target_user.email} has been banned',
+                'user_id': target_user.id,
+                'is_active': False
+            })
+        
+        elif action == 'unban':
+            target_user.is_active = True
+            target_user.save()
+            return Response({
+                'message': f'User {target_user.email} has been unbanned',
+                'user_id': target_user.id,
+                'is_active': True
+            })
+        
+        elif action == 'verify':
+            target_user.is_verified = True
+            target_user.save()
+            return Response({
+                'message': f'User {target_user.email} has been verified',
+                'user_id': target_user.id,
+                'is_verified': True
+            })
+        
+        else:
+            return Response(
+                {'error': f'Invalid action: {action}. Allowed: ban, unban, verify'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+
+
+
+
+class AdminUserDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+        serializer = AdminUserDetailSerializer(user)
+        return Response(serializer.data)
+
+
+
+

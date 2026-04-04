@@ -38,6 +38,8 @@ import Terms from "./pages/Terms";
 // Admin Pages
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
+import AdminUsers from "./pages/AdminUsers.jsx";
+import AdminUserDetail from "./pages/AdminUserDetail.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -61,6 +63,8 @@ export default function App() {
     "/verify-otp",
     "/admin/login",
     "/admin/dashboard",
+    "/admin/users",
+    "/admin/users/detail/", // for dynamic detail route
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -110,6 +114,8 @@ export default function App() {
             {/* Admin Routes */}
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/users/detail/:id" element={<AdminUserDetail />} />
           </Routes>
         </main>
 
@@ -118,9 +124,3 @@ export default function App() {
     </NotificationProvider>
   );
 }
-
-
-
-
-
-
