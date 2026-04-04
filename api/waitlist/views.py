@@ -11,34 +11,8 @@ from rest_framework.permissions import IsAdminUser
 import threading
 from django.db.models import Max 
 from django.utils import timezone
-
-def send_waitlist_email_async(entry):
-    def _send():
-        try:
-            send_mail(
-                subject="Bienvenue sur la liste d'attente NouMatch",
-                message=f"""
-Bonjour {entry.first_name},
-
-Merci de vous être inscrit(e) sur la liste d'attente NouMatch !
-
-Votre position : #{entry.position}
-
-Nous vous contacterons dès que NouMatch sera disponible dans votre région.
-
-À très bientôt,
-L'équipe NouMatch
-                """,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[entry.email],
-                fail_silently=True,
-            )
-        except Exception as e:
-            print(f"Email error: {e}")
-
-    threading.Thread(target=_send, daemon=True).start()
-
-
+from .utils import send_waitlist_welcome_email 
+from .email_api import send_waitlist_welcome_via_api
 
 
 @api_view(["POST"])
@@ -46,6 +20,8 @@ L'équipe NouMatch
 def join_waitlist(request):
     gender = request.data.get("gender")
     email = request.data.get("email", "").strip().lower()
+    first_name = request.data.get("first_name", "")
+    last_name = request.data.get("last_name", "")
 
     if gender not in ["male", "female"]:
         return Response(
@@ -126,8 +102,18 @@ def join_waitlist(request):
                 },
             }
 
-            # Only send email after DB commit succeeds
-            transaction.on_commit(lambda: send_waitlist_email_async(entry))
+        # ✅ Send email using Brevo API (same method as OTP)
+        try:
+            # Import the function from utils (which now uses Brevo API)
+            from .utils import send_waitlist_welcome_email
+            email_sent = send_waitlist_welcome_email(entry)
+            if email_sent:
+                print(f"✅ Email de bienvenue envoyé à {entry.email}")
+            else:
+                print(f"❌ Échec d'envoi d'email à {entry.email}")
+        except Exception as e:
+            print(f"❌ Erreur lors de l'envoi d'email à {entry.email}: {str(e)}")
+            # Don't block the response if email fails
 
         return Response(response_data, status=status.HTTP_201_CREATED)
 
@@ -140,6 +126,9 @@ def join_waitlist(request):
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+
+
 
 
 
