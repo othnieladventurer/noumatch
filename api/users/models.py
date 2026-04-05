@@ -42,7 +42,6 @@ class UserManager(BaseUserManager):
 
 
 
-
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30)
@@ -63,6 +62,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     location = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, blank=True)
     city = models.CharField(max_length=100, blank=True)
+
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
@@ -70,8 +70,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     is_verified = models.BooleanField(default=False)
 
-    # ✅ NEW: Profile completeness score
-    profile_score = models.PositiveIntegerField(default=0)
+    # 🔥 Scores
+    profile_score = models.PositiveIntegerField(default=0)  # profile completeness
+    score = models.PositiveIntegerField(default=0)  # global quality score
 
     ACCOUNT_TYPE_CHOICES = [
         ("free", "Free"),
@@ -103,16 +104,91 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
-    # ✅ Add this method to update last activity
+    # -------------------------
+    # 🔥 PROFILE SCORE
+    # -------------------------
+    def calculate_profile_score(self):
+        score = 0
+
+        if self.profile_photo:
+            score += 25
+        if self.bio:
+            score += 15
+        if self.gender:
+            score += 5
+        if self.birth_date:
+            score += 5
+        if self.city and self.country:
+            score += 10
+        if self.passions:
+            score += 10
+        if self.hobbies:
+            score += 10
+        if self.career:
+            score += 5
+        if self.education:
+            score += 5
+        if self.favorite_music:
+            score += 5
+
+        return min(score, 100)
+
+    # -------------------------
+    # 🔥 GLOBAL SCORE
+    # -------------------------
+    def calculate_global_score(self):
+        score = 0
+
+        # 1. Profile quality (40%)
+        score += int(self.profile_score * 0.4)
+
+        # 2. Engagement (30%) — SAFE fallback
+        engagement_score = 0
+        if hasattr(self, "stats"):
+            engagement_score = min(self.stats.matches_count * 5, 30)
+        score += engagement_score
+
+        # 3. Trust (30%) — penalty system
+        trust_score = 30
+        if hasattr(self, "stats"):
+            penalty = (self.stats.reports_received * 10) + (self.stats.blocks_received * 5)
+            trust_score = max(30 - penalty, 0)
+
+        score += trust_score
+
+        return min(score, 100)
+
+    # -------------------------
+    # 🔥 AUTO UPDATE SCORES
+    # -------------------------
+    def update_scores(self):
+        self.profile_score = self.calculate_profile_score()
+        self.score = self.calculate_global_score()
+        self.save(update_fields=["profile_score", "score"])
+
+    # -------------------------
+    # 🔥 ACTIVITY METHODS
+    # -------------------------
     def update_last_activity(self):
-        """Update user's last activity timestamp"""
-        from django.utils import timezone
         self.last_activity = timezone.now()
         self.save(update_fields=['last_activity'])
 
+    def set_online(self):
+        if not self.is_online:
+            self.is_online = True
+            self.last_activity = timezone.now()
+            self.save(update_fields=['is_online', 'last_activity'])
+
+    def set_offline(self):
+        if self.is_online:
+            self.is_online = False
+            self.save(update_fields=['is_online'])
 
 
-        
+            
+
+
+
 
 
 
