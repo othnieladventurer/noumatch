@@ -39,6 +39,10 @@ class UserManager(BaseUserManager):
         return self.create_user(email, username, password, **extra_fields)
 
 
+
+
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=30)
@@ -99,7 +103,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
+    # ✅ Add this method to update last activity
+    def update_last_activity(self):
+        """Update user's last activity timestamp"""
+        from django.utils import timezone
+        self.last_activity = timezone.now()
+        self.save(update_fields=['last_activity'])
 
+
+
+        
 
 
 
