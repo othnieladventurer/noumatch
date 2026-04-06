@@ -1,5 +1,5 @@
 // src/App.jsx
-import React from "react";
+import React, { useEffect } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 
 // Context Providers
@@ -35,8 +35,29 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import VerifyOtp from "./pages/VerifyOtp";
 import Terms from "./pages/Terms";
 
-export default function App() {
+// PostHog
+import posthog from 'posthog-js';
+
+// Initialize PostHog
+posthog.init('YOUR_PROJECT_TOKEN', {
+  api_host: 'https://app.posthog.com',
+  person_profiles: 'identified_only'
+});
+
+export default function App({ user }) {
   const location = useLocation();
+
+  // Track page views
+  useEffect(() => {
+    posthog.capture('$pageview', { path: location.pathname });
+
+    if (user) {
+      posthog.identify(user.id, {
+        email: user.email,
+        username: user.username
+      });
+    }
+  }, [location, user]);
 
   // Routes where public navbar/footer should NOT appear
   const hidePublicLayoutRoutes = [

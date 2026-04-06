@@ -16,7 +16,6 @@ import {
   FaUserGraduate,
   FaLock,
   FaSignOutAlt,
-  FaBug,
 } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import API from "../api/axios";
@@ -29,9 +28,7 @@ export default function WaitlistStats() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [accepting, setAccepting] = useState(null);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
   const [debugData, setDebugData] = useState(null);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
@@ -90,61 +87,69 @@ export default function WaitlistStats() {
         setIsAuthorized(false);
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
-      } else if (err.response?.status === 404) {
-        console.log("Entries endpoint not found, trying alternative...");
-        // Try alternative endpoint if main one fails
-        try {
-          const debugResponse = await API.get("/waitlist/debug/");
-          if (debugResponse.data.waiting_entries) {
-            setEntries(debugResponse.data.waiting_entries);
-          }
-        } catch (debugErr) {
-          console.error("Debug endpoint also failed:", debugErr);
-        }
       }
     }
   };
 
-  const fetchDebug = async () => {
-    try {
-      const response = await API.get("/waitlist/debug/");
-      setDebugData(response.data);
-      setShowDebug(true);
-    } catch (err) {
-      console.error("Failed to fetch debug data:", err);
-      alert("Impossible de charger les données de débogage");
-    }
-  };
-
-  const handleAccept = async (entryId, firstName, lastName) => {
-    if (!window.confirm(`Accepter ${firstName} ${lastName} ?`)) return;
+  const handleAccept = async (entryId) => {
+    const entryToRemove = entries.find(entry => entry.id === entryId);
     
-    setAccepting(entryId);
+    setEntries(prevEntries => prevEntries.filter(entry => entry.id !== entryId));
+    
+    if (stats) {
+      const updatedStats = { ...stats };
+      if (entryToRemove) {
+        updatedStats.total_waiting = Math.max(0, (updatedStats.total_waiting || 0) - 1);
+        if (entryToRemove.gender === 'female') {
+          updatedStats.women_waiting = Math.max(0, (updatedStats.women_waiting || 0) - 1);
+          updatedStats.women_accepted = (updatedStats.women_accepted || 0) + 1;
+        } else {
+          updatedStats.men_waiting = Math.max(0, (updatedStats.men_waiting || 0) - 1);
+          updatedStats.men_accepted = (updatedStats.men_accepted || 0) + 1;
+        }
+      }
+      setStats(updatedStats);
+    }
+    
     try {
       await API.post(`/waitlist/admin/accept/${entryId}/`);
-      await fetchData();
-      await fetchEntries();
+      fetchData();
     } catch (err) {
       console.error("Accept error:", err);
-      alert("Erreur lors de l'acceptation: " + (err.response?.data?.error || err.message));
-    } finally {
-      setAccepting(null);
+      setEntries(prevEntries => [...prevEntries, entryToRemove].sort((a, b) => a.position - b.position));
+      await fetchData();
+      setError("Erreur lors de l'acceptation: " + (err.response?.data?.error || err.message));
+      setTimeout(() => setError(""), 3000);
     }
   };
 
-  const handleReject = async (entryId, firstName, lastName) => {
-    if (!window.confirm(`Supprimer ${firstName} ${lastName} ?`)) return;
+  const handleReject = async (entryId) => {
+    const entryToRemove = entries.find(entry => entry.id === entryId);
     
-    setAccepting(entryId);
+    setEntries(prevEntries => prevEntries.filter(entry => entry.id !== entryId));
+    
+    if (stats) {
+      const updatedStats = { ...stats };
+      if (entryToRemove) {
+        updatedStats.total_waiting = Math.max(0, (updatedStats.total_waiting || 0) - 1);
+        if (entryToRemove.gender === 'female') {
+          updatedStats.women_waiting = Math.max(0, (updatedStats.women_waiting || 0) - 1);
+        } else {
+          updatedStats.men_waiting = Math.max(0, (updatedStats.men_waiting || 0) - 1);
+        }
+      }
+      setStats(updatedStats);
+    }
+    
     try {
       await API.delete(`/waitlist/admin/delete/${entryId}/`);
-      await fetchData();
-      await fetchEntries();
+      fetchData();
     } catch (err) {
       console.error("Delete error:", err);
-      alert("Erreur lors de la suppression: " + (err.response?.data?.error || err.message));
-    } finally {
-      setAccepting(null);
+      setEntries(prevEntries => [...prevEntries, entryToRemove].sort((a, b) => a.position - b.position));
+      await fetchData();
+      setError("Erreur lors de la suppression: " + (err.response?.data?.error || err.message));
+      setTimeout(() => setError(""), 3000);
     }
   };
 
@@ -168,7 +173,8 @@ export default function WaitlistStats() {
       }
     } catch (err) {
       console.error("Login error:", err);
-      alert("Email ou mot de passe incorrect");
+      setError("Email ou mot de passe incorrect");
+      setTimeout(() => setError(""), 3000);
     } finally {
       setLoginLoading(false);
     }
@@ -194,7 +200,7 @@ export default function WaitlistStats() {
     );
   }
 
-  if (error) {
+  if (error && !stats) {
     return (
       <div className="container py-5" style={{ paddingTop: "80px" }}>
         <div className="alert alert-danger text-center shadow-sm">
@@ -232,6 +238,17 @@ export default function WaitlistStats() {
 
   return (
     <div style={{ width: "100%", minHeight: "100vh", paddingTop: "60px" }}>
+      {/* Error Toast/Alert */}
+      {error && (
+        <div className="container mt-3 position-fixed top-0 start-50 translate-middle-x" style={{ zIndex: 9999, maxWidth: "500px" }}>
+          <div className="alert alert-danger alert-dismissible fade show shadow-lg" role="alert">
+            <FaExclamationTriangle className="me-2" />
+            {error}
+            <button type="button" className="btn-close" onClick={() => setError("")}></button>
+          </div>
+        </div>
+      )}
+
       {/* Admin Login Modal */}
       {showAdmin && !isAuthorized && (
         <div className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center" style={{ zIndex: 9999 }}>
@@ -270,23 +287,6 @@ export default function WaitlistStats() {
                   </button>
                 </div>
               </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Debug Modal */}
-      {showDebug && debugData && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-50 d-flex align-items-center justify-content-center" style={{ zIndex: 9999, overflow: "auto" }}>
-          <div className="card shadow-lg" style={{ width: "90%", maxWidth: "800px", maxHeight: "80vh", overflow: "auto" }}>
-            <div className="card-header bg-info text-white d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">Données de débogage</h5>
-              <button className="btn btn-sm btn-light" onClick={() => setShowDebug(false)}>Fermer</button>
-            </div>
-            <div className="card-body">
-              <pre style={{ fontSize: "12px", whiteSpace: "pre-wrap" }}>
-                {JSON.stringify(debugData, null, 2)}
-              </pre>
             </div>
           </div>
         </div>
@@ -339,13 +339,6 @@ export default function WaitlistStats() {
                     Se déconnecter
                   </button>
                 )}
-                <button
-                  onClick={fetchDebug}
-                  className="btn btn-outline-light"
-                >
-                  <FaBug className="me-2" />
-                    Déboguer
-                </button>
               </div>
             </div>
           </div>
@@ -518,9 +511,12 @@ export default function WaitlistStats() {
             {entries.length === 0 ? (
               <div className="alert alert-warning text-center">
                 <FaExclamationTriangle className="me-2" />
-                Aucune inscription en attente affichée, mais les statistiques indiquent {totalWaiting} personne(s) en attente.
-                <br />
-                <small>Utilisez le bouton "Déboguer" pour voir les données brutes.</small>
+                Aucune inscription en attente
+                {totalWaiting > 0 && (
+                  <div className="mt-2">
+                    <small>Les statistiques indiquent {totalWaiting} personne(s) en attente mais la liste est vide.</small>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="table-responsive">
@@ -554,16 +550,14 @@ export default function WaitlistStats() {
                         <td>
                           <div className="d-flex gap-2">
                             <button
-                              onClick={() => handleAccept(entry.id, entry.first_name, entry.last_name)}
+                              onClick={() => handleAccept(entry.id)}
                               className="btn btn-success btn-sm"
-                              disabled={accepting === entry.id}
                             >
-                              {accepting === entry.id ? <FaSpinner className="spin" /> : <FaCheck />} Accepter
+                              <FaCheck /> Accepter
                             </button>
                             <button
-                              onClick={() => handleReject(entry.id, entry.first_name, entry.last_name)}
+                              onClick={() => handleReject(entry.id)}
                               className="btn btn-danger btn-sm"
-                              disabled={accepting === entry.id}
                             >
                               <FaTimes /> Refuser
                             </button>
@@ -579,18 +573,7 @@ export default function WaitlistStats() {
         </section>
       )}
 
-      {/* Call to Action */}
-      {(stats.can_join_as_woman || stats.can_join_as_man) && (
-        <section className="py-5 bg-gradient-primary text-white">
-          <div className="container px-3 text-center">
-            <h3 className="fw-bold mb-3">Vous n'êtes pas encore inscrit ?</h3>
-            <p className="mb-4">Rejoignez la liste d'attente et soyez parmi les premiers à découvrir NouMatch</p>
-            <Link to="/waitlist" className="btn btn-light btn-lg px-5 text-primary fw-bold">
-              S'inscrire maintenant
-            </Link>
-          </div>
-        </section>
-      )}
+      
 
       <style>
         {`
