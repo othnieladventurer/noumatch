@@ -9,24 +9,19 @@ import {
   FaChevronDown,
   FaChevronUp,
   FaInfoCircle,
-  FaCheckCircle,
-  FaSpinner,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import API from "../api/axios";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import heroBg from "../assets/waitlist-hero.png";
+import sneekPeak from "../assets/apptease.png";
 
 export default function Waitlist() {
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [openFaq, setOpenFaq] = useState(1);
   const [error, setError] = useState("");
-  const [waitlistEntries, setWaitlistEntries] = useState([]);
-  const [loadingEntries, setLoadingEntries] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [processingIds, setProcessingIds] = useState(new Set());
 
   useEffect(() => {
     AOS.init({
@@ -35,37 +30,11 @@ export default function Waitlist() {
       easing: "ease-in-out",
     });
     fetchStats();
-    checkAuthAndFetchWaitlist();
 
     return () => {
       AOS.refresh();
     };
   }, []);
-
-  const checkAuthAndFetchWaitlist = async () => {
-    try {
-      // Check if user is logged in
-      const token = localStorage.getItem("access_token");
-      if (token) {
-        setIsLoggedIn(true);
-        await fetchWaitlistEntries();
-      }
-    } catch (err) {
-      console.error("Auth check failed:", err);
-    }
-  };
-
-  const fetchWaitlistEntries = async () => {
-    setLoadingEntries(true);
-    try {
-      const response = await API.get("/waitlist/entries/");
-      setWaitlistEntries(response.data);
-    } catch (err) {
-      console.error("Failed to fetch waitlist entries:", err);
-    } finally {
-      setLoadingEntries(false);
-    }
-  };
 
   const fetchStats = async () => {
     try {
@@ -73,43 +42,6 @@ export default function Waitlist() {
       setStats(response.data);
     } catch (err) {
       console.error("Failed to fetch stats:", err);
-    }
-  };
-
-  const handleAcceptEntry = async (entryId) => {
-    // Prevent duplicate processing
-    if (processingIds.has(entryId)) return;
-    
-    setProcessingIds(prev => new Set(prev).add(entryId));
-    
-    try {
-      await API.post(`/waitlist/entries/${entryId}/accept/`);
-      
-      // Update local state optimistically
-      setWaitlistEntries(prevEntries => 
-        prevEntries.map(entry => 
-          entry.id === entryId 
-            ? { ...entry, status: 'accepted', accepted_at: new Date().toISOString() }
-            : entry
-        )
-      );
-      
-      // Refresh stats in background
-      fetchStats();
-      
-    } catch (err) {
-      console.error("Failed to accept entry:", err);
-      setError("Erreur lors de l'acceptation de l'inscription");
-      setTimeout(() => setError(""), 3000);
-      
-      // Revert optimistic update by refetching
-      await fetchWaitlistEntries();
-    } finally {
-      setProcessingIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(entryId);
-        return newSet;
-      });
     }
   };
 
@@ -178,18 +110,132 @@ export default function Waitlist() {
               </div>
 
               <h1 className="display-5 fw-bold mb-4">
-                Découvrez{" "}
-                <span className="text-danger">NouMatch</span> en Haïti
+                Rencontrez <span className="text-danger">des profils près de vous</span> en Haïti
               </h1>
 
               <p className="text-light mb-0">
                 <FaHeart className="text-danger me-1" />
-                Soyez parmi les premiers à trouvez voos "NouMatch" quand nous ouvrirons, Rejoingez la liste d'attente pour le pré-lancement.
+                Swipe. Match. Discute. Rejoignez la liste d’attente pour découvrir NouMatch en avant-première.
+              </p>
+
+              <p className="text-white-50 mt-3 mb-0">
+                Déjà de nombreuses personnes attendent l’ouverture de NouMatch.
               </p>
             </div>
           </div>
         </div>
       </section>
+
+      <div className="container my-4">
+        <div className="row justify-content-center g-3">
+          <div className="col-12 col-md-10 col-lg-9">
+            <div className="row g-3">
+              <div className="col-12 col-md-4">
+                <div
+                  className="h-100 d-flex align-items-center gap-3 px-4 py-3 rounded-4 shadow-sm border"
+                  style={{
+                    background: "linear-gradient(135deg, #fff5f7 0%, #ffffff 100%)",
+                    borderColor: "#ffccd5",
+                  }}
+                >
+                  <div
+                    className="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                    style={{
+                      width: "52px",
+                      height: "52px",
+                      backgroundColor: "#ff4d6d",
+                      color: "#fff",
+                      fontSize: "1.2rem",
+                    }}
+                  >
+                    <i className="fas fa-bolt"></i>
+                  </div>
+                  <div>
+                    <div
+                      className="fw-bold mb-1"
+                      style={{ color: "#b02a37", fontSize: "1rem" }}
+                    >
+                      Inscription rapide
+                    </div>
+                    <div className="text-muted small">
+                      Environ 30 secondes pour rejoindre la liste d’attente
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-4">
+                <div
+                  className="h-100 d-flex align-items-center gap-3 px-4 py-3 rounded-4 shadow-sm border"
+                  style={{
+                    background: "linear-gradient(135deg, #fff0f3 0%, #ffffff 100%)",
+                    borderColor: "#ffb3c1",
+                  }}
+                >
+                  <div
+                    className="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                    style={{
+                      width: "52px",
+                      height: "52px",
+                      backgroundColor: "#ff4d6d",
+                      color: "#fff",
+                      fontSize: "1.2rem",
+                    }}
+                  >
+                    <i className="fas fa-gift"></i>
+                  </div>
+                  <div>
+                    <div
+                      className="fw-bold mb-1"
+                      style={{ color: "#b02a37", fontSize: "1rem" }}
+                    >
+                      100% gratuit au lancement
+                    </div>
+                    <div className="text-muted small">
+                      Soyez parmi les premiers à découvrir NouMatch, sans frais au lancement
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-12 col-md-4">
+                <div
+                  className="h-100 d-flex align-items-center gap-3 px-4 py-3 rounded-4 shadow-sm border"
+                  style={{
+                    background: "linear-gradient(135deg, #fff5f7 0%, #ffffff 100%)",
+                    borderColor: "#ffccd5",
+                  }}
+                >
+                  <div
+                    className="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                    style={{
+                      width: "52px",
+                      height: "52px",
+                      backgroundColor: "#ff4d6d",
+                      color: "#fff",
+                      fontSize: "1.2rem",
+                    }}
+                  >
+                    <i className="fas fa-shield-alt"></i>
+                  </div>
+                  <div>
+                    <div
+                      className="fw-bold mb-1"
+                      style={{ color: "#b02a37", fontSize: "1rem" }}
+                    >
+                      Données sécurisées
+                    </div>
+                    <div className="text-muted small">
+                      Vos informations restent confidentielles et protégées
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Error Alert */}
       {error && (
@@ -201,116 +247,82 @@ export default function Waitlist() {
         </div>
       )}
 
-      {/* Waitlist Management Section - Only visible when logged in */}
-      {isLoggedIn && (
-        <section className="py-5 bg-white" style={{ position: "relative", zIndex: 2 }}>
-          <div className="container px-3">
-            <div className="text-center mb-5" data-aos="fade-up">
-              <h2 className="fw-bold display-6">Gestion de la liste d'attente</h2>
-              <p className="text-muted mx-auto" style={{ maxWidth: "600px" }}>
-                Consultez et acceptez les inscriptions en attente
-              </p>
-            </div>
+      <div className="container bg-light p-5 my-5 rounded-4">
+        <div className="row align-items-center g-4">
 
-            <div className="row justify-content-center">
-              <div className="col-lg-10">
-                <div className="card border-0 shadow-sm rounded-4 overflow-hidden">
-                  <div className="card-body p-0">
-                    {loadingEntries ? (
-                      <div className="text-center py-5">
-                        <FaSpinner className="spin text-danger fs-1" />
-                        <p className="text-muted mt-3">Chargement des inscriptions...</p>
-                      </div>
-                    ) : waitlistEntries.length === 0 ? (
-                      <div className="text-center py-5">
-                        <FaUsers className="text-muted fs-1 mb-3" />
-                        <p className="text-muted">Aucune inscription en attente</p>
-                      </div>
-                    ) : (
-                      <div className="table-responsive">
-                        <table className="table table-hover mb-0">
-                          <thead className="bg-light">
-                            <tr>
-                              <th className="px-4 py-3">Prénom</th>
-                              <th className="px-4 py-3">Nom</th>
-                              <th className="px-4 py-3">Email</th>
-                              <th className="px-4 py-3">Genre</th>
-                              <th className="px-4 py-3">Date d'inscription</th>
-                              <th className="px-4 py-3">Statut</th>
-                              <th className="px-4 py-3">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {waitlistEntries.map((entry) => (
-                              <tr key={entry.id}>
-                                <td className="px-4 py-3 align-middle">{entry.first_name}</td>
-                                <td className="px-4 py-3 align-middle">{entry.last_name}</td>
-                                <td className="px-4 py-3 align-middle">{entry.email}</td>
-                                <td className="px-4 py-3 align-middle">
-                                  <span className={`badge ${entry.gender === 'female' ? 'bg-danger' : 'bg-primary'}`}>
-                                    {entry.gender === 'female' ? 'Femme' : 'Homme'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 align-middle">
-                                  {new Date(entry.created_at).toLocaleDateString('fr-FR')}
-                                </td>
-                                <td className="px-4 py-3 align-middle">
-                                  {entry.status === 'accepted' ? (
-                                    <span className="badge bg-success">
-                                      <FaCheckCircle className="me-1" size={12} />
-                                      Accepté
-                                    </span>
-                                  ) : (
-                                    <span className="badge bg-warning text-dark">En attente</span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-3 align-middle">
-                                  {entry.status !== 'accepted' && (
-                                    <button
-                                      className="btn btn-sm btn-success rounded-pill px-3"
-                                      onClick={() => handleAcceptEntry(entry.id)}
-                                      disabled={processingIds.has(entry.id)}
-                                    >
-                                      {processingIds.has(entry.id) ? (
-                                        <>
-                                          <FaSpinner className="spin me-1" size={12} />
-                                          Traitement...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <FaCheckCircle className="me-1" />
-                                          Accepter
-                                        </>
-                                      )}
-                                    </button>
-                                  )}
-                                  {entry.status === 'accepted' && (
-                                    <span className="text-success small">
-                                      Accepté le {new Date(entry.accepted_at).toLocaleDateString('fr-FR')}
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+          {/* LEFT TEXT */}
+          <div className="col-12 col-lg-5">
+            <div>
+              <h2 className="fw-bold mb-3 text-danger">
+                Accès prioritaire aux premiers inscrits 🚀
+              </h2>
+
+              <p className="text-muted mb-3">
+                Les premiers inscrits sur NouMatch auront l’opportunité de découvrir l’application en avant-première et de commencer à explorer les profils dès l’ouverture.
+              </p>
+
+              <p className="text-danger fw-semibold small mb-4">
+                🔥 Les premiers inscrits auront plus de visibilité dès le lancement
+              </p>
+
+              <div className="d-flex flex-column gap-3">
+                <div className="d-flex align-items-center gap-2">
+                  <i className="fas fa-star text-danger"></i>
+                  <span className="fw-semibold">
+                    Découverte en avant-première de NouMatch
+                  </span>
+                </div>
+
+                <div className="d-flex align-items-center gap-2">
+                  <i className="fas fa-heart text-danger"></i>
+                  <span className="fw-semibold">
+                    Plus d’opportunités de connexion dès l’ouverture
+                  </span>
+                </div>
+
+                <div className="d-flex align-items-center gap-2">
+                  <i className="fas fa-bolt text-danger"></i>
+                  <span className="fw-semibold">
+                    Un profil visible plus tôt dans l’expérience
+                  </span>
                 </div>
               </div>
             </div>
           </div>
-        </section>
-      )}
+
+          {/* RIGHT IMAGE */}
+          <div className="col-12 col-lg-7 d-flex justify-content-center align-items-center">
+            <div className="w-100 d-flex justify-content-center">
+              <img
+                src={sneekPeak}
+                alt="NouMatch App Preview"
+                className="img-fluid rounded-4 shadow"
+                style={{
+                  maxHeight: "650px",
+                  width: "auto",
+                  objectFit: "contain",
+                  transition: "transform 0.3s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "scale(1.03)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                }}
+              />
+            </div>
+          </div>
+
+        </div>
+      </div>
 
       {/* Gender Selection Section */}
       <section className="py-5" style={{ position: "relative", zIndex: 2 }}>
         <div className="container px-3">
           <div className="text-center mb-5" data-aos="fade-up">
-            <h2 className="display-5 fw-bold mb-3">Choisissez votre espace</h2>
+            <h2 className="display-5 fw-bold mb-3">Choisissez votre parcours</h2>
             <p className="lead text-muted mx-auto" style={{ maxWidth: "600px" }}>
-              Sélectionnez votre genre pour accéder à un parcours d'inscription personnalisé.
+              Sélectionnez votre espace pour rejoindre la liste d’attente NouMatch.
             </p>
           </div>
 
@@ -337,7 +349,7 @@ export default function Waitlist() {
                 <h4 className="fw-bold mb-2">Femmes</h4>
 
                 <p className="text-muted mb-4">
-                  Faites partie des premières femmes à découvrir NouMatch et contribuez à façonner une expérience qui vous ressemble.
+                  Rejoignez les premières femmes inscrites sur NouMatch et découvrez une nouvelle façon de faire des rencontres près de vous.
                 </p>
 
                 <button className="btn btn-danger w-100 py-2 rounded-pill">
@@ -350,8 +362,8 @@ export default function Waitlist() {
             <div className="col-lg-4 col-md-6">
               <div
                 className="card border-0 shadow-sm rounded-4 text-center h-100 p-4"
-                style={{ 
-                  cursor: isMenBlocked ? "not-allowed" : "pointer", 
+                style={{
+                  cursor: isMenBlocked ? "not-allowed" : "pointer",
                   transition: "all 0.3s ease",
                   opacity: isMenBlocked ? 0.85 : 1
                 }}
@@ -379,7 +391,7 @@ export default function Waitlist() {
                 <h4 className="fw-bold mb-2">Hommes</h4>
 
                 <p className="text-muted mb-4">
-                  Rejoignez un espace conçu pour des rencontres sincères, où la qualité prime sur la quantité.
+                  Rejoignez NouMatch pour découvrir une expérience pensée pour des rencontres plus sincères et plus locales.
                 </p>
 
                 <button
@@ -394,7 +406,7 @@ export default function Waitlist() {
                   <div className="mt-3 text-center" style={{ fontSize: "0.85rem" }}>
                     <FaInfoCircle className="text-warning me-1" />
                     <span className="text-muted">
-                      Accès temporairement limité pour garantir une communauté équilibrée. Merci de revenir plus tard.
+                      Accès temporairement limité pour garantir une communauté équilibrée et une meilleure expérience. Merci de revenir plus tard.
                     </span>
                   </div>
                 )}
@@ -408,9 +420,9 @@ export default function Waitlist() {
       <section className="py-5 bg-white" style={{ position: "relative", zIndex: 2 }}>
         <div className="container px-3">
           <div className="text-center mb-5" data-aos="fade-up">
-            <h2 className="fw-bold display-6">Pourquoi rejoindre la liste d'attente ?</h2>
+            <h2 className="fw-bold display-6">Pourquoi rejoindre la liste d’attente NouMatch ?</h2>
             <p className="text-muted mx-auto" style={{ maxWidth: "600px" }}>
-              Les premiers inscrits bénéficient d'avantages exclusifs
+              Rejoignez dès maintenant et faites partie des premiers à découvrir l’expérience
             </p>
           </div>
 
@@ -423,8 +435,8 @@ export default function Waitlist() {
                 >
                   <FaRocket className="text-danger fs-2" />
                 </div>
-                <h5 className="fw-bold">Information prioritaire</h5>
-                <p className="text-muted">Recevez en premier les actualités et la date d'ouverture de NouMatch</p>
+                <h5 className="fw-bold">Accès prioritaire aux nouveautés</h5>
+                <p className="text-muted">Recevez en premier les informations importantes et l’annonce du lancement</p>
               </div>
             </div>
 
@@ -436,9 +448,9 @@ export default function Waitlist() {
                 >
                   <FaGift className="text-danger fs-2" />
                 </div>
-                <h5 className="fw-bold">Compte gratuit</h5>
+                <h5 className="fw-bold">Inscription gratuite</h5>
                 <p className="text-muted">
-                  L'inscription sur la liste d'attente est gratuite et sans engagement
+                  Rejoindre la liste d’attente est simple, gratuit et sans engagement
                 </p>
               </div>
             </div>
@@ -451,9 +463,9 @@ export default function Waitlist() {
                 >
                   <FaShieldAlt className="text-danger fs-2" />
                 </div>
-                <h5 className="fw-bold">Communauté locale</h5>
+                <h5 className="fw-bold">Rencontres plus proches de vous</h5>
                 <p className="text-muted">
-                  Rencontrez des personnes qui partagent votre culture et vos valeurs
+                  Découvrez des profils en Haïti et créez des connexions plus naturelles, plus locales
                 </p>
               </div>
             </div>
@@ -487,11 +499,11 @@ export default function Waitlist() {
                   style={{
                     maxHeight: openFaq === 1 ? "200px" : "0",
                     overflow: "hidden",
-                    transition: "maxHeight 0.3s ease-in-out"
+                    transition: "max-height 0.3s ease-in-out"
                   }}
                 >
                   <div className="p-4 pt-0 text-muted">
-                    Nous travaillons actuellement sur le développement de l'application. Les membres inscrits sur la liste d'attente seront informés par email dès que nous serons prêts à ouvrir.
+                    Nous préparons actuellement le lancement de NouMatch. Les personnes inscrites sur la liste d’attente seront informées en priorité dès l’ouverture.
                   </div>
                 </div>
               </div>
@@ -517,7 +529,7 @@ export default function Waitlist() {
                   }}
                 >
                   <div className="p-4 pt-0 text-muted">
-                    Cela nous permet de mieux comprendre qui souhaite rejoindre NouMatch et de vous tenir informé directement. Vous serez parmi les premiers à découvrir l'application.
+                    La liste d’attente vous permet de réserver votre place, d’être informé en priorité et de faire partie des premiers à découvrir NouMatch.
                   </div>
                 </div>
               </div>
@@ -543,7 +555,7 @@ export default function Waitlist() {
                   }}
                 >
                   <div className="p-4 pt-0 text-muted">
-                    L'inscription sur la liste d'attente est entièrement gratuite. Aucun paiement n'est demandé à cette étape.
+                    Non. L’inscription sur la liste d’attente est entièrement gratuite.
                   </div>
                 </div>
               </div>
@@ -567,9 +579,6 @@ export default function Waitlist() {
         }
         .btn:focus {
           box-shadow: none;
-        }
-        .table > :not(caption) > * > * {
-          vertical-align: middle;
         }
       `}</style>
     </div>
