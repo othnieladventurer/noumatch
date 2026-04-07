@@ -12,7 +12,8 @@ import "../styles/Dashboard.css";
 
 const MOBILE_BOTTOM_NAV_HEIGHT = 72;
 const PROFILES_PER_PAGE = 15;
-const PRELOAD_THRESHOLD = 3;
+const PRELOAD_THRESHOLD = 5; // Changed from 3 to 5 for better preloading
+const MAX_PRELOAD_IMAGES = 3; // NEW: Added for preloading
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -80,11 +81,40 @@ export default function Dashboard() {
   const [isPending, startTransition] = useTransition();
   const initialFetchDone = useRef(false);
   const interactionsFetched = useRef(false);
+  const imagePreloadCache = useRef(new Map()); // NEW: Cache for preloaded images
+  const pendingProfileLoad = useRef(false); // NEW: Prevent multiple loads
   
   // Helper functions
   const isMatched = useCallback((profileId) => matchesIds.includes(profileId), [matchesIds]);
   const isLiked = useCallback((profileId) => sentLikesIds.includes(profileId), [sentLikesIds]);
   const isBlocked = useCallback((profileId) => blockedIds.includes(profileId), [blockedIds]);
+  
+  // NEW: Preload profile images function
+  const preloadProfileImages = useCallback((profile) => {
+    if (!profile) return;
+    
+    // Don't preload if already cached
+    if (imagePreloadCache.current.has(profile.id)) return;
+    
+    const imagesToPreload = [];
+    
+    // Preload main profile photo
+    if (profile.profile_photo) {
+      imagesToPreload.push(profile.profile_photo);
+    }
+    
+    // Preload all images
+    imagesToPreload.forEach(imageUrl => {
+      if (!imagePreloadCache.current.has(imageUrl)) {
+        const img = new Image();
+        img.src = imageUrl;
+        imagePreloadCache.current.set(imageUrl, img);
+      }
+    });
+    
+    // Mark this profile as preloaded
+    imagePreloadCache.current.set(profile.id, true);
+  }, []);
   
   // Window resize handler
   useEffect(() => {
@@ -492,32 +522,48 @@ export default function Dashboard() {
   
   // FIXED: goNextProfile with preloading and no flicker
   const goNextProfile = useCallback(() => {
-    if (profileIndex < profiles.length - 1) {
-      // Preload next profile's main image to avoid flicker
-      const nextProfile = profiles[profileIndex + 1];
-      if (nextProfile && nextProfile.profile_photo) {
-        const img = new Image();
-        img.src = nextProfile.profile_photo;
+    // Clear any pending profile load
+    if (pendingProfileLoad.current) return;
+    
+    const nextIndex = profileIndex + 1;
+    
+    if (nextIndex < profiles.length) {
+      // We have next profile immediately available
+      const nextProfile = profiles[nextIndex];
+      
+      // Aggressively preload next profile's images BEFORE transition
+      preloadProfileImages(nextProfile);
+      
+      // Also preload the profile after next if available
+      if (nextIndex + 1 < profiles.length) {
+        preloadProfileImages(profiles[nextIndex + 1]);
       }
       
-      setProfileIndex(prev => prev + 1);
+      // Update index immediately
+      setProfileIndex(nextIndex);
       
-      // Preload more profiles if needed
-      if (profiles.length - (profileIndex + 1) <= PRELOAD_THRESHOLD && hasMoreProfiles && !isLoadingMore) {
+      // Preload more profiles in background
+      if (profiles.length - nextIndex <= PRELOAD_THRESHOLD && hasMoreProfiles && !isLoadingMore) {
         if (window.requestIdleCallback) {
-          window.requestIdleCallback(() => loadMoreProfiles(), { timeout: 1000 });
+          window.requestIdleCallback(() => loadMoreProfiles(), { timeout: 500 });
         } else {
-          setTimeout(() => loadMoreProfiles(), 100);
+          setTimeout(() => loadMoreProfiles(), 50);
         }
       }
-    } else if (hasMoreProfiles && !isLoadingMore) {
-      if (window.requestIdleCallback) {
-        window.requestIdleCallback(() => loadMoreProfiles(), { timeout: 1000 });
-      } else {
-        setTimeout(() => loadMoreProfiles(), 100);
-      }
+    } else if (hasMoreProfiles && !isLoadingMore && !pendingProfileLoad.current) {
+      // We're at the end, need to load more
+      pendingProfileLoad.current = true;
+      
+      startTransition(() => {
+        loadMoreProfiles();
+      });
+      
+      // Reset pending flag after load completes
+      setTimeout(() => {
+        pendingProfileLoad.current = false;
+      }, 500);
     }
-  }, [profileIndex, profiles, hasMoreProfiles, isLoadingMore, loadMoreProfiles]);
+  }, [profileIndex, profiles, hasMoreProfiles, isLoadingMore, loadMoreProfiles, preloadProfileImages]);
   
   // currentProfile memo
   const currentProfile = useMemo(() => {
@@ -528,7 +574,7 @@ export default function Dashboard() {
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
   
-  // Optimized swipe animation trigger (less aggressive)
+  // Optimized swipe animation trigger (faster transition)
   const triggerSlide = useCallback((direction) => {
     if (isAnimating) return;
     
@@ -555,7 +601,7 @@ export default function Dashboard() {
         }, 50);
         
         swipeTimeoutRef.current = null;
-      }, 200); // slightly shorter for smoother feel
+      }, 150); // Changed from 200 to 150 for faster response
     });
   }, [isAnimating, goNextProfile]);
   
@@ -865,6 +911,31 @@ export default function Dashboard() {
     fetchAllInteractions();
   }, [user, fetchBlockedUsers, fetchLikesReceived, fetchSentLikes, fetchMatches, fetchConversations]);
   
+  // NEW: Preload current profile images when it changes
+  useEffect(() => {
+    if (currentProfile?.id) {
+      // Preload current profile images
+      preloadProfileImages(currentProfile);
+      
+      // Also preload next profile if available
+      const nextIndex = profileIndex + 1;
+      if (nextIndex < profiles.length) {
+        preloadProfileImages(profiles[nextIndex]);
+      }
+    }
+  }, [currentProfile, profileIndex, profiles, preloadProfileImages]);
+  
+  // NEW: Preload first few profiles on initial load
+  useEffect(() => {
+    if (profiles.length > 0 && !profilesLoading) {
+      // Preload first 3 profiles' images
+      const profilesToPreload = profiles.slice(0, Math.min(3, profiles.length));
+      profilesToPreload.forEach(profile => {
+        preloadProfileImages(profile);
+      });
+    }
+  }, [profiles, profilesLoading, preloadProfileImages]);
+  
   useEffect(() => {
     setCurrentPhotoIndex(0);
     if (currentProfile?.id) {
@@ -894,13 +965,15 @@ export default function Dashboard() {
       if (swipeTimeoutRef.current) {
         clearTimeout(swipeTimeoutRef.current);
       }
+      // Clear image cache on unmount
+      imagePreloadCache.current.clear();
     };
   }, []);
   
-  // FIXED: centerCardStyle with less aggressive swipe
+  // FIXED: centerCardStyle with optimized transitions
   const centerCardStyle = {
     borderRadius: windowWidth < 992 ? "0px" : "24px",
-    transition: "transform 0.3s cubic-bezier(0.2, 0.8, 0.4, 1), opacity 0.2s ease",
+    transition: "transform 0.25s cubic-bezier(0.2, 0.8, 0.4, 1), opacity 0.2s ease",
     transform: slideDirection === "left" 
       ? "translateX(-70%) rotate(-2deg)" 
       : slideDirection === "right" 
