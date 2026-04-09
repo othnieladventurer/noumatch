@@ -18,6 +18,14 @@ export default function AdminUserDetail() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('users');
 
+  // NEW: state for tabs and modals
+  const [activeTab, setActiveTab] = useState('overview');
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [modalReason, setModalReason] = useState('');
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [showMessagesModal, setShowMessagesModal] = useState(false);
+
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add('dark-mode');
@@ -38,7 +46,8 @@ export default function AdminUserDetail() {
     const fetchUserDetail = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`${API_BASE}/users/detail/${id}/`, {
+        // Use the existing endpoint with ?full=true to get all extra data
+        const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setUser(res.data);
@@ -64,6 +73,7 @@ export default function AdminUserDetail() {
     navigate(path);
   };
 
+  // Keep your original handleUserAction for ban/unban/verify
   const handleUserAction = async (action) => {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
@@ -72,14 +82,50 @@ export default function AdminUserDetail() {
       await axios.post(`${API_BASE}/user_action/`, { user_id: id, action }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setUser(prev => ({
-        ...prev,
-        is_active: action === 'ban' ? false : action === 'unban' ? true : prev.is_active,
-        is_verified: action === 'verify' ? true : prev.is_verified
-      }));
+      // Refresh data
+      const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUser(res.data);
       alert(`User ${action}ed successfully`);
     } catch (err) {
       alert(`Failed to ${action} user`);
+    }
+  };
+
+  // NEW: admin block & deactivate actions
+  const handleBlock = async () => {
+    const token = localStorage.getItem('admin_access');
+    if (!token) return;
+    try {
+      await axios.post(`${API_BASE}/user/block/`, { user_id: id, reason: modalReason }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('User blocked by admin');
+      setShowBlockModal(false);
+      setModalReason('');
+    } catch (err) {
+      alert('Failed to block user');
+    }
+  };
+
+  const handleDeactivate = async () => {
+    const token = localStorage.getItem('admin_access');
+    if (!token) return;
+    try {
+      await axios.post(`${API_BASE}/user/deactivate/`, { user_id: id, reason: modalReason }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Refresh user data to reflect is_active = false
+      const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUser(res.data);
+      alert('User deactivated');
+      setShowDeactivateModal(false);
+      setModalReason('');
+    } catch (err) {
+      alert('Failed to deactivate user');
     }
   };
 
@@ -101,6 +147,7 @@ export default function AdminUserDetail() {
 
   if (!user) return null;
 
+  // Your original risk badge logic (unchanged)
   const getRiskBadge = () => {
     const reportsCount = user.stats?.total_reports_received || 0;
     if (reportsCount >= 5) return <span className="badge bg-danger px-3 py-2">High Risk</span>;
@@ -113,14 +160,14 @@ export default function AdminUserDetail() {
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
-        
+
         <div className="container-fluid px-4 py-4">
           {/* Back button */}
           <button className="back-btn mb-4" onClick={() => navigate('/admin/users')}>
             <i className="fas fa-arrow-left me-2"></i> Back to Users
           </button>
 
-          {/* Hero section */}
+          {/* Hero section – YOUR ORIGINAL CODE */}
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-5 p-4 bg-white bg-opacity-10 rounded-4 shadow-sm">
             <div className="d-flex align-items-center gap-4">
               <div className="position-relative">
@@ -149,6 +196,7 @@ export default function AdminUserDetail() {
               </div>
             </div>
             <div className="d-flex gap-3">
+              {/* Original ban/unban/verify buttons */}
               {user.is_active ? (
                 <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => handleUserAction('ban')}>
                   <i className="fas fa-ban me-2"></i>Ban User
@@ -163,10 +211,17 @@ export default function AdminUserDetail() {
                   <i className="fas fa-check-double me-2"></i>Verify
                 </button>
               )}
+              {/* NEW buttons */}
+              <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => setShowBlockModal(true)}>
+                <i className="fas fa-user-slash me-2"></i>Block (Admin)
+              </button>
+              <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => setShowDeactivateModal(true)}>
+                <i className="fas fa-power-off me-2"></i>Deactivate
+              </button>
             </div>
           </div>
 
-          {/* Quick stats row */}
+          {/* Quick stats row – YOUR ORIGINAL CODE */}
           <div className="row g-4 mb-5">
             <div className="col-md-6 col-lg-2">
               <div className="metric-card p-3 text-center">
@@ -212,7 +267,7 @@ export default function AdminUserDetail() {
             </div>
           </div>
 
-          {/* Two‑column detailed info */}
+          {/* Two‑column detailed info – YOUR ORIGINAL CODE */}
           <div className="row g-4 mb-5">
             <div className="col-lg-6">
               <div className="recent-blocks-card h-100">
@@ -256,7 +311,7 @@ export default function AdminUserDetail() {
             </div>
           </div>
 
-          {/* Recent activity sections */}
+          {/* Recent activity sections – YOUR ORIGINAL CODE */}
           {(user.recent_matches?.length > 0 || user.recent_reports?.length > 0 || user.recent_blocks?.length > 0) && (
             <div className="mt-2">
               <h5 className="mb-3"><i className="fas fa-history me-2"></i>Recent Activity</h5>
@@ -319,11 +374,175 @@ export default function AdminUserDetail() {
             </div>
           )}
 
+          {/* ========== NEW: Full Data Tabs (added below recent activity) ========== */}
+          <div className="card shadow-sm mt-5">
+            <div className="card-header bg-transparent border-bottom">
+              <ul className="nav nav-tabs card-header-tabs">
+                <li className="nav-item">
+                  <button className={`nav-link ${activeTab === 'all_matches' ? 'active' : ''}`} onClick={() => setActiveTab('all_matches')}>
+                    All Matches ({user.all_matches?.length || 0})
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button className={`nav-link ${activeTab === 'blocks_full' ? 'active' : ''}`} onClick={() => setActiveTab('blocks_full')}>
+                    Full Blocks
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button className={`nav-link ${activeTab === 'conversations' ? 'active' : ''}`} onClick={() => setActiveTab('conversations')}>
+                    Conversations ({user.conversations?.length || 0})
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button className={`nav-link ${activeTab === 'all_reports' ? 'active' : ''}`} onClick={() => setActiveTab('all_reports')}>
+                    All Reports ({user.all_reports_received?.length || 0})
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button className={`nav-link ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>
+                    Notifications ({user.all_notifications?.length || 0})
+                  </button>
+                </li>
+              </ul>
+            </div>
+            <div className="card-body">
+              {activeTab === 'all_matches' && (
+                <div className="table-responsive">
+                  <table className="table table-sm">
+                    <thead><tr><th>Matched With</th><th>Date</th></tr></thead>
+                    <tbody>
+                      {user.all_matches?.map(m => (
+                        <tr key={m.id}><td>{m.with_user}</td><td>{new Date(m.created_at).toLocaleString()}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {activeTab === 'blocks_full' && (
+                <div className="row">
+                  <div className="col-md-6">
+                    <h6>Blocks Sent</h6>
+                    <ul className="list-group">
+                      {user.blocks_sent?.map(b => (
+                        <li key={b.id} className="list-group-item d-flex justify-content-between">
+                          <span>{b.blocked_email}</span>
+                          <small>{new Date(b.created_at).toLocaleDateString()}</small>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Blocks Received</h6>
+                    <ul className="list-group">
+                      {user.blocks_received?.map(b => (
+                        <li key={b.id} className="list-group-item d-flex justify-content-between">
+                          <span>{b.blocker_email}</span>
+                          <small>{new Date(b.created_at).toLocaleDateString()}</small>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'conversations' && (
+                <div className="list-group">
+                  {user.conversations?.map(conv => (
+                    <div key={conv.id} className="list-group-item">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <strong>With: {conv.other_participant}</strong>
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => { setSelectedConversation(conv); setShowMessagesModal(true); }}>
+                          View Messages ({conv.messages?.length})
+                        </button>
+                      </div>
+                      <div className="text-muted small">Last message: {conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : 'No messages'}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {activeTab === 'all_reports' && (
+                <div className="table-responsive">
+                  <table className="table table-sm">
+                    <thead><tr><th>Reporter</th><th>Reason</th><th>Status</th><th>Date</th></tr></thead>
+                    <tbody>
+                      {user.all_reports_received?.map(r => (
+                        <tr key={r.id}>
+                          <td>{r.reporter_email}</td>
+                          <td>{r.reason}</td>
+                          <td>{r.status}</td>
+                          <td>{new Date(r.created_at).toLocaleDateString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {activeTab === 'notifications' && (
+                <div className="list-group">
+                  {user.all_notifications?.map(n => (
+                    <div key={n.id} className="list-group-item">
+                      <div className="d-flex justify-content-between"><strong>{n.title}</strong><small>{new Date(n.created_at).toLocaleString()}</small></div>
+                      <p className="mb-1">{n.message}</p>
+                      <span className={`badge bg-${n.is_read ? 'secondary' : 'primary'}`}>{n.is_read ? 'Read' : 'Unread'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           <footer className="admin-footer mt-5 pt-3">
             <small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small>
           </footer>
         </div>
       </main>
+
+      {/* Modals for new actions */}
+      {showBlockModal && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header"><h5 className="modal-title">Block User (Admin)</h5><button type="button" className="btn-close" onClick={() => setShowBlockModal(false)}></button></div>
+              <div className="modal-body">
+                <p>Block <strong>{user.email}</strong>? This only blocks them from the admin account.</p>
+                <textarea className="form-control" rows="2" placeholder="Reason (optional)" value={modalReason} onChange={e => setModalReason(e.target.value)}></textarea>
+              </div>
+              <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowBlockModal(false)}>Cancel</button><button className="btn btn-warning" onClick={handleBlock}>Block</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDeactivateModal && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header"><h5 className="modal-title">Deactivate Account</h5><button type="button" className="btn-close" onClick={() => setShowDeactivateModal(false)}></button></div>
+              <div className="modal-body">
+                <p>Deactivate <strong>{user.email}</strong>? They will not be able to log in.</p>
+                <textarea className="form-control" rows="2" placeholder="Reason" value={modalReason} onChange={e => setModalReason(e.target.value)}></textarea>
+              </div>
+              <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowDeactivateModal(false)}>Cancel</button><button className="btn btn-danger" onClick={handleDeactivate}>Deactivate</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showMessagesModal && selectedConversation && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header"><h5 className="modal-title">Messages with {selectedConversation.other_participant}</h5><button type="button" className="btn-close" onClick={() => setShowMessagesModal(false)}></button></div>
+              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                {selectedConversation.messages?.map(msg => (
+                  <div key={msg.id} className={`mb-2 p-2 rounded ${msg.sender_email === user.email ? 'bg-light text-dark' : 'bg-primary bg-opacity-10'}`}>
+                    <strong>{msg.sender_email}</strong> <small>{new Date(msg.created_at).toLocaleString()}</small>
+                    <div>{msg.content}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowMessagesModal(false)}>Close</button></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
