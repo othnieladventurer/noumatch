@@ -4,17 +4,29 @@ from rest_framework.permissions import IsAdminUser, AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
 from math import ceil
 
 from users.models import User
-from interactions.models import Like, Pass
+from interactions.models import Like, Pass, DailySwipe
 from matches.models import Match
 from block.models import Block
 from report.models import Report
 from chat.models import Conversation, Message
 from notifications.models import Notification
+
+from django.db.models import Sum
+from datetime import timedelta
+from django.db.models.functions import TruncDate
+
+
+
+
+from chat.models import SupportConversation, MessageFlag, Message
+from chat.serializers import SupportConversationSerializer, MessageSerializer, MessageFlagSerializer
+
+
 
 
 # ---------- Admin login ----------
@@ -401,4 +413,327 @@ class AdminReportResolveView(APIView):
 
 
 
+
+
+
+
+
+class AdminReportsListView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        status_filter = request.GET.get('status')
+        page = int(request.GET.get('page', 1))
+        limit = int(request.GET.get('limit', 20))
+
+        queryset = Report.objects.all().order_by('-created_at')
+        if status_filter and status_filter != 'all':
+            queryset = queryset.filter(status=status_filter)
+
+        total = queryset.count()
+        start = (page - 1) * limit
+        end = start + limit
+        reports = queryset[start:end]
+
+        data = []
+        for r in reports:
+            data.append({
+                'id': r.id,
+                'reporter_email': r.reporter.email,
+                'reporter_name': f"{r.reporter.first_name} {r.reporter.last_name}".strip() or r.reporter.email,
+                'reported_user_email': r.reported_user.email,
+                'reported_user_name': f"{r.reported_user.first_name} {r.reported_user.last_name}".strip() or r.reported_user.email,
+                'reason': r.get_reason_display(),
+                'status': r.status,
+                'created_at': r.created_at,
+                'description': r.description,
+                'admin_notes': r.admin_notes,
+                'action_taken': r.action_taken,
+            })
+
+        return Response({
+            'data': data,
+            'total': total,
+            'page': page,
+            'pages': (total + limit - 1) // limit
+        })
+
+
+class AdminReportDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, pk):
+        report = get_object_or_404(Report, pk=pk)
+        data = {
+            'id': report.id,
+            'reporter_email': report.reporter.email,
+            'reporter_name': f"{report.reporter.first_name} {report.reporter.last_name}".strip() or report.reporter.email,
+            'reported_user_email': report.reported_user.email,
+            'reported_user_name': f"{report.reported_user.first_name} {report.reported_user.last_name}".strip() or report.reported_user.email,
+            'reason': report.get_reason_display(),
+            'status': report.status,
+            'created_at': report.created_at,
+            'description': report.description,
+            'admin_notes': report.admin_notes,
+            'action_taken': report.action_taken,
+            'screenshot': report.screenshot.url if report.screenshot else None,
+            'match_id': report.match_id,
+        }
+        return Response(data)
+
+
+class AdminUpdateReportStatusView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, pk):
+        report = get_object_or_404(Report, pk=pk)
+        new_status = request.data.get('status')
+        admin_notes = request.data.get('admin_notes', '')
+        action_taken = request.data.get('action_taken', '')
+
+        if new_status in dict(Report.REPORT_STATUS).keys():
+            report.status = new_status
+        if admin_notes:
+            report.admin_notes = admin_notes
+        if action_taken:
+            report.action_taken = action_taken
+        report.save()
+        return Response({'message': 'Report updated', 'status': report.status})
+
+
+class AdminBanUserFromReportView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        report_id = request.data.get('report_id')
+        report = get_object_or_404(Report, id=report_id)
+        user_to_ban = report.reported_user
+        user_to_ban.is_active = False
+        user_to_ban.save()
+        report.action_taken = f"User {user_to_ban.email} banned. Reason: {report.get_reason_display()}"
+        report.status = 'resolved'
+        report.save()
+        return Response({'message': f'User {user_to_ban.email} banned successfully'})
+
+
+
+
+
+
+class AdminSwipeStatsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        # Pagination parameters
+        page = int(request.GET.get('page', 1))
+        limit = int(request.GET.get('limit', 10))  # days per page
         
+        end_date = timezone.now().date()
+        start_date = end_date - timedelta(days=30)
+
+        # Daily likes and passes (aggregated)
+        likes_by_date = Like.objects.filter(
+            created_at__date__range=[start_date, end_date]
+        ).annotate(date=TruncDate('created_at')).values('date').annotate(total=Count('id'))
+
+        passes_by_date = Pass.objects.filter(
+            created_at__date__range=[start_date, end_date]
+        ).annotate(date=TruncDate('created_at')).values('date').annotate(total=Count('id'))
+
+        likes_dict = {item['date']: item['total'] for item in likes_by_date}
+        passes_dict = {item['date']: item['total'] for item in passes_by_date}
+
+        # Build full daily list (newest to oldest)
+        daily_data = []
+        current = end_date
+        while current >= start_date:  # descending order
+            daily_data.append({
+                'date': current.isoformat(),
+                'likes': likes_dict.get(current, 0),
+                'passes': passes_dict.get(current, 0),
+            })
+            current -= timedelta(days=1)
+
+        # Paginate
+        total_days = len(daily_data)
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        paginated_days = daily_data[start_idx:end_idx]
+
+        # Totals
+        total_likes = Like.objects.count()
+        total_passes = Pass.objects.count()
+
+        # Today
+        today = end_date
+        today_likes = Like.objects.filter(created_at__date=today).count()
+        today_passes = Pass.objects.filter(created_at__date=today).count()
+
+        # Top users (last 7 days)
+        last_week = end_date - timedelta(days=7)
+        top_users = User.objects.filter(
+            Q(likes_sent__created_at__date__gte=last_week) |
+            Q(passes_sent__created_at__date__gte=last_week)
+        ).annotate(
+            total_swipes=Count('likes_sent') + Count('passes_sent')
+        ).order_by('-total_swipes')[:10]
+
+        top_users_data = [
+            {
+                'name': f"{u.first_name} {u.last_name}".strip() or u.email,
+                'email': u.email,
+                'total_swipes': u.total_swipes
+            } for u in top_users
+        ]
+
+        return Response({
+            'daily_data': paginated_days,
+            'total_days': total_days,
+            'page': page,
+            'pages': ceil(total_days / limit) if limit > 0 else 1,
+            'total_likes': total_likes,
+            'total_passes': total_passes,
+            'today_likes': today_likes,
+            'today_passes': today_passes,
+            'top_users': top_users_data
+        })
+
+
+
+
+
+
+
+class AdminSupportConversationListView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        status = request.GET.get('status')
+        qs = SupportConversation.objects.all().order_by('-updated_at')
+        if status:
+            qs = qs.filter(status=status)
+        serializer = SupportConversationSerializer(qs, many=True)
+        return Response(serializer.data)
+
+
+
+
+
+
+class AdminSupportConversationDetailView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request, pk):
+        conv = get_object_or_404(SupportConversation, pk=pk)
+        serializer = SupportConversationSerializer(conv)
+        return Response(serializer.data)
+
+    def get_messages(self, request, pk):
+        conv = get_object_or_404(SupportConversation, pk=pk)
+        messages = conv.messages.all()
+        serializer = MessageSerializer(messages, many=True)
+        return Response(serializer.data)
+
+
+
+
+
+
+class AdminReplyToSupportView(APIView):
+    permission_classes = [IsAdminUser]
+    def post(self, request, pk):
+        conv = get_object_or_404(SupportConversation, pk=pk)
+        content = request.data.get('content', '').strip()
+        if not content:
+            return Response({'error': 'Message content required'}, status=400)
+        msg = Message.objects.create(
+            support_conversation=conv,
+            sender=request.user,
+            sender_type='admin',
+            content=content
+        )
+        # if conversation was closed, reopen
+        if conv.status == 'closed':
+            conv.status = 'open'
+            conv.save()
+        serializer = MessageSerializer(msg)
+        return Response(serializer.data)
+
+
+
+
+
+class AdminFlaggedMessagesListView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        qs = MessageFlag.objects.all().order_by('-created_at')
+        serializer = MessageFlagSerializer(qs, many=True)
+        return Response(serializer.data)
+
+
+
+
+
+class AdminTakeActionOnFlaggedMessageView(APIView):
+    permission_classes = [IsAdminUser]
+    def post(self, request, pk):
+        flag = get_object_or_404(MessageFlag, pk=pk)
+        action = request.data.get('action')  # 'ban_user', 'delete_message', 'warn'
+        # Perform action
+        if action == 'ban_user' and flag.message.sender:
+            flag.message.sender.is_active = False
+            flag.message.sender.save()
+        elif action == 'delete_message':
+            flag.message.delete()
+        # Optionally add a system message to support conversation if applicable
+        flag.delete()  # remove flag after action
+        return Response({'status': f'Action {action} taken'})
+
+
+
+
+class AdminUserConversationsListView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request):
+        convs = Conversation.objects.all().order_by('-updated_at')
+        data = []
+        for c in convs:
+            participants = c.get_participants()
+            data.append({
+                'id': c.id,
+                'participants': [p.email for p in participants],
+                'last_message': c.last_message().content if c.last_message() else None,
+                'last_message_at': c.last_message_at,
+                'created_at': c.created_at,
+            })
+        return Response(data)
+
+
+
+
+
+class AdminUserConversationDetailView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request, pk):
+        conv = get_object_or_404(Conversation, pk=pk)
+        participants = conv.get_participants()
+        data = {
+            'id': conv.id,
+            'participants': [p.email for p in participants],
+            'created_at': conv.created_at,
+            'last_message_at': conv.last_message_at,
+        }
+        return Response(data)
+
+
+
+
+
+class AdminUserConversationMessagesView(APIView):
+    permission_classes = [IsAdminUser]
+    def get(self, request, pk):
+        conv = get_object_or_404(Conversation, pk=pk)
+        messages = conv.messages.all().order_by('created_at')
+        serializer = MessageSerializer(messages, many=True)
+        return Response(serializer.data)
+
+
+

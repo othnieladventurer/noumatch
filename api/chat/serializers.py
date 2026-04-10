@@ -1,9 +1,13 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Conversation, Message
 from matches.models import Match
 
+from .models import Conversation, SupportConversation, Message, MessageFlag
+
+
+from django.contrib.auth import get_user_model
 User = get_user_model()
+
 
 class UserChatSerializer(serializers.ModelSerializer):
     """Minimal user serializer for chat responses"""
@@ -203,5 +207,97 @@ class MarkMessagesReadSerializer(serializers.Serializer):
                 "Either message_ids or mark_all must be provided"
             )
         return data
+
+
+
+
+
+
+
+
+
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender_email = serializers.EmailField(source='sender.email', read_only=True)
+
+    class Meta:
+        model = Message
+        fields = ['id', 'sender', 'sender_email', 'sender_type', 'content', 'read', 'created_at']
+        read_only_fields = ['id', 'created_at', 'read']
+
+
+
+
+
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    other_user_email = serializers.SerializerMethodField()
+    last_message = MessageSerializer(source='last_message', read_only=True)
+    unread_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conversation
+        fields = ['id', 'match', 'other_user_email', 'created_at', 'updated_at', 'last_message', 'unread_count']
+
+    def get_other_user_email(self, obj):
+        user = self.context['request'].user
+        other = obj.get_other_user(user)
+        return other.email if other else None
+
+    def get_unread_count(self, obj):
+        return obj.unread_count(self.context['request'].user)
+
+
+
+
+
+
+
+
+class SupportConversationSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source='user.email', read_only=True)
+    last_message = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SupportConversation
+        fields = ['id', 'user', 'user_email', 'assigned_admin', 'status', 'created_at', 'updated_at', 'last_message']
+
+    def get_last_message(self, obj):
+        msg = obj.last_message()
+        if msg:
+            return {
+                'content': msg.content,
+                'created_at': msg.created_at,
+                'sender_type': msg.sender_type
+            }
+        return None
+
+
+
+
+
+
+
+class MessageFlagSerializer(serializers.ModelSerializer):
+    message_content = serializers.CharField(source='message.content', read_only=True)
+    sender_email = serializers.EmailField(source='message.sender.email', read_only=True)
+
+    class Meta:
+        model = MessageFlag
+        fields = ['id', 'message', 'message_content', 'sender_email', 'reason', 'score', 'created_at']
+
+
+
+
+
+
+
+
+
+
+
+
 
 

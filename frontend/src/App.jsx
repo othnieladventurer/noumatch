@@ -40,6 +40,12 @@ import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminUsers from "./pages/AdminUsers.jsx";
 import AdminUserDetail from "./pages/AdminUserDetail.jsx";
+import AdminReports from "./pages/AdminReports.jsx";
+import AdminSwipeStats from "./pages/AdminSwipeStats.jsx";
+import AdminMessages from "./pages/AdminMessages.jsx";
+import AdminSupportConversationDetail from "./pages/AdminSupportConversationDetail.jsx"; // support conversation detail
+import AdminUserConversationDetail from "./pages/AdminUserConversationDetail.jsx";       // user chat detail
+import AdminFlaggedMessages from "./pages/AdminFlaggedMessages.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -64,7 +70,12 @@ export default function App() {
     "/admin/login",
     "/admin/dashboard",
     "/admin/users",
-    "/admin/users/detail/", // for dynamic detail route
+    "/admin/users/detail/",
+    "/admin/reports",
+    "/admin/swipe-stats",
+    "/admin/messages",
+    "/admin/messages/",
+    "/admin/flagged-messages",
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -116,6 +127,14 @@ export default function App() {
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/users/detail/:id" element={<AdminUserDetail />} />
+            <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/swipe-stats" element={<AdminSwipeStats />} />
+            
+            {/* ✅ Admin Messaging Routes */}
+            <Route path="/admin/messages" element={<AdminMessages />} />
+            <Route path="/admin/messages/support/:id" element={<AdminSupportConversationDetail />} />
+            <Route path="/admin/messages/user/:id" element={<AdminUserConversationDetail />} />
+            <Route path="/admin/flagged-messages" element={<AdminFlaggedMessages />} />
           </Routes>
         </main>
 
@@ -124,3 +143,9 @@ export default function App() {
     </NotificationProvider>
   );
 }
+
+
+
+
+
+

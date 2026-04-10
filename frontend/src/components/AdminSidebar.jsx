@@ -1,22 +1,52 @@
 // src/components/AdminSidebar.jsx
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 
 export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMenuClick }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [internalActiveMenu, setInternalActiveMenu] = useState(activeMenu || 'dashboard');
+
+  // Only sync from location, do NOT call onMenuClick here
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.includes('/admin/users')) {
+      setInternalActiveMenu('users');
+    } else if (path.includes('/admin/reports')) {
+      setInternalActiveMenu('reports');
+    } else if (path.includes('/admin/swipe-stats')) {
+      setInternalActiveMenu('swipe-stats');
+    } else if (path.includes('/admin/messages')) {
+      setInternalActiveMenu('messages');
+    } else if (path.includes('/admin/settings')) {
+      setInternalActiveMenu('settings');
+    } else if (path === '/admin/dashboard') {
+      setInternalActiveMenu('dashboard');
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_access');
     localStorage.removeItem('admin_refresh');
     localStorage.removeItem('admin_email');
+    localStorage.removeItem('admin_theme');
     navigate('/admin/login');
+  };
+
+  const handleMenuClick = (key, path) => {
+    setInternalActiveMenu(key);
+    if (onMenuClick) {
+      onMenuClick(key, path);
+    } else {
+      navigate(path);
+    }
   };
 
   const menuItems = [
     { key: 'dashboard', label: 'Dashboard', icon: 'fas fa-tachometer-alt', path: '/admin/dashboard' },
     { key: 'users', label: 'User Management', icon: 'fas fa-users', path: '/admin/users' },
     { key: 'reports', label: 'Reports', icon: 'fas fa-flag', path: '/admin/reports' },
-    { key: 'alerts', label: 'Alerts', icon: 'fas fa-bell', path: '/admin/alerts' },
+    // Alerts menu item removed
     { key: 'swipe-stats', label: 'Swipe Stats', icon: 'fas fa-chart-line', path: '/admin/swipe-stats' },
     { key: 'messages', label: 'Messages', icon: 'fas fa-comment-dots', path: '/admin/messages' },
     { key: 'settings', label: 'Settings', icon: 'fas fa-cog', path: '/admin/settings' },
@@ -40,8 +70,8 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
           {menuItems.map((item) => (
             <li className="nav-item" key={item.key}>
               <button
-                className={`nav-link ${activeMenu === item.key ? 'active' : ''}`}
-                onClick={() => onMenuClick(item.key, item.path)}
+                className={`nav-link ${internalActiveMenu === item.key ? 'active' : ''}`}
+                onClick={() => handleMenuClick(item.key, item.path)}
               >
                 <i className={item.icon}></i>
                 {!collapsed && <span>{item.label}</span>}
@@ -66,5 +96,3 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     </aside>
   );
 }
-
-

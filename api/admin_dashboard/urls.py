@@ -3,7 +3,14 @@ from .views import (
     AdminLoginView, AdminDashboardView,
     AdminUserActionView, AdminReportResolveView, AdminUsersListView,
     AdminUserDetailView, AdminBlockUserView, AdminBanUserView,
-    AdminUnbanUserView, AdminDeactivateUserView
+    AdminUnbanUserView, AdminDeactivateUserView,
+    # Report views
+    AdminReportsListView, AdminReportDetailView,
+    AdminUpdateReportStatusView, AdminBanUserFromReportView, AdminSwipeStatsView,
+
+    AdminSupportConversationListView, AdminSupportConversationDetailView, AdminReplyToSupportView,
+    AdminFlaggedMessagesListView, AdminTakeActionOnFlaggedMessageView, AdminUserConversationDetailView, 
+    AdminUserConversationMessagesView, AdminUserConversationsListView
 )
 
 urlpatterns = [
@@ -17,4 +24,33 @@ urlpatterns = [
     path('user/ban/', AdminBanUserView.as_view(), name='admin-ban-user'),
     path('user/unban/', AdminUnbanUserView.as_view(), name='admin-unban-user'),
     path('user/deactivate/', AdminDeactivateUserView.as_view(), name='admin-deactivate-user'),
+
+    # ✅ Reports endpoints
+    path('reports/list/', AdminReportsListView.as_view(), name='admin-reports-list'),
+    path('reports/detail/<int:pk>/', AdminReportDetailView.as_view(), name='admin-report-detail'),
+    path('reports/update-status/<int:pk>/', AdminUpdateReportStatusView.as_view(), name='admin-report-update-status'),
+    path('reports/ban-user/', AdminBanUserFromReportView.as_view(), name='admin-ban-from-report'),
+
+
+    path('swipe-stats/', AdminSwipeStatsView.as_view(), name='admin-swipe-stats'),
+
+
+
+
+    # Messaging admin endpoints
+    path('support-conversations/', AdminSupportConversationListView.as_view(), name='admin-support-conversations'),
+    path('support-conversations/<int:pk>/', AdminSupportConversationDetailView.as_view(), name='admin-support-conversation-detail'),
+    path('support-conversations/<int:pk>/reply/', AdminReplyToSupportView.as_view(), name='admin-support-reply'),
+    path('flagged-messages/', AdminFlaggedMessagesListView.as_view(), name='admin-flagged-messages'),
+    path('flagged-messages/<int:pk>/action/', AdminTakeActionOnFlaggedMessageView.as_view(), name='admin-flagged-action'),
+    
+    # ✅ User conversations (match-based)
+    path('user-conversations/', AdminUserConversationsListView.as_view(), name='admin-user-conversations'),  # LIST
+    path('user-conversations/<int:pk>/', AdminUserConversationDetailView.as_view(), name='admin-user-conversation-detail'),
+    path('user-conversations/<int:pk>/messages/', AdminUserConversationMessagesView.as_view(), name='admin-user-conversation-messages'),
+
+
+
+
+
 ]
