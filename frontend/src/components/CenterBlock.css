@@ -18,6 +18,8 @@
   -webkit-transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  object-fit: contain !important;
+  background-color: #f8f9fa;
 }
 
 /* Disable tap highlight on mobile for faster response */
@@ -164,10 +166,9 @@ button {
 }
 
 /* ============================================ */
-/* MOBILE & TABLET - ONLY remove outer card border-radius */
+/* MOBILE & TABLET */
 /* ============================================ */
 @media (max-width: 991.98px) {
-  /* ONLY affect the outer card's border-radius */
   .center-card {
     border-radius: 0 !important;
     margin: 0 !important;
@@ -181,7 +182,6 @@ button {
     overflow: visible !important;
   }
   
-  /* Keep image container with hidden overflow (needed for image display) */
   .image-container {
     border-radius: 0 !important;
     margin: 0 !important;
@@ -194,15 +194,12 @@ button {
     overflow: hidden !important;
   }
   
-  /* Keep images properly displayed */
   .image-container img {
     width: 100% !important;
     height: 100% !important;
-    object-fit: cover !important;
-    object-position: center !important;
+    /* object-fit: contain is already set globally */
   }
   
-  /* Card content styles - keep everything as is */
   .card-content {
     padding: 12px 16px !important;
     margin: 0 !important;
@@ -212,7 +209,6 @@ button {
     flex-direction: column !important;
   }
   
-  /* Push buttons to bottom */
   .card-content > div:last-child {
     margin-top: auto !important;
     margin-bottom: 0 !important;
@@ -228,7 +224,6 @@ button {
     margin-bottom: 0 !important;
   }
   
-  /* Ensure all buttons remain round on mobile */
   .btn.rounded-circle,
   button.rounded-circle,
   .round-action-btn {
@@ -237,7 +232,7 @@ button {
 }
 
 /* ============================================ */
-/* DESKTOP - Keep rounded corners */
+/* DESKTOP */
 /* ============================================ */
 @media (min-width: 992px) {
   .center-card {
@@ -253,7 +248,6 @@ button {
   .image-container img {
     width: 100% !important;
     height: 100% !important;
-    object-fit: cover !important;
   }
   
   .card-content {

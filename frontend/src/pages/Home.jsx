@@ -63,7 +63,7 @@ export default function Home() {
             <p className="lead mt-3 mb-4">
               Un espace pour trouver des rencontres vraies, fun et sincères!
             </p>
-            <Link to="/waitlist" className="btn btn-danger btn-lg px-4">Joindre Liste D'attente</Link>
+            <Link to="/login" className="btn btn-danger btn-lg px-4">Créer Mon Compte</Link>
           </div>
         </section>
 
@@ -214,7 +214,7 @@ export default function Home() {
                 <p className="text-muted mb-4">
                   Rencontrez des personnes qui partagent vos centres d'intérêt, vos valeurs et votre énergie. Discutez, riez, créez des liens et laissez la rencontre se faire naturellement.
                 </p>
-                <Link to="/waitlist" className="btn btn-danger btn-lg px-4">Engage la conversation</Link>
+                <Link to="/login" className="btn btn-danger btn-lg px-4">Engage la conversation</Link>
               </div>
             </div>
           </div>
@@ -237,7 +237,7 @@ export default function Home() {
             <p className="mb-4 text-light mx-auto" style={{ maxWidth: "700px" }}>
               Connectez-vous pour continuer votre parcours vers des connexions authentiques et significatives. Accédez à votre profil et découvrez vos matchs dès maintenant.
             </p>
-            <Link to="/waitlist" className="btn btn-light btn-lg text-danger fw-semibold px-4">Se connecter</Link>
+            <Link to="/login" className="btn btn-light btn-lg text-danger fw-semibold px-4">Se connecter</Link>
           </div>
         </section>
 

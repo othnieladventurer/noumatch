@@ -57,27 +57,22 @@ export default function CenterBlock({
   const touchEndY = useRef(0);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 992;
 
-  // Handle touch start for swipe
   const handleTouchStart = (e) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   };
 
-  // Handle touch move for swipe
   const handleTouchMove = (e) => {
     touchEndX.current = e.touches[0].clientX;
     touchEndY.current = e.touches[0].clientY;
   };
 
-  // Handle touch end for swipe - Left = Pass, Right = Like
   const handleTouchEnd = () => {
     const deltaX = touchEndX.current - touchStartX.current;
     const deltaY = touchEndY.current - touchStartY.current;
     const minSwipeDistance = 50;
 
-    // Check if horizontal swipe (ignore vertical swipes)
     if (Math.abs(deltaX) < minSwipeDistance || Math.abs(deltaX) < Math.abs(deltaY)) {
-      // Reset values
       touchStartX.current = 0;
       touchEndX.current = 0;
       touchStartY.current = 0;
@@ -86,25 +81,21 @@ export default function CenterBlock({
     }
 
     if (deltaX > 0) {
-      // Swipe Right - Like
       if (!isAnimating && !isMatched(currentProfile?.id) && swipeLimits?.can_like !== false) {
         handleLike();
       }
     } else {
-      // Swipe Left - Pass
       if (!isAnimating) {
         handlePass();
       }
     }
 
-    // Reset values
     touchStartX.current = 0;
     touchEndX.current = 0;
     touchStartY.current = 0;
     touchEndY.current = 0;
   };
 
-  // Only show loading on very first load when no profile exists
   if (profilesLoading && !currentProfile) {
     return (
       <div className="h-100 d-flex align-items-center justify-content-center">
@@ -154,7 +145,6 @@ export default function CenterBlock({
     );
   }
 
-  // Safe wrapper for photo navigation
   const safeGoToPrevPhoto = (e) => {
     if (!currentProfile) return;
     const photos = getCurrentProfilePhotos();
@@ -191,15 +181,10 @@ export default function CenterBlock({
   };
 
   const locationDisplay = getLocationDisplay();
-
-  // Override styles for mobile - remove rounded corners
   const mobileCardStyle = isMobile 
     ? { ...centerCardStyle, borderRadius: "0px", boxShadow: "none", overflow: "visible" }
     : centerCardStyle;
-
-  const mobileImageStyle = isMobile
-    ? { borderRadius: "0px", overflow: "hidden" }
-    : {};
+  const mobileImageStyle = isMobile ? { borderRadius: "0px", overflow: "hidden" } : {};
 
   return (
     <div 
@@ -209,7 +194,6 @@ export default function CenterBlock({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* FIX: key prop forces complete re-render of image container, eliminating old picture flash */}
       <div 
         key={currentProfile.id}
         className="image-container" 
@@ -302,7 +286,6 @@ export default function CenterBlock({
         
         <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "Pas encore de bio"}</p>
 
-        {/* Daily limit indicator */}
         {swipeLimits && !swipeLimits.can_like && (
           <div className="alert alert-warning text-center py-2 mb-3" style={{ fontSize: "0.85rem" }}>
             <i className="fas fa-info-circle me-2"></i>

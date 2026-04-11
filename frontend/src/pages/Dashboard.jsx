@@ -12,8 +12,8 @@ import "../styles/Dashboard.css";
 
 const MOBILE_BOTTOM_NAV_HEIGHT = 72;
 const PROFILES_PER_PAGE = 15;
-const PRELOAD_THRESHOLD = 5; // Changed from 3 to 5 for better preloading
-const MAX_PRELOAD_IMAGES = 3; // NEW: Added for preloading
+const PRELOAD_THRESHOLD = 5;
+const MAX_PRELOAD_IMAGES = 3;
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -81,29 +81,23 @@ export default function Dashboard() {
   const [isPending, startTransition] = useTransition();
   const initialFetchDone = useRef(false);
   const interactionsFetched = useRef(false);
-  const imagePreloadCache = useRef(new Map()); // NEW: Cache for preloaded images
-  const pendingProfileLoad = useRef(false); // NEW: Prevent multiple loads
+  const imagePreloadCache = useRef(new Map());
+  const pendingProfileLoad = useRef(false);
   
   // Helper functions
   const isMatched = useCallback((profileId) => matchesIds.includes(profileId), [matchesIds]);
   const isLiked = useCallback((profileId) => sentLikesIds.includes(profileId), [sentLikesIds]);
   const isBlocked = useCallback((profileId) => blockedIds.includes(profileId), [blockedIds]);
   
-  // NEW: Preload profile images function
   const preloadProfileImages = useCallback((profile) => {
     if (!profile) return;
-    
-    // Don't preload if already cached
     if (imagePreloadCache.current.has(profile.id)) return;
     
     const imagesToPreload = [];
-    
-    // Preload main profile photo
     if (profile.profile_photo) {
       imagesToPreload.push(profile.profile_photo);
     }
     
-    // Preload all images
     imagesToPreload.forEach(imageUrl => {
       if (!imagePreloadCache.current.has(imageUrl)) {
         const img = new Image();
@@ -111,8 +105,6 @@ export default function Dashboard() {
         imagePreloadCache.current.set(imageUrl, img);
       }
     });
-    
-    // Mark this profile as preloaded
     imagePreloadCache.current.set(profile.id, true);
   }, []);
   
@@ -158,7 +150,7 @@ export default function Dashboard() {
     );
   }
   
-  // Fetch functions (keep your existing implementations unchanged)
+  // Fetch functions
   const fetchSwipeLimits = useCallback(async () => {
     try {
       const response = await API.get("/interactions/swipe/limits/");
@@ -204,12 +196,9 @@ export default function Dashboard() {
     }
   }, [navigate]);
   
-  // Progressive profile loading
   const fetchProfilesBasedOnUser = useCallback(async (page = 1, append = false) => {
     if (!user?.id) return;
     if (append && isLoadingMore) return;
-  
-    console.log(`🔄 fetchProfilesBasedOnUser: page=${page}, append=${append}, isLoadingMore=${isLoadingMore}`);
   
     if (!append) setProfilesLoading(true);
     if (append) setIsLoadingMore(true);
@@ -222,9 +211,7 @@ export default function Dashboard() {
       const params = { page, page_size: PROFILES_PER_PAGE };
       if (genderFilter) params.gender = genderFilter;
   
-      console.log(`📡 API call: /users/profiles/ with params:`, params);
       const response = await API.get("/users/profiles/", { params });
-      console.log(`✅ API response status: ${response.status}`, response.data);
   
       let profilesArray = [];
       let hasNext = false;
@@ -244,7 +231,6 @@ export default function Dashboard() {
         profilesArray = response.data;
         hasNext = false;
       } else {
-        console.error("❌ Unknown response structure:", response.data);
         profilesArray = [];
         hasNext = false;
       }
@@ -277,8 +263,6 @@ export default function Dashboard() {
         birth_date: profile.birth_date,
       }));
   
-      console.log(`✨ Transformed profiles: ${transformedProfiles.length}`);
-  
       if (append) {
         setProfiles(prev => [...prev, ...transformedProfiles]);
         setHasMoreProfiles(hasNext);
@@ -306,11 +290,9 @@ export default function Dashboard() {
     } finally {
       setProfilesLoading(false);
       setIsLoadingMore(false);
-      console.log(`🏁 fetchProfilesBasedOnUser finished. profilesLoading=false, isLoadingMore=false`);
     }
   }, [user, blockedIds, isLoadingMore, navigate, fetchUserPhotos]);
   
-  // Silent background loading
   const loadMoreProfiles = useCallback(() => {
     if (!hasMoreProfiles || isLoadingMore || profilesLoading) return;
     const nextPage = currentPage + 1;
@@ -318,7 +300,6 @@ export default function Dashboard() {
     fetchProfilesBasedOnUser(nextPage, true);
   }, [hasMoreProfiles, isLoadingMore, profilesLoading, currentPage, fetchProfilesBasedOnUser]);
   
-  // Interaction fetch functions (keep your existing implementations)
   const fetchBlockedUsers = useCallback(async () => {
     try {
       const response = await API.get("/blocked/blocks/");
@@ -491,7 +472,6 @@ export default function Dashboard() {
     }
   }, [isBlocked, likesList, matchesIds, createMatch, fetchMatches, fetchConversations, blockedIds]);
   
-  // Navigation functions
   const goToMessenger = useCallback(async (profileId) => {
     const conversation = conversations.find(conv => conv.other_user?.id === profileId);
     if (conversation) {
@@ -520,29 +500,18 @@ export default function Dashboard() {
     fetchProfilesBasedOnUser(1, false);
   }, [fetchProfilesBasedOnUser]);
   
-  // FIXED: goNextProfile with preloading and no flicker
   const goNextProfile = useCallback(() => {
-    // Clear any pending profile load
     if (pendingProfileLoad.current) return;
-    
     const nextIndex = profileIndex + 1;
     
     if (nextIndex < profiles.length) {
-      // We have next profile immediately available
       const nextProfile = profiles[nextIndex];
-      
-      // Aggressively preload next profile's images BEFORE transition
       preloadProfileImages(nextProfile);
-      
-      // Also preload the profile after next if available
       if (nextIndex + 1 < profiles.length) {
         preloadProfileImages(profiles[nextIndex + 1]);
       }
-      
-      // Update index immediately
       setProfileIndex(nextIndex);
       
-      // Preload more profiles in background
       if (profiles.length - nextIndex <= PRELOAD_THRESHOLD && hasMoreProfiles && !isLoadingMore) {
         if (window.requestIdleCallback) {
           window.requestIdleCallback(() => loadMoreProfiles(), { timeout: 500 });
@@ -551,81 +520,54 @@ export default function Dashboard() {
         }
       }
     } else if (hasMoreProfiles && !isLoadingMore && !pendingProfileLoad.current) {
-      // We're at the end, need to load more
       pendingProfileLoad.current = true;
-      
       startTransition(() => {
         loadMoreProfiles();
       });
-      
-      // Reset pending flag after load completes
       setTimeout(() => {
         pendingProfileLoad.current = false;
       }, 500);
     }
   }, [profileIndex, profiles, hasMoreProfiles, isLoadingMore, loadMoreProfiles, preloadProfileImages]);
   
-  // currentProfile memo
   const currentProfile = useMemo(() => {
     if (!profiles.length || profileIndex >= profiles.length) return null;
-    if (user && profiles[profileIndex]?.id === user.id) {
-      return null;
-    }
+    if (user && profiles[profileIndex]?.id === user.id) return null;
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
   
-  // Optimized swipe animation trigger (faster transition)
   const triggerSlide = useCallback((direction) => {
     if (isAnimating) return;
-    
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     setIsAnimating(true);
     setSlideDirection(direction);
-    
     animationFrameRef.current = requestAnimationFrame(() => {
-      if (swipeTimeoutRef.current) {
-        clearTimeout(swipeTimeoutRef.current);
-      }
-      
+      if (swipeTimeoutRef.current) clearTimeout(swipeTimeoutRef.current);
       swipeTimeoutRef.current = setTimeout(() => {
-        startTransition(() => {
-          goNextProfile();
-        });
+        startTransition(() => goNextProfile());
         setSlideDirection(null);
-        
-        setTimeout(() => {
-          setIsAnimating(false);
-        }, 50);
-        
+        setTimeout(() => setIsAnimating(false), 50);
         swipeTimeoutRef.current = null;
-      }, 150); // Changed from 200 to 150 for faster response
+      }, 150);
     });
   }, [isAnimating, goNextProfile]);
   
-  // Optimized swipe actions (unchanged)
   const handleLike = useCallback(async () => {
     if (!currentProfile || isAnimating || likeInProgress.current || isBlocked(currentProfile.id)) return;
     if (!swipeLimits.can_like) {
       alert(`Daily like limit reached (${swipeLimits.daily_limit}/day). Upgrade to premium for more!`);
       return;
     }
-    
     likeInProgress.current = true;
     triggerSlide("right");
-    
     setTimeout(async () => {
       try {
         await API.post("/interactions/like/", { to_user_id: currentProfile.id });
         await API.post("/interactions/swipe/like/", { to_user_id: currentProfile.id }).catch(() => {});
-        
         startTransition(() => {
           setSentLikesIds(prev => [...prev, currentProfile.id]);
           fetchSwipeLimits();
         });
-        
         await checkForMatch(currentProfile.id);
       } catch (error) {
         console.error("Error liking profile:", error);
@@ -642,17 +584,14 @@ export default function Dashboard() {
   
   const handlePass = useCallback(() => {
     if (!currentProfile || isAnimating || passInProgress.current || isBlocked(currentProfile.id)) return;
-    
     passInProgress.current = true;
     triggerSlide("left");
-    
     setTimeout(() => {
       trackPass(currentProfile.id);
       passInProgress.current = false;
     }, 50);
   }, [currentProfile, isAnimating, isBlocked, triggerSlide, trackPass]);
   
-  // Photo navigation functions (unchanged)
   const getCurrentProfilePhotos = useCallback(() => {
     if (!currentProfile) return [];
     const photos = [];
@@ -714,7 +653,6 @@ export default function Dashboard() {
     document.body.style.overflow = 'unset';
   }, []);
   
-  // Block/Unblock handlers (unchanged)
   const handleBlock = useCallback(async (profile) => {
     if (!profile) return;
     try {
@@ -886,7 +824,6 @@ export default function Dashboard() {
     fetchUser();
   }, [navigate]);
   
-  // Initial fetch – only once
   useEffect(() => {
     if (user && !initialFetchDone.current) {
       initialFetchDone.current = true;
@@ -895,7 +832,6 @@ export default function Dashboard() {
     }
   }, [user, fetchSwipeLimits, fetchProfilesBasedOnUser]);
   
-  // Fetch interactions after user – only once
   useEffect(() => {
     if (!user || interactionsFetched.current) return;
     const fetchAllInteractions = async () => {
@@ -911,13 +847,9 @@ export default function Dashboard() {
     fetchAllInteractions();
   }, [user, fetchBlockedUsers, fetchLikesReceived, fetchSentLikes, fetchMatches, fetchConversations]);
   
-  // NEW: Preload current profile images when it changes
   useEffect(() => {
     if (currentProfile?.id) {
-      // Preload current profile images
       preloadProfileImages(currentProfile);
-      
-      // Also preload next profile if available
       const nextIndex = profileIndex + 1;
       if (nextIndex < profiles.length) {
         preloadProfileImages(profiles[nextIndex]);
@@ -925,10 +857,8 @@ export default function Dashboard() {
     }
   }, [currentProfile, profileIndex, profiles, preloadProfileImages]);
   
-  // NEW: Preload first few profiles on initial load
   useEffect(() => {
     if (profiles.length > 0 && !profilesLoading) {
-      // Preload first 3 profiles' images
       const profilesToPreload = profiles.slice(0, Math.min(3, profiles.length));
       profilesToPreload.forEach(profile => {
         preloadProfileImages(profile);
@@ -956,21 +886,14 @@ export default function Dashboard() {
     }
   }, [notifications, user, blockedIds, fetchMatches, fetchConversations, fetchLikesReceived]);
   
-  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (swipeTimeoutRef.current) {
-        clearTimeout(swipeTimeoutRef.current);
-      }
-      // Clear image cache on unmount
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (swipeTimeoutRef.current) clearTimeout(swipeTimeoutRef.current);
       imagePreloadCache.current.clear();
     };
   }, []);
   
-  // FIXED: centerCardStyle with optimized transitions
   const centerCardStyle = {
     borderRadius: windowWidth < 992 ? "0px" : "24px",
     transition: "transform 0.25s cubic-bezier(0.2, 0.8, 0.4, 1), opacity 0.2s ease",
@@ -991,7 +914,6 @@ export default function Dashboard() {
     backfaceVisibility: "hidden",
   };
   
-  // Mobile bottom nav (unchanged)
   const MobileBottomNav = () => {
     const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
     return (
@@ -1140,7 +1062,8 @@ export default function Dashboard() {
   return (
     <>
       <DashboardNavbar user={user} />
-      <div className="dashboard-container" style={{ height: windowWidth < 768 ? 'calc(100vh - 64px)' : 'calc(100vh - 72px)', overflow: 'hidden', position: 'relative' }}>
+      {/* 🔧 FIXED: consistent height calc(100vh - 72px) and no margins/paddings */}
+      <div className="dashboard-container" style={{ height: 'calc(100vh - 72px)', overflow: 'hidden', position: 'relative', margin: 0, padding: 0 }}>
         {user ? (
           <>
             {/* Desktop Layout */}
@@ -1207,7 +1130,7 @@ export default function Dashboard() {
             {/* Mobile Layout */}
             <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px)`, overflow: 'hidden' }}>
-                <div style={{ height: '100%', overflowY: 'auto' }}>
+                <div style={{ height: '100%', overflowY: 'auto', margin: 0, padding: 0 }}>
                   {renderMobileContent()}
                 </div>
               </div>
