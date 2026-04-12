@@ -1,3 +1,5 @@
+// src/pages/Dashboard.jsx - Complete fixed version
+
 import React, { useEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
@@ -5,15 +7,15 @@ import LeftBlock from "../components/LeftBlock";
 import CenterBlock from "../components/CenterBlock";
 import RightBlock from "../components/RightBlock";
 import Modals from "../components/Modals";
-import { getProfilePhotoUrl, calculateAge, shuffleArray } from "../utils/helpers";
+import { getProfilePhotoUrl, calculateAge } from "../utils/helpers";
 import { useNotifications } from '../context/NotificationContext';
 import API from '@/api/axios';
 import "../styles/Dashboard.css";
+import { v4 as uuidv4 } from 'uuid';
 
 const MOBILE_BOTTOM_NAV_HEIGHT = 72;
 const PROFILES_PER_PAGE = 15;
 const PRELOAD_THRESHOLD = 5;
-const MAX_PRELOAD_IMAGES = 3;
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -22,6 +24,16 @@ export default function Dashboard() {
   const [crashError, setCrashError] = useState(null);
   const [activeMobileTab, setActiveMobileTab] = useState('center');
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  
+  // Session tracking for analytics
+  const [sessionId] = useState(() => {
+    let sid = sessionStorage.getItem('analytics_session_id');
+    if (!sid) {
+      sid = uuidv4();
+      sessionStorage.setItem('analytics_session_id', sid);
+    }
+    return sid;
+  });
   
   // Profile states
   const [profiles, setProfiles] = useState([]);
@@ -83,6 +95,7 @@ export default function Dashboard() {
   const interactionsFetched = useRef(false);
   const imagePreloadCache = useRef(new Map());
   const pendingProfileLoad = useRef(false);
+  const lastLoggedImpressionId = useRef(null);
   
   // Helper functions
   const isMatched = useCallback((profileId) => matchesIds.includes(profileId), [matchesIds]);
@@ -261,19 +274,19 @@ export default function Dashboard() {
         hobbies: profile.hobbies,
         favorite_music: profile.favorite_music,
         birth_date: profile.birth_date,
+        ranking_score: profile.ranking_score || 50,
       }));
   
       if (append) {
         setProfiles(prev => [...prev, ...transformedProfiles]);
         setHasMoreProfiles(hasNext);
       } else {
-        const shuffledProfiles = shuffleArray(transformedProfiles);
-        setProfiles(shuffledProfiles);
+        setProfiles(transformedProfiles);
         setProfileIndex(0);
         setCurrentPage(1);
         setHasMoreProfiles(hasNext);
-        if (shuffledProfiles.length > 0) {
-          fetchUserPhotos(shuffledProfiles[0].id);
+        if (transformedProfiles.length > 0) {
+          fetchUserPhotos(transformedProfiles[0].id);
         }
       }
     } catch (error) {
@@ -536,6 +549,40 @@ export default function Dashboard() {
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
   
+  // LOG IMPRESSION WHEN CURRENT PROFILE CHANGES - FIXED
+  useEffect(() => {
+    if (currentProfile && currentProfile.id && sessionId) {
+      if (lastLoggedImpressionId.current !== currentProfile.id) {
+        lastLoggedImpressionId.current = currentProfile.id;
+        
+        const token = localStorage.getItem('access');
+        console.log('📊 Logging impression for:', currentProfile.id, 'Position:', profileIndex, 'Score:', currentProfile.ranking_score);
+        
+        fetch('/api/noumatch-admin/analytics/impression/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            viewed_user_id: currentProfile.id,
+            feed_position: profileIndex,
+            ranking_score: currentProfile.ranking_score || 50,
+            session_id: sessionId,
+            device_type: window.innerWidth < 992 ? 'mobile' : 'desktop'
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.id) {
+            console.log('✅ Impression logged successfully, ID:', data.id);
+          }
+        })
+        .catch(err => console.error('❌ Failed to log impression:', err));
+      }
+    }
+  }, [currentProfile, profileIndex, sessionId]);
+  
   const triggerSlide = useCallback((direction) => {
     if (isAnimating) return;
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
@@ -560,6 +607,22 @@ export default function Dashboard() {
     }
     likeInProgress.current = true;
     triggerSlide("right");
+    
+    // Update impression with like action
+    const token = localStorage.getItem('access');
+    fetch('/api/noumatch-admin/analytics/impression/update/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        viewed_user_id: currentProfile.id,
+        swipe_action: 'like',
+        session_id: sessionId
+      })
+    }).catch(err => console.error('Failed to update impression:', err));
+    
     setTimeout(async () => {
       try {
         await API.post("/interactions/like/", { to_user_id: currentProfile.id });
@@ -580,17 +643,33 @@ export default function Dashboard() {
         likeInProgress.current = false;
       }
     }, 50);
-  }, [currentProfile, isAnimating, isBlocked, swipeLimits, triggerSlide, navigate, checkForMatch, fetchSwipeLimits]);
+  }, [currentProfile, isAnimating, isBlocked, swipeLimits, triggerSlide, navigate, checkForMatch, fetchSwipeLimits, sessionId]);
   
   const handlePass = useCallback(() => {
     if (!currentProfile || isAnimating || passInProgress.current || isBlocked(currentProfile.id)) return;
     passInProgress.current = true;
     triggerSlide("left");
+    
+    // Update impression with pass action
+    const token = localStorage.getItem('access');
+    fetch('/api/noumatch-admin/analytics/impression/update/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        viewed_user_id: currentProfile.id,
+        swipe_action: 'pass',
+        session_id: sessionId
+      })
+    }).catch(err => console.error('Failed to update impression:', err));
+    
     setTimeout(() => {
       trackPass(currentProfile.id);
       passInProgress.current = false;
     }, 50);
-  }, [currentProfile, isAnimating, isBlocked, triggerSlide, trackPass]);
+  }, [currentProfile, isAnimating, isBlocked, triggerSlide, trackPass, sessionId]);
   
   const getCurrentProfilePhotos = useCallback(() => {
     if (!currentProfile) return [];
@@ -1062,7 +1141,6 @@ export default function Dashboard() {
   return (
     <>
       <DashboardNavbar user={user} />
-      {/* 🔧 FIXED: consistent height calc(100vh - 72px) and no margins/paddings */}
       <div className="dashboard-container" style={{ height: 'calc(100vh - 72px)', overflow: 'hidden', position: 'relative', margin: 0, padding: 0 }}>
         {user ? (
           <>

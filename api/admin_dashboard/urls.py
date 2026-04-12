@@ -10,7 +10,9 @@ from .views import (
 
     AdminSupportConversationListView, AdminSupportConversationDetailView, AdminReplyToSupportView,
     AdminFlaggedMessagesListView, AdminTakeActionOnFlaggedMessageView, AdminUserConversationDetailView, 
-    AdminUserConversationMessagesView, AdminUserConversationsListView
+    AdminUserConversationMessagesView, AdminUserConversationsListView, LogImpressionView, UpdateImpressionView,
+    AdminAnalyticsImpressionsView, AdminDashboardMetricsView,
+
 )
 
 urlpatterns = [
@@ -50,7 +52,12 @@ urlpatterns = [
     path('user-conversations/<int:pk>/messages/', AdminUserConversationMessagesView.as_view(), name='admin-user-conversation-messages'),
 
 
+    path('analytics/impression/', LogImpressionView.as_view(), name='log_impression'),
+    path('analytics/impression/update/', UpdateImpressionView.as_view(), name='update_impression'),
 
+
+    path('analytics/impressions/', AdminAnalyticsImpressionsView.as_view(), name='admin-analytics-impressions'),
+    path('dashboard/', AdminDashboardMetricsView.as_view(), name='admin-dashboard-metrics'),
 
 
 ]

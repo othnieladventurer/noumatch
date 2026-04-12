@@ -48,7 +48,7 @@ export default function Navbar() {
       <div className="container">
         <Link className="navbar-brand d-flex align-items-center" to="/">
           <FaHeart className="text-danger me-2" />
-          <span className="text-primary fw-bold fs-4">NouMatch Staging</span>
+          <span className="text-primary fw-bold fs-4">NouMatch</span>
         </Link>
 
         {/* Hamburger */}

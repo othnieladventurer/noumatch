@@ -43,9 +43,14 @@ import AdminUserDetail from "./pages/AdminUserDetail.jsx";
 import AdminReports from "./pages/AdminReports.jsx";
 import AdminSwipeStats from "./pages/AdminSwipeStats.jsx";
 import AdminMessages from "./pages/AdminMessages.jsx";
-import AdminSupportConversationDetail from "./pages/AdminSupportConversationDetail.jsx"; // support conversation detail
-import AdminUserConversationDetail from "./pages/AdminUserConversationDetail.jsx";       // user chat detail
+import AdminSupportConversationDetail from "./pages/AdminSupportConversationDetail.jsx";
+import AdminUserConversationDetail from "./pages/AdminUserConversationDetail.jsx";
 import AdminFlaggedMessages from "./pages/AdminFlaggedMessages.jsx";
+
+// Analytics Pages
+import AdminAnalyticsImpressions from "./pages/AdminAnalyticsImpressions.jsx";
+import AdminAnalyticsRanking from "./pages/AdminAnalyticsRanking.jsx";
+import AdminAnalyticsPerformance from "./pages/AdminAnalyticsPerformance.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -76,6 +81,9 @@ export default function App() {
     "/admin/messages",
     "/admin/messages/",
     "/admin/flagged-messages",
+    "/admin/analytics/impressions",
+    "/admin/analytics/ranking",
+    "/admin/analytics/performance",
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -129,12 +137,15 @@ export default function App() {
             <Route path="/admin/users/detail/:id" element={<AdminUserDetail />} />
             <Route path="/admin/reports" element={<AdminReports />} />
             <Route path="/admin/swipe-stats" element={<AdminSwipeStats />} />
-            
-            {/* ✅ Admin Messaging Routes */}
             <Route path="/admin/messages" element={<AdminMessages />} />
             <Route path="/admin/messages/support/:id" element={<AdminSupportConversationDetail />} />
             <Route path="/admin/messages/user/:id" element={<AdminUserConversationDetail />} />
             <Route path="/admin/flagged-messages" element={<AdminFlaggedMessages />} />
+
+            {/* Analytics Routes */}
+            <Route path="/admin/analytics/impressions" element={<AdminAnalyticsImpressions />} />
+            <Route path="/admin/analytics/ranking" element={<AdminAnalyticsRanking />} />
+            <Route path="/admin/analytics/performance" element={<AdminAnalyticsPerformance />} />
           </Routes>
         </main>
 
@@ -143,8 +154,6 @@ export default function App() {
     </NotificationProvider>
   );
 }
-
-
 
 
 

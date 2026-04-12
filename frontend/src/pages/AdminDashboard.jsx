@@ -95,17 +95,75 @@ export default function AdminDashboard() {
           <p className="hero-subtitle">Here's what's happening with your platform today.</p>
         </div>
 
-        {/* Metrics Cards */}
+        {/* User Metrics Cards */}
         <div className="metrics-grid">
-          <div className="metric-card"><div className="metric-icon bg-primary-light"><i className="fas fa-users text-primary"></i></div><div className="metric-info"><h6>Total Users</h6><p className="metric-value">{metrics.total_users}</p></div></div>
-          <div className="metric-card"><div className="metric-icon bg-success-light"><i className="fas fa-user-check text-success"></i></div><div className="metric-info"><h6>Active Today</h6><p className="metric-value">{metrics.active_today}</p></div></div>
-          <div className="metric-card"><div className="metric-icon bg-danger-light"><i className="fas fa-heart text-danger"></i></div><div className="metric-info"><h6>Likes Today</h6><p className="metric-value">{metrics.likes_today}</p></div></div>
-          <div className="metric-card"><div className="metric-icon bg-secondary-light"><i className="fas fa-times-circle text-secondary"></i></div><div className="metric-info"><h6>Passes Today</h6><p className="metric-value">{metrics.passes_today}</p></div></div>
-          <div className="metric-card"><div className="metric-icon bg-warning-light"><i className="fas fa-handshake text-warning"></i></div><div className="metric-info"><h6>Matches Today</h6><p className="metric-value">{metrics.matches_today}</p></div></div>
-          <div className="metric-card"><div className="metric-icon bg-info-light"><i className="fas fa-chart-line text-info"></i></div><div className="metric-info"><h6>Match Rate</h6><p className="metric-value">{metrics.match_rate}%</p></div></div>
+          <div className="metric-card">
+            <div className="metric-icon bg-primary-light"><i className="fas fa-users text-primary"></i></div>
+            <div className="metric-info"><h6>Total Users</h6><p className="metric-value">{metrics.total_users}</p></div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon bg-success-light"><i className="fas fa-user-check text-success"></i></div>
+            <div className="metric-info"><h6>Active Today</h6><p className="metric-value">{metrics.active_today}</p></div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon bg-danger-light"><i className="fas fa-heart text-danger"></i></div>
+            <div className="metric-info"><h6>Likes Today</h6><p className="metric-value">{metrics.likes_today}</p></div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon bg-secondary-light"><i className="fas fa-times-circle text-secondary"></i></div>
+            <div className="metric-info"><h6>Passes Today</h6><p className="metric-value">{metrics.passes_today}</p></div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon bg-warning-light"><i className="fas fa-handshake text-warning"></i></div>
+            <div className="metric-info"><h6>Matches Today</h6><p className="metric-value">{metrics.matches_today}</p></div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-icon bg-info-light"><i className="fas fa-chart-line text-info"></i></div>
+            <div className="metric-info"><h6>Match Rate</h6><p className="metric-value">{metrics.match_rate}%</p></div>
+          </div>
         </div>
 
-        {/* Recent Blocks Table – Updated: no ID column, clickable names */}
+        {/* Analytics Metrics Section - NEW */}
+        <div style={{ padding: '0 2rem' }}>
+          <h4 className="mb-3" style={{ color: 'var(--text-primary)' }}>
+            <i className="fas fa-chart-pie me-2 text-danger"></i>
+            Ranking & Impression Analytics
+          </h4>
+          <div className="metrics-grid">
+            <div className="metric-card clickable" onClick={() => navigate('/admin/analytics/impressions')}>
+              <div className="metric-icon bg-primary-light"><i className="fas fa-eye text-primary"></i></div>
+              <div className="metric-info"><h6>Total Impressions</h6><p className="metric-value">{metrics.total_impressions?.toLocaleString() || 0}</p></div>
+              <div className="metric-arrow"><i className="fas fa-arrow-right"></i></div>
+            </div>
+            <div className="metric-card clickable" onClick={() => navigate('/admin/analytics/impressions')}>
+              <div className="metric-icon bg-success-light"><i className="fas fa-thumbs-up text-success"></i></div>
+              <div className="metric-info"><h6>Total Likes</h6><p className="metric-value">{metrics.total_likes_from_impressions?.toLocaleString() || 0}</p></div>
+              <div className="metric-arrow"><i className="fas fa-arrow-right"></i></div>
+            </div>
+            <div className="metric-card clickable" onClick={() => navigate('/admin/analytics/impressions')}>
+              <div className="metric-icon bg-danger-light"><i className="fas fa-thumbs-down text-danger"></i></div>
+              <div className="metric-info"><h6>Total Passes</h6><p className="metric-value">{metrics.total_passes_from_impressions?.toLocaleString() || 0}</p></div>
+              <div className="metric-arrow"><i className="fas fa-arrow-right"></i></div>
+            </div>
+            <div className="metric-card clickable" onClick={() => navigate('/admin/analytics/ranking')}>
+              <div className="metric-icon bg-warning-light"><i className="fas fa-chart-line text-warning"></i></div>
+              <div className="metric-info"><h6>Conversion Rate</h6><p className="metric-value">{(metrics.impression_conversion_rate || 0).toFixed(1)}%</p></div>
+              <div className="metric-arrow"><i className="fas fa-arrow-right"></i></div>
+            </div>
+            <div className="metric-card clickable" onClick={() => navigate('/admin/analytics/performance')}>
+              <div className="metric-icon bg-info-light"><i className="fas fa-tachometer-alt text-info"></i></div>
+              <div className="metric-info"><h6>Avg. Ranking Score</h6><p className="metric-value">{metrics.avg_ranking_score?.toFixed(1) || 0}</p></div>
+              <div className="metric-arrow"><i className="fas fa-arrow-right"></i></div>
+            </div>
+            <div className="metric-card clickable" onClick={() => navigate('/admin/analytics/ranking')}>
+              <div className="metric-icon bg-secondary-light"><i className="fas fa-chart-simple text-secondary"></i></div>
+              <div className="metric-info"><h6>Position 1 Like Rate</h6><p className="metric-value">{(metrics.position1_like_rate || 0).toFixed(1)}%</p></div>
+              <div className="metric-arrow"><i className="fas fa-arrow-right"></i></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Blocks Table */}
         <div className="recent-blocks-card">
           <div className="card-header"><h5><i className="fas fa-ban text-danger me-2"></i> Recent Blocks</h5></div>
           <div className="card-body p-0">
@@ -154,6 +212,94 @@ export default function AdminDashboard() {
             )}
           </div>
         </div>
+
+        {/* Top Performing Profiles - NEW */}
+        {metrics.top_performing_profiles?.length > 0 && (
+          <div className="recent-blocks-card">
+            <div className="card-header"><h5><i className="fas fa-trophy text-warning me-2"></i> Top Performing Profiles (Highest Like Rate)</h5></div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table admin-table">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Impressions</th>
+                      <th>Likes Received</th>
+                      <th>Like Rate</th>
+                      <th>Avg. Position</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.top_performing_profiles.map(profile => (
+                      <tr key={profile.user_id}>
+                        <td>
+                          <button 
+                            className="btn btn-link p-0 text-decoration-none"
+                            onClick={() => navigate(`/admin/users/detail/${profile.user_id}`)}
+                            style={{ color: 'var(--text-primary)' }}
+                          >
+                            {profile.user_email}
+                          </button>
+                        </td>
+                        <td>{profile.impressions}</td>
+                        <td>{profile.likes}</td>
+                        <td>
+                          <span className="badge bg-success">{profile.like_rate}%</span>
+                        </td>
+                        <td>{profile.avg_position?.toFixed(1) || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Position Performance - NEW */}
+        {metrics.position_performance?.length > 0 && (
+          <div className="recent-blocks-card">
+            <div className="card-header"><h5><i className="fas fa-chart-line text-info me-2"></i> Conversion by Feed Position</h5></div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table admin-table">
+                  <thead>
+                    <tr>
+                      <th>Position</th>
+                      <th>Impressions</th>
+                      <th>Likes</th>
+                      <th>Passes</th>
+                      <th>Like Rate</th>
+                      <th>Pass Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.position_performance.map(pos => (
+                      <tr key={pos.position}>
+                        <td><strong>#{pos.position + 1}</strong></td>
+                        <td>{pos.impressions}</td>
+                        <td>{pos.likes}</td>
+                        <td>{pos.passes}</td>
+                        <td>
+                          <div className="progress" style={{ height: '6px' }}>
+                            <div className="progress-bar bg-success" style={{ width: `${pos.like_rate}%` }}></div>
+                          </div>
+                          <small>{pos.like_rate}%</small>
+                        </td>
+                        <td>
+                          <div className="progress" style={{ height: '6px' }}>
+                            <div className="progress-bar bg-danger" style={{ width: `${pos.pass_rate}%` }}></div>
+                          </div>
+                          <small>{pos.pass_rate}%</small>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         <footer className="admin-footer"><small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small></footer>
       </main>

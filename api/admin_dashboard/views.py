@@ -25,8 +25,11 @@ from django.db.models.functions import TruncDate
 
 from chat.models import SupportConversation, MessageFlag, Message
 from chat.serializers import SupportConversationSerializer, MessageSerializer, MessageFlagSerializer
+from rest_framework.permissions import IsAuthenticated
 
 
+from admin_dashboard.models import ProfileImpression
+from admin_dashboard.services.ranking import compute_ranking_score
 
 
 # ---------- Admin login ----------
@@ -148,6 +151,11 @@ class AdminUsersListView(APIView):
         })
 
 
+
+
+
+
+
 # ---------- User detail (basic + full with ?full=true) ----------
 class AdminUserDetailView(APIView):
     permission_classes = [IsAdminUser]
@@ -174,20 +182,96 @@ class AdminUserDetailView(APIView):
             'last_activity': user.last_activity,
             'is_online': user.is_online,
             'age': user.birth_date.year if user.birth_date else None,
+            'latitude': float(user.latitude) if user.latitude else None,
+            'longitude': float(user.longitude) if user.longitude else None,
         }
 
-        # Stats
-        likes_given = Like.objects.filter(from_user=user).count()
-        likes_received = Like.objects.filter(to_user=user).count()
-        passes_given = Pass.objects.filter(from_user=user).count()
-        passes_received = Pass.objects.filter(to_user=user).count()
-        total_matches = Match.objects.filter(Q(user1=user) | Q(user2=user)).count()
-        messages_sent = Message.objects.filter(sender=user).count()
-        blocks_given = Block.objects.filter(blocker=user).count()
-        blocks_received = Block.objects.filter(blocked=user).count()
-        reports_received = Report.objects.filter(reported_user=user).count()
-        reports_filed = Report.objects.filter(reporter=user).count()
-        account_age_days = (timezone.now() - user.date_joined).days
+        # Safely get stats with try/except
+        try:
+            likes_given = Like.objects.filter(from_user=user).count()
+        except:
+            likes_given = 0
+            
+        try:
+            likes_received = Like.objects.filter(to_user=user).count()
+        except:
+            likes_received = 0
+            
+        try:
+            passes_given = Pass.objects.filter(from_user=user).count()
+        except:
+            passes_given = 0
+            
+        try:
+            passes_received = Pass.objects.filter(to_user=user).count()
+        except:
+            passes_received = 0
+            
+        try:
+            total_matches = Match.objects.filter(Q(user1=user) | Q(user2=user)).count()
+        except:
+            total_matches = 0
+            
+        try:
+            messages_sent = Message.objects.filter(sender=user).count()
+        except:
+            messages_sent = 0
+            
+        try:
+            blocks_given = Block.objects.filter(blocker=user).count()
+        except:
+            blocks_given = 0
+            
+        try:
+            blocks_received = Block.objects.filter(blocked=user).count()
+        except:
+            blocks_received = 0
+            
+        try:
+            reports_received = Report.objects.filter(reported_user=user).count()
+        except:
+            reports_received = 0
+            
+        try:
+            reports_filed = Report.objects.filter(reporter=user).count()
+        except:
+            reports_filed = 0
+            
+        try:
+            account_age_days = (timezone.now() - user.date_joined).days
+        except:
+            account_age_days = 0
+
+        # Get active matches count - safely check if field exists
+        active_matches = 0
+        try:
+            # Try to filter by is_active if it exists
+            if hasattr(Match, 'is_active'):
+                active_matches = Match.objects.filter(
+                    Q(user1=user) | Q(user2=user),
+                    is_active=True
+                ).count()
+            else:
+                # If no is_active field, just count all matches
+                active_matches = total_matches
+        except:
+            active_matches = total_matches
+
+        # Get streak days (simplified)
+        streak_days = 0
+        try:
+            if user.last_activity:
+                days_since_last = (timezone.now() - user.last_activity).days
+                if days_since_last <= 1:
+                    streak_days = 1
+        except:
+            streak_days = 0
+
+        # Get messages received
+        try:
+            messages_received = Message.objects.filter(recipient=user).count()
+        except:
+            messages_received = 0
 
         response_data['stats'] = {
             'total_likes_given': likes_given,
@@ -201,129 +285,189 @@ class AdminUserDetailView(APIView):
             'total_reports_received': reports_received,
             'total_reports_filed': reports_filed,
             'account_age_days': account_age_days,
-            'active_matches': 0,
-            'streak_days': 0,
-            'total_messages_received': 0,
+            'active_matches': active_matches,
+            'streak_days': streak_days,
+            'total_messages_received': messages_received,
         }
 
-        # Recent matches
+        # Recent matches - safely handle
         recent_matches = []
-        matches = Match.objects.filter(Q(user1=user) | Q(user2=user)).order_by('-created_at')[:5]
-        for m in matches:
-            other = m.user2 if m.user1 == user else m.user1
-            recent_matches.append({
-                'id': m.id,
-                'with_user': other.email if other else None,
-                'created_at': m.created_at
-            })
+        try:
+            matches = Match.objects.filter(Q(user1=user) | Q(user2=user)).order_by('-created_at')[:5]
+            for m in matches:
+                other = m.user2 if m.user1 == user else m.user1
+                recent_matches.append({
+                    'id': m.id,
+                    'with_user': other.email if other else None,
+                    'created_at': m.created_at
+                })
+        except:
+            pass
         response_data['recent_matches'] = recent_matches
 
         # Recent reports
         recent_reports = []
-        for r in Report.objects.filter(reported_user=user).order_by('-created_at')[:5]:
-            recent_reports.append({
-                'id': r.id,
-                'reporter': r.reporter.email if r.reporter else None,
-                'reason': r.reason,
-                'status': r.status,
-                'created_at': r.created_at
-            })
+        try:
+            for r in Report.objects.filter(reported_user=user).order_by('-created_at')[:5]:
+                recent_reports.append({
+                    'id': r.id,
+                    'reporter': r.reporter.email if r.reporter else None,
+                    'reason': r.reason,
+                    'status': r.status,
+                    'created_at': r.created_at
+                })
+        except:
+            pass
         response_data['recent_reports'] = recent_reports
 
         # Recent blocks (received)
         recent_blocks = []
-        for b in Block.objects.filter(blocked=user).order_by('-created_at')[:5]:
-            recent_blocks.append({
-                'id': b.id,
-                'blocker': b.blocker.email if b.blocker else None,
-                'created_at': b.created_at
-            })
+        try:
+            for b in Block.objects.filter(blocked=user).order_by('-created_at')[:5]:
+                recent_blocks.append({
+                    'id': b.id,
+                    'blocker': b.blocker.email if b.blocker else None,
+                    'created_at': b.created_at
+                })
+        except:
+            pass
         response_data['recent_blocks'] = recent_blocks
 
         # If full=true, add extra data
         if full:
             # All matches
             all_matches = []
-            for m in Match.objects.filter(Q(user1=user) | Q(user2=user)).order_by('-created_at'):
-                other = m.user2 if m.user1 == user else m.user1
-                all_matches.append({
-                    'id': m.id,
-                    'with_user': other.email if other else None,
-                    'created_at': m.created_at
-                })
+            try:
+                for m in Match.objects.filter(Q(user1=user) | Q(user2=user)).order_by('-created_at'):
+                    other = m.user2 if m.user1 == user else m.user1
+                    all_matches.append({
+                        'id': m.id,
+                        'with_user': other.email if other else None,
+                        'created_at': m.created_at
+                    })
+            except:
+                pass
             response_data['all_matches'] = all_matches
 
             # Blocks sent & received
-            response_data['blocks_sent'] = [
-                {'id': b.id, 'blocked_email': b.blocked.email if b.blocked else None, 'created_at': b.created_at}
-                for b in Block.objects.filter(blocker=user).order_by('-created_at')
-            ]
-            response_data['blocks_received'] = [
-                {'id': b.id, 'blocker_email': b.blocker.email if b.blocker else None, 'created_at': b.created_at}
-                for b in Block.objects.filter(blocked=user).order_by('-created_at')
-            ]
+            blocks_sent = []
+            try:
+                blocks_sent = [
+                    {'id': b.id, 'blocked_email': b.blocked.email if b.blocked else None, 'created_at': b.created_at}
+                    for b in Block.objects.filter(blocker=user).order_by('-created_at')
+                ]
+            except:
+                pass
+            response_data['blocks_sent'] = blocks_sent
+            
+            blocks_received_full = []
+            try:
+                blocks_received_full = [
+                    {'id': b.id, 'blocker_email': b.blocker.email if b.blocker else None, 'created_at': b.created_at}
+                    for b in Block.objects.filter(blocked=user).order_by('-created_at')
+                ]
+            except:
+                pass
+            response_data['blocks_received'] = blocks_received_full
 
-            # Conversations
+            # Conversations - safely handle
             conversations = []
-            conv_qs = Conversation.objects.filter(Q(match__user1=user) | Q(match__user2=user)).order_by('-updated_at')
-            for conv in conv_qs:
-                try:
-                    other = conv.get_other_user(user) if hasattr(conv, 'get_other_user') else None
-                    last_msg = conv.last_message() if hasattr(conv, 'last_message') else None
-                    messages = []
-                    for msg in conv.messages.all().order_by('created_at'):
+            try:
+                # Check if Conversation model exists and has required fields
+                if 'Conversation' in globals() or hasattr(models, 'Conversation'):
+                    conv_qs = Conversation.objects.filter(Q(match__user1=user) | Q(match__user2=user)).order_by('-updated_at')
+                    for conv in conv_qs:
                         try:
-                            messages.append({
-                                'id': msg.id,
-                                'sender_email': msg.sender.email if msg.sender else None,
-                                'content': msg.content,
-                                'read': msg.read,
-                                'created_at': msg.created_at
+                            other = None
+                            if hasattr(conv, 'get_other_user'):
+                                other = conv.get_other_user(user)
+                            elif conv.match:
+                                other = conv.match.user2 if conv.match.user1 == user else conv.match.user1
+                            
+                            last_msg = None
+                            if hasattr(conv, 'last_message'):
+                                last_msg = conv.last_message()
+                            elif hasattr(conv, 'messages'):
+                                last_msg = conv.messages.order_by('-created_at').first()
+                            
+                            messages = []
+                            if hasattr(conv, 'messages'):
+                                for msg in conv.messages.all().order_by('created_at')[:50]:  # Limit to 50 messages
+                                    try:
+                                        messages.append({
+                                            'id': msg.id,
+                                            'sender_email': msg.sender.email if msg.sender else None,
+                                            'content': msg.content[:500] if msg.content else '',  # Limit content length
+                                            'read': getattr(msg, 'read', False),
+                                            'created_at': msg.created_at
+                                        })
+                                    except:
+                                        continue
+                            
+                            conversations.append({
+                                'id': conv.id,
+                                'other_participant': other.email if other and hasattr(other, 'email') else None,
+                                'created_at': conv.created_at,
+                                'updated_at': conv.updated_at,
+                                'last_message_at': getattr(conv, 'last_message_at', conv.updated_at),
+                                'messages': messages,
+                                'last_message': {
+                                    'sender_email': last_msg.sender.email if last_msg and last_msg.sender else None,
+                                    'content': last_msg.content[:100] if last_msg and hasattr(last_msg, 'content') else None
+                                } if last_msg else None
                             })
-                        except Exception:
+                        except Exception as e:
+                            print(f"Error processing conversation {conv.id}: {e}")
                             continue
-                    conversations.append({
-                        'id': conv.id,
-                        'other_participant': other.email if other and hasattr(other, 'email') else None,
-                        'created_at': conv.created_at,
-                        'updated_at': conv.updated_at,
-                        'last_message_at': conv.last_message_at,
-                        'messages': messages,
-                        'last_message': {
-                            'sender_email': last_msg.sender.email if last_msg and last_msg.sender else None,
-                            'content': last_msg.content
-                        } if last_msg else None
-                    })
-                except Exception:
-                    continue
+            except Exception as e:
+                print(f"Error loading conversations: {e}")
             response_data['conversations'] = conversations
 
             # All reports received
-            response_data['all_reports_received'] = [
-                {
-                    'id': r.id,
-                    'reporter_email': r.reporter.email if r.reporter else None,
-                    'reason': r.reason,
-                    'status': r.status,
-                    'created_at': r.created_at
-                }
-                for r in Report.objects.filter(reported_user=user).order_by('-created_at')
-            ]
+            all_reports = []
+            try:
+                all_reports = [
+                    {
+                        'id': r.id,
+                        'reporter_email': r.reporter.email if r.reporter else None,
+                        'reason': r.reason,
+                        'status': r.status,
+                        'created_at': r.created_at
+                    }
+                    for r in Report.objects.filter(reported_user=user).order_by('-created_at')
+                ]
+            except:
+                pass
+            response_data['all_reports_received'] = all_reports
 
-            # Notifications (last 100)
-            response_data['all_notifications'] = [
-                {
-                    'id': n.id,
-                    'title': n.title,
-                    'message': n.message,
-                    'is_read': n.is_read,
-                    'created_at': n.created_at
-                }
-                for n in Notification.objects.filter(recipient=user).order_by('-created_at')[:100]
-            ]
+            # Notifications (last 100) - safely handle
+            notifications = []
+            try:
+                if 'Notification' in globals() or hasattr(models, 'Notification'):
+                    notifications = [
+                        {
+                            'id': n.id,
+                            'title': n.title,
+                            'message': n.message[:500] if n.message else '',
+                            'is_read': n.is_read,
+                            'created_at': n.created_at
+                        }
+                        for n in Notification.objects.filter(recipient=user).order_by('-created_at')[:100]
+                    ]
+            except:
+                pass
+            response_data['all_notifications'] = notifications
 
         return Response(response_data)
 
+
+
+
+
+
+
+
+        
 
 # ---------- Admin actions (ban/unban/verify) ----------
 class AdminUserActionView(APIView):
@@ -735,5 +879,283 @@ class AdminUserConversationMessagesView(APIView):
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
 
+
+
+
+
+
+
+
+class LogImpressionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        viewer = request.user
+        viewed_id = request.data.get('viewed_user_id')
+        feed_position = request.data.get('feed_position')
+        ranking_score = request.data.get('ranking_score')
+        session_id = request.data.get('session_id')
+        device_type = request.data.get('device_type', '')
+
+        if not all([viewed_id, feed_position is not None, ranking_score is not None, session_id]):
+            return Response({'error': 'Missing fields'}, status=400)
+
+        try:
+            viewed = User.objects.get(id=viewed_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+        impression = ProfileImpression.objects.create(
+            viewer=viewer,
+            viewed=viewed,
+            feed_position=feed_position,
+            ranking_score=ranking_score,
+            session_id=session_id,
+            device_type=device_type
+        )
+        return Response({'id': impression.id}, status=201)
+
+
+class UpdateImpressionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        viewer = request.user
+        viewed_id = request.data.get('viewed_user_id')
+        swipe_action = request.data.get('swipe_action')
+        session_id = request.data.get('session_id')
+
+        if not viewed_id or swipe_action not in ['like', 'pass']:
+            return Response({'error': 'Invalid data'}, status=400)
+
+        impression = ProfileImpression.objects.filter(
+            viewer=viewer,
+            viewed_id=viewed_id,
+            session_id=session_id,
+            was_swiped=False
+        ).order_by('-timestamp').first()
+
+        if impression:
+            impression.was_swiped = True
+            impression.swipe_action = swipe_action
+            impression.save()
+        else:
+            impression = ProfileImpression.objects.create(
+                viewer=viewer,
+                viewed_id=viewed_id,
+                feed_position=999,
+                ranking_score=0,
+                session_id=session_id,
+                was_swiped=True,
+                swipe_action=swipe_action
+            )
+
+        return Response({'status': 'updated'})
+
+
+
+
+
+
+
+class AdminAnalyticsImpressionsView(APIView):
+    """Get all profile impressions for admin"""
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request):
+        queryset = ProfileImpression.objects.select_related('viewer', 'viewed').all().order_by('-timestamp')
+        
+        # Apply filters
+        viewer_search = request.GET.get('viewer_email')
+        if viewer_search:
+            queryset = queryset.filter(
+                Q(viewer__email__icontains=viewer_search) |
+                Q(viewer__first_name__icontains=viewer_search) |
+                Q(viewer__last_name__icontains=viewer_search)
+            )
+        
+        viewed_search = request.GET.get('viewed_email')
+        if viewed_search:
+            queryset = queryset.filter(
+                Q(viewed__email__icontains=viewed_search) |
+                Q(viewed__first_name__icontains=viewed_search) |
+                Q(viewed__last_name__icontains=viewed_search)
+            )
+        
+        swipe_action = request.GET.get('swipe_action')
+        if swipe_action and swipe_action != '':
+            queryset = queryset.filter(swipe_action=swipe_action)
+        
+        date_from = request.GET.get('date_from')
+        if date_from:
+            queryset = queryset.filter(timestamp__date__gte=date_from)
+        
+        date_to = request.GET.get('date_to')
+        if date_to:
+            queryset = queryset.filter(timestamp__date__lte=date_to)
+        
+        queryset = queryset[:500]
+        
+        data = []
+        for imp in queryset:
+            # Viewer details
+            viewer = imp.viewer
+            viewer_full_name = f"{viewer.first_name} {viewer.last_name}".strip()
+            if not viewer_full_name:
+                viewer_full_name = viewer.email.split('@')[0]
+            
+            viewer_location = ""
+            if viewer.city and viewer.country:
+                viewer_location = f"{viewer.city}, {viewer.country}"
+            elif viewer.city:
+                viewer_location = viewer.city
+            elif viewer.country:
+                viewer_location = viewer.country
+            
+            # Viewed details
+            viewed = imp.viewed
+            viewed_full_name = f"{viewed.first_name} {viewed.last_name}".strip()
+            if not viewed_full_name:
+                viewed_full_name = viewed.email.split('@')[0]
+            
+            viewed_location = ""
+            if viewed.city and viewed.country:
+                viewed_location = f"{viewed.city}, {viewed.country}"
+            elif viewed.city:
+                viewed_location = viewed.city
+            elif viewed.country:
+                viewed_location = viewed.country
+            
+            data.append({
+                'id': imp.id,
+                'viewer_email': viewer.email,
+                'viewer_name': viewer_full_name,
+                'viewer_location': viewer_location,
+                'viewed_email': viewed.email,
+                'viewed_name': viewed_full_name,
+                'viewed_location': viewed_location,
+                'timestamp': imp.timestamp,
+                'feed_position': imp.feed_position,
+                'ranking_score': imp.ranking_score,
+                'swipe_action': imp.swipe_action or 'none',
+                'device_type': imp.device_type or 'unknown',
+                'session_id': imp.session_id[:8] if imp.session_id else '',
+            })
+        
+        return Response(data)
+
+
+
+
+
+class AdminDashboardMetricsView(APIView):
+    """Get dashboard metrics including analytics"""
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request):
+        today = timezone.now().date()
+        today_start = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.min.time()))
+        today_end = timezone.make_aware(timezone.datetime.combine(today, timezone.datetime.max.time()))
+        
+        # Basic metrics
+        total_users = User.objects.filter(is_active=True).count()
+        active_today = User.objects.filter(last_activity__gte=today_start).count()
+        
+        # Get impression stats
+        impressions = ProfileImpression.objects.filter(timestamp__gte=today_start)
+        
+        # Get position performance for last 7 days
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        recent_impressions = ProfileImpression.objects.filter(timestamp__gte=seven_days_ago)
+        
+        position_performance = []
+        for pos in range(15):
+            pos_imp = recent_impressions.filter(feed_position=pos)
+            pos_total = pos_imp.count()
+            if pos_total > 0:
+                pos_likes = pos_imp.filter(swipe_action='like').count()
+                pos_passes = pos_imp.filter(swipe_action='pass').count()
+                position_performance.append({
+                    'position': pos,
+                    'impressions': pos_total,
+                    'likes': pos_likes,
+                    'passes': pos_passes,
+                    'like_rate': round((pos_likes / pos_total) * 100, 1),
+                    'pass_rate': round((pos_passes / pos_total) * 100, 1),
+                })
+        
+        # Top performing profiles (highest like rate, minimum 10 impressions)
+        top_profiles = []
+        profile_stats = ProfileImpression.objects.filter(
+            timestamp__gte=seven_days_ago,
+            was_swiped=True
+        ).values('viewed__email', 'viewed__id').annotate(
+            total_impressions=Count('id'),
+            likes=Count('id', filter=Q(swipe_action='like')),
+            avg_position=Avg('feed_position')
+        ).filter(total_impressions__gte=5).order_by('-likes')[:10]
+        
+        for stat in profile_stats:
+            like_rate = round((stat['likes'] / stat['total_impressions']) * 100, 1)
+            top_profiles.append({
+                'user_id': stat['viewed__id'],
+                'user_email': stat['viewed__email'],
+                'impressions': stat['total_impressions'],
+                'likes': stat['likes'],
+                'like_rate': like_rate,
+                'avg_position': stat['avg_position'],
+            })
+        
+        # Calculate totals
+        total_impressions = ProfileImpression.objects.count()
+        total_likes = ProfileImpression.objects.filter(swipe_action='like').count()
+        total_passes = ProfileImpression.objects.filter(swipe_action='pass').count()
+        
+        # Calculate conversion rate
+        conversion_rate = 0
+        if total_impressions > 0:
+            conversion_rate = round((total_likes / total_impressions) * 100, 1)
+        
+        # Average ranking score
+        avg_ranking = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
+        
+        # Position 1 like rate
+        pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
+        pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
+        pos1_like_rate = 0
+        if pos1_impressions > 0:
+            pos1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1)
+        
+        # Recent blocks (you may need to adjust based on your Block model)
+        from block.models import Block
+        recent_blocks = Block.objects.select_related('blocker', 'blocked').order_by('-created_at')[:10]
+        blocks_data = []
+        for block in recent_blocks:
+            blocks_data.append({
+                'id': block.id,
+                'blocker_id': block.blocker.id,
+                'blocker_name': f"{block.blocker.first_name} {block.blocker.last_name}".strip() or block.blocker.email,
+                'blocked_id': block.blocked.id,
+                'blocked_name': f"{block.blocked.first_name} {block.blocked.last_name}".strip() or block.blocked.email,
+                'created_at': block.created_at,
+            })
+        
+        return Response({
+            'total_users': total_users,
+            'active_today': active_today,
+            'likes_today': 0,  # You can calculate from Like model
+            'passes_today': 0,  # You can calculate from Pass model
+            'matches_today': 0,  # You can calculate from Match model
+            'match_rate': 0,
+            'recent_blocks': blocks_data,
+            'total_impressions': total_impressions,
+            'total_likes_from_impressions': total_likes,
+            'total_passes_from_impressions': total_passes,
+            'impression_conversion_rate': conversion_rate,
+            'avg_ranking_score': avg_ranking,
+            'position1_like_rate': pos1_like_rate,
+            'top_performing_profiles': top_profiles,
+            'position_performance': position_performance,
+        })
 
 

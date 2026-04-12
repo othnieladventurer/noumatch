@@ -7,7 +7,6 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
   const location = useLocation();
   const [internalActiveMenu, setInternalActiveMenu] = useState(activeMenu || 'dashboard');
 
-  // Only sync from location, do NOT call onMenuClick here
   useEffect(() => {
     const path = location.pathname;
     if (path.includes('/admin/users')) {
@@ -20,6 +19,12 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
       setInternalActiveMenu('messages');
     } else if (path.includes('/admin/settings')) {
       setInternalActiveMenu('settings');
+    } else if (path.includes('/admin/analytics/impressions')) {
+      setInternalActiveMenu('analytics-impressions');
+    } else if (path.includes('/admin/analytics/ranking')) {
+      setInternalActiveMenu('analytics-ranking');
+    } else if (path.includes('/admin/analytics/performance')) {
+      setInternalActiveMenu('analytics-performance');
     } else if (path === '/admin/dashboard') {
       setInternalActiveMenu('dashboard');
     }
@@ -46,9 +51,11 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     { key: 'dashboard', label: 'Dashboard', icon: 'fas fa-tachometer-alt', path: '/admin/dashboard' },
     { key: 'users', label: 'User Management', icon: 'fas fa-users', path: '/admin/users' },
     { key: 'reports', label: 'Reports', icon: 'fas fa-flag', path: '/admin/reports' },
-    // Alerts menu item removed
     { key: 'swipe-stats', label: 'Swipe Stats', icon: 'fas fa-chart-line', path: '/admin/swipe-stats' },
     { key: 'messages', label: 'Messages', icon: 'fas fa-comment-dots', path: '/admin/messages' },
+    { key: 'analytics-impressions', label: 'Profile Impressions', icon: 'fas fa-eye', path: '/admin/analytics/impressions' },
+    { key: 'analytics-ranking', label: 'Ranking Analytics', icon: 'fas fa-chart-bar', path: '/admin/analytics/ranking' },
+    { key: 'analytics-performance', label: 'Performance Metrics', icon: 'fas fa-trophy', path: '/admin/analytics/performance' },
     { key: 'settings', label: 'Settings', icon: 'fas fa-cog', path: '/admin/settings' },
   ];
 

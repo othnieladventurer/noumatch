@@ -30,6 +30,15 @@ from .serializers import (
 from .utils import generate_otp, send_otp_email
 from .email_api import send_otp_via_api
 
+from admin_dashboard.services.ranking import compute_ranking_score
+from datetime import timedelta
+
+
+
+
+
+
+
 
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all()
@@ -356,6 +365,9 @@ class ProfilePagination(PageNumberPagination):
     max_page_size = 100
 
 
+
+
+
 class UserProfileListView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -394,16 +406,8 @@ class UserProfileListView(generics.ListAPIView):
             base_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids) | set(active_pass_ids)
             base_exclusions.add(user.id)
             
-            if user.account_type == 'free':
-                # Free users: exclude only those they've interacted with
-                queryset = queryset.exclude(id__in=base_exclusions)
-                print(f"🔍 FREE USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
-            else:
-                queryset = queryset.exclude(id__in=base_exclusions)
-                print(f"🔍 PREMIUM/GOD USER - No additional restrictions")
-                print(f"🔍 PREMIUM/GOD USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
-            
-            print(f"🔍 TOTAL PROFILES AVAILABLE: {queryset.count()}")
+            queryset = queryset.exclude(id__in=base_exclusions)
+            print(f"🔍 TOTAL PROFILES BEFORE RANKING: {queryset.count()}")
             
         except Exception as e:
             print(f"❌ ERROR in get_queryset: {e}")
@@ -414,28 +418,78 @@ class UserProfileListView(generics.ListAPIView):
         return queryset
 
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
+        queryset = self.get_queryset()
+        debug = request.GET.get('debug') == 'true'
+        
+        # Build list with ranking scores
+        profile_list = []
+        for profile in queryset:
+            score = compute_ranking_score(request.user, profile)
+            reasons = []
+            if debug:
+                reasons = self._get_ranking_reasons(request.user, profile)
+            
+            # Get serializer data
+            serializer = self.get_serializer(profile)
+            profile_data = serializer.data
+            profile_data['ranking_score'] = score
+            if debug:
+                profile_data['ranking_reasons'] = reasons
+            profile_list.append(profile_data)
+        
+        # Sort by ranking score descending (highest first)
+        profile_list.sort(key=lambda x: x['ranking_score'], reverse=True)
+        
+        # Apply pagination
+        page = self.paginate_queryset(profile_list)
+        
         if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            # Add extra fields to paginated response
             response_data = {
-                "profiles": serializer.data,
+                "profiles": page,
                 "user_account_type": request.user.account_type,
                 "can_see_who_liked": request.user.account_type != 'free'
             }
-            # Merge with pagination metadata
             paginated_response = self.get_paginated_response(response_data)
             return paginated_response
         
-        # Fallback (should not happen with pagination)
-        serializer = self.get_serializer(queryset, many=True)
         response_data = {
-            "profiles": serializer.data,
+            "profiles": profile_list,
             "user_account_type": request.user.account_type,
             "can_see_who_liked": request.user.account_type != 'free'
         }
         return Response(response_data)
+    
+    def _get_ranking_reasons(self, viewer, profile):
+        reasons = []
+        if profile.profile_photo:
+            reasons.append("Has profile photo (+5)")
+        if profile.bio:
+            reasons.append("Has bio (+5)")
+        if profile.city:
+            reasons.append("Location filled (+3)")
+        if profile.passions:
+            reasons.append("Has passions (+3)")
+        if profile.hobbies:
+            reasons.append("Has hobbies (+2)")
+        if profile.last_activity and profile.last_activity > timezone.now() - timedelta(hours=24):
+            reasons.append("Active in last 24h (+15)")
+        elif profile.last_activity and profile.last_activity > timezone.now() - timedelta(days=7):
+            reasons.append("Active in last 7 days (+8)")
+        if profile.date_joined > timezone.now() - timedelta(days=3):
+            reasons.append("New user boost (+10)")
+        return reasons
+   
+
+
+
+
+
+
+
+
+
+
+
 
 
 class UserDetailView(generics.RetrieveAPIView):

@@ -71,8 +71,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_verified = models.BooleanField(default=False)
 
     # 🔥 Scores
-    profile_score = models.PositiveIntegerField(default=0)  # profile completeness
-    score = models.PositiveIntegerField(default=0)  # global quality score
+    profile_score = models.PositiveIntegerField(default=0)
+    score = models.PositiveIntegerField(default=0)
 
     ACCOUNT_TYPE_CHOICES = [
         ("free", "Free"),
@@ -104,6 +104,37 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
+    # =========================
+    # 🔥 SAFE SAVE OVERRIDE
+    # =========================
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+
+        if not is_new:
+            old = User.objects.filter(pk=self.pk).first()
+
+            tracked_fields = [
+                "profile_photo", "bio", "gender", "birth_date",
+                "city", "country", "passions", "hobbies",
+                "career", "education", "favorite_music"
+            ]
+
+            changed = any(
+                getattr(old, f) != getattr(self, f)
+                for f in tracked_fields
+            ) if old else False
+        else:
+            changed = False
+
+        super().save(*args, **kwargs)
+
+        # 🔥 Update scores ONLY if relevant fields changed
+        if not is_new and changed:
+            User.objects.filter(pk=self.pk).update(
+                profile_score=self.calculate_profile_score(),
+                score=self.calculate_global_score()
+            )
+
     # -------------------------
     # 🔥 PROFILE SCORE
     # -------------------------
@@ -134,24 +165,28 @@ class User(AbstractBaseUser, PermissionsMixin):
         return min(score, 100)
 
     # -------------------------
-    # 🔥 GLOBAL SCORE
+    # 🔥 GLOBAL SCORE - FIXED
     # -------------------------
     def calculate_global_score(self):
         score = 0
 
-        # 1. Profile quality (40%)
+        # Profile quality (40%)
         score += int(self.profile_score * 0.4)
 
-        # 2. Engagement (30%) — SAFE fallback
+        # Engagement (30%) - FIXED: use correct field names from UserStats
         engagement_score = 0
         if hasattr(self, "stats"):
-            engagement_score = min(self.stats.matches_count * 5, 30)
+            # Use total_matches instead of matches_count
+            matches_count = getattr(self.stats, 'total_matches', 0)
+            engagement_score = min(matches_count * 5, 30)
         score += engagement_score
 
-        # 3. Trust (30%) — penalty system
+        # Trust (30%) - FIXED: use correct field names
         trust_score = 30
         if hasattr(self, "stats"):
-            penalty = (self.stats.reports_received * 10) + (self.stats.blocks_received * 5)
+            reports_received = getattr(self.stats, 'total_reports_received', 0)
+            blocks_received = getattr(self.stats, 'total_blocks_received', 0)
+            penalty = (reports_received * 10) + (blocks_received * 5)
             trust_score = max(30 - penalty, 0)
 
         score += trust_score
@@ -159,19 +194,24 @@ class User(AbstractBaseUser, PermissionsMixin):
         return min(score, 100)
 
     # -------------------------
-    # 🔥 AUTO UPDATE SCORES
+    # 🔥 SAFE UPDATE SCORES
     # -------------------------
     def update_scores(self):
-        self.profile_score = self.calculate_profile_score()
-        self.score = self.calculate_global_score()
-        self.save(update_fields=["profile_score", "score"])
+        profile = self.calculate_profile_score()
+        global_score = self.calculate_global_score()
+
+        User.objects.filter(pk=self.pk).update(
+            profile_score=profile,
+            score=global_score
+        )
 
     # -------------------------
-    # 🔥 ACTIVITY METHODS
+    # 🔥 ACTIVITY METHODS - FIXED
     # -------------------------
     def update_last_activity(self):
         self.last_activity = timezone.now()
         self.save(update_fields=['last_activity'])
+        # Don't call calculate_global_score here - let the stats update handle it
 
     def set_online(self):
         if not self.is_online:
@@ -183,6 +223,110 @@ class User(AbstractBaseUser, PermissionsMixin):
         if self.is_online:
             self.is_online = False
             self.save(update_fields=['is_online'])
+
+
+class UserStats(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='stats'
+    )
+    
+    # Swipe activity
+    total_likes_given = models.PositiveIntegerField(default=0)
+    total_likes_received = models.PositiveIntegerField(default=0)
+    total_passes_given = models.PositiveIntegerField(default=0)
+    total_passes_received = models.PositiveIntegerField(default=0)
+    
+    # Match activity
+    total_matches = models.PositiveIntegerField(default=0)
+    active_matches = models.PositiveIntegerField(default=0)
+    
+    # Message activity
+    total_messages_sent = models.PositiveIntegerField(default=0)
+    total_messages_received = models.PositiveIntegerField(default=0)
+    
+    # Safety
+    total_blocks_given = models.PositiveIntegerField(default=0)
+    total_blocks_received = models.PositiveIntegerField(default=0)
+    total_reports_filed = models.PositiveIntegerField(default=0)
+    total_reports_received = models.PositiveIntegerField(default=0)
+    
+    # Engagement
+    last_active = models.DateTimeField(null=True, blank=True)
+    account_age_days = models.PositiveIntegerField(default=0)
+    streak_days = models.PositiveIntegerField(default=0)
+    
+    # Timestamp for last stats update
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "User Statistics"
+        verbose_name_plural = "User Statistics"
+    
+    def __str__(self):
+        return f"Stats for {self.user.email}"
+    
+    def update_all_stats(self):
+        """Recompute all stats from existing data"""
+        from interactions.models import Like, Pass, DailySwipe
+        from matches.models import Match
+        from block.models import Block
+        from report.models import Report
+        from chat.models import Message, Conversation
+        
+        user = self.user
+        
+        # Likes
+        self.total_likes_given = Like.objects.filter(from_user=user).count()
+        self.total_likes_received = Like.objects.filter(to_user=user).count()
+        
+        # Passes
+        self.total_passes_given = Pass.objects.filter(from_user=user).count()
+        self.total_passes_received = Pass.objects.filter(to_user=user).count()
+        
+        # Matches
+        matches = Match.objects.filter(models.Q(user1=user) | models.Q(user2=user))
+        self.total_matches = matches.count()
+        
+        # Active matches (has messages in last 7 days)
+        seven_days_ago = timezone.now() - timezone.timedelta(days=7)
+        active_match_ids = []
+        for match in matches:
+            conv = getattr(match, 'conversation', None)
+            if conv and conv.last_message_at and conv.last_message_at >= seven_days_ago:
+                active_match_ids.append(match.id)
+        self.active_matches = len(active_match_ids)
+        
+        # Messages
+        convs = Conversation.objects.filter(match__in=matches)
+        self.total_messages_sent = Message.objects.filter(conversation__in=convs, sender=user).count()
+        self.total_messages_received = Message.objects.filter(conversation__in=convs).exclude(sender=user).count()
+        
+        # Blocks
+        self.total_blocks_given = Block.objects.filter(blocker=user).count()
+        self.total_blocks_received = Block.objects.filter(blocked=user).count()
+        
+        # Reports
+        self.total_reports_filed = Report.objects.filter(reporter=user).count()
+        self.total_reports_received = Report.objects.filter(reported_user=user).count()
+        
+        # Last active
+        self.last_active = user.last_activity or user.date_joined
+        
+        # Account age in days
+        delta = timezone.now() - user.date_joined
+        self.account_age_days = delta.days
+        
+        # Streak days (simplified)
+        swipe_dates = DailySwipe.objects.filter(user=user).values_list('date', flat=True).distinct()
+        self.streak_days = swipe_dates.count()
+        
+        self.save()
+
+
+
+        
 
 
             

@@ -18,7 +18,7 @@ export default function AdminUserDetail() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('users');
 
-  // NEW: state for tabs and modals
+  // State for tabs and modals
   const [activeTab, setActiveTab] = useState('overview');
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
@@ -46,7 +46,6 @@ export default function AdminUserDetail() {
     const fetchUserDetail = async () => {
       try {
         setLoading(true);
-        // Use the existing endpoint with ?full=true to get all extra data
         const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -68,12 +67,71 @@ export default function AdminUserDetail() {
     fetchUserDetail();
   }, [id, navigate]);
 
+  // Load Leaflet CSS and JS dynamically
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.async = true;
+    document.head.appendChild(script);
+
+    return () => {
+      if (window.userMap) window.userMap.remove();
+      if (window.miniMap) window.miniMap.remove();
+    };
+  }, []);
+
+  // Mini map
+  useEffect(() => {
+    if (user?.latitude && user?.longitude && !loading) {
+      const timer = setTimeout(() => {
+        const container = document.getElementById('miniMap');
+        if (!container || !window.L) return;
+        if (window.miniMap) window.miniMap.remove();
+        const map = window.L.map('miniMap').setView([user.latitude, user.longitude], 13);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        window.L.marker([user.latitude, user.longitude])
+          .addTo(map)
+          .bindPopup(`<b>${user.full_name}</b><br>${user.city ? user.city + ', ' : ''}${user.country || ''}`)
+          .openPopup();
+        window.miniMap = map;
+      }, 200);
+      return () => { clearTimeout(timer); if (window.miniMap) window.miniMap.remove(); };
+    }
+  }, [user, loading]);
+
+  // Full map
+  useEffect(() => {
+    if (user?.latitude && user?.longitude && activeTab === 'location') {
+      const timer = setTimeout(() => {
+        const container = document.getElementById('userMap');
+        if (!container || !window.L) return;
+        if (window.userMap) window.userMap.remove();
+        const map = window.L.map('userMap').setView([user.latitude, user.longitude], 13);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        window.L.marker([user.latitude, user.longitude])
+          .addTo(map)
+          .bindPopup(`<b>${user.full_name}</b><br>${user.city ? user.city + ', ' : ''}${user.country || ''}<br>Lat: ${user.latitude.toFixed(6)}<br>Lng: ${user.longitude.toFixed(6)}`)
+          .openPopup();
+        window.userMap = map;
+      }, 200);
+      return () => { clearTimeout(timer); if (window.userMap) window.userMap.remove(); };
+    }
+  }, [user, activeTab]);
+
   const handleMenuClick = (menu, path) => {
     setActiveMenu(menu);
     navigate(path);
   };
 
-  // Keep your original handleUserAction for ban/unban/verify
   const handleUserAction = async (action) => {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
@@ -82,7 +140,6 @@ export default function AdminUserDetail() {
       await axios.post(`${API_BASE}/user_action/`, { user_id: id, action }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Refresh data
       const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -93,7 +150,6 @@ export default function AdminUserDetail() {
     }
   };
 
-  // NEW: admin block & deactivate actions
   const handleBlock = async () => {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
@@ -116,7 +172,6 @@ export default function AdminUserDetail() {
       await axios.post(`${API_BASE}/user/deactivate/`, { user_id: id, reason: modalReason }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Refresh user data to reflect is_active = false
       const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -129,25 +184,6 @@ export default function AdminUserDetail() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
-        <div className="spinner-border text-danger"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
-        <div className="alert alert-danger">{error}</div>
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
-  // Your original risk badge logic (unchanged)
   const getRiskBadge = () => {
     const reportsCount = user.stats?.total_reports_received || 0;
     if (reportsCount >= 5) return <span className="badge bg-danger px-3 py-2">High Risk</span>;
@@ -155,132 +191,83 @@ export default function AdminUserDetail() {
     return <span className="badge bg-success px-3 py-2">Low Risk</span>;
   };
 
+  if (loading) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="spinner-border text-danger"></div></div>;
+  if (error) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="alert alert-danger">{error}</div></div>;
+  if (!user) return null;
+
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
-
         <div className="container-fluid px-4 py-4">
-          {/* Back button */}
           <button className="back-btn mb-4" onClick={() => navigate('/admin/users')}>
             <i className="fas fa-arrow-left me-2"></i> Back to Users
           </button>
 
-          {/* Hero section – YOUR ORIGINAL CODE */}
+          {/* Hero section */}
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-5 p-4 bg-white bg-opacity-10 rounded-4 shadow-sm">
             <div className="d-flex align-items-center gap-4">
               <div className="position-relative">
-                <img 
-                  src={user.profile_photo_url || '/default-avatar.png'} 
-                  alt="Profile" 
-                  className="rounded-circle border border-3 border-danger"
-                  style={{ width: '96px', height: '96px', objectFit: 'cover' }}
-                />
-                <span className={`position-absolute bottom-0 end-0 rounded-circle border border-2 border-white ${user.is_online ? 'bg-success' : 'bg-secondary'}`} style={{ width: '20px', height: '20px' }}></span>
+                <img src={user.profile_photo_url || '/default-avatar.png'} alt="Profile" className="rounded-circle border border-3 border-danger" style={{ width: 96, height: 96, objectFit: 'cover' }} />
+                <span className={`position-absolute bottom-0 end-0 rounded-circle border border-2 border-white ${user.is_online ? 'bg-success' : 'bg-secondary'}`} style={{ width: 20, height: 20 }}></span>
               </div>
               <div>
                 <h1 className="display-6 fw-bold mb-1">{user.full_name}</h1>
                 <p className="text-muted mb-2">{user.email}</p>
                 <div className="d-flex gap-2 flex-wrap">
                   {getRiskBadge()}
-                  {user.is_verified ? (
-                    <span className="badge bg-info px-3 py-2">Verified</span>
-                  ) : (
-                    <span className="badge bg-warning text-dark px-3 py-2">Unverified</span>
-                  )}
-                  <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>
-                    {user.is_active ? 'Active' : 'Banned'}
-                  </span>
+                  {user.is_verified ? <span className="badge bg-info px-3 py-2">Verified</span> : <span className="badge bg-warning text-dark px-3 py-2">Unverified</span>}
+                  <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>{user.is_active ? 'Active' : 'Banned'}</span>
                 </div>
               </div>
             </div>
             <div className="d-flex gap-3">
-              {/* Original ban/unban/verify buttons */}
               {user.is_active ? (
-                <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => handleUserAction('ban')}>
-                  <i className="fas fa-ban me-2"></i>Ban User
-                </button>
+                <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => handleUserAction('ban')}><i className="fas fa-ban me-2"></i>Ban User</button>
               ) : (
-                <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleUserAction('unban')}>
-                  <i className="fas fa-check-circle me-2"></i>Unban
-                </button>
+                <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleUserAction('unban')}><i className="fas fa-check-circle me-2"></i>Unban</button>
               )}
-              {!user.is_verified && (
-                <button className="btn btn-outline-info rounded-pill px-4" onClick={() => handleUserAction('verify')}>
-                  <i className="fas fa-check-double me-2"></i>Verify
-                </button>
-              )}
-              {/* NEW buttons */}
-              <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => setShowBlockModal(true)}>
-                <i className="fas fa-user-slash me-2"></i>Block (Admin)
-              </button>
-              <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => setShowDeactivateModal(true)}>
-                <i className="fas fa-power-off me-2"></i>Deactivate
-              </button>
+              {!user.is_verified && <button className="btn btn-outline-info rounded-pill px-4" onClick={() => handleUserAction('verify')}><i className="fas fa-check-double me-2"></i>Verify</button>}
+              <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => setShowBlockModal(true)}><i className="fas fa-user-slash me-2"></i>Block (Admin)</button>
+              <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => setShowDeactivateModal(true)}><i className="fas fa-power-off me-2"></i>Deactivate</button>
             </div>
           </div>
 
-          {/* Quick stats row – YOUR ORIGINAL CODE */}
+          {/* Quick stats */}
           <div className="row g-4 mb-5">
-            <div className="col-md-6 col-lg-2">
-              <div className="metric-card p-3 text-center">
-                <i className="fas fa-heart fa-2x text-danger mb-2"></i>
-                <h6 className="text-muted mb-1">Likes Given</h6>
-                <p className="display-6 fw-bold mb-0">{user.stats?.total_likes_given || 0}</p>
-              </div>
-            </div>
-            <div className="col-md-6 col-lg-2">
-              <div className="metric-card p-3 text-center">
-                <i className="fas fa-heart-broken fa-2x text-secondary mb-2"></i>
-                <h6 className="text-muted mb-1">Passes Given</h6>
-                <p className="display-6 fw-bold mb-0">{user.stats?.total_passes_given || 0}</p>
-              </div>
-            </div>
-            <div className="col-md-6 col-lg-2">
-              <div className="metric-card p-3 text-center">
-                <i className="fas fa-handshake fa-2x text-warning mb-2"></i>
-                <h6 className="text-muted mb-1">Total Matches</h6>
-                <p className="display-6 fw-bold mb-0">{user.stats?.total_matches || 0}</p>
-              </div>
-            </div>
-            <div className="col-md-6 col-lg-2">
-              <div className="metric-card p-3 text-center">
-                <i className="fas fa-comment-dots fa-2x text-primary mb-2"></i>
-                <h6 className="text-muted mb-1">Messages Sent</h6>
-                <p className="display-6 fw-bold mb-0">{user.stats?.total_messages_sent || 0}</p>
-              </div>
-            </div>
-            <div className="col-md-6 col-lg-2">
-              <div className="metric-card p-3 text-center">
-                <i className="fas fa-flag fa-2x text-danger mb-2"></i>
-                <h6 className="text-muted mb-1">Reports Received</h6>
-                <p className="display-6 fw-bold mb-0">{user.stats?.total_reports_received || 0}</p>
-              </div>
-            </div>
-            <div className="col-md-6 col-lg-2">
-              <div className="metric-card p-3 text-center">
-                <i className="fas fa-calendar-alt fa-2x text-info mb-2"></i>
-                <h6 className="text-muted mb-1">Streak Days</h6>
-                <p className="display-6 fw-bold mb-0">{user.stats?.streak_days || 0}</p>
-              </div>
-            </div>
+            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart fa-2x text-danger mb-2"></i><h6 className="text-muted mb-1">Likes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_likes_given || 0}</p></div></div>
+            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart-broken fa-2x text-secondary mb-2"></i><h6 className="text-muted mb-1">Passes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_passes_given || 0}</p></div></div>
+            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-handshake fa-2x text-warning mb-2"></i><h6 className="text-muted mb-1">Total Matches</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_matches || 0}</p></div></div>
+            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-comment-dots fa-2x text-primary mb-2"></i><h6 className="text-muted mb-1">Messages Sent</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_messages_sent || 0}</p></div></div>
+            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-flag fa-2x text-danger mb-2"></i><h6 className="text-muted mb-1">Reports Received</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_reports_received || 0}</p></div></div>
+            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-calendar-alt fa-2x text-info mb-2"></i><h6 className="text-muted mb-1">Streak Days</h6><p className="display-6 fw-bold mb-0">{user.stats?.streak_days || 0}</p></div></div>
           </div>
 
-          {/* Two‑column detailed info – YOUR ORIGINAL CODE */}
+          {/* Profile & Activity */}
           <div className="row g-4 mb-5">
             <div className="col-lg-6">
               <div className="recent-blocks-card h-100">
-                <div className="card-header bg-transparent border-0 pt-4 pb-2">
-                  <h5 className="mb-0"><i className="fas fa-user-circle text-primary me-2"></i>Profile Details</h5>
-                </div>
+                <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-user-circle text-primary me-2"></i>Profile Details</h5></div>
                 <div className="card-body pt-0 pb-4 px-4">
                   <div className="row g-3">
                     <div className="col-6"><div className="text-muted small">Full Name</div><div className="fw-semibold">{user.full_name}</div></div>
                     <div className="col-6"><div className="text-muted small">Email</div><div className="fw-semibold">{user.email}</div></div>
                     <div className="col-6"><div className="text-muted small">Gender</div><div className="fw-semibold">{user.gender || 'N/A'}</div></div>
                     <div className="col-6"><div className="text-muted small">Age</div><div className="fw-semibold">{user.age || 'N/A'}</div></div>
-                    <div className="col-12"><div className="text-muted small">Location</div><div className="fw-semibold">{user.city && user.country ? `${user.city}, ${user.country}` : (user.city || user.country || 'N/A')}</div></div>
+                    <div className="col-12">
+                      <div className="text-muted small">Location</div>
+                      <div className="fw-semibold mb-2">{user.city && user.country ? `${user.city}, ${user.country}` : (user.city || user.country || 'N/A')}</div>
+                      {user.latitude && user.longitude && (
+                        <div className="mt-2">
+                          <div id="miniMap" style={{ height: '200px', width: '100%', borderRadius: '8px' }}></div>
+                          <div className="d-flex justify-content-between mt-2">
+                            <small className="text-muted"><i className="fas fa-map-marker-alt me-1"></i> Lat: {user.latitude} | Lng: {user.longitude}</small>
+                            <a href={`https://www.google.com/maps?q=${user.latitude},${user.longitude}`} target="_blank" rel="noopener noreferrer" className="small text-decoration-none"><i className="fas fa-external-link-alt me-1"></i> View larger map</a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <div className="col-12"><div className="text-muted small">Bio</div><div className="fw-semibold">{user.bio || 'No bio'}</div></div>
                     <div className="col-6"><div className="text-muted small">Account Type</div><div className="fw-semibold text-capitalize">{user.account_type || 'free'}</div></div>
                     <div className="col-6"><div className="text-muted small">Profile Score</div><div className="fw-semibold">{user.profile_score !== undefined ? `${user.profile_score}%` : 'N/A'}</div></div>
@@ -292,9 +279,7 @@ export default function AdminUserDetail() {
             </div>
             <div className="col-lg-6">
               <div className="recent-blocks-card h-100">
-                <div className="card-header bg-transparent border-0 pt-4 pb-2">
-                  <h5 className="mb-0"><i className="fas fa-chart-line text-success me-2"></i>Activity & Safety</h5>
-                </div>
+                <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-chart-line text-success me-2"></i>Activity & Safety</h5></div>
                 <div className="card-body pt-0 pb-4 px-4">
                   <div className="row g-3">
                     <div className="col-6"><div className="text-muted small">Likes Received</div><div className="fw-semibold">{user.stats?.total_likes_received || 0}</div></div>
@@ -311,98 +296,16 @@ export default function AdminUserDetail() {
             </div>
           </div>
 
-          {/* Recent activity sections – YOUR ORIGINAL CODE */}
-          {(user.recent_matches?.length > 0 || user.recent_reports?.length > 0 || user.recent_blocks?.length > 0) && (
-            <div className="mt-2">
-              <h5 className="mb-3"><i className="fas fa-history me-2"></i>Recent Activity</h5>
-              <div className="row g-4">
-                {user.recent_matches?.length > 0 && (
-                  <div className="col-md-6 col-lg-4">
-                    <div className="recent-blocks-card h-100">
-                      <div className="card-header bg-transparent pt-3 pb-2"><h6 className="mb-0"><i className="fas fa-handshake text-warning me-2"></i>Matches</h6></div>
-                      <div className="card-body p-0">
-                        <ul className="list-group list-group-flush">
-                          {user.recent_matches.slice(0, 5).map(m => (
-                            <li key={m.id} className="list-group-item d-flex justify-content-between align-items-center bg-transparent px-4 py-2">
-                              <span>{m.with_user}</span>
-                              <small className="text-muted">{new Date(m.created_at).toLocaleDateString()}</small>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {user.recent_reports?.length > 0 && (
-                  <div className="col-md-6 col-lg-4">
-                    <div className="recent-blocks-card h-100">
-                      <div className="card-header bg-transparent pt-3 pb-2"><h6 className="mb-0"><i className="fas fa-flag text-danger me-2"></i>Reports</h6></div>
-                      <div className="card-body p-0">
-                        <ul className="list-group list-group-flush">
-                          {user.recent_reports.slice(0, 5).map(r => (
-                            <li key={r.id} className="list-group-item bg-transparent px-4 py-2">
-                              <div className="d-flex justify-content-between">
-                                <strong>{r.reporter}</strong>
-                                <small className="text-muted">{new Date(r.created_at).toLocaleDateString()}</small>
-                              </div>
-                              <div className="small text-muted">{r.reason} – {r.status}</div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {user.recent_blocks?.length > 0 && (
-                  <div className="col-md-6 col-lg-4">
-                    <div className="recent-blocks-card h-100">
-                      <div className="card-header bg-transparent pt-3 pb-2"><h6 className="mb-0"><i className="fas fa-ban text-secondary me-2"></i>Blocks</h6></div>
-                      <div className="card-body p-0">
-                        <ul className="list-group list-group-flush">
-                          {user.recent_blocks.slice(0, 5).map(b => (
-                            <li key={b.id} className="list-group-item d-flex justify-content-between align-items-center bg-transparent px-4 py-2">
-                              <span>{b.blocker}</span>
-                              <small className="text-muted">{new Date(b.created_at).toLocaleDateString()}</small>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ========== NEW: Full Data Tabs (added below recent activity) ========== */}
+          {/* Tabs */}
           <div className="card shadow-sm mt-5">
             <div className="card-header bg-transparent border-bottom">
               <ul className="nav nav-tabs card-header-tabs">
-                <li className="nav-item">
-                  <button className={`nav-link ${activeTab === 'all_matches' ? 'active' : ''}`} onClick={() => setActiveTab('all_matches')}>
-                    All Matches ({user.all_matches?.length || 0})
-                  </button>
-                </li>
-                <li className="nav-item">
-                  <button className={`nav-link ${activeTab === 'blocks_full' ? 'active' : ''}`} onClick={() => setActiveTab('blocks_full')}>
-                    Full Blocks
-                  </button>
-                </li>
-                <li className="nav-item">
-                  <button className={`nav-link ${activeTab === 'conversations' ? 'active' : ''}`} onClick={() => setActiveTab('conversations')}>
-                    Conversations ({user.conversations?.length || 0})
-                  </button>
-                </li>
-                <li className="nav-item">
-                  <button className={`nav-link ${activeTab === 'all_reports' ? 'active' : ''}`} onClick={() => setActiveTab('all_reports')}>
-                    All Reports ({user.all_reports_received?.length || 0})
-                  </button>
-                </li>
-                <li className="nav-item">
-                  <button className={`nav-link ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>
-                    Notifications ({user.all_notifications?.length || 0})
-                  </button>
-                </li>
+                <li className="nav-item"><button className={`nav-link ${activeTab === 'all_matches' ? 'active' : ''}`} onClick={() => setActiveTab('all_matches')}>All Matches ({user.all_matches?.length || 0})</button></li>
+                <li className="nav-item"><button className={`nav-link ${activeTab === 'blocks_full' ? 'active' : ''}`} onClick={() => setActiveTab('blocks_full')}>Full Blocks</button></li>
+                <li className="nav-item"><button className={`nav-link ${activeTab === 'conversations' ? 'active' : ''}`} onClick={() => setActiveTab('conversations')}>Conversations ({user.conversations?.length || 0})</button></li>
+                <li className="nav-item"><button className={`nav-link ${activeTab === 'all_reports' ? 'active' : ''}`} onClick={() => setActiveTab('all_reports')}>All Reports ({user.all_reports_received?.length || 0})</button></li>
+                <li className="nav-item"><button className={`nav-link ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications ({user.all_notifications?.length || 0})</button></li>
+                <li className="nav-item"><button className={`nav-link ${activeTab === 'location' ? 'active' : ''}`} onClick={() => setActiveTab('location')}>Full Screen Map {user.latitude && user.longitude ? '🗺️' : '❌'}</button></li>
               </ul>
             </div>
             <div className="card-body">
@@ -411,54 +314,43 @@ export default function AdminUserDetail() {
                   <table className="table table-sm">
                     <thead><tr><th>Matched With</th><th>Date</th></tr></thead>
                     <tbody>
-                      {user.all_matches?.map(m => (
-                        <tr key={m.id}><td>{m.with_user}</td><td>{new Date(m.created_at).toLocaleString()}</td></tr>
-                      ))}
+                      {user.all_matches?.map(m => <tr key={m.id}><td>{m.with_user}</td><td>{new Date(m.created_at).toLocaleString()}</td></tr>)}
                     </tbody>
                   </table>
                 </div>
               )}
+
               {activeTab === 'blocks_full' && (
                 <div className="row">
                   <div className="col-md-6">
                     <h6>Blocks Sent</h6>
                     <ul className="list-group">
-                      {user.blocks_sent?.map(b => (
-                        <li key={b.id} className="list-group-item d-flex justify-content-between">
-                          <span>{b.blocked_email}</span>
-                          <small>{new Date(b.created_at).toLocaleDateString()}</small>
-                        </li>
-                      ))}
+                      {user.blocks_sent?.map(b => <li key={b.id} className="list-group-item d-flex justify-content-between"><span>{b.blocked_email}</span><small>{new Date(b.created_at).toLocaleDateString()}</small></li>)}
                     </ul>
                   </div>
                   <div className="col-md-6">
                     <h6>Blocks Received</h6>
                     <ul className="list-group">
-                      {user.blocks_received?.map(b => (
-                        <li key={b.id} className="list-group-item d-flex justify-content-between">
-                          <span>{b.blocker_email}</span>
-                          <small>{new Date(b.created_at).toLocaleDateString()}</small>
-                        </li>
-                      ))}
+                      {user.blocks_received?.map(b => <li key={b.id} className="list-group-item d-flex justify-content-between"><span>{b.blocker_email}</span><small>{new Date(b.created_at).toLocaleDateString()}</small></li>)}
                     </ul>
                   </div>
                 </div>
               )}
+
               {activeTab === 'conversations' && (
                 <div className="list-group">
                   {user.conversations?.map(conv => (
                     <div key={conv.id} className="list-group-item">
                       <div className="d-flex justify-content-between align-items-center">
                         <strong>With: {conv.other_participant}</strong>
-                        <button className="btn btn-sm btn-outline-primary" onClick={() => { setSelectedConversation(conv); setShowMessagesModal(true); }}>
-                          View Messages ({conv.messages?.length})
-                        </button>
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => { setSelectedConversation(conv); setShowMessagesModal(true); }}>View Messages ({conv.messages?.length})</button>
                       </div>
                       <div className="text-muted small">Last message: {conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : 'No messages'}</div>
                     </div>
                   ))}
                 </div>
               )}
+
               {activeTab === 'all_reports' && (
                 <div className="table-responsive">
                   <table className="table table-sm">
@@ -476,6 +368,7 @@ export default function AdminUserDetail() {
                   </table>
                 </div>
               )}
+
               {activeTab === 'notifications' && (
                 <div className="list-group">
                   {user.all_notifications?.map(n => (
@@ -487,60 +380,47 @@ export default function AdminUserDetail() {
                   ))}
                 </div>
               )}
+
+              {activeTab === 'location' && (
+                <div>
+                  {user.latitude && user.longitude ? (
+                    <>
+                      <div className="row mb-4">
+                        <div className="col-md-6">
+                          <div className="card bg-light"><div className="card-body"><h6><i className="fas fa-map-marker-alt text-danger me-2"></i>Coordinates</h6><p className="mb-1"><strong>Latitude:</strong> {user.latitude}</p><p className="mb-1"><strong>Longitude:</strong> {user.longitude}</p><p className="mb-0"><strong>Location:</strong> {user.city && user.country ? `${user.city}, ${user.country}` : (user.city || user.country || 'Not specified')}</p></div></div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="card bg-light"><div className="card-body"><h6><i className="fas fa-globe me-2"></i>Map Links</h6><a href={`https://www.openstreetmap.org/?mlat=${user.latitude}&mlon=${user.longitude}#map=15/${user.latitude}/${user.longitude}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary me-2"><i className="fas fa-map me-1"></i> OpenStreetMap</a><a href={`https://www.google.com/maps?q=${user.latitude},${user.longitude}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-danger"><i className="fab fa-google me-1"></i> Google Maps</a></div></div>
+                        </div>
+                      </div>
+                      <div className="card"><div className="card-body p-0"><div id="userMap" style={{ height: '500px', width: '100%', borderRadius: '8px' }}></div></div></div>
+                    </>
+                  ) : (
+                    <div className="alert alert-warning"><i className="fas fa-exclamation-triangle me-2"></i>No location data available for this user.</div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <footer className="admin-footer mt-5 pt-3">
-            <small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small>
-          </footer>
+          <footer className="admin-footer mt-5 pt-3"><small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small></footer>
         </div>
       </main>
 
-      {/* Modals for new actions */}
+      {/* Modals */}
       {showBlockModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header"><h5 className="modal-title">Block User (Admin)</h5><button type="button" className="btn-close" onClick={() => setShowBlockModal(false)}></button></div>
-              <div className="modal-body">
-                <p>Block <strong>{user.email}</strong>? This only blocks them from the admin account.</p>
-                <textarea className="form-control" rows="2" placeholder="Reason (optional)" value={modalReason} onChange={e => setModalReason(e.target.value)}></textarea>
-              </div>
-              <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowBlockModal(false)}>Cancel</button><button className="btn btn-warning" onClick={handleBlock}>Block</button></div>
-            </div>
-          </div>
+          <div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h5 className="modal-title">Block User (Admin)</h5><button type="button" className="btn-close" onClick={() => setShowBlockModal(false)}></button></div><div className="modal-body"><p>Block <strong>{user.email}</strong>? This only blocks them from the admin account.</p><textarea className="form-control" rows="2" placeholder="Reason (optional)" value={modalReason} onChange={e => setModalReason(e.target.value)}></textarea></div><div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowBlockModal(false)}>Cancel</button><button className="btn btn-warning" onClick={handleBlock}>Block</button></div></div></div>
         </div>
       )}
       {showDeactivateModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header"><h5 className="modal-title">Deactivate Account</h5><button type="button" className="btn-close" onClick={() => setShowDeactivateModal(false)}></button></div>
-              <div className="modal-body">
-                <p>Deactivate <strong>{user.email}</strong>? They will not be able to log in.</p>
-                <textarea className="form-control" rows="2" placeholder="Reason" value={modalReason} onChange={e => setModalReason(e.target.value)}></textarea>
-              </div>
-              <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowDeactivateModal(false)}>Cancel</button><button className="btn btn-danger" onClick={handleDeactivate}>Deactivate</button></div>
-            </div>
-          </div>
+          <div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h5 className="modal-title">Deactivate Account</h5><button type="button" className="btn-close" onClick={() => setShowDeactivateModal(false)}></button></div><div className="modal-body"><p>Deactivate <strong>{user.email}</strong>? They will not be able to log in.</p><textarea className="form-control" rows="2" placeholder="Reason" value={modalReason} onChange={e => setModalReason(e.target.value)}></textarea></div><div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowDeactivateModal(false)}>Cancel</button><button className="btn btn-danger" onClick={handleDeactivate}>Deactivate</button></div></div></div>
         </div>
       )}
       {showMessagesModal && selectedConversation && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <div className="modal-header"><h5 className="modal-title">Messages with {selectedConversation.other_participant}</h5><button type="button" className="btn-close" onClick={() => setShowMessagesModal(false)}></button></div>
-              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                {selectedConversation.messages?.map(msg => (
-                  <div key={msg.id} className={`mb-2 p-2 rounded ${msg.sender_email === user.email ? 'bg-light text-dark' : 'bg-primary bg-opacity-10'}`}>
-                    <strong>{msg.sender_email}</strong> <small>{new Date(msg.created_at).toLocaleString()}</small>
-                    <div>{msg.content}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowMessagesModal(false)}>Close</button></div>
-            </div>
-          </div>
+          <div className="modal-dialog modal-lg"><div className="modal-content"><div className="modal-header"><h5 className="modal-title">Messages with {selectedConversation.other_participant}</h5><button type="button" className="btn-close" onClick={() => setShowMessagesModal(false)}></button></div><div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>{selectedConversation.messages?.map(msg => (<div key={msg.id} className={`mb-2 p-2 rounded ${msg.sender_email === user.email ? 'bg-light text-dark' : 'bg-primary bg-opacity-10'}`}><strong>{msg.sender_email}</strong> <small>{new Date(msg.created_at).toLocaleString()}</small><div>{msg.content}</div></div>))}</div><div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowMessagesModal(false)}>Close</button></div></div></div>
         </div>
       )}
     </div>
