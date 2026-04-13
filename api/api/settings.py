@@ -179,6 +179,17 @@ USE_L10N = True
 
 PASS_EXPIRY_HOURS = 1/60
 
+
+
+
+
+
+
+
+
+
+
+
 # ========== DATABASE CONFIGURATION ==========
 if ENVIRONMENT == "production":
     if config('DATABASE_URL', default=None):

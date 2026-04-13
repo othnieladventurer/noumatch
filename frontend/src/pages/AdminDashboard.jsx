@@ -123,7 +123,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Analytics Metrics Section - NEW */}
+        {/* Analytics Metrics Section */}
         <div style={{ padding: '0 2rem' }}>
           <h4 className="mb-3" style={{ color: 'var(--text-primary)' }}>
             <i className="fas fa-chart-pie me-2 text-danger"></i>
@@ -213,7 +213,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Top Performing Profiles - NEW */}
+        {/* Top Performing Profiles */}
         {metrics.top_performing_profiles?.length > 0 && (
           <div className="recent-blocks-card">
             <div className="card-header"><h5><i className="fas fa-trophy text-warning me-2"></i> Top Performing Profiles (Highest Like Rate)</h5></div>
@@ -256,7 +256,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* Position Performance - NEW */}
+        {/* Position Performance */}
         {metrics.position_performance?.length > 0 && (
           <div className="recent-blocks-card">
             <div className="card-header"><h5><i className="fas fa-chart-line text-info me-2"></i> Conversion by Feed Position</h5></div>
