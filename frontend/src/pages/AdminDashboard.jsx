@@ -21,70 +21,152 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const adminEmail = localStorage.getItem('admin_email') || 'Admin';
 
+  console.log('🚀 AdminDashboard component mounted');
+  console.log('📧 Admin email from localStorage:', adminEmail);
+  console.log('🎨 Dark mode from localStorage:', darkMode);
+
   useEffect(() => {
+    console.log('🎨 Theme effect running, darkMode:', darkMode);
     if (darkMode) {
       document.body.classList.add('dark-mode');
       localStorage.setItem('admin_theme', 'dark');
+      console.log('🌙 Dark mode enabled');
     } else {
       document.body.classList.remove('dark-mode');
       localStorage.setItem('admin_theme', 'light');
+      console.log('☀️ Light mode enabled');
     }
   }, [darkMode]);
 
   useEffect(() => {
     const token = localStorage.getItem('admin_access');
+    console.log('🔐 Checking admin access token:', token ? 'Present' : 'Missing');
+    console.log('📝 Token value (first 20 chars):', token?.substring(0, 20) + '...');
+    
     if (!token) {
+      console.log('❌ No admin token found, redirecting to /admin/login');
       navigate('/admin/login');
       return;
     }
 
     const fetchDashboard = async () => {
+      console.log('🔄 Starting dashboard data fetch...');
+      console.log('📡 API endpoint:', `${API_BASE}/dashboard/`);
+      
       try {
         setLoading(true);
+        console.log('⏳ Loading state set to true');
+        
         const res = await axios.get(`${API_BASE}/dashboard/`, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         });
+        
+        console.log('✅ Dashboard data received successfully');
+        console.log('📊 Response status:', res.status);
+        console.log('📦 Response data structure:', Object.keys(res.data));
+        console.log('📈 Metrics data:', {
+          total_users: res.data.total_users,
+          active_today: res.data.active_today,
+          likes_today: res.data.likes_today,
+          passes_today: res.data.passes_today,
+          matches_today: res.data.matches_today,
+          match_rate: res.data.match_rate,
+          recent_blocks_count: res.data.recent_blocks?.length || 0
+        });
+        
         setMetrics(res.data);
         setError('');
+        console.log('✅ State updated with metrics data');
+        
       } catch (err) {
+        console.error('❌ Error fetching dashboard data:', err);
+        console.error('🔍 Error details:', {
+          status: err.response?.status,
+          statusText: err.response?.statusText,
+          message: err.message,
+          data: err.response?.data
+        });
+        
         if (err.response?.status === 401 || err.response?.status === 403) {
+          console.log('🔐 Token invalid/expired or forbidden, clearing admin data and redirecting to login');
           localStorage.removeItem('admin_access');
           localStorage.removeItem('admin_refresh');
           localStorage.removeItem('admin_email');
+          console.log('🗑️ Admin localStorage cleared');
           navigate('/admin/login');
+        } else if (err.response?.status === 404) {
+          console.error('❌ API endpoint not found! Check if backend routes are configured');
+          setError('API endpoint not found. Please check backend configuration.');
+        } else if (err.code === 'ECONNABORTED' || err.message === 'Network Error') {
+          console.error('🌐 Network error - backend might be down or unreachable');
+          setError('Cannot connect to server. Please check if backend is running.');
         } else {
-          setError('Failed to load dashboard data');
+          console.error('💥 Unknown error occurred');
+          setError(err.response?.data?.message || err.message || 'Failed to load dashboard data');
         }
       } finally {
         setLoading(false);
+        console.log('🏁 Fetch completed, loading set to false');
       }
     };
+    
     fetchDashboard();
   }, [navigate]);
 
   const handleMenuClick = (menu, path) => {
+    console.log(`📋 Menu clicked: ${menu}, navigating to: ${path}`);
     setActiveMenu(menu);
     navigate(path);
   };
 
+  console.log('🖥️ Rendering AdminDashboard, current state:', {
+    loading,
+    hasError: !!error,
+    hasMetrics: !!metrics,
+    sidebarCollapsed,
+    darkMode,
+    activeMenu
+  });
+
   if (loading) {
+    console.log('⏳ Rendering loading state');
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh', background: 'var(--bg-primary, #f5f7fb)' }}>
-        <div className="spinner-border text-danger" role="status"><span className="visually-hidden">Loading...</span></div>
+        <div className="spinner-border text-danger" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+        <p className="ms-3 text-secondary">Loading dashboard data...</p>
       </div>
     );
   }
 
   if (error) {
+    console.log('⚠️ Rendering error state:', error);
     return (
       <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
-        <div className="alert alert-danger">{error}</div>
+        <div className="alert alert-danger">
+          <i className="fas fa-exclamation-triangle me-2"></i>
+          {error}
+          <button 
+            className="btn btn-outline-danger ms-3" 
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
 
-  if (!metrics) return null;
+  if (!metrics) {
+    console.log('⚠️ No metrics data available, returning null');
+    return null;
+  }
 
+  console.log('✅ Rendering full dashboard with data');
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
@@ -301,7 +383,9 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        <footer className="admin-footer"><small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small></footer>
+        <footer className="admin-footer">
+          <small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small>
+        </footer>
       </main>
     </div>
   );

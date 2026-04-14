@@ -114,62 +114,7 @@ class AdminUsersListView(APIView):
 
 
 
-class AdminUsersListView(APIView):
-    permission_classes = [IsAdminUser]
 
-    def get(self, request):
-        page = int(request.GET.get('page', 1))
-        limit = int(request.GET.get('limit', 10))
-        search = request.GET.get('search', '').strip()
-        status_filter = request.GET.get('status', 'all')
-
-        queryset = User.objects.all().order_by('-date_joined')
-        
-        if search:
-            queryset = queryset.filter(
-                Q(first_name__icontains=search) | 
-                Q(last_name__icontains=search) | 
-                Q(email__icontains=search)
-            )
-        
-        if status_filter == 'active':
-            queryset = queryset.filter(is_active=True)
-        elif status_filter == 'inactive':
-            queryset = queryset.filter(is_active=False)
-        elif status_filter == 'verified':
-            queryset = queryset.filter(is_verified=True)
-
-        total = queryset.count()
-        start = (page - 1) * limit
-        end = start + limit
-        paginated_users = queryset[start:end]
-
-        data = []
-        for user in paginated_users:
-            matches_count = Match.objects.filter(Q(user1=user) | Q(user2=user)).count()
-            reports_received_count = Report.objects.filter(reported_user=user).count()
-            risk = 'risky' if reports_received_count >= 5 else 'watch' if reports_received_count >= 2 else 'safe'
-            
-            data.append({
-                'id': user.id,
-                'email': user.email,
-                'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
-                'profile_photo_url': user.profile_photo.url if user.profile_photo else None,
-                'is_active': user.is_active,
-                'is_verified': user.is_verified,
-                'profile_score': user.profile_score,
-                'matches_count': matches_count,
-                'reports_received_count': reports_received_count,
-                'risk_status': risk,
-                'date_joined': user.date_joined,
-            })
-
-        return Response({
-            'data': data,
-            'total': total,
-            'page': page,
-            'pages': ceil(total / limit) if limit > 0 else 1
-        })
 
 # ---------- Dashboard (ONLY ONE) ----------
 class AdminDashboardView(APIView):
