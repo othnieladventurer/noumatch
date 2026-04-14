@@ -20,6 +20,13 @@ export default function DashboardNavbar({ user }) {
 
   const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
+  // --- NEW: Check if in admin mode ---
+  const isAdminMode = () => {
+    const hasAdminToken = !!localStorage.getItem('admin_access');
+    const isAdminPath = window.location.pathname.startsWith('/admin');
+    return hasAdminToken || isAdminPath;
+  };
+
   useEffect(() => {
     if (user && user.id) {
       setIsInitialized(true);
@@ -28,7 +35,14 @@ export default function DashboardNavbar({ user }) {
     }
   }, [user]);
 
+  // Heartbeat - Skip if admin mode
   useEffect(() => {
+    // Don't send heartbeat in admin mode
+    if (isAdminMode()) {
+      console.log("💓 [NAVBAR] Admin mode - skipping heartbeat");
+      return;
+    }
+
     const sendHeartbeat = async () => {
       const token = localStorage.getItem("access");
       if (token && user) {
@@ -41,7 +55,10 @@ export default function DashboardNavbar({ user }) {
             }
           });
         } catch (error) {
-          console.error("Erreur Heartbeat:", error);
+          // Silent fail for 401 errors
+          if (error.response?.status !== 401) {
+            console.error("Erreur Heartbeat:", error);
+          }
         }
       }
     };
@@ -64,7 +81,15 @@ export default function DashboardNavbar({ user }) {
     };
   }, [user, BASE_URL]);
 
+  // Fetch conversations - Skip if admin mode
   useEffect(() => {
+    // Don't fetch conversations in admin mode
+    if (isAdminMode()) {
+      console.log("💬 [NAVBAR] Admin mode - skipping conversations fetch");
+      setLoading((prev) => ({ ...prev, messages: false, notifications: false }));
+      return;
+    }
+
     if (user && user.id) {
       fetchConversations();
       fetchUnreadCount();
@@ -73,6 +98,9 @@ export default function DashboardNavbar({ user }) {
   }, [user]);
 
   useEffect(() => {
+    // Skip if admin mode
+    if (isAdminMode()) return;
+    
     if (!user || !notifications.length) return;
     const lastNotif = notifications[0];
     if (lastNotif.type === 'new_message') {
@@ -83,6 +111,12 @@ export default function DashboardNavbar({ user }) {
   }, [notifications, user]);
 
   const fetchConversations = async () => {
+    // Skip if in admin mode
+    if (isAdminMode()) {
+      console.log("💬 [NAVBAR] Admin mode - skipping fetchConversations");
+      return;
+    }
+
     try {
       const token = localStorage.getItem("access");
       if (!token) {
@@ -117,9 +151,12 @@ export default function DashboardNavbar({ user }) {
     } catch (error) {
       console.error("Erreur lors de la récupération des conversations:", error);
       if (error.response?.status === 401) {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        navigate("/login");
+        // Don't logout if we're in admin mode
+        if (!isAdminMode()) {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          navigate("/login");
+        }
       }
     } finally {
       setLoading((prev) => ({ ...prev, messages: false }));
@@ -127,23 +164,40 @@ export default function DashboardNavbar({ user }) {
   };
 
   const fetchUnreadCount = async () => {
+    // Skip if in admin mode
+    if (isAdminMode()) {
+      console.log("💬 [NAVBAR] Admin mode - skipping fetchUnreadCount");
+      return;
+    }
+
     try {
       const response = await API.get("/chat/unread-count/");
       setUnreadCount(response.data.total_unread || 0);
     } catch (error) {
       console.error("Erreur lors de la récupération des messages non lus:", error);
       if (error.response?.status === 401) {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        navigate("/login");
+        // Don't logout if we're in admin mode
+        if (!isAdminMode()) {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          navigate("/login");
+        }
       }
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
-    navigate("/login");
+    // Check if admin logout needed
+    if (isAdminMode()) {
+      localStorage.removeItem("admin_access");
+      localStorage.removeItem("admin_refresh");
+      localStorage.removeItem("admin_email");
+      navigate("/admin/login");
+    } else {
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      navigate("/login");
+    }
   };
 
   const getProfilePhotoUrl = (path) => {
@@ -188,6 +242,140 @@ export default function DashboardNavbar({ user }) {
     navigate(`/messages?conversation=${conversationId}`);
   };
 
+  // If in admin mode, show simplified navbar without messaging features
+  if (isAdminMode()) {
+    return (
+      <>
+        <style>{`
+          .nm-navbar {
+            background: #ffffff;
+            padding: 0 !important;
+            margin: 0 !important;
+            min-height: 72px;
+            border-bottom: none !important;
+            box-shadow: none !important;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+          }
+          .nm-navbar .container {
+            min-height: 72px;
+            display: flex;
+            align-items: center;
+          }
+          .nm-navbar .navbar-brand {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+          }
+          .nm-profile-btn {
+            border: none;
+            background: transparent;
+            padding: 0;
+          }
+          .nm-profile-image {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border-radius: 50%;
+          }
+          .nm-dropdown-menu {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            overflow: hidden;
+            margin-top: 10px !important;
+            max-width: calc(100vw - 20px);
+            width: auto;
+            min-width: 280px;
+          }
+        `}</style>
+        
+        <nav className="navbar navbar-expand-lg nm-navbar">
+          <div className="container">
+            <Link className="navbar-brand d-flex align-items-center" to="/admin/dashboard">
+              <FaHeart className="text-danger me-2" />
+              <span className="fw-bold fs-4" style={{ color: "#ff4d6d" }}>
+                Admin Panel
+              </span>
+            </Link>
+
+            <div className="d-flex align-items-center gap-3 ms-auto">
+              {/* Profile Dropdown for Admin */}
+              <div className="dropdown">
+                <button className="nm-profile-btn" data-bs-toggle="dropdown" data-bs-auto-close="outside" type="button">
+                  <div className="position-relative">
+                    <img
+                      src={getProfilePhotoUrl(user?.profile_photo)}
+                      alt="profil"
+                      className="nm-profile-image"
+                    />
+                    <span
+                      className="position-absolute bottom-0 end-0 rounded-circle border border-2 border-white"
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        backgroundColor: "#4ade80",
+                        display: "block"
+                      }}
+                    ></span>
+                  </div>
+                </button>
+
+                <ul className="dropdown-menu dropdown-menu-end nm-dropdown-menu" style={{ width: "280px", maxWidth: "90vw" }} data-bs-popper="static">
+                  <li className="px-3 py-2">
+                    <div className="fw-semibold text-truncate">
+                      {user?.first_name || 'Admin'} {user?.last_name || ''}
+                    </div>
+                    <div className="small text-secondary text-truncate">{user?.email || 'admin@noumatch.com'}</div>
+                    <div className="small mt-1" style={{ color: "#ff4d6d" }}>
+                      <i className="fas fa-shield-alt me-1" style={{ fontSize: "0.5rem" }}></i>
+                      Super Admin
+                    </div>
+                  </li>
+                  
+                  <li>
+                    <hr className="dropdown-divider" />
+                  </li>
+                  <li>
+                    <Link className="dropdown-item" to="/admin/dashboard" onClick={() => document.body.click()}>
+                      <i className="fas fa-tachometer-alt me-2"></i>
+                      Dashboard
+                    </Link>
+                  </li>
+                  <li>
+                    <Link className="dropdown-item" to="/admin/users" onClick={() => document.body.click()}>
+                      <i className="fas fa-users me-2"></i>
+                      Utilisateurs
+                    </Link>
+                  </li>
+                  <li>
+                    <Link className="dropdown-item" to="/admin/reports" onClick={() => document.body.click()}>
+                      <i className="fas fa-flag me-2"></i>
+                      Signalements
+                    </Link>
+                  </li>
+                  
+                  <li>
+                    <hr className="dropdown-divider" />
+                  </li>
+                  <li>
+                    <button className="dropdown-item text-danger" onClick={handleLogout}>
+                      <i className="fas fa-sign-out-alt me-2"></i>
+                      Déconnexion
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </nav>
+      </>
+    );
+  }
+
+  // Regular user navbar (existing code)
   if (!isInitialized || !user) {
     return (
       <nav className="navbar navbar-expand-lg nm-navbar">
@@ -466,7 +654,7 @@ export default function DashboardNavbar({ user }) {
               </ul>
             </div>
 
-            {/* Notification Bell – pass user prop */}
+            {/* Notification Bell – only for regular users */}
             <NotificationBell user={user} />
 
             {/* Profile Dropdown */}

@@ -19,6 +19,13 @@ export const NotificationProvider = ({ children }) => {
   const connectionAttemptRef = useRef(0);
   const mountedRef = useRef(true);
 
+  // --- NEW: Check if in admin mode ---
+  const isAdminMode = useCallback(() => {
+    const hasAdminToken = !!localStorage.getItem('admin_access');
+    const isAdminPath = window.location.pathname.startsWith('/admin');
+    return hasAdminToken || isAdminPath;
+  }, []);
+
   // --- CRITICAL FIX: Use environment variable with fallback ---
   const getBaseUrl = () => {
     // Use the same pattern as axios.js
@@ -33,10 +40,22 @@ export const NotificationProvider = ({ children }) => {
   const WS_BASE_URL = BASE_URL.replace(/^http/, 'ws');
 
   const isAuthenticated = () => {
+    // Don't use user authentication in admin mode
+    if (isAdminMode()) {
+      console.log("🔌 [CONTEXT] Admin mode detected - skipping user authentication");
+      return false;
+    }
     return !!localStorage.getItem('access');
   };
 
   const fetchNotifications = async () => {
+    // Skip if in admin mode
+    if (isAdminMode()) {
+      console.log("🔌 [CONTEXT] Admin mode - skipping notifications fetch");
+      setLoading(false);
+      return;
+    }
+
     // Prevent multiple simultaneous fetches
     if (fetchNotifications.isFetching) return;
 
@@ -77,6 +96,9 @@ export const NotificationProvider = ({ children }) => {
         });
 
         setUnreadCount(data.filter(n => !n.is_read).length);
+      } else if (response.status === 401) {
+        // Silent fail for 401 - token might be expired
+        console.log("🔐 [CONTEXT] Auth error fetching notifications");
       }
     } catch (error) {
       console.error('❌ [CONTEXT] Error fetching notifications:', error);
@@ -87,6 +109,12 @@ export const NotificationProvider = ({ children }) => {
   };
 
   const connectWebSocket = useCallback(() => {
+    // Skip if in admin mode
+    if (isAdminMode()) {
+      console.log("🔌 [CONTEXT] Admin mode - skipping WebSocket connection");
+      return;
+    }
+
     // Don't try to connect if already connected or no token
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       console.log("🔌 [CONTEXT] WebSocket already connected");
@@ -189,8 +217,8 @@ export const NotificationProvider = ({ children }) => {
         }
 
         // Only attempt reconnect if component is mounted and we haven't exceeded attempts
-        // Don't reconnect on normal closure (1000)
-        if (mountedRef.current && event.code !== 1000 && connectionAttemptRef.current <= 5) {
+        // Don't reconnect on normal closure (1000) or if in admin mode
+        if (mountedRef.current && event.code !== 1000 && connectionAttemptRef.current <= 5 && !isAdminMode()) {
           console.log(`🔄 [CONTEXT] Scheduling reconnect attempt ${connectionAttemptRef.current}/5 in 5 seconds...`);
           reconnectTimeoutRef.current = setTimeout(() => {
             console.log('🔄 [CONTEXT] Attempting to reconnect WebSocket...');
@@ -198,6 +226,8 @@ export const NotificationProvider = ({ children }) => {
           }, 5000);
         } else if (event.code === 1000) {
           console.log('🔌 [CONTEXT] WebSocket closed normally');
+        } else if (isAdminMode()) {
+          console.log('🔌 [CONTEXT] Admin mode - not reconnecting');
         }
       };
 
@@ -208,11 +238,18 @@ export const NotificationProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ [CONTEXT] Failed to create WebSocket:', error);
     }
-  }, [WS_BASE_URL]);
+  }, [WS_BASE_URL, isAdminMode]);
 
   // Initialize on mount
   useEffect(() => {
     mountedRef.current = true;
+
+    // Skip everything if in admin mode
+    if (isAdminMode()) {
+      console.log("🔌 [CONTEXT] Admin mode detected - disabling notifications completely");
+      setLoading(false);
+      return;
+    }
 
     if (!isAuthenticated()) {
       console.log("⏳ [CONTEXT] User not authenticated, skipping notification setup");
@@ -227,15 +264,18 @@ export const NotificationProvider = ({ children }) => {
 
     // Setup polling ONLY as backup (30 seconds)
     pollingIntervalRef.current = setInterval(() => {
-      // Only poll if WebSocket is not connected
-      if (!isConnected) {
+      // Skip if in admin mode
+      if (isAdminMode()) return;
+      
+      // Only poll if WebSocket is not connected and user is authenticated
+      if (!isConnected && isAuthenticated()) {
         console.log("⏱️ [CONTEXT] WebSocket disconnected, polling notifications...");
         fetchNotifications();
       }
     }, 30000); // 30 seconds
 
-    // Request notification permission
-    if (Notification.permission === 'default') {
+    // Request notification permission (only for regular users)
+    if (Notification.permission === 'default' && !isAdminMode()) {
       Notification.requestPermission();
     }
 
@@ -250,7 +290,11 @@ export const NotificationProvider = ({ children }) => {
 
       if (socketRef.current) {
         // Send normal closure
-        socketRef.current.close(1000, "Component unmounting");
+        try {
+          socketRef.current.close(1000, "Component unmounting");
+        } catch (e) {
+          // Ignore
+        }
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -261,12 +305,17 @@ export const NotificationProvider = ({ children }) => {
         pollingIntervalRef.current = null;
       }
     };
-  }, []); // Empty dependency array - run once on mount
+  }, [isAdminMode]); // Add isAdminMode to dependency array
 
   // Connect WebSocket AFTER we have user (separate effect)
   useEffect(() => {
+    // Skip if in admin mode
+    if (isAdminMode()) {
+      return;
+    }
+    
     const token = localStorage.getItem('access');
-    if (token && !socketRef.current && connectionAttemptRef.current < 5) {
+    if (token && !socketRef.current && connectionAttemptRef.current < 5 && !isAdminMode()) {
       console.log("🔌 [CONTEXT] Attempting WebSocket connection with token");
       // Small delay to ensure everything is ready
       const timer = setTimeout(() => {
@@ -275,9 +324,15 @@ export const NotificationProvider = ({ children }) => {
 
       return () => clearTimeout(timer);
     }
-  }, [connectWebSocket]);
+  }, [connectWebSocket, isAdminMode]);
 
   const markAsRead = useCallback(async (notificationId) => {
+    // Skip if in admin mode
+    if (isAdminMode()) {
+      console.log("🔌 [CONTEXT] Admin mode - skipping mark as read");
+      return;
+    }
+
     if (!notificationId) return;
 
     console.log(`📝 [CONTEXT] Marking notification ${notificationId} as read`);
@@ -317,9 +372,15 @@ export const NotificationProvider = ({ children }) => {
       setNotifications(originalNotifications);
       setUnreadCount(originalUnreadCount);
     }
-  }, [notifications, unreadCount, BASE_URL]);
+  }, [notifications, unreadCount, BASE_URL, isAdminMode]);
 
   const markAllAsRead = useCallback(async () => {
+    // Skip if in admin mode
+    if (isAdminMode()) {
+      console.log("🔌 [CONTEXT] Admin mode - skipping mark all as read");
+      return;
+    }
+
     console.log("📝 [CONTEXT] Marking all notifications as read");
 
     // Store current state for revert
@@ -355,13 +416,19 @@ export const NotificationProvider = ({ children }) => {
       setNotifications(previousNotifications);
       setUnreadCount(previousUnreadCount);
     }
-  }, [notifications, unreadCount, BASE_URL]);
+  }, [notifications, unreadCount, BASE_URL, isAdminMode]);
 
   const refresh = useCallback(() => {
+    // Skip if in admin mode
+    if (isAdminMode()) {
+      console.log("🔌 [CONTEXT] Admin mode - skipping refresh");
+      return;
+    }
+    
     if (isAuthenticated()) {
       fetchNotifications();
     }
-  }, []);
+  }, [isAdminMode]);
 
   const value = {
     notifications,
