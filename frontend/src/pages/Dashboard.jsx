@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx - Complete fixed version
+// src/pages/Dashboard.jsx - Complete redesigned version
 
 import React, { useEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
@@ -163,7 +163,7 @@ export default function Dashboard() {
     );
   }
   
-  // Fetch functions
+  // Fetch functions (identical to original)
   const fetchSwipeLimits = useCallback(async () => {
     try {
       const response = await API.get("/interactions/swipe/limits/");
@@ -993,66 +993,6 @@ export default function Dashboard() {
     backfaceVisibility: "hidden",
   };
   
-  const MobileBottomNav = () => {
-    const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
-    return (
-      <div className="d-block d-lg-none" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#ffffff', borderTop: '1px solid #e9ecef', height: `${MOBILE_BOTTOM_NAV_HEIGHT}px`, padding: '8px 0', zIndex: 1000, boxShadow: '0 -2px 10px rgba(0,0,0,0.05)' }}>
-        <div className="d-flex justify-content-around align-items-center" style={{ height: '100%' }}>
-          <button onClick={() => setActiveMobileTab('center')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'center' ? 'text-danger' : 'text-secondary'}`}>
-            <i className="fas fa-compass fs-5"></i>
-            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Découvrir</span>
-          </button>
-          {isPremiumOrGod && (
-            <button onClick={() => setActiveMobileTab('likes')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 position-relative ${activeMobileTab === 'likes' ? 'text-danger' : 'text-secondary'}`}>
-              <i className="fas fa-heart fs-5"></i>
-              {likesList.length > 0 && <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.6rem', padding: '2px 4px' }}>{likesList.length}</span>}
-              <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Likes</span>
-            </button>
-          )}
-          <button onClick={() => setActiveMobileTab('matches')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 position-relative ${activeMobileTab === 'matches' ? 'text-danger' : 'text-secondary'}`}>
-            <i className="fas fa-comments fs-5"></i>
-            {matchesList.length > 0 && <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.6rem', padding: '2px 4px' }}>{matchesList.length}</span>}
-            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Matches</span>
-          </button>
-          <button onClick={() => setActiveMobileTab('blocks')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'blocks' ? 'text-danger' : 'text-secondary'}`}>
-            <i className="fas fa-ban fs-5"></i>
-            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Bloqués</span>
-          </button>
-          <button onClick={() => setActiveMobileTab('profile')} className={`btn btn-link text-decoration-none d-flex flex-column align-items-center p-1 ${activeMobileTab === 'profile' ? 'text-danger' : 'text-secondary'}`}>
-            <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '20px', height: '20px', objectFit: 'cover' }} />
-            <span className="small mt-1" style={{ fontSize: '0.7rem' }}>Profil</span>
-          </button>
-        </div>
-      </div>
-    );
-  };
-  
-  const AvatarRow = ({ items, onClickAvatar }) => (
-    <div className="d-flex align-items-center gap-2 flex-wrap mt-3">
-      {items.slice(0, 8).map((p) => {
-        const displayName = p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : p.first_name || p.last_name || "";
-        return (
-          <button key={p.id} type="button" className="p-0 border-0 bg-transparent" onClick={() => onClickAvatar?.(p)} style={{ lineHeight: 0 }}>
-            <div className="position-relative">
-              <img src={p.photo || "https://via.placeholder.com/42"} alt={displayName || "Utilisateur"} className="rounded-circle" width="42" height="42" style={{ objectFit: "cover", border: "2px solid #fff", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", cursor: "pointer", transition: "transform 0.2s" }} />
-            </div>
-          </button>
-        );
-      })}
-      {items.length > 8 && <span className="badge bg-light text-dark rounded-pill px-3 py-2" style={{ fontSize: "0.85rem" }}>+{items.length - 8}</span>}
-    </div>
-  );
-  
-  const SectionCard = ({ title, count, children }) => (
-    <div className="p-3 mt-3" style={{ borderRadius: "20px", background: "linear-gradient(145deg, #ffffff, #f8f9fa)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
-      <div className="d-flex justify-content-between align-items-center mb-2">
-        <span className="fw-semibold" style={{ fontSize: "0.95rem", color: "#2c3e50" }}>{title}</span>
-        <span className="badge rounded-pill" style={{ background: "#e9ecef", color: "#495057", padding: "6px 12px" }}>{count}</span>
-      </div>
-      {children}
-    </div>
-  );
-  
   const renderMobileContent = () => {
     switch(activeMobileTab) {
       case 'likes':
@@ -1213,7 +1153,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            {windowWidth < 992 && <MobileBottomNav />}
+            {windowWidth < 992 && <MobileBottomNav user={user} activeMobileTab={activeMobileTab} setActiveMobileTab={setActiveMobileTab} likesList={likesList} matchesList={matchesList} getProfilePhotoUrl={getProfilePhotoUrl} />}
             
             <Modals
               user={user}
@@ -1256,12 +1196,217 @@ export default function Dashboard() {
         )}
       </div>
       <style>{`
-        .dashboard-col { transition: all 0.3s ease; }
-        .dashboard-container { -webkit-overflow-scrolling: touch; }
-        @media (max-width: 991.98px) {
-          .dashboard-container { padding: 0 !important; margin: 0 !important; }
+        :root {
+          --primary: #ff4d6d;
+          --primary-dark: #e63946;
+          --bg-light: #f8f9fa;
+          --card-radius: 28px;
+          --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.05);
+          --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.1);
+        }
+        .dashboard-desktop {
+          background: #f5f7fb;
+          padding: 1rem;
+          min-height: 100%;
+        }
+        .scrollable-card {
+          background: white;
+          border-radius: 24px;
+          box-shadow: var(--shadow-sm);
+          transition: all 0.2s ease;
+          height: 100%;
+          overflow-y: auto;
+        }
+        .center-card {
+          background: white;
+          border-radius: 32px;
+          overflow: hidden;
+          box-shadow: var(--shadow-md);
+          transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.4, 1);
+        }
+        .mobile-bottom-nav {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: rgba(255, 255, 255, 0.96);
+          backdrop-filter: blur(20px);
+          border-top: 0.5px solid rgba(0, 0, 0, 0.1);
+          padding: 8px 12px 20px;
+          display: flex;
+          justify-content: space-around;
+          z-index: 1000;
+        }
+        .nav-item {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          font-size: 12px;
+          color: #8e8e93;
+          background: none;
+          border: none;
+          padding: 8px 0;
+          transition: color 0.2s;
+        }
+        .nav-item.active {
+          color: var(--primary);
+        }
+        .avatar-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 12px;
+        }
+        .avatar-circle {
+          width: 52px;
+          height: 52px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 2px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          transition: transform 0.2s;
+          cursor: pointer;
+        }
+        .avatar-circle:hover {
+          transform: scale(1.05);
+        }
+        .photo-indicators {
+          position: absolute;
+          bottom: 16px;
+          left: 0;
+          right: 0;
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+          z-index: 2;
+        }
+        .photo-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 3px;
+          background: rgba(255,255,255,0.5);
+          transition: all 0.2s;
+        }
+        .photo-dot.active {
+          width: 20px;
+          background: white;
+        }
+        .photo-nav-arrow {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          background: rgba(255,255,255,0.8);
+          border: none;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          backdrop-filter: blur(4px);
+          z-index: 2;
+        }
+        .photo-nav-arrow.left { left: 12px; }
+        .photo-nav-arrow.right { right: 12px; }
+        .photo-counter {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: rgba(0,0,0,0.6);
+          color: white;
+          padding: 4px 8px;
+          border-radius: 20px;
+          font-size: 12px;
+          backdrop-filter: blur(4px);
+        }
+        .round-action-btn {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          transition: transform 0.2s;
+        }
+        .round-action-btn:hover {
+          transform: scale(1.08);
+        }
+        @media (max-width: 768px) {
+          .dashboard-desktop {
+            padding: 0;
+          }
+          .scrollable-card, .center-card {
+            border-radius: 0;
+            box-shadow: none;
+          }
+          .avatar-circle {
+            width: 48px;
+            height: 48px;
+          }
+          .round-action-btn {
+            width: 48px;
+            height: 48px;
+          }
         }
       `}</style>
     </>
   );
 }
+
+// Internal components for mobile bottom nav
+const MobileBottomNav = ({ user, activeMobileTab, setActiveMobileTab, likesList, matchesList, getProfilePhotoUrl }) => {
+  const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
+  return (
+    <div className="mobile-bottom-nav">
+      <button onClick={() => setActiveMobileTab('center')} className={`nav-item ${activeMobileTab === 'center' ? 'active' : ''}`}>
+        <i className="fas fa-compass nav-icon"></i>
+        <span>Discover</span>
+      </button>
+      {isPremiumOrGod && (
+        <button onClick={() => setActiveMobileTab('likes')} className={`nav-item ${activeMobileTab === 'likes' ? 'active' : ''}`} style={{ position: 'relative' }}>
+          <i className="fas fa-heart nav-icon"></i>
+          {likesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%' }}>{likesList.length}</span>}
+          <span>Likes</span>
+        </button>
+      )}
+      <button onClick={() => setActiveMobileTab('matches')} className={`nav-item ${activeMobileTab === 'matches' ? 'active' : ''}`} style={{ position: 'relative' }}>
+        <i className="fas fa-comments nav-icon"></i>
+        {matchesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%' }}>{matchesList.length}</span>}
+        <span>Matches</span>
+      </button>
+      <button onClick={() => setActiveMobileTab('blocks')} className={`nav-item ${activeMobileTab === 'blocks' ? 'active' : ''}`}>
+        <i className="fas fa-ban nav-icon"></i>
+        <span>Blocked</span>
+      </button>
+      <button onClick={() => setActiveMobileTab('profile')} className={`nav-item ${activeMobileTab === 'profile' ? 'active' : ''}`}>
+        <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '22px', height: '22px', objectFit: 'cover' }} />
+        <span>Profile</span>
+      </button>
+    </div>
+  );
+};
+
+// Reusable components (must be defined before use)
+const AvatarRow = ({ items, onClickAvatar }) => (
+  <div className="avatar-row">
+    {items.slice(0, 8).map((p) => {
+      const displayName = p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : p.first_name || p.last_name || "";
+      return (
+        <button key={p.id} type="button" className="p-0 border-0 bg-transparent" onClick={() => onClickAvatar?.(p)} aria-label={displayName || "Ouvrir le profil"}>
+          <img src={p.photo || "https://via.placeholder.com/52"} alt={displayName || "Utilisateur"} className="avatar-circle" />
+        </button>
+      );
+    })}
+    {items.length > 8 && <span className="badge bg-light text-dark rounded-pill px-3 py-2">+{items.length - 8}</span>}
+  </div>
+);
+
+const SectionCard = ({ title, count, children }) => (
+  <div className="p-3 mt-3" style={{ borderRadius: "20px", background: "linear-gradient(145deg, #ffffff, #f8f9fa)", boxShadow: "0 2px 8px rgba(0,0,0,0.02)" }}>
+    <div className="d-flex justify-content-between align-items-center mb-2">
+      <span className="fw-semibold" style={{ fontSize: "0.95rem", color: "#2c3e50" }}>{title}</span>
+      <span className="badge rounded-pill" style={{ background: "#e9ecef", color: "#495057", padding: "6px 12px" }}>{count}</span>
+    </div>
+    {children}
+  </div>
+);
