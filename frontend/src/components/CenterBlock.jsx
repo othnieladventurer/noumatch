@@ -1,114 +1,262 @@
 import React, { useRef } from "react";
 import { formatName } from "../utils/helpers";
 
-const RoundActionBtn = ({ onClick, bg, border, icon, iconColor, label }) => (
-  <button type="button" className="round-action-btn position-relative" onClick={onClick} style={{ width: 64, height: 64, background: bg, border: border || "none", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label={label}>
-    <i className={icon} style={{ color: iconColor, fontSize: "1.3rem" }} />
-    <span className="round-tooltip" style={{ position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "white", fontSize: "11px", padding: "4px 8px", borderRadius: "16px", whiteSpace: "nowrap", opacity: 0, pointerEvents: "none", transition: "opacity 0.2s" }}>{label}</span>
+/**
+ * Optimized RoundActionBtn for Viewport clamping
+ */
+const RoundActionBtn = ({ onClick, bg, icon, iconColor, label, size = 52, disabled = false }) => (
+  <button 
+    type="button" 
+    className="round-action-btn border-0 p-0" 
+    onClick={onClick} 
+    disabled={disabled}
+    style={{ 
+      width: size, 
+      height: size, 
+      background: bg, 
+      borderRadius: "50%", 
+      display: "flex", 
+      alignItems: "center", 
+      justifyContent: "center",
+      boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
+      opacity: disabled ? 0.5 : 1,
+      transition: "transform 0.1s active"
+    }} 
+    aria-label={label}
+  >
+    <i className={icon} style={{ color: iconColor, fontSize: size * 0.4 }} />
   </button>
 );
 
 export default function CenterBlock(props) {
-  // All destructured props remain exactly the same as in original file
   const {
     profilesLoading, apiError, profiles, profileIndex, currentProfile, getCurrentPhotoUrl,
-    openPhotoModal, getCurrentProfilePhotos, currentPhotoIndex, setCurrentPhotoIndex,
-    goToPrevPhoto, goToNextPhoto, isPhotoAnimating, isMatched, isLiked, goToProfile,
-    handlePass, handleLike, isAnimating, goToMessenger, setMatchedProfile, setMatchModalOpen,
+    openPhotoModal, getCurrentProfilePhotos, currentPhotoIndex,
+    goToPrevPhoto, goToNextPhoto, isMatched, isLiked, goToProfile,
+    handlePass, handleLike, isAnimating, goToMessenger,
     openReportModal, handleBlock, centerCardStyle, reloadProfiles, swipeLimits
   } = props;
 
-  // Swipe detection (unchanged)
   const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
   const touchStartY = useRef(0);
-  const touchEndY = useRef(0);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 992;
 
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  };
-  const handleTouchMove = (e) => {
-    touchEndX.current = e.touches[0].clientX;
-    touchEndY.current = e.touches[0].clientY;
-  };
-  const handleTouchEnd = () => {
-    const deltaX = touchEndX.current - touchStartX.current;
-    const deltaY = touchEndY.current - touchStartY.current;
-    const minSwipeDistance = 50;
-    if (Math.abs(deltaX) < minSwipeDistance || Math.abs(deltaX) < Math.abs(deltaY)) return;
-    if (deltaX > 0) {
-      if (!isAnimating && !isMatched(currentProfile?.id) && swipeLimits?.can_like !== false) handleLike();
-    } else {
-      if (!isAnimating) handlePass();
-    }
-    touchStartX.current = 0;
-    touchEndX.current = 0;
-    touchStartY.current = 0;
-    touchEndY.current = 0;
-  };
+  // Render Guards
+  if (profilesLoading && !currentProfile) return <div className="vh-100 d-flex align-items-center justify-content-center bg-black"><div className="spinner-border text-danger" /></div>;
+  if (apiError || !profiles.length || !currentProfile) {
+    return (
+      <div className="vh-100 d-flex align-items-center justify-content-center p-4 text-center bg-black text-white">
+        <div>
+          <h4 className="mb-4">{apiError ? "Erreur de connexion" : "Plus de profils"}</h4>
+          <button className="btn btn-primary rounded-pill px-5" onClick={reloadProfiles}>Rafraîchir</button>
+        </div>
+      </div>
+    );
+  }
 
-  // Loading and error states (unchanged)
-  if (profilesLoading && !currentProfile) return <div className="h-100 d-flex align-items-center justify-content-center"><div className="text-center"><div className="spinner-border text-primary mb-3"/><div className="text-secondary">Chargement...</div></div></div>;
-  if (apiError) return <div className="h-100 d-flex align-items-center justify-content-center"><div className="text-center p-4"><div className="mx-auto mb-4 bg-danger bg-opacity-10 rounded-circle" style={{ width:80,height:80,display:'flex',alignItems:'center',justifyContent:'center'}}><i className="fas fa-exclamation-triangle text-danger fs-1"/></div><h5 className="fw-bold mb-2">Erreur</h5><p className="text-secondary mb-3">{apiError}</p><button className="btn btn-outline-primary" onClick={reloadProfiles}>Réessayer</button></div></div>;
-  if (!profiles.length || profileIndex >= profiles.length || !currentProfile) return <div className="h-100 d-flex align-items-center justify-content-center"><div className="text-center p-4"><div className="mx-auto mb-4 rounded-circle bg-danger bg-opacity-10" style={{width:100,height:100,display:'flex',alignItems:'center',justifyContent:'center'}}><i className="fas fa-heart fs-1 text-danger"/></div><h4 className="fw-bold mb-2">Plus de profils</h4><p className="text-secondary mb-4">Revenez plus tard !</p><button className="btn btn-primary rounded-pill px-5 py-2" style={{background:'#ff4d6d',border:'none'}} onClick={reloadProfiles}>Rafraîchir</button></div></div>;
-
+  const photos = getCurrentProfilePhotos();
   const locationDisplay = currentProfile.location?.trim() || null;
-  const mobileCardStyle = isMobile ? { ...centerCardStyle, borderRadius: "0px", boxShadow: "none", overflow: "visible" } : centerCardStyle;
+
+  // Merge centerCardStyle (which contains the swipe transform animation)
+  // For mobile: override background to black and remove box-shadow
+  const containerStyle = isMobile 
+    ? { ...centerCardStyle, background: '#000', boxShadow: 'none' }
+    : { ...centerCardStyle, height: '100%' };
 
   return (
-    <div className="center-card" style={mobileCardStyle} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-      {/* Photo gallery */}
-      <div className="image-container position-relative" onClick={() => openPhotoModal(getCurrentPhotoUrl(), currentProfile.id)}>
-        {getCurrentPhotoUrl() ? (
+    <div 
+      className="d-flex flex-column overflow-hidden" 
+      style={containerStyle}
+      onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; touchStartY.current = e.touches[0].clientY; }}
+      onTouchEnd={(e) => {
+        const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+        const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+        if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          deltaX > 0 ? (!isAnimating && !isMatched(currentProfile?.id) && swipeLimits?.can_like !== false && handleLike()) : (!isAnimating && handlePass());
+        }
+      }}
+    >
+      {/* 1. FLEXIBLE PHOTO AREA */}
+      <div className="position-relative flex-grow-1 overflow-hidden" onClick={() => openPhotoModal(getCurrentPhotoUrl(), currentProfile.id)}>
+        <img 
+          src={getCurrentPhotoUrl()} 
+          alt={formatName(currentProfile)} 
+          className="w-100 h-100" 
+          style={{ objectFit: 'cover', position: 'absolute' }} 
+        />
+        
+        {/* Story Indicators */}
+        {photos.length > 1 && (
+          <div className="position-absolute top-0 start-0 w-100 d-flex gap-1 p-2" style={{ zIndex: 10 }}>
+            {photos.map((_, idx) => (
+              <div key={idx} className="flex-grow-1" style={{ height: '3px', backgroundColor: idx === currentPhotoIndex ? '#fff' : 'rgba(255,255,255,0.3)', borderRadius: '2px' }} />
+            ))}
+          </div>
+        )}
+
+        {/* Photo navigation arrows - fully inside image, integrated */}
+        {photos.length > 1 && (
           <>
-            <img src={getCurrentPhotoUrl()} alt={formatName(currentProfile)} style={{ width: '100%', height: 'auto', display: 'block' }} />
-            {getCurrentProfilePhotos().length > 1 && (
-              <>
-                <div className="photo-indicators">
-                  {getCurrentProfilePhotos().map((_, idx) => <div key={idx} className={`photo-dot ${idx === currentPhotoIndex ? 'active' : ''}`} onClick={(e) => { e.stopPropagation(); setCurrentPhotoIndex(idx); }} />)}
-                </div>
-                <button className="photo-nav-arrow left" onClick={(e) => { e.stopPropagation(); goToPrevPhoto(e); }} disabled={isPhotoAnimating}><i className="fas fa-chevron-left"/></button>
-                <button className="photo-nav-arrow right" onClick={(e) => { e.stopPropagation(); goToNextPhoto(e); }} disabled={isPhotoAnimating}><i className="fas fa-chevron-right"/></button>
-                <div className="photo-counter">{currentPhotoIndex+1} / {getCurrentProfilePhotos().length}</div>
-              </>
-            )}
+            <button 
+              className="photo-nav-arrow left" 
+              onClick={(e) => { e.stopPropagation(); goToPrevPhoto(e); }}
+              aria-label="Photo précédente"
+            >
+              <i className="fas fa-chevron-left" />
+            </button>
+            <button 
+              className="photo-nav-arrow right" 
+              onClick={(e) => { e.stopPropagation(); goToNextPhoto(e); }}
+              aria-label="Photo suivante"
+            >
+              <i className="fas fa-chevron-right" />
+            </button>
+            <div className="photo-counter">{currentPhotoIndex + 1} / {photos.length}</div>
           </>
-        ) : <div className="p-5 text-secondary">Photo non disponible</div>}
+        )}
+
+        {/* Bottom Fade */}
+        <div className="position-absolute bottom-0 start-0 w-100" style={{ height: '30%', background: 'linear-gradient(to top, #000, transparent)' }} />
       </div>
 
-      {/* Content */}
-      <div className="card-content p-4">
-        <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-          <div className="d-flex flex-wrap align-items-center gap-2">
-            <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>{formatName(currentProfile)}{currentProfile.age ? `, ${currentProfile.age}` : ''}</h2>
-            {isMatched(currentProfile.id) && <span className="badge bg-danger rounded-pill">Match</span>}
-            {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && <span className="badge bg-warning text-dark rounded-pill">Aimé</span>}
-          </div>
-          {locationDisplay && <div className="text-secondary small"><i className="fas fa-map-marker-alt me-1"/>{locationDisplay}</div>}
+      {/* 2. FIXED CONTENT AREA (Always stays in viewport) */}
+      <div className="px-3 pb-3 pt-2 text-white" style={{ background: '#000', flexShrink: 0 }}>
+        
+        {/* Name & Location Row */}
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <h2 className="fw-bold m-0 text-truncate" style={{ fontSize: '1.4rem' }}>
+            {formatName(currentProfile)}{currentProfile.age ? `, ${currentProfile.age}` : ''}
+          </h2>
+          {locationDisplay && <span className="small opacity-75"><i className="fas fa-map-marker-alt me-1"/>{locationDisplay}</span>}
         </div>
-        <p className="text-secondary mb-4">{currentProfile.bio || "Pas encore de bio"}</p>
 
-        {swipeLimits && !swipeLimits.can_like && <div className="alert alert-warning text-center py-2 mb-3 small"><i className="fas fa-info-circle me-2"/>Limite quotidienne de likes atteinte ({swipeLimits.likes_today}/{swipeLimits.daily_limit})</div>}
+        {/* Status Badges */}
+        <div className="mb-2">
+          {isMatched(currentProfile.id) && <span className="badge rounded-pill bg-danger me-2">Match</span>}
+          {isLiked(currentProfile.id) && !isMatched(currentProfile.id) && <span className="badge rounded-pill bg-warning text-dark me-2">Aimé</span>}
+        </div>
 
-        {isMatched(currentProfile.id) ? (
-          <div className="d-flex justify-content-center gap-3 flex-wrap mt-3">
-            <button onClick={handlePass} disabled={isAnimating} className="btn rounded-circle shadow d-flex align-items-center justify-content-center" style={{ width:60,height:60,background:'#fff',border:'1px solid #e9ecef' }}><i className="fas fa-times" style={{color:'#adb5bd',fontSize:'1.3rem'}}/></button>
-            <RoundActionBtn onClick={() => goToProfile(currentProfile.id)} bg="#fff" border="1px solid #e9ecef" icon="fas fa-user" iconColor="#6f42c1" label="Voir le profil"/>
-            <RoundActionBtn onClick={() => goToMessenger(currentProfile.id)} bg="linear-gradient(145deg, #6f42c1, #5a32a3)" icon="fas fa-comment-dots" iconColor="#fff" label="Envoyer un message"/>
-            <RoundActionBtn onClick={() => { setMatchedProfile(currentProfile); setMatchModalOpen(true); }} bg="#fff" border="1px solid #dc354530" icon="fas fa-heart-broken" iconColor="#dc3545" label="Annuler le match"/>
-            <RoundActionBtn onClick={() => openReportModal(currentProfile)} bg="#fff" border="1px solid #ffc107" icon="fas fa-flag" iconColor="#ffc107" label="Signaler"/>
-            <RoundActionBtn onClick={() => handleBlock(currentProfile)} bg="#1a1a1a" icon="fas fa-ban" iconColor="#fff" label="Bloquer"/>
-          </div>
-        ) : (
-          <div className="d-flex justify-content-center gap-3 mt-3">
-            <button onClick={handlePass} disabled={isAnimating} className="btn rounded-circle shadow d-flex align-items-center justify-content-center" style={{ width:60,height:60,background:'#fff',border:'1px solid #e9ecef' }}><i className="fas fa-times" style={{color:'#adb5bd',fontSize:'1.3rem'}}/></button>
-            <button onClick={handleLike} disabled={isAnimating || (swipeLimits && !swipeLimits.can_like)} className="btn rounded-circle shadow d-flex align-items-center justify-content-center" style={{ width:74,height:74,background:'linear-gradient(145deg, #ff4d6d, #ff3355)', border:'none', opacity: (swipeLimits && !swipeLimits.can_like) ? 0.5 : 1 }}><i className="fas fa-heart" style={{color:'#fff',fontSize:'1.6rem'}}/></button>
-            <button onClick={() => goToProfile(currentProfile.id)} disabled={isAnimating} className="btn rounded-circle shadow d-flex align-items-center justify-content-center" style={{ width:60,height:60,background:'#fff',border:'1px solid #e9ecef' }}><i className="fas fa-user" style={{color:'#6f42c1',fontSize:'1.2rem'}}/></button>
+        {/* Bio: Clamped to 2 lines */}
+        <p className="small mb-3 opacity-75" style={{ 
+          display: '-webkit-box', 
+          WebkitLineClamp: '2', 
+          WebkitBoxOrient: 'vertical', 
+          overflow: 'hidden',
+          minHeight: '2.4em' 
+        }}>
+          {currentProfile.bio || "Pas encore de bio"}
+        </p>
+
+        {/* Interaction Bar */}
+        <div className="d-flex justify-content-center align-items-center gap-4 py-2">
+          {isMatched(currentProfile.id) ? (
+            <>
+              <RoundActionBtn onClick={handlePass} bg="rgba(255,255,255,0.1)" icon="fas fa-times" iconColor="#fff" size={50} />
+              <RoundActionBtn onClick={() => goToMessenger(currentProfile.id)} bg="linear-gradient(135deg, #ff4d6d, #a158ff)" icon="fas fa-comment-dots" iconColor="#fff" size={62} />
+              <RoundActionBtn onClick={() => goToProfile(currentProfile.id)} bg="rgba(255,255,255,0.1)" icon="fas fa-user" iconColor="#fff" size={50} />
+            </>
+          ) : (
+            <>
+              <button 
+                onClick={handlePass} 
+                className="btn border-2 rounded-circle d-flex align-items-center justify-content-center" 
+                style={{ width: 56, height: 56, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}
+              >
+                <i className="fas fa-times fs-4"/>
+              </button>
+              
+              <button 
+                onClick={handleLike} 
+                disabled={swipeLimits && !swipeLimits.can_like}
+                className="btn rounded-circle shadow-lg d-flex align-items-center justify-content-center" 
+                style={{ 
+                  width: 76, height: 76, 
+                  background: 'linear-gradient(145deg, #ff4d6d, #ff3355)', 
+                  border: 'none',
+                  opacity: (swipeLimits && !swipeLimits.can_like) ? 0.5 : 1
+                }}
+              >
+                <i className="fas fa-heart text-white fs-2"/>
+              </button>
+
+              <button 
+                onClick={() => goToProfile(currentProfile.id)} 
+                className="btn border-2 rounded-circle d-flex align-items-center justify-content-center" 
+                style={{ width: 56, height: 56, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}
+              >
+                <i className="fas fa-user fs-4"/>
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Safety Tools */}
+        {!isMatched(currentProfile.id) && (
+          <div className="d-flex justify-content-center gap-4 mt-1 opacity-25">
+             <button onClick={() => openReportModal(currentProfile)} className="btn btn-sm text-white p-0"><i className="fas fa-flag"/></button>
+             <button onClick={() => handleBlock(currentProfile)} className="btn btn-sm text-white p-0"><i className="fas fa-ban"/></button>
           </div>
         )}
       </div>
+
+      {/* Embedded styles for photo navigation – ensures buttons are inside picture, responsive */}
+      <style>{`
+        .photo-nav-arrow {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+          border: none;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 20;
+          transition: all 0.2s ease;
+          color: white;
+          font-size: 18px;
+        }
+        .photo-nav-arrow:hover {
+          background: rgba(0, 0, 0, 0.7);
+          transform: translateY(-50%) scale(1.05);
+        }
+        .photo-nav-arrow.left {
+          left: 12px;
+        }
+        .photo-nav-arrow.right {
+          right: 12px;
+        }
+        .photo-counter {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(4px);
+          color: white;
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 500;
+          z-index: 20;
+        }
+        @media (max-width: 768px) {
+          .photo-nav-arrow {
+            width: 36px;
+            height: 36px;
+            font-size: 14px;
+          }
+          .photo-counter {
+            top: 12px;
+            right: 12px;
+            font-size: 10px;
+            padding: 3px 8px;
+          }
+        }
+      `}</style>
     </div>
   );
 }

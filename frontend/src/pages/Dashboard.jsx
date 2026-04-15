@@ -549,7 +549,7 @@ export default function Dashboard() {
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
   
-  // LOG IMPRESSION WHEN CURRENT PROFILE CHANGES - FIXED
+  // LOG IMPRESSION WHEN CURRENT PROFILE CHANGES
   useEffect(() => {
     if (currentProfile && currentProfile.id && sessionId) {
       if (lastLoggedImpressionId.current !== currentProfile.id) {
@@ -1033,9 +1033,9 @@ export default function Dashboard() {
             </div>
           </div>
         );
-      default:
+      default: // 'center' tab - no scrolling, full viewport fit
         return (
-          <div className="h-100" style={{ margin: 0, padding: 0 }}>
+          <div style={{ height: '100%', overflow: 'hidden' }}>
             <CenterBlock
               profilesLoading={profilesLoading}
               apiError={apiError}
@@ -1148,9 +1148,7 @@ export default function Dashboard() {
             {/* Mobile Layout */}
             <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px)`, overflow: 'hidden' }}>
-                <div style={{ height: '100%', overflowY: 'auto', margin: 0, padding: 0 }}>
-                  {renderMobileContent()}
-                </div>
+                {renderMobileContent()}
               </div>
             </div>
             {windowWidth < 992 && <MobileBottomNav user={user} activeMobileTab={activeMobileTab} setActiveMobileTab={setActiveMobileTab} likesList={likesList} matchesList={matchesList} getProfilePhotoUrl={getProfilePhotoUrl} />}
@@ -1229,12 +1227,13 @@ export default function Dashboard() {
           bottom: 0;
           left: 0;
           right: 0;
-          background: rgba(255, 255, 255, 0.96);
+          background: rgba(255, 255, 255, 0.98);
           backdrop-filter: blur(20px);
-          border-top: 0.5px solid rgba(0, 0, 0, 0.1);
-          padding: 8px 12px 20px;
+          border-top: 0.5px solid rgba(0, 0, 0, 0.08);
+          padding: 12px 16px 24px;
           display: flex;
           justify-content: space-around;
+          align-items: center;
           z-index: 1000;
         }
         .nav-item {
@@ -1242,16 +1241,28 @@ export default function Dashboard() {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 4px;
+          justify-content: center;
+          gap: 6px;
           font-size: 12px;
+          font-weight: 500;
           color: #8e8e93;
           background: none;
           border: none;
           padding: 8px 0;
-          transition: color 0.2s;
+          transition: all 0.2s ease;
+          border-radius: 12px;
+          min-height: 56px;
         }
         .nav-item.active {
           color: var(--primary);
+        }
+        .nav-icon {
+          font-size: 22px;
+          margin-bottom: 2px;
+        }
+        .nav-item span:last-child {
+          font-size: 11px;
+          letter-spacing: 0.3px;
         }
         .avatar-row {
           display: flex;
@@ -1347,6 +1358,15 @@ export default function Dashboard() {
             width: 48px;
             height: 48px;
           }
+          .mobile-bottom-nav {
+            padding: 10px 12px 20px;
+          }
+          .nav-icon {
+            font-size: 20px;
+          }
+          .nav-item span:last-child {
+            font-size: 10px;
+          }
         }
       `}</style>
     </>
@@ -1365,13 +1385,13 @@ const MobileBottomNav = ({ user, activeMobileTab, setActiveMobileTab, likesList,
       {isPremiumOrGod && (
         <button onClick={() => setActiveMobileTab('likes')} className={`nav-item ${activeMobileTab === 'likes' ? 'active' : ''}`} style={{ position: 'relative' }}>
           <i className="fas fa-heart nav-icon"></i>
-          {likesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%' }}>{likesList.length}</span>}
+          {likesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%', fontSize: '10px', padding: '2px 5px' }}>{likesList.length}</span>}
           <span>Likes</span>
         </button>
       )}
       <button onClick={() => setActiveMobileTab('matches')} className={`nav-item ${activeMobileTab === 'matches' ? 'active' : ''}`} style={{ position: 'relative' }}>
         <i className="fas fa-comments nav-icon"></i>
-        {matchesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%' }}>{matchesList.length}</span>}
+        {matchesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%', fontSize: '10px', padding: '2px 5px' }}>{matchesList.length}</span>}
         <span>Matches</span>
       </button>
       <button onClick={() => setActiveMobileTab('blocks')} className={`nav-item ${activeMobileTab === 'blocks' ? 'active' : ''}`}>
@@ -1379,7 +1399,7 @@ const MobileBottomNav = ({ user, activeMobileTab, setActiveMobileTab, likesList,
         <span>Blocked</span>
       </button>
       <button onClick={() => setActiveMobileTab('profile')} className={`nav-item ${activeMobileTab === 'profile' ? 'active' : ''}`}>
-        <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '22px', height: '22px', objectFit: 'cover' }} />
+        <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '24px', height: '24px', objectFit: 'cover' }} />
         <span>Profile</span>
       </button>
     </div>
