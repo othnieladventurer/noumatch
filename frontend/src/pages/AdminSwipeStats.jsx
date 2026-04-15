@@ -1,3 +1,4 @@
+// src/pages/AdminSwipeStats.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -5,7 +6,30 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-const API_BASE = '/api/noumatch-admin';
+// Build the correct API base URL from environment variables (consistent with other admin pages)
+const getApiBase = () => {
+  const env = import.meta.env.VITE_APP_ENVIRONMENT;
+  let baseDomain = '';
+
+  if (env === 'staging') {
+    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+  } else if (import.meta.env.PROD) {
+    // Production - use production API domain
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
+      : 'https://api.noumatch.com';
+  } else {
+    // Development - use relative path (proxy)
+    return '/api/noumatch-admin';
+  }
+
+  const adminPath = '/api/noumatch-admin';
+  const fullUrl = `${baseDomain}${adminPath}`;
+  console.log('🌐 Admin SwipeStats API Base:', fullUrl);
+  return fullUrl;
+};
+
+const API_BASE = getApiBase();
 const DAYS_PER_PAGE = 10;
 
 export default function AdminSwipeStats() {
@@ -37,11 +61,15 @@ export default function AdminSwipeStats() {
       return;
     }
     setLoading(true);
+    setError('');
     try {
-      const res = await axios.get(`${API_BASE}/swipe-stats/`, {
+      const url = `${API_BASE}/swipe-stats/`;
+      console.log('📡 Fetching swipe stats from:', url, 'page:', page);
+      const res = await axios.get(url, {
         params: { page, limit: DAYS_PER_PAGE },
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log('✅ Swipe stats received:', res.data);
       setStats({
         total_likes: res.data.total_likes,
         total_passes: res.data.total_passes,
@@ -53,8 +81,13 @@ export default function AdminSwipeStats() {
       setCurrentPage(res.data.page);
       setTotalPages(res.data.pages);
     } catch (err) {
-      console.error(err);
-      setError('Failed to load swipe statistics');
+      console.error('❌ Fetch error:', err);
+      if (err.response?.status === 401) {
+        localStorage.clear();
+        navigate('/admin/login');
+      } else {
+        setError('Failed to load swipe statistics');
+      }
     } finally {
       setLoading(false);
     }

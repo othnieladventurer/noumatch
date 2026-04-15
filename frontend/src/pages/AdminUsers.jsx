@@ -6,7 +6,30 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-const API_BASE = '/api/noumatch-admin';
+// Build the correct API base URL from environment variables (same as AdminDashboard)
+const getApiBase = () => {
+  const env = import.meta.env.VITE_APP_ENVIRONMENT;
+  let baseDomain = '';
+  
+  if (env === 'staging') {
+    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+  } else if (import.meta.env.PROD) {
+    // Production - use production API domain
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http') 
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
+      : 'https://api.noumatch.com';
+  } else {
+    // Development - use relative path (proxy)
+    return '/api/noumatch-admin';
+  }
+  
+  const adminPath = '/api/noumatch-admin';
+  const fullUrl = `${baseDomain}${adminPath}`;
+  console.log('🌐 Admin Users API Base:', fullUrl);
+  return fullUrl;
+};
+
+const API_BASE = getApiBase();
 const USERS_PER_PAGE = 10;
 const DEBOUNCE_DELAY = 300;
 
@@ -26,8 +49,7 @@ export default function AdminUsers() {
   
   const navigate = useNavigate();
   const adminEmail = localStorage.getItem('admin_email') || 'Admin';
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  
+
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -68,7 +90,10 @@ export default function AdminUsers() {
         status: filterStatus
       });
       
-      const res = await axios.get(`${API_BASE}/users/list/`, {
+      const url = `${API_BASE}/users/list/`;
+      console.log('📡 Fetching users from:', url, 'params:', Object.fromEntries(params));
+      
+      const res = await axios.get(url, {
         params,
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -129,15 +154,6 @@ export default function AdminUsers() {
         return <span className="badge bg-success">Safe</span>;
     }
   }, []);
-
-  // Memoize filtered users (only used if API doesn't support filtering)
-  const filteredUsers = useMemo(() => {
-    // If API already filtered, just return users
-    if (debouncedSearchTerm || filterStatus !== 'all') {
-      return users;
-    }
-    return users;
-  }, [users, debouncedSearchTerm, filterStatus]);
 
   const totalPages = Math.ceil(totalUsers / USERS_PER_PAGE);
   

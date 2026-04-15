@@ -1,3 +1,4 @@
+// src/pages/AdminReports.jsx
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -5,12 +6,27 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-// Smart API base: relative path for dev (proxied), full URL for staging/production
+// Build the correct API base URL from environment variables (consistent with other admin pages)
 const getApiBase = () => {
-  if (import.meta.env.VITE_APP_ENVIRONMENT === 'staging' && import.meta.env.VITE_STAGING_API_URL) {
-    return `${import.meta.env.VITE_STAGING_API_URL}/api/noumatch-admin`;
+  const env = import.meta.env.VITE_APP_ENVIRONMENT;
+  let baseDomain = '';
+
+  if (env === 'staging') {
+    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+  } else if (import.meta.env.PROD) {
+    // Production - use production API domain
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
+      : 'https://api.noumatch.com';
+  } else {
+    // Development - use relative path (proxy)
+    return '/api/noumatch-admin';
   }
-  return '/api/noumatch-admin';
+
+  const adminPath = '/api/noumatch-admin';
+  const fullUrl = `${baseDomain}${adminPath}`;
+  console.log('🌐 Admin Reports API Base:', fullUrl);
+  return fullUrl;
 };
 
 const API_BASE = getApiBase();
@@ -58,11 +74,13 @@ export default function AdminReports() {
         status: filterStatus !== 'all' ? filterStatus : '',
       });
       const url = `${API_BASE}/reports/list/`;
+      console.log('📡 Fetching reports from:', url, 'params:', Object.fromEntries(params));
       const res = await axios.get(url, { params, headers: { Authorization: `Bearer ${token}` } });
+      console.log('✅ Reports fetched:', res.data);
       setReports(res.data.data || []);
       setTotalReports(res.data.total || 0);
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('❌ Fetch error:', err);
       if (err.response?.status === 401) {
         localStorage.clear();
         navigate('/admin/login');
@@ -91,7 +109,9 @@ export default function AdminReports() {
       return;
     }
     try {
-      const res = await axios.get(`${API_BASE}/reports/detail/${reportId}/`, {
+      const url = `${API_BASE}/reports/detail/${reportId}/`;
+      console.log('📡 Fetching report details:', url);
+      const res = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSelectedReport(res.data);
@@ -100,7 +120,7 @@ export default function AdminReports() {
       setActionTaken(res.data.action_taken || '');
       setShowModal(true);
     } catch (err) {
-      console.error(err);
+      console.error('❌ Failed to load report details:', err);
       alert('Failed to load report details');
     }
   };
@@ -113,16 +133,17 @@ export default function AdminReports() {
       return;
     }
     try {
-      await axios.patch(`${API_BASE}/reports/update-status/${selectedReport.id}/`, {
+      const url = `${API_BASE}/reports/update-status/${selectedReport.id}/`;
+      console.log('📡 Updating report:', url);
+      await axios.patch(url, {
         status: updateStatus,
         admin_notes: adminNotes,
         action_taken: actionTaken,
       }, { headers: { Authorization: `Bearer ${token}` } });
-      // No alert on success – just close modal and refresh
       setShowModal(false);
       fetchReports();
     } catch (err) {
-      console.error(err);
+      console.error('❌ Update failed:', err);
       alert('Update failed');
     }
   };
@@ -136,14 +157,15 @@ export default function AdminReports() {
       return;
     }
     try {
-      await axios.post(`${API_BASE}/reports/ban-user/`, { report_id: selectedReport.id }, {
+      const url = `${API_BASE}/reports/ban-user/`;
+      console.log('📡 Banning user via:', url);
+      await axios.post(url, { report_id: selectedReport.id }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // No alert on success – just close modal and refresh
       setShowModal(false);
       fetchReports();
     } catch (err) {
-      console.error(err);
+      console.error('❌ Ban failed:', err);
       alert('Ban failed');
     }
   };
@@ -153,7 +175,9 @@ export default function AdminReports() {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
 
-  if (loading) return <div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger"></div></div>;
+  if (loading && reports.length === 0) {
+    return <div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger"></div></div>;
+  }
 
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -192,20 +216,40 @@ export default function AdminReports() {
             <div className="table-responsive">
               <table className="table admin-table">
                 <thead>
-                  <tr><th>ID</th><th>Reporter</th><th>Reported User</th><th>Reason</th><th>Status</th><th>Date</th><th>Actions</th></tr>
+                  <tr>
+                    <th>ID</th>
+                    <th>Reporter</th>
+                    <th>Reported User</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {reports.map(r => (
-                    <tr key={r.id}>
-                      <td>{r.id}</td>
-                      <td>{r.reporter_name}<br/><small>{r.reporter_email}</small></td>
-                      <td>{r.reported_user_name}<br/><small>{r.reported_user_email}</small></td>
-                      <td>{r.reason}</td>
-                      <td><span className={`badge bg-${r.status==='pending'?'warning':r.status==='investigating'?'info':r.status==='resolved'?'success':'secondary'}`}>{r.status}</span></td>
-                      <td>{new Date(r.created_at).toLocaleDateString()}</td>
-                      <td><button className="btn btn-sm btn-outline-primary" onClick={() => openReportModal(r.id)}><i className="fas fa-eye"></i> View</button></td>
-                    </tr>
-                  ))}
+                  {reports.length > 0 ? (
+                    reports.map(r => (
+                      <tr key={r.id}>
+                        <td>{r.id}</td>
+                        <td>{r.reporter_name}<br/><small>{r.reporter_email}</small></td>
+                        <td>{r.reported_user_name}<br/><small>{r.reported_user_email}</small></td>
+                        <td>{r.reason}</td>
+                        <td>
+                          <span className={`badge bg-${r.status==='pending'?'warning':r.status==='investigating'?'info':r.status==='resolved'?'success':'secondary'}`}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td>{new Date(r.created_at).toLocaleDateString()}</td>
+                        <td>
+                          <button className="btn btn-sm btn-outline-primary" onClick={() => openReportModal(r.id)}>
+                            <i className="fas fa-eye"></i> View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan="7" className="text-center py-4">No reports found</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
