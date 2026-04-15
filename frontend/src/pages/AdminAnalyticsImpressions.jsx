@@ -1,3 +1,4 @@
+// src/pages/AdminAnalyticsImpressions.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -5,7 +6,30 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-const API_BASE = '/api/noumatch-admin';
+// Build the correct API base URL from environment variables (consistent with other admin pages)
+const getApiBase = () => {
+  const env = import.meta.env.VITE_APP_ENVIRONMENT;
+  let baseDomain = '';
+
+  if (env === 'staging') {
+    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+  } else if (import.meta.env.PROD) {
+    // Production - use production API domain
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
+      : 'https://api.noumatch.com';
+  } else {
+    // Development - use relative path (proxy)
+    return '/api/noumatch-admin';
+  }
+
+  const adminPath = '/api/noumatch-admin';
+  const fullUrl = `${baseDomain}${adminPath}`;
+  console.log('🌐 Admin Analytics Impressions API Base:', fullUrl);
+  return fullUrl;
+};
+
+const API_BASE = getApiBase();
 
 export default function AdminAnalyticsImpressions() {
   const navigate = useNavigate();
@@ -44,7 +68,10 @@ export default function AdminAnalyticsImpressions() {
 
   const fetchImpressions = async () => {
     const token = localStorage.getItem('admin_access');
-    if (!token) return;
+    if (!token) {
+      navigate('/admin/login');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -55,13 +82,16 @@ export default function AdminAnalyticsImpressions() {
       if (filters.date_from) params.append('date_from', filters.date_from);
       if (filters.date_to) params.append('date_to', filters.date_to);
       
-      const response = await axios.get(`${API_BASE}/analytics/impressions/?${params.toString()}`, {
+      const url = `${API_BASE}/analytics/impressions/`;
+      console.log('📡 Fetching impressions from:', url, 'params:', Object.fromEntries(params));
+      const response = await axios.get(url, {
+        params,
         headers: { Authorization: `Bearer ${token}` }
       });
       setImpressions(response.data);
       setError('');
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('❌ Fetch error:', err);
       if (err.response?.status === 401 || err.response?.status === 403) {
         localStorage.removeItem('admin_access');
         localStorage.removeItem('admin_refresh');
@@ -105,7 +135,6 @@ export default function AdminAnalyticsImpressions() {
       return;
     }
 
-    // Define CSV headers
     const headers = [
       'Timestamp',
       'Viewer Name',
@@ -120,7 +149,6 @@ export default function AdminAnalyticsImpressions() {
       'Device Type'
     ];
 
-    // Convert data to CSV rows
     const rows = impressions.map(imp => [
       new Date(imp.timestamp).toLocaleString(),
       imp.viewer_name || '',
@@ -135,16 +163,12 @@ export default function AdminAnalyticsImpressions() {
       imp.device_type || 'unknown'
     ]);
 
-    // Create CSV content
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n');
 
-    // Add BOM for UTF-8 encoding (fixes special characters)
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    
-    // Create download link
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -325,7 +349,7 @@ export default function AdminAnalyticsImpressions() {
                         <tr key={imp.id}>
                           <td className="text-nowrap small">
                             {new Date(imp.timestamp).toLocaleString()}
-                          </td>
+                           </td>
                           <td>
                             <div className="fw-semibold">{imp.viewer_name}</div>
                             <div className="small text-muted">{imp.viewer_email}</div>
@@ -335,7 +359,7 @@ export default function AdminAnalyticsImpressions() {
                                 {imp.viewer_location}
                               </div>
                             )}
-                          </td>
+                           </td>
                           <td>
                             <div className="fw-semibold">{imp.viewed_name}</div>
                             <div className="small text-muted">{imp.viewed_email}</div>
@@ -345,24 +369,24 @@ export default function AdminAnalyticsImpressions() {
                                 {imp.viewed_location}
                               </div>
                             )}
-                          </td>
+                           </td>
                           <td className="text-center">
                             <span className="badge bg-secondary">#{imp.feed_position + 1}</span>
-                          </td>
+                           </td>
                           <td>
                             <span className={`badge ${imp.ranking_score >= 70 ? 'bg-success' : imp.ranking_score >= 40 ? 'bg-warning' : 'bg-danger'}`}>
                               {imp.ranking_score}
                             </span>
-                          </td>
+                           </td>
                           <td>
                             <span className={`badge ${imp.swipe_action === 'like' ? 'bg-success' : imp.swipe_action === 'pass' ? 'bg-danger' : 'bg-secondary'}`}>
                               {imp.swipe_action === 'like' ? <><i className="fas fa-thumbs-up me-1"></i> Like</> : imp.swipe_action === 'pass' ? <><i className="fas fa-thumbs-down me-1"></i> Pass</> : 'Pending'}
                             </span>
-                          </td>
+                           </td>
                           <td>
                             <i className={`fas ${imp.device_type === 'mobile' ? 'fa-mobile-alt' : 'fa-desktop'} me-1`}></i>
                             {imp.device_type}
-                          </td>
+                           </td>
                         </tr>
                       ))
                     )}

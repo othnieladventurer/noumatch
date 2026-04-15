@@ -6,7 +6,30 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-const API_BASE = '/api/noumatch-admin';
+// Build the correct API base URL from environment variables (consistent with other admin pages)
+const getApiBase = () => {
+  const env = import.meta.env.VITE_APP_ENVIRONMENT;
+  let baseDomain = '';
+
+  if (env === 'staging') {
+    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+  } else if (import.meta.env.PROD) {
+    // Production - use production API domain
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
+      : 'https://api.noumatch.com';
+  } else {
+    // Development - use relative path (proxy)
+    return '/api/noumatch-admin';
+  }
+
+  const adminPath = '/api/noumatch-admin';
+  const fullUrl = `${baseDomain}${adminPath}`;
+  console.log('🌐 Admin Messages API Base:', fullUrl);
+  return fullUrl;
+};
+
+const API_BASE = getApiBase();
 
 export default function AdminMessages() {
   const [activeTab, setActiveTab] = useState('support');
@@ -36,19 +59,29 @@ export default function AdminMessages() {
       return;
     }
     setLoading(true);
+    setError('');
     try {
-      const supportRes = await axios.get(`${API_BASE}/support-conversations/`, {
+      const supportUrl = `${API_BASE}/support-conversations/`;
+      console.log('📡 Fetching support conversations from:', supportUrl);
+      const supportRes = await axios.get(supportUrl, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSupportConvs(supportRes.data);
 
-      const userRes = await axios.get(`${API_BASE}/user-conversations/`, {
+      const userUrl = `${API_BASE}/user-conversations/`;
+      console.log('📡 Fetching user conversations from:', userUrl);
+      const userRes = await axios.get(userUrl, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUserConvs(userRes.data);
     } catch (err) {
-      console.error(err);
-      setError('Failed to load conversations');
+      console.error('❌ Fetch error:', err);
+      if (err.response?.status === 401) {
+        localStorage.clear();
+        navigate('/admin/login');
+      } else {
+        setError('Failed to load conversations');
+      }
     } finally {
       setLoading(false);
     }
@@ -181,6 +214,3 @@ export default function AdminMessages() {
     </div>
   );
 }
-
-
-

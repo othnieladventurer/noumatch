@@ -6,7 +6,30 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-const API_BASE = '/api/noumatch-admin';
+// Build the correct API base URL from environment variables (consistent with other admin pages)
+const getApiBase = () => {
+  const env = import.meta.env.VITE_APP_ENVIRONMENT;
+  let baseDomain = '';
+
+  if (env === 'staging') {
+    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+  } else if (import.meta.env.PROD) {
+    // Production - use production API domain
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
+      : 'https://api.noumatch.com';
+  } else {
+    // Development - use relative path (proxy)
+    return '/api/noumatch-admin';
+  }
+
+  const adminPath = '/api/noumatch-admin';
+  const fullUrl = `${baseDomain}${adminPath}`;
+  console.log('🌐 Admin MessageDetail API Base:', fullUrl);
+  return fullUrl;
+};
+
+const API_BASE = getApiBase();
 
 export default function AdminMessageDetail() {
   const { id } = useParams();
@@ -37,17 +60,29 @@ export default function AdminMessageDetail() {
       navigate('/admin/login');
       return;
     }
+    setError('');
     try {
-      const convRes = await axios.get(`${API_BASE}/support-conversations/${id}/`, {
+      const convUrl = `${API_BASE}/support-conversations/${id}/`;
+      console.log('📡 Fetching conversation:', convUrl);
+      const convRes = await axios.get(convUrl, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setConversation(convRes.data);
-      const msgRes = await axios.get(`${API_BASE}/support-conversations/${id}/messages/`, {
+
+      const msgUrl = `${API_BASE}/support-conversations/${id}/messages/`;
+      console.log('📡 Fetching messages:', msgUrl);
+      const msgRes = await axios.get(msgUrl, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMessages(msgRes.data);
     } catch (err) {
-      setError('Failed to load conversation');
+      console.error('❌ Fetch error:', err);
+      if (err.response?.status === 401) {
+        localStorage.clear();
+        navigate('/admin/login');
+      } else {
+        setError('Failed to load conversation');
+      }
     } finally {
       setLoading(false);
     }
@@ -62,12 +97,15 @@ export default function AdminMessageDetail() {
     const token = localStorage.getItem('admin_access');
     setSending(true);
     try {
-      await axios.post(`${API_BASE}/support-conversations/${id}/reply/`, { content: replyText }, {
+      const replyUrl = `${API_BASE}/support-conversations/${id}/reply/`;
+      console.log('📡 Sending reply to:', replyUrl);
+      await axios.post(replyUrl, { content: replyText }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setReplyText('');
       fetchConversation(); // refresh
     } catch (err) {
+      console.error('❌ Reply error:', err);
       alert('Failed to send reply');
     } finally {
       setSending(false);
@@ -124,7 +162,3 @@ export default function AdminMessageDetail() {
     </div>
   );
 }
-
-
-
-
