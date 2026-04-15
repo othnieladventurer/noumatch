@@ -4,7 +4,30 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './AdminLogin.css';
 
-const API_BASE = '/api/noumatch-admin';
+// Build the correct API base URL from environment variables (same as AdminDashboard)
+const getApiBase = () => {
+  const env = import.meta.env.VITE_APP_ENVIRONMENT;
+  let baseDomain = '';
+  
+  if (env === 'staging') {
+    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+  } else if (import.meta.env.PROD) {
+    // Production - use production API domain
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http') 
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
+      : 'https://api.noumatch.com';
+  } else {
+    // Development - use relative path (proxy)
+    return '/api/noumatch-admin';
+  }
+  
+  const adminPath = '/api/noumatch-admin';
+  const fullUrl = `${baseDomain}${adminPath}`;
+  console.log('🌐 Admin Login API Base:', fullUrl);
+  return fullUrl;
+};
+
+const API_BASE = getApiBase();
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -31,13 +54,17 @@ export default function AdminLogin() {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.post(`${API_BASE}/admin_login/`, { email, password });
+      const url = `${API_BASE}/admin_login/`;
+      console.log('📡 Login attempt to:', url);
+      const res = await axios.post(url, { email, password });
+      console.log('✅ Login success');
       localStorage.setItem('admin_access', res.data.access);
       localStorage.setItem('admin_refresh', res.data.refresh);
       localStorage.setItem('admin_email', res.data.staff_email);
       navigate('/admin/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed. Check credentials.');
+      console.error('❌ Login error:', err.response?.status, err.response?.data);
+      setError(err.response?.data?.error || err.response?.data?.message || 'Login failed. Check credentials.');
     } finally {
       setLoading(false);
     }
@@ -152,6 +179,3 @@ export default function AdminLogin() {
     </div>
   );
 }
-
-
-
