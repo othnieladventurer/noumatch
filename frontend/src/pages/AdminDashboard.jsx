@@ -6,14 +6,28 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-// Use absolute URL in production, relative in development
+// Build the correct API base URL from environment variables
 const getApiBase = () => {
-  if (import.meta.env.PROD) {
-    // Use the same API domain as main app
-    const apiUrl = import.meta.env.VITE_API_URL || 'https://api.noumatch.com';
-    return `${apiUrl}/api/noumatch-admin`;
+  const env = import.meta.env.VITE_APP_ENVIRONMENT;
+  let baseDomain = '';
+  
+  if (env === 'staging') {
+    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+  } else if (import.meta.env.PROD) {
+    // Production - use production API domain
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http') 
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
+      : 'https://api.noumatch.com';
+  } else {
+    // Development - use relative path (proxy)
+    return '/api/noumatch-admin';
   }
-  return '/api/noumatch-admin';
+  
+  // Combine domain with admin path
+  const adminPath = '/api/noumatch-admin';
+  const fullUrl = `${baseDomain}${adminPath}`;
+  console.log('🌐 Admin API Base URL:', fullUrl);
+  return fullUrl;
 };
 
 const API_BASE = getApiBase();
@@ -30,33 +44,6 @@ export default function AdminDashboard() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const navigate = useNavigate();
   const adminEmail = localStorage.getItem('admin_email') || 'Admin';
-
-  // Mock data for fallback when backend endpoints are missing
-  const getMockDashboardData = () => ({
-    total_users: 1247,
-    active_today: 342,
-    likes_today: 156,
-    passes_today: 89,
-    matches_today: 45,
-    match_rate: 28.5,
-    total_impressions: 15234,
-    total_likes_from_impressions: 2341,
-    total_passes_from_impressions: 3421,
-    impression_conversion_rate: 15.3,
-    avg_ranking_score: 3.8,
-    position1_like_rate: 42.5,
-    recent_blocks: [
-      { id: 1, blocker_id: 101, blocker_name: "John Doe", blocked_id: 102, blocked_name: "Jane Smith", created_at: new Date().toISOString() }
-    ],
-    top_performing_profiles: [
-      { user_id: 1, user_email: "user1@example.com", impressions: 234, likes: 89, like_rate: 38.0, avg_position: 2.3 }
-    ],
-    position_performance: [
-      { position: 0, impressions: 5000, likes: 1200, passes: 800, like_rate: 24.0, pass_rate: 16.0 },
-      { position: 1, impressions: 4800, likes: 950, passes: 750, like_rate: 19.8, pass_rate: 15.6 },
-      { position: 2, impressions: 4500, likes: 780, passes: 700, like_rate: 17.3, pass_rate: 15.6 }
-    ]
-  });
 
   useEffect(() => {
     if (darkMode) {
@@ -78,50 +65,31 @@ export default function AdminDashboard() {
     const fetchDashboard = async () => {
       try {
         setLoading(true);
+        const url = `${API_BASE}/dashboard/`;
+        console.log('📡 Fetching admin dashboard from:', url);
         
-        // Try multiple possible endpoints
-        let data = null;
-        let lastError = null;
-        
-        const endpoints = [
-          `${API_BASE}/dashboard/`,
-          `${API_BASE}/stats/`,
-          `/api/admin/dashboard/`,
-          `/api/admin/stats/`
-        ];
-        
-        for (const endpoint of endpoints) {
-          try {
-            console.log(`📡 Trying endpoint: ${endpoint}`);
-            const res = await axios.get(endpoint, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.data) {
-              data = res.data;
-              console.log(`✅ Success with endpoint: ${endpoint}`);
-              break;
-            }
-          } catch (err) {
-            lastError = err;
-            console.log(`⚠️ Failed: ${endpoint}`);
+        const res = await axios.get(url, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
-        }
+        });
         
-        if (data) {
-          setMetrics(data);
-          setError('');
-        } else {
-          // If all endpoints fail, use mock data (so dashboard works in production)
-          console.warn('⚠️ Using mock data - backend endpoints not found');
-          setMetrics(getMockDashboardData());
-          setError('Using demo data. Admin API endpoints not configured on server.');
-        }
-        
+        console.log('✅ Dashboard data received:', res.data);
+        setMetrics(res.data);
+        setError('');
       } catch (err) {
-        console.error('❌ Error fetching dashboard data:', err);
-        // Use mock data as fallback
-        setMetrics(getMockDashboardData());
-        setError('Using demo data. Admin API endpoints not configured on server.');
+        console.error('❌ Error fetching dashboard:', err);
+        console.error('Response:', err.response?.data);
+        
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.removeItem('admin_access');
+          localStorage.removeItem('admin_refresh');
+          localStorage.removeItem('admin_email');
+          navigate('/admin/login');
+        } else {
+          setError(err.response?.data?.message || err.message || 'Failed to load dashboard data');
+        }
       } finally {
         setLoading(false);
       }
@@ -146,24 +114,27 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!metrics) return null;
+  if (error) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+        <div className="alert alert-danger">
+          <i className="fas fa-exclamation-triangle me-2"></i>
+          {error}
+          <button className="btn btn-outline-danger ms-3" onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  // Show warning but still render dashboard with mock data
-  const showWarning = error && error.includes('demo data');
+  if (!metrics) return null;
 
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
-        
-        {showWarning && (
-          <div className="alert alert-warning m-3">
-            <i className="fas fa-info-circle me-2"></i>
-            {error} The dashboard is showing demo data. Connect your backend to see real statistics.
-          </div>
-        )}
-        
         <div className="dashboard-hero">
           <h2 className="hero-title">Welcome back, {adminEmail.split('@')[0]} 👋</h2>
           <p className="hero-subtitle">Here's what's happening with your platform today.</p>
@@ -173,23 +144,23 @@ export default function AdminDashboard() {
         <div className="metrics-grid">
           <div className="metric-card">
             <div className="metric-icon bg-primary-light"><i className="fas fa-users text-primary"></i></div>
-            <div className="metric-info"><h6>Total Users</h6><p className="metric-value">{metrics.total_users?.toLocaleString()}</p></div>
+            <div className="metric-info"><h6>Total Users</h6><p className="metric-value">{metrics.total_users}</p></div>
           </div>
           <div className="metric-card">
             <div className="metric-icon bg-success-light"><i className="fas fa-user-check text-success"></i></div>
-            <div className="metric-info"><h6>Active Today</h6><p className="metric-value">{metrics.active_today?.toLocaleString()}</p></div>
+            <div className="metric-info"><h6>Active Today</h6><p className="metric-value">{metrics.active_today}</p></div>
           </div>
           <div className="metric-card">
             <div className="metric-icon bg-danger-light"><i className="fas fa-heart text-danger"></i></div>
-            <div className="metric-info"><h6>Likes Today</h6><p className="metric-value">{metrics.likes_today?.toLocaleString()}</p></div>
+            <div className="metric-info"><h6>Likes Today</h6><p className="metric-value">{metrics.likes_today}</p></div>
           </div>
           <div className="metric-card">
             <div className="metric-icon bg-secondary-light"><i className="fas fa-times-circle text-secondary"></i></div>
-            <div className="metric-info"><h6>Passes Today</h6><p className="metric-value">{metrics.passes_today?.toLocaleString()}</p></div>
+            <div className="metric-info"><h6>Passes Today</h6><p className="metric-value">{metrics.passes_today}</p></div>
           </div>
           <div className="metric-card">
             <div className="metric-icon bg-warning-light"><i className="fas fa-handshake text-warning"></i></div>
-            <div className="metric-info"><h6>Matches Today</h6><p className="metric-value">{metrics.matches_today?.toLocaleString()}</p></div>
+            <div className="metric-info"><h6>Matches Today</h6><p className="metric-value">{metrics.matches_today}</p></div>
           </div>
           <div className="metric-card">
             <div className="metric-icon bg-info-light"><i className="fas fa-chart-line text-info"></i></div>
@@ -244,7 +215,9 @@ export default function AdminDashboard() {
             {metrics.recent_blocks?.length > 0 ? (
               <div className="table-responsive">
                 <table className="table admin-table">
-                  <thead><tr><th>Blocker</th><th>Blocked</th><th>Date & Time</th></tr></thead>
+                  <thead>
+                    <tr><th>Blocker</th><th>Blocked</th><th>Date & Time</th></tr>
+                  </thead>
                   <tbody>
                     {metrics.recent_blocks.map(block => (
                       <tr key={block.id}>
