@@ -6,7 +6,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-const API_BASE = '/api/noumatch-admin'; // keep as per your backend
+const API_BASE = '/api/noumatch-admin';
 
 export default function AdminUserDetail() {
   const { id } = useParams();
@@ -25,7 +25,6 @@ export default function AdminUserDetail() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
 
-  // Helper to get auth header
   const getAuthHeader = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('admin_access')}` }
   });
@@ -50,7 +49,8 @@ export default function AdminUserDetail() {
     const fetchUserDetail = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, getAuthHeader());
+        // FIXED: removed '/detail/' from URL, now uses standard DRF detail endpoint
+        const res = await axios.get(`${API_BASE}/users/${id}/?full=true`, getAuthHeader());
         setUser(res.data);
       } catch (err) {
         console.error('Fetch error:', err);
@@ -69,7 +69,7 @@ export default function AdminUserDetail() {
     fetchUserDetail();
   }, [id, navigate]);
 
-  // Load Leaflet CSS and JS dynamically (unchanged)
+  // Load Leaflet CSS and JS dynamically
   useEffect(() => {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
@@ -85,7 +85,7 @@ export default function AdminUserDetail() {
     };
   }, []);
 
-  // Mini map effect (unchanged)
+  // Mini map
   useEffect(() => {
     if (user?.latitude && user?.longitude && !loading) {
       const timer = setTimeout(() => {
@@ -106,7 +106,7 @@ export default function AdminUserDetail() {
     }
   }, [user, loading]);
 
-  // Full map effect (unchanged)
+  // Full map
   useEffect(() => {
     if (user?.latitude && user?.longitude && activeTab === 'location') {
       const timer = setTimeout(() => {
@@ -139,7 +139,7 @@ export default function AdminUserDetail() {
     if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
     try {
       await axios.post(`${API_BASE}/user_action/`, { user_id: id, action }, getAuthHeader());
-      const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, getAuthHeader());
+      const res = await axios.get(`${API_BASE}/users/${id}/?full=true`, getAuthHeader());
       setUser(res.data);
       alert(`User ${action}ed successfully`);
     } catch (err) {
@@ -148,7 +148,6 @@ export default function AdminUserDetail() {
     }
   };
 
-  // Admin block (separate from user ban)
   const handleBlock = async () => {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
@@ -163,13 +162,12 @@ export default function AdminUserDetail() {
     }
   };
 
-  // Deactivate account
   const handleDeactivate = async () => {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
     try {
       await axios.post(`${API_BASE}/user/deactivate/`, { user_id: id, reason: modalReason }, getAuthHeader());
-      const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, getAuthHeader());
+      const res = await axios.get(`${API_BASE}/users/${id}/?full=true`, getAuthHeader());
       setUser(res.data);
       alert('User deactivated');
       setShowDeactivateModal(false);
@@ -230,7 +228,7 @@ export default function AdminUserDetail() {
             </div>
           </div>
 
-          {/* Quick stats (unchanged) */}
+          {/* Quick stats */}
           <div className="row g-4 mb-5">
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart fa-2x text-danger mb-2"></i><h6 className="text-muted mb-1">Likes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_likes_given || 0}</p></div></div>
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart-broken fa-2x text-secondary mb-2"></i><h6 className="text-muted mb-1">Passes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_passes_given || 0}</p></div></div>
@@ -240,7 +238,7 @@ export default function AdminUserDetail() {
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-calendar-alt fa-2x text-info mb-2"></i><h6 className="text-muted mb-1">Streak Days</h6><p className="display-6 fw-bold mb-0">{user.stats?.streak_days || 0}</p></div></div>
           </div>
 
-          {/* Profile & Activity (unchanged) */}
+          {/* Profile & Activity */}
           <div className="row g-4 mb-5">
             <div className="col-lg-6">
               <div className="recent-blocks-card h-100">
@@ -292,7 +290,7 @@ export default function AdminUserDetail() {
             </div>
           </div>
 
-          {/* Tabs (unchanged) */}
+          {/* Tabs */}
           <div className="card shadow-sm mt-5">
             <div className="card-header bg-transparent border-bottom">
               <ul className="nav nav-tabs card-header-tabs">
@@ -403,7 +401,7 @@ export default function AdminUserDetail() {
         </div>
       </main>
 
-      {/* Modals (unchanged) */}
+      {/* Modals */}
       {showBlockModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h5 className="modal-title">Block User (Admin)</h5><button type="button" className="btn-close" onClick={() => setShowBlockModal(false)}></button></div><div className="modal-body"><p>Block <strong>{user.email}</strong>? This only blocks them from the admin account.</p><textarea className="form-control" rows="2" placeholder="Reason (optional)" value={modalReason} onChange={e => setModalReason(e.target.value)}></textarea></div><div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowBlockModal(false)}>Cancel</button><button className="btn btn-warning" onClick={handleBlock}>Block</button></div></div></div>
