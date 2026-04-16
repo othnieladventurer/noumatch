@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx - Complete redesigned version
+// src/pages/Dashboard.jsx - Complete redesigned version (fixed stuck profile issue)
 
 import React, { useEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
@@ -96,6 +96,7 @@ export default function Dashboard() {
   const imagePreloadCache = useRef(new Map());
   const pendingProfileLoad = useRef(false);
   const lastLoggedImpressionId = useRef(null);
+  const waitingForNextAfterLoad = useRef(false); // NEW: to handle advancing after loading more profiles
   
   // Helper functions
   const isMatched = useCallback((profileId) => matchesIds.includes(profileId), [matchesIds]);
@@ -513,11 +514,13 @@ export default function Dashboard() {
     fetchProfilesBasedOnUser(1, false);
   }, [fetchProfilesBasedOnUser]);
   
+  // FIXED: goNextProfile handles end of profiles correctly
   const goNextProfile = useCallback(() => {
     if (pendingProfileLoad.current) return;
     const nextIndex = profileIndex + 1;
     
     if (nextIndex < profiles.length) {
+      // Normal next profile
       const nextProfile = profiles[nextIndex];
       preloadProfileImages(nextProfile);
       if (nextIndex + 1 < profiles.length) {
@@ -533,15 +536,33 @@ export default function Dashboard() {
         }
       }
     } else if (hasMoreProfiles && !isLoadingMore && !pendingProfileLoad.current) {
+      // At the end but more profiles exist - load more and wait
+      waitingForNextAfterLoad.current = true;
       pendingProfileLoad.current = true;
       startTransition(() => {
         loadMoreProfiles();
       });
+      // Reset pending after a timeout in case load fails
       setTimeout(() => {
         pendingProfileLoad.current = false;
-      }, 500);
+        waitingForNextAfterLoad.current = false;
+      }, 3000);
+    } else {
+      // No more profiles: clear to show empty state
+      setProfiles([]);
+      setProfileIndex(0);
     }
   }, [profileIndex, profiles, hasMoreProfiles, isLoadingMore, loadMoreProfiles, preloadProfileImages]);
+  
+  // Effect to advance after loading more profiles
+  useEffect(() => {
+    if (!isLoadingMore && waitingForNextAfterLoad.current && profiles.length > profileIndex + 1) {
+      waitingForNextAfterLoad.current = false;
+      pendingProfileLoad.current = false;
+      // Advance to the next profile (the first newly loaded one)
+      setProfileIndex(profileIndex + 1);
+    }
+  }, [isLoadingMore, profiles.length, profileIndex]);
   
   const currentProfile = useMemo(() => {
     if (!profiles.length || profileIndex >= profiles.length) return null;
@@ -1308,17 +1329,24 @@ export default function Dashboard() {
           position: absolute;
           top: 50%;
           transform: translateY(-50%);
-          background: rgba(255,255,255,0.8);
+          background: rgba(0,0,0,0.5);
+          backdrop-filter: blur(4px);
           border: none;
-          width: 36px;
-          height: 36px;
+          width: 40px;
+          height: 40px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
-          backdrop-filter: blur(4px);
-          z-index: 2;
+          z-index: 20;
+          transition: all 0.2s ease;
+          color: white;
+          font-size: 18px;
+        }
+        .photo-nav-arrow:hover {
+          background: rgba(0,0,0,0.7);
+          transform: translateY(-50%) scale(1.05);
         }
         .photo-nav-arrow.left { left: 12px; }
         .photo-nav-arrow.right { right: 12px; }
@@ -1327,11 +1355,13 @@ export default function Dashboard() {
           top: 16px;
           right: 16px;
           background: rgba(0,0,0,0.6);
+          backdrop-filter: blur(4px);
           color: white;
-          padding: 4px 8px;
+          padding: 4px 10px;
           border-radius: 20px;
           font-size: 12px;
-          backdrop-filter: blur(4px);
+          font-weight: 500;
+          z-index: 20;
         }
         .round-action-btn {
           width: 56px;
@@ -1366,6 +1396,17 @@ export default function Dashboard() {
           }
           .nav-item span:last-child {
             font-size: 10px;
+          }
+          .photo-nav-arrow {
+            width: 36px;
+            height: 36px;
+            font-size: 14px;
+          }
+          .photo-counter {
+            top: 12px;
+            right: 12px;
+            font-size: 10px;
+            padding: 3px 8px;
           }
         }
       `}</style>
@@ -1406,7 +1447,7 @@ const MobileBottomNav = ({ user, activeMobileTab, setActiveMobileTab, likesList,
   );
 };
 
-// Reusable components (must be defined before use)
+// Reusable components
 const AvatarRow = ({ items, onClickAvatar }) => (
   <div className="avatar-row">
     {items.slice(0, 8).map((p) => {

@@ -17,6 +17,8 @@ class WaitlistEntry(models.Model):
     position = models.PositiveIntegerField(null=True, blank=True)
     joined_at = models.DateTimeField(auto_now_add=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
+    contacted = models.BooleanField(default=False)  # NEW: contacted via email
+
     
     class Meta:
         ordering = ['joined_at']
@@ -101,5 +103,35 @@ class WaitlistStats(models.Model):
             else:
                 return "Accès temporairement limité pour garantir une communauté équilibrée. Merci de revenir plus tard."
             
+
+
+
+
+
+
+class ContactedArchive(models.Model):
+    """Stores waitlist entries that have been removed (contacted, refused, etc.)"""
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField()
+    gender = models.CharField(max_length=10, choices=WaitlistEntry.Gender.choices)
+    removed_at = models.DateTimeField(auto_now_add=True)
+    reason = models.CharField(max_length=50, choices=[
+        ('accepted', 'Accepted'),
+        ('refused', 'Refused'),
+        ('contacted', 'Contacted & Removed'),
+        ('other', 'Other'),
+    ])
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.email} - {self.reason} - {self.removed_at.strftime('%Y-%m-%d')}"
+
+    class Meta:
+        ordering = ['-removed_at']
+
+        
+
+
 
 

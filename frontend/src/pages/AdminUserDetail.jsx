@@ -6,7 +6,7 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 
-const API_BASE = '/api/noumatch-admin';
+const API_BASE = '/api/noumatch-admin'; // keep as per your backend
 
 export default function AdminUserDetail() {
   const { id } = useParams();
@@ -18,13 +18,17 @@ export default function AdminUserDetail() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('users');
 
-  // State for tabs and modals
   const [activeTab, setActiveTab] = useState('overview');
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [modalReason, setModalReason] = useState('');
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
+
+  // Helper to get auth header
+  const getAuthHeader = () => ({
+    headers: { Authorization: `Bearer ${localStorage.getItem('admin_access')}` }
+  });
 
   useEffect(() => {
     if (darkMode) {
@@ -46,9 +50,7 @@ export default function AdminUserDetail() {
     const fetchUserDetail = async () => {
       try {
         setLoading(true);
-        const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, getAuthHeader());
         setUser(res.data);
       } catch (err) {
         console.error('Fetch error:', err);
@@ -67,25 +69,23 @@ export default function AdminUserDetail() {
     fetchUserDetail();
   }, [id, navigate]);
 
-  // Load Leaflet CSS and JS dynamically
+  // Load Leaflet CSS and JS dynamically (unchanged)
   useEffect(() => {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
     document.head.appendChild(link);
-
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
     script.async = true;
     document.head.appendChild(script);
-
     return () => {
       if (window.userMap) window.userMap.remove();
       if (window.miniMap) window.miniMap.remove();
     };
   }, []);
 
-  // Mini map
+  // Mini map effect (unchanged)
   useEffect(() => {
     if (user?.latitude && user?.longitude && !loading) {
       const timer = setTimeout(() => {
@@ -106,7 +106,7 @@ export default function AdminUserDetail() {
     }
   }, [user, loading]);
 
-  // Full map
+  // Full map effect (unchanged)
   useEffect(() => {
     if (user?.latitude && user?.longitude && activeTab === 'location') {
       const timer = setTimeout(() => {
@@ -132,54 +132,50 @@ export default function AdminUserDetail() {
     navigate(path);
   };
 
+  // Unified action for ban/unban/verify
   const handleUserAction = async (action) => {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
     if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
     try {
-      await axios.post(`${API_BASE}/user_action/`, { user_id: id, action }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.post(`${API_BASE}/user_action/`, { user_id: id, action }, getAuthHeader());
+      const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, getAuthHeader());
       setUser(res.data);
       alert(`User ${action}ed successfully`);
     } catch (err) {
+      console.error(err);
       alert(`Failed to ${action} user`);
     }
   };
 
+  // Admin block (separate from user ban)
   const handleBlock = async () => {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
     try {
-      await axios.post(`${API_BASE}/user/block/`, { user_id: id, reason: modalReason }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.post(`${API_BASE}/user/block/`, { user_id: id, reason: modalReason }, getAuthHeader());
       alert('User blocked by admin');
       setShowBlockModal(false);
       setModalReason('');
     } catch (err) {
+      console.error(err);
       alert('Failed to block user');
     }
   };
 
+  // Deactivate account
   const handleDeactivate = async () => {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
     try {
-      await axios.post(`${API_BASE}/user/deactivate/`, { user_id: id, reason: modalReason }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.post(`${API_BASE}/user/deactivate/`, { user_id: id, reason: modalReason }, getAuthHeader());
+      const res = await axios.get(`${API_BASE}/users/detail/${id}/?full=true`, getAuthHeader());
       setUser(res.data);
       alert('User deactivated');
       setShowDeactivateModal(false);
       setModalReason('');
     } catch (err) {
+      console.error(err);
       alert('Failed to deactivate user');
     }
   };
@@ -234,7 +230,7 @@ export default function AdminUserDetail() {
             </div>
           </div>
 
-          {/* Quick stats */}
+          {/* Quick stats (unchanged) */}
           <div className="row g-4 mb-5">
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart fa-2x text-danger mb-2"></i><h6 className="text-muted mb-1">Likes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_likes_given || 0}</p></div></div>
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart-broken fa-2x text-secondary mb-2"></i><h6 className="text-muted mb-1">Passes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_passes_given || 0}</p></div></div>
@@ -244,7 +240,7 @@ export default function AdminUserDetail() {
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-calendar-alt fa-2x text-info mb-2"></i><h6 className="text-muted mb-1">Streak Days</h6><p className="display-6 fw-bold mb-0">{user.stats?.streak_days || 0}</p></div></div>
           </div>
 
-          {/* Profile & Activity */}
+          {/* Profile & Activity (unchanged) */}
           <div className="row g-4 mb-5">
             <div className="col-lg-6">
               <div className="recent-blocks-card h-100">
@@ -296,7 +292,7 @@ export default function AdminUserDetail() {
             </div>
           </div>
 
-          {/* Tabs */}
+          {/* Tabs (unchanged) */}
           <div className="card shadow-sm mt-5">
             <div className="card-header bg-transparent border-bottom">
               <ul className="nav nav-tabs card-header-tabs">
@@ -407,7 +403,7 @@ export default function AdminUserDetail() {
         </div>
       </main>
 
-      {/* Modals */}
+      {/* Modals (unchanged) */}
       {showBlockModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog"><div className="modal-content"><div className="modal-header"><h5 className="modal-title">Block User (Admin)</h5><button type="button" className="btn-close" onClick={() => setShowBlockModal(false)}></button></div><div className="modal-body"><p>Block <strong>{user.email}</strong>? This only blocks them from the admin account.</p><textarea className="form-control" rows="2" placeholder="Reason (optional)" value={modalReason} onChange={e => setModalReason(e.target.value)}></textarea></div><div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowBlockModal(false)}>Cancel</button><button className="btn btn-warning" onClick={handleBlock}>Block</button></div></div></div>
