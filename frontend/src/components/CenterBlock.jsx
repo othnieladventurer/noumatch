@@ -235,7 +235,7 @@ export default function CenterBlock(props) {
           )}
         </div>
 
-        {/* SWIPE COUNTER - forced to show 20 limit for free accounts */}
+        {/* SWIPE COUNTER forced to show 20 limit for free accounts */}
         {!isMatched(currentProfile.id) && (
           swipeLimits?.account_type === 'free' ? (
             <div className="text-center small mt-1 d-flex align-items-center justify-content-center gap-2" style={{ fontSize: '0.7rem', opacity: 0.7 }}>
