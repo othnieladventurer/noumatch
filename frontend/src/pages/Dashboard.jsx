@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx - Complete redesigned version (fixed stuck profile issue)
+// src/pages/Dashboard.jsx - Complete redesigned version (with user passed to CenterBlock)
 
 import React, { useEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
@@ -96,7 +96,7 @@ export default function Dashboard() {
   const imagePreloadCache = useRef(new Map());
   const pendingProfileLoad = useRef(false);
   const lastLoggedImpressionId = useRef(null);
-  const waitingForNextAfterLoad = useRef(false); // NEW: to handle advancing after loading more profiles
+  const waitingForNextAfterLoad = useRef(false);
   
   // Helper functions
   const isMatched = useCallback((profileId) => matchesIds.includes(profileId), [matchesIds]);
@@ -514,13 +514,11 @@ export default function Dashboard() {
     fetchProfilesBasedOnUser(1, false);
   }, [fetchProfilesBasedOnUser]);
   
-  // FIXED: goNextProfile handles end of profiles correctly
   const goNextProfile = useCallback(() => {
     if (pendingProfileLoad.current) return;
     const nextIndex = profileIndex + 1;
     
     if (nextIndex < profiles.length) {
-      // Normal next profile
       const nextProfile = profiles[nextIndex];
       preloadProfileImages(nextProfile);
       if (nextIndex + 1 < profiles.length) {
@@ -536,30 +534,25 @@ export default function Dashboard() {
         }
       }
     } else if (hasMoreProfiles && !isLoadingMore && !pendingProfileLoad.current) {
-      // At the end but more profiles exist - load more and wait
       waitingForNextAfterLoad.current = true;
       pendingProfileLoad.current = true;
       startTransition(() => {
         loadMoreProfiles();
       });
-      // Reset pending after a timeout in case load fails
       setTimeout(() => {
         pendingProfileLoad.current = false;
         waitingForNextAfterLoad.current = false;
       }, 3000);
     } else {
-      // No more profiles: clear to show empty state
       setProfiles([]);
       setProfileIndex(0);
     }
   }, [profileIndex, profiles, hasMoreProfiles, isLoadingMore, loadMoreProfiles, preloadProfileImages]);
   
-  // Effect to advance after loading more profiles
   useEffect(() => {
     if (!isLoadingMore && waitingForNextAfterLoad.current && profiles.length > profileIndex + 1) {
       waitingForNextAfterLoad.current = false;
       pendingProfileLoad.current = false;
-      // Advance to the next profile (the first newly loaded one)
       setProfileIndex(profileIndex + 1);
     }
   }, [isLoadingMore, profiles.length, profileIndex]);
@@ -570,7 +563,6 @@ export default function Dashboard() {
     return profiles[profileIndex];
   }, [profiles, profileIndex, user]);
   
-  // LOG IMPRESSION WHEN CURRENT PROFILE CHANGES
   useEffect(() => {
     if (currentProfile && currentProfile.id && sessionId) {
       if (lastLoggedImpressionId.current !== currentProfile.id) {
@@ -629,7 +621,6 @@ export default function Dashboard() {
     likeInProgress.current = true;
     triggerSlide("right");
     
-    // Update impression with like action
     const token = localStorage.getItem('access');
     fetch('/api/noumatch-admin/analytics/impression/update/', {
       method: 'POST',
@@ -671,7 +662,6 @@ export default function Dashboard() {
     passInProgress.current = true;
     triggerSlide("left");
     
-    // Update impression with pass action
     const token = localStorage.getItem('access');
     fetch('/api/noumatch-admin/analytics/impression/update/', {
       method: 'POST',
@@ -1054,7 +1044,7 @@ export default function Dashboard() {
             </div>
           </div>
         );
-      default: // 'center' tab - no scrolling, full viewport fit
+      default:
         return (
           <div style={{ height: '100%', overflow: 'hidden' }}>
             <CenterBlock
@@ -1085,6 +1075,7 @@ export default function Dashboard() {
               centerCardStyle={centerCardStyle}
               reloadProfiles={reloadProfiles}
               swipeLimits={swipeLimits}
+              user={user}
             />
           </div>
         );
@@ -1150,6 +1141,7 @@ export default function Dashboard() {
                       centerCardStyle={centerCardStyle}
                       reloadProfiles={reloadProfiles}
                       swipeLimits={swipeLimits}
+                      user={user}
                     />
                   </div>
                   <div className="col-lg-3 d-none d-lg-block h-100">
