@@ -29,7 +29,6 @@ export default function WaitlistStats() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAdmin, setShowAdmin] = useState(false);
-  const [debugData, setDebugData] = useState(null);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -42,9 +41,11 @@ export default function WaitlistStats() {
       easing: "ease-in-out",
     });
     
-    const token = localStorage.getItem("access");
+    // FIXED: Check for admin_access token, not regular access
+    const token = localStorage.getItem("admin_access");
     if (token) {
       setIsAuthorized(true);
+      fetchEntries();
     }
     
     fetchData();
@@ -77,7 +78,11 @@ export default function WaitlistStats() {
   const fetchEntries = async () => {
     try {
       console.log("Fetching entries from: /waitlist/entries/");
-      const response = await API.get("/waitlist/entries/");
+      // FIXED: Use adminAPI or add admin_access token
+      const token = localStorage.getItem("admin_access");
+      const response = await API.get("/waitlist/entries/", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       console.log("Entries response:", response.data);
       const entriesData = response.data.results || response.data;
       setEntries(entriesData);
@@ -85,8 +90,8 @@ export default function WaitlistStats() {
       console.error("Failed to fetch entries:", err);
       if (err.response?.status === 401) {
         setIsAuthorized(false);
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
+        localStorage.removeItem("admin_access");
+        localStorage.removeItem("admin_refresh");
       }
     }
   };
@@ -112,7 +117,10 @@ export default function WaitlistStats() {
     }
     
     try {
-      await API.post(`/waitlist/admin/accept/${entryId}/`);
+      const token = localStorage.getItem("admin_access");
+      await API.post(`/waitlist/admin/accept/${entryId}/`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       fetchData();
     } catch (err) {
       console.error("Accept error:", err);
@@ -142,7 +150,10 @@ export default function WaitlistStats() {
     }
     
     try {
-      await API.delete(`/waitlist/admin/delete/${entryId}/`);
+      const token = localStorage.getItem("admin_access");
+      await API.delete(`/waitlist/admin/delete/${entryId}/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       fetchData();
     } catch (err) {
       console.error("Delete error:", err);
@@ -157,14 +168,15 @@ export default function WaitlistStats() {
     e.preventDefault();
     setLoginLoading(true);
     try {
-      const response = await API.post("/users/login/", {
+      // FIXED: Use admin login endpoint
+      const response = await API.post("/noumatch-admin/admin_login/", {
         email: adminEmail,
         password: adminPassword
       });
       
       if (response.data.access) {
-        localStorage.setItem("access", response.data.access);
-        localStorage.setItem("refresh", response.data.refresh);
+        localStorage.setItem("admin_access", response.data.access);
+        localStorage.setItem("admin_refresh", response.data.refresh);
         setIsAuthorized(true);
         setShowAdmin(false);
         setAdminEmail("");
@@ -181,8 +193,8 @@ export default function WaitlistStats() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
+    localStorage.removeItem("admin_access");
+    localStorage.removeItem("admin_refresh");
     setIsAuthorized(false);
     setEntries([]);
   };
@@ -292,7 +304,7 @@ export default function WaitlistStats() {
         </div>
       )}
 
-      {/* Hero Section */}
+      {/* Hero Section - Public stats (always visible) */}
       <section
         className="position-relative d-flex align-items-center"
         style={{
@@ -345,7 +357,7 @@ export default function WaitlistStats() {
         </div>
       </section>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Public */}
       <section className="py-5">
         <div className="container px-3">
           <div className="row g-4" data-aos="fade-up">
@@ -357,11 +369,6 @@ export default function WaitlistStats() {
                   </div>
                   <h3 className="fw-bold mb-2 display-6">{totalWaiting}</h3>
                   <p className="text-muted mb-0">En attente</p>
-                  {stats.total_waiting !== entries.length && isAuthorized && (
-                    <small className="text-warning d-block mt-2">
-                      ⚠️ Disparité: stats={totalWaiting}, liste={entries.length}
-                    </small>
-                  )}
                 </div>
               </div>
             </div>
@@ -407,7 +414,7 @@ export default function WaitlistStats() {
         </div>
       </section>
 
-      {/* Gender Distribution Section */}
+      {/* Gender Distribution Section - Public */}
       <section className="py-5 bg-light">
         <div className="container px-3">
           <div className="row g-4">
@@ -494,7 +501,7 @@ export default function WaitlistStats() {
         </div>
       </section>
 
-      {/* Admin Panel - Waitlist Entries */}
+      {/* Admin Panel - Waitlist Entries (only visible when logged in) */}
       {isAuthorized && (
         <section className="py-5 bg-white">
           <div className="container px-3">
@@ -572,8 +579,6 @@ export default function WaitlistStats() {
           </div>
         </section>
       )}
-
-      
 
       <style>
         {`

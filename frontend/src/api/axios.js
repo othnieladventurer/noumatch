@@ -1,13 +1,10 @@
 import axios from "axios";
 
-// --- CRITICAL FIX: Production fallback hardcoded ---
+// --- API Base URL Configuration ---
 let BASE_URL;
 if (import.meta.env.PROD) {
   BASE_URL = import.meta.env.VITE_API_URL || "https://api.noumatch.com";
   console.log('🏭 Production mode – using:', BASE_URL);
-  if (!import.meta.env.VITE_API_URL) {
-    console.warn('⚠️ VITE_API_URL not set – using hardcoded fallback. Please set env var on Vercel.');
-  }
 } else {
   BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   console.log('🛠️ Development mode – using:', BASE_URL);
@@ -15,151 +12,212 @@ if (import.meta.env.PROD) {
 
 console.log('🔧 API Base URL:', BASE_URL);
 
-// Function to get frontend URL with hash router support
-const getFrontendUrlWithHash = () => {
+// --- Frontend URL for redirects ---
+const getFrontendUrl = () => {
   if (import.meta.env.PROD) {
     if (window.location.hostname.includes('staging')) {
       return 'https://staging.noumatch.com';
     }
     return 'https://noumatch.com';
-  } else {
-    const port = window.location.port || '5173';
-    return `${window.location.protocol}//${window.location.hostname}:${port}`;
   }
+  const port = window.location.port || '5173';
+  return `${window.location.protocol}//${window.location.hostname}:${port}`;
 };
 
-const FRONTEND_URL = getFrontendUrlWithHash();
+const FRONTEND_URL = getFrontendUrl();
 
-// --- NEW: Check if in admin mode ---
-const isAdminMode = () => {
-  const hasAdminToken = !!localStorage.getItem('admin_access');
-  const isAdminPath = window.location.pathname.startsWith('/admin');
-  return hasAdminToken || isAdminPath;
+// --- Public endpoints that don't require authentication ---
+const isPublicEndpoint = (url) => {
+  if (!url) return true;
+  
+  const publicEndpoints = [
+    '/users/login/',
+    '/users/register/',
+    '/users/check-email/',
+    '/users/password-reset/',
+    '/users/reset-password/',
+    '/users/token/refresh/',
+    '/waitlist/stats/',
+    '/waitlist/join/',
+    '/waitlist/check-can-register/',
+  ];
+  
+  return publicEndpoints.some(endpoint => url.includes(endpoint));
 };
 
+// --- Check if request is for admin API ---
+const isAdminRequest = (url) => {
+  return url?.includes('/noumatch-admin/');
+};
+
+// --- Check if current route is admin page ---
+const isAdminRoute = () => {
+  return window.location.pathname.includes('/admin');
+};
+
+// --- Create main API instance ---
 const API = axios.create({
   baseURL: `${BASE_URL}/api/`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-// Attach token interceptor - skip for admin routes
-API.interceptors.request.use((config) => {
-  // Skip adding token for admin API calls if using admin token
-  if (config.url?.includes('/noumatch-admin/') || isAdminMode()) {
-    const adminToken = localStorage.getItem("admin_access");
-    if (adminToken) {
-      console.log('🔐 [API] Using admin token for:', config.url);
-      config.headers.Authorization = `Bearer ${adminToken}`;
+// --- Request Interceptor: Add auth tokens ---
+API.interceptors.request.use(
+  (config) => {
+    // Skip auth for public endpoints
+    if (isPublicEndpoint(config.url)) {
+      console.log('🔓 [API] Public endpoint - no auth:', config.url);
+      return config;
     }
+    
+    // For admin API requests
+    if (isAdminRequest(config.url)) {
+      const adminToken = localStorage.getItem("admin_access");
+      if (adminToken) {
+        console.log('🔐 [API] Admin request - using admin token:', config.url);
+        config.headers.Authorization = `Bearer ${adminToken}`;
+      } else {
+        console.log('⚠️ [API] Admin request - no admin token:', config.url);
+      }
+      return config;
+    }
+    
+    // For regular user API requests
+    const userToken = localStorage.getItem("access");
+    if (userToken) {
+      console.log('🔐 [API] User request - using user token:', config.url);
+      config.headers.Authorization = `Bearer ${userToken}`;
+    } else {
+      console.log('⚠️ [API] No auth token for:', config.url);
+    }
+    
     return config;
-  }
-  
-  // Regular user token
-  const token = localStorage.getItem("access");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Function to redirect to login with hash support
-const redirectToLogin = () => {
-  // Clear all storage
-  localStorage.clear();
-  sessionStorage.clear();
-  
-  // For HashRouter, use /#/login
-  const cleanUrl = FRONTEND_URL.replace(/#.*$/, '');
-  window.location.href = `${cleanUrl}/#/login`;
-};
-
-// Function to redirect to admin login
-const redirectToAdminLogin = () => {
-  localStorage.removeItem('admin_access');
-  localStorage.removeItem('admin_refresh');
-  localStorage.removeItem('admin_email');
-  
-  const cleanUrl = FRONTEND_URL.replace(/#.*$/, '');
-  window.location.href = `${cleanUrl}/#/admin/login`;
-};
-
-// Token refresh interceptor
-API.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    // Handle 401 for admin routes differently
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      // Check if it's an admin request
-      const isAdminRequest = originalRequest.url?.includes('/noumatch-admin/') || isAdminMode();
-      
-      if (isAdminRequest) {
-        const adminRefresh = localStorage.getItem("admin_refresh");
-        if (adminRefresh) {
-          try {
-            console.log('🔄 [API] Refreshing admin token...');
-            const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {
-              refresh: adminRefresh
-            });
-            localStorage.setItem("admin_access", res.data.access);
-            originalRequest.headers.Authorization = `Bearer ${res.data.access}`;
-            return API(originalRequest);
-          } catch (err) {
-            console.error('❌ [API] Admin token refresh failed:', err);
-            redirectToAdminLogin();
-            return Promise.reject(err);
-          }
-        } else {
-          console.log('No admin refresh token, redirecting to admin login...');
-          redirectToAdminLogin();
-          return Promise.reject(error);
-        }
-      }
-      
-      // Regular user token refresh
-      const refresh = localStorage.getItem("refresh");
-      if (!refresh) {
-        console.log('No refresh token, redirecting to login...');
-        redirectToLogin();
-        return Promise.reject(error);
-      }
-      
-      try {
-        console.log('🔄 [API] Refreshing user token...');
-        const res = await API.post("users/token/refresh/", { refresh });
-        localStorage.setItem("access", res.data.access);
-        originalRequest.headers.Authorization = `Bearer ${res.data.access}`;
-        return API(originalRequest);
-      } catch (err) {
-        console.error('❌ [API] Token refresh failed:', err);
-        redirectToLogin();
-        return Promise.reject(err);
-      }
-    }
-    
-    // Don't log 401 errors for admin mode (they're expected)
-    if (error.response?.status !== 401 || !isAdminMode()) {
-      console.error('❌ [API] Response error:', error.response?.status, error.config?.url);
-    }
-    
+  },
+  (error) => {
+    console.error('❌ [API] Request error:', error);
     return Promise.reject(error);
   }
 );
 
-// Create a separate admin API instance (optional but cleaner)
+// --- Response Interceptor: Handle token refresh and errors ---
+API.interceptors.response.use(
+  (response) => {
+    // Success - just return the response
+    return response;
+  },
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Prevent infinite loops
+    if (originalRequest._retry) {
+      return Promise.reject(error);
+    }
+    
+    // Handle 401 Unauthorized
+    if (error.response?.status === 401) {
+      console.log('⚠️ [API] 401 Unauthorized for:', originalRequest.url);
+      
+      // Don't retry public endpoints
+      if (isPublicEndpoint(originalRequest.url)) {
+        console.log('🔓 [API] Public endpoint 401 - not retrying');
+        return Promise.reject(error);
+      }
+      
+      originalRequest._retry = true;
+      
+      // Handle Admin token refresh
+      if (isAdminRequest(originalRequest.url) || isAdminRoute()) {
+        const adminRefresh = localStorage.getItem("admin_refresh");
+        
+        if (adminRefresh) {
+          try {
+            console.log('🔄 [API] Refreshing admin token...');
+            const refreshResponse = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {
+              refresh: adminRefresh
+            });
+            
+            if (refreshResponse.data.access) {
+              localStorage.setItem("admin_access", refreshResponse.data.access);
+              originalRequest.headers.Authorization = `Bearer ${refreshResponse.data.access}`;
+              return API(originalRequest);
+            }
+          } catch (refreshError) {
+            console.error('❌ [API] Admin token refresh failed:', refreshError);
+            // Redirect to admin login
+            localStorage.removeItem('admin_access');
+            localStorage.removeItem('admin_refresh');
+            localStorage.removeItem('admin_email');
+            window.location.href = `${FRONTEND_URL}/#/admin/login`;
+            return Promise.reject(refreshError);
+          }
+        } else {
+          console.log('⚠️ [API] No admin refresh token - redirecting to admin login');
+          localStorage.removeItem('admin_access');
+          localStorage.removeItem('admin_refresh');
+          localStorage.removeItem('admin_email');
+          window.location.href = `${FRONTEND_URL}/#/admin/login`;
+          return Promise.reject(error);
+        }
+      }
+      
+      // Handle User token refresh
+      const userRefresh = localStorage.getItem("refresh");
+      
+      if (userRefresh) {
+        try {
+          console.log('🔄 [API] Refreshing user token...');
+          const refreshResponse = await API.post("/users/token/refresh/", {
+            refresh: userRefresh
+          });
+          
+          if (refreshResponse.data.access) {
+            localStorage.setItem("access", refreshResponse.data.access);
+            originalRequest.headers.Authorization = `Bearer ${refreshResponse.data.access}`;
+            return API(originalRequest);
+          }
+        } catch (refreshError) {
+          console.error('❌ [API] User token refresh failed:', refreshError);
+          // Redirect to login
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.href = `${FRONTEND_URL}/#/login`;
+          return Promise.reject(refreshError);
+        }
+      } else {
+        console.log('⚠️ [API] No refresh token - redirecting to login');
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = `${FRONTEND_URL}/#/login`;
+        return Promise.reject(error);
+      }
+    }
+    
+    // Log other errors but don't redirect
+    console.error('❌ [API] Response error:', error.response?.status, error.config?.url, error.response?.data);
+    return Promise.reject(error);
+  }
+);
+
+// --- Admin API instance (separate, cleaner) ---
 export const adminAPI = axios.create({
   baseURL: `${BASE_URL}/api/noumatch-admin/`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
-adminAPI.interceptors.request.use((config) => {
-  const token = localStorage.getItem("admin_access");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+adminAPI.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("admin_access");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 adminAPI.interceptors.response.use(
   (response) => response,
@@ -172,19 +230,22 @@ adminAPI.interceptors.response.use(
       
       if (adminRefresh) {
         try {
-          const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {
+          const refreshResponse = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {
             refresh: adminRefresh
           });
-          localStorage.setItem("admin_access", res.data.access);
-          originalRequest.headers.Authorization = `Bearer ${res.data.access}`;
-          return adminAPI(originalRequest);
-        } catch (err) {
-          console.error('Admin token refresh failed:', err);
+          
+          if (refreshResponse.data.access) {
+            localStorage.setItem("admin_access", refreshResponse.data.access);
+            originalRequest.headers.Authorization = `Bearer ${refreshResponse.data.access}`;
+            return adminAPI(originalRequest);
+          }
+        } catch (refreshError) {
+          console.error('Admin token refresh failed:', refreshError);
           localStorage.removeItem('admin_access');
           localStorage.removeItem('admin_refresh');
           localStorage.removeItem('admin_email');
-          window.location.href = '/#/admin/login';
-          return Promise.reject(err);
+          window.location.href = `${FRONTEND_URL}/#/admin/login`;
+          return Promise.reject(refreshError);
         }
       }
     }
@@ -193,9 +254,9 @@ adminAPI.interceptors.response.use(
   }
 );
 
-// Helper function to get current API instance based on context
+// --- Helper to get appropriate API instance ---
 export const getAPI = () => {
-  if (isAdminMode()) {
+  if (isAdminRoute()) {
     return adminAPI;
   }
   return API;

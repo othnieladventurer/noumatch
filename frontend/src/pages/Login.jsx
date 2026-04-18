@@ -25,21 +25,42 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await API.post("users/login/", formData);
+      // FIXED: Use the correct admin login endpoint or check your backend URL patterns
+      // Try one of these based on your backend configuration:
+      
+      // Option 1: Standard Django REST Framework login
+      const response = await API.post("/users/login/", formData);
+      
+      // Option 2: If using JWT token endpoint (more common)
+      // const response = await API.post("/users/token/", formData);
+      
+      // Option 3: If using admin login (for admin users only)
+      // const response = await API.post("/noumatch-admin/admin_login/", formData);
       
       // Store tokens
-      localStorage.setItem("access", response.data.access);
-      localStorage.setItem("refresh", response.data.refresh);
+      if (response.data.access) {
+        localStorage.setItem("access", response.data.access);
+        localStorage.setItem("refresh", response.data.refresh);
+      }
       
-      // Go directly to dashboard (no verification check)
-      navigate("/dashboard");
+      // Check if user is admin
+      if (response.data.is_staff || response.data.is_admin) {
+        navigate("/admin/dashboard");
+      } else {
+        navigate("/dashboard");
+      }
       
     } catch (error) {
       console.error("Erreur de connexion:", error);
       
       if (error.response) {
-        if (error.response.status === 401 || error.response.status === 404) {
+        if (error.response.status === 401) {
           setErrorMessage("Email ou mot de passe incorrect");
+        } else if (error.response.status === 405) {
+          setErrorMessage("Erreur de configuration du serveur. Veuillez contacter l'administrateur.");
+          console.error("API endpoint may be incorrect. Check your backend URL patterns.");
+        } else if (error.response.status === 404) {
+          setErrorMessage("Service de connexion indisponible. Veuillez réessayer plus tard.");
         } else {
           let message = "";
           if (typeof error.response.data === "object") {
@@ -72,13 +93,11 @@ export default function Login() {
         backgroundRepeat: "no-repeat",
       }}
     >
-      {/* Overlay sombre */}
       <div
         className="position-absolute top-0 start-0 w-100 h-100"
         style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
       ></div>
 
-      {/* Carte de connexion */}
       <div
         className="card shadow-lg border-0 rounded-4 p-4 position-relative"
         style={{ width: "100%", maxWidth: "400px" }}
@@ -92,7 +111,6 @@ export default function Login() {
             <p className="text-muted mb-0">Trouvez votre âme sœur</p>
           </div>
 
-          {/* Message d'erreur */}
           {errorMessage && (
             <div className="alert alert-danger white-space-pre-wrap">
               {errorMessage}
@@ -151,3 +169,4 @@ export default function Login() {
     </div>
   );
 }
+
