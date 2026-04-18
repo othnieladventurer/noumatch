@@ -1,22 +1,17 @@
 from rest_framework import serializers
-from .models import WaitlistEntry
+from .models import WaitlistEntry, ContactedArchive, WaitlistStats
 
 
 class WaitlistEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = WaitlistEntry
-        fields = ['id', 'first_name', 'last_name', 'email', 'gender', 'position', 'joined_at']
+        fields = ['id', 'first_name', 'last_name', 'email', 'gender', 'position', 'joined_at', 'is_accepted', 'accepted_at']
         read_only_fields = ['id', 'position', 'joined_at']
     
     def validate_email(self, value):
         if WaitlistEntry.objects.filter(email=value, is_accepted=False).exists():
             raise serializers.ValidationError("Cet email est déjà sur la liste d'attente")
         return value
-    
-
-    
-
-
 
 
 class WaitlistStatsSerializer(serializers.Serializer):
@@ -30,9 +25,7 @@ class WaitlistStatsSerializer(serializers.Serializer):
     message = serializers.CharField(required=False)
 
 
-
-
-
-
-
-    
+class ContactedArchiveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactedArchive
+        fields = '__all__'

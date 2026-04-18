@@ -46,28 +46,60 @@ class UserListView(generics.ListAPIView):
     permission_classes = [IsAdminUser]
 
 
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        email = request.data.get('email', '').strip()
+        email = request.data.get('email', '').strip().lower()
 
-        # Email check
+        # FIRST CHECK: Is this email already registered?
         if User.objects.filter(email=email).exists():
             return Response(
-                {"error": "Votre email est deja enregistre retournez sur connexion"},
+                {"error": "Votre email est déjà enregistré. Retournez sur connexion."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # SECOND CHECK: Is this email in the waitlist and contacted?
+        from waitlist.models import WaitlistEntry, ContactedArchive
+        
+        # Check in active waitlist first
+        waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).first()
+        
+        # If not found in active waitlist, check in contacted archive
+        if not waitlist_entry:
+            archived_entry = ContactedArchive.objects.filter(email=email).first()
+            if archived_entry:
+                # They were contacted and archived - allowed to register
+                pass
+            else:
+                return Response(
+                    {"error": "Accès non autorisé. Vous devez d'abord rejoindre la liste d'attente et être contacté par notre équipe pour vous inscrire."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        # If found in waitlist but not contacted
+        if waitlist_entry and not waitlist_entry.contacted:
+            return Response(
+                {"error": "Votre inscription sur la liste d'attente est en cours de traitement. Vous recevrez un email de confirmation avant de pouvoir créer votre compte."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # User is authorized to register
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
+        # Mark waitlist entry as used (optional - to prevent re-registration)
+        if waitlist_entry:
+            # Optionally move to archive or mark as registered
+            pass
+
         # Generate 4-digit OTP
         otp_code = generate_otp()
         
-        # Delete any existing OTP and create new one with 4 digits
+        # Delete any existing OTP and create new one
         OTP.objects.filter(user=user).delete()
         OTP.objects.create(
             user=user,
@@ -93,6 +125,59 @@ class RegisterView(generics.CreateAPIView):
             "message": "Registration successful. Please verify your email with the 4-digit code sent.",
             "user_id": user.id,
         }, status=status.HTTP_201_CREATED)
+
+
+
+
+
+
+
+class CheckCanRegisterView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        email = request.query_params.get('email', '').strip().lower()
+        
+        if not email:
+            return Response({"can_register": False, "message": "Email requis"}, status=400)
+        
+        from waitlist.models import WaitlistEntry, ContactedArchive
+        
+        # Check if already registered
+        if User.objects.filter(email=email).exists():
+            return Response({
+                "can_register": False, 
+                "message": "Cet email est déjà utilisé. Connectez-vous."
+            })
+        
+        # Check if in waitlist and contacted
+        waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).first()
+        
+        if waitlist_entry:
+            return Response({
+                "can_register": True,
+                "message": "Vous pouvez créer votre compte"
+            })
+        
+        # Check archive
+        archived_entry = ContactedArchive.objects.filter(email=email).first()
+        
+        if archived_entry:
+            return Response({
+                "can_register": True,
+                "message": "Vous pouvez créer votre compte"
+            })
+        
+        return Response({
+            "can_register": False,
+            "message": "Vous devez rejoindre la liste d'attente et être contacté par notre équipe avant de pouvoir vous inscrire."
+        })
+
+
+
+
+        
+
 
 
 class VerifyOTPView(APIView):

@@ -1,4 +1,4 @@
-# admin_dashboard/urls.py - CORRECTED (removed missing AdminDashboardMetricsView)
+# admin_dashboard/urls.py
 
 from django.urls import path
 from .views import (
@@ -28,8 +28,20 @@ from .views import (
     LogImpressionView,
     UpdateImpressionView,
     AdminAnalyticsImpressionsView,
-
+    # Waitlist views
+    AdminWaitlistStatsView,
+    AdminWaitlistWaitingView,
+    AdminWaitlistAcceptedView,
+    AdminWaitlistArchivedView,
+    AdminWaitlistAcceptView,
+    AdminWaitlistContactView,
+    AdminWaitlistDeleteView,
+    AdminWaitlistArchiveDeleteView,
+    AdminWaitlistUpdateView,
 )
+
+# Import waitlist views directly (only if needed for other patterns; but we will not use them to avoid duplication)
+# from waitlist.views import mark_contacted, delete_archived_entry, bulk_mark_contacted, get_campaign_list
 
 urlpatterns = [
     path('admin_login/', AdminLoginView.as_view(), name='admin-login'),
@@ -58,5 +70,20 @@ urlpatterns = [
     path('analytics/impression/', LogImpressionView.as_view(), name='log_impression'),
     path('analytics/impression/update/', UpdateImpressionView.as_view(), name='update_impression'),
     path('analytics/impressions/', AdminAnalyticsImpressionsView.as_view(), name='admin-analytics-impressions'),
-
+    
+    # ==================== WAITLIST ADMIN ENDPOINTS ====================
+    path('waitlist/stats/', AdminWaitlistStatsView.as_view(), name='admin-waitlist-stats'),
+    path('waitlist/waiting/', AdminWaitlistWaitingView.as_view(), name='admin-waitlist-waiting'),
+    path('waitlist/accepted/', AdminWaitlistAcceptedView.as_view(), name='admin-waitlist-accepted'),
+    path('waitlist/archived/', AdminWaitlistArchivedView.as_view(), name='admin-waitlist-archived'),
+    path('waitlist/<int:entry_id>/accept/', AdminWaitlistAcceptView.as_view(), name='admin-waitlist-accept'),
+    path('waitlist/<int:entry_id>/contact/', AdminWaitlistContactView.as_view(), name='admin-waitlist-contact'),
+    path('waitlist/<int:entry_id>/delete/', AdminWaitlistDeleteView.as_view(), name='admin-waitlist-delete'),
+    path('waitlist/archive/<int:archive_id>/delete/', AdminWaitlistArchiveDeleteView.as_view(), name='admin-waitlist-archive-delete'),
+    path('waitlist/<int:entry_id>/update/', AdminWaitlistUpdateView.as_view(), name='admin-waitlist-update'),
 ]
+
+
+
+
+

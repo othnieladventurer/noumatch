@@ -9,25 +9,15 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
 
   useEffect(() => {
     const path = location.pathname;
-    if (path.includes('/admin/users')) {
-      setInternalActiveMenu('users');
-    } else if (path.includes('/admin/reports')) {
-      setInternalActiveMenu('reports');
-    } else if (path.includes('/admin/swipe-stats')) {
-      setInternalActiveMenu('swipe-stats');
-    } else if (path.includes('/admin/messages')) {
-      setInternalActiveMenu('messages');
-    } else if (path.includes('/admin/settings')) {
-      setInternalActiveMenu('settings');
-    } else if (path.includes('/admin/analytics/impressions')) {
-      setInternalActiveMenu('analytics-impressions');
-    } else if (path.includes('/admin/analytics/ranking')) {
-      setInternalActiveMenu('analytics-ranking');
-    } else if (path.includes('/admin/analytics/performance')) {
-      setInternalActiveMenu('analytics-performance');
-    } else if (path === '/admin/dashboard') {
-      setInternalActiveMenu('dashboard');
-    }
+    if (path.includes('/admin/users')) setInternalActiveMenu('users');
+    else if (path.includes('/admin/reports')) setInternalActiveMenu('reports');
+    else if (path.includes('/admin/swipe-stats')) setInternalActiveMenu('swipe-stats');
+    else if (path.includes('/admin/messages')) setInternalActiveMenu('messages');
+    else if (path.includes('/admin/waitlist')) setInternalActiveMenu('waitlist');
+    else if (path.includes('/admin/analytics/impressions')) setInternalActiveMenu('analytics-impressions');
+    else if (path.includes('/admin/analytics/ranking')) setInternalActiveMenu('analytics-ranking');
+    else if (path.includes('/admin/analytics/performance')) setInternalActiveMenu('analytics-performance');
+    else if (path === '/admin/dashboard') setInternalActiveMenu('dashboard');
   }, [location.pathname]);
 
   const handleLogout = () => {
@@ -40,16 +30,14 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
 
   const handleMenuClick = (key, path) => {
     setInternalActiveMenu(key);
-    if (onMenuClick) {
-      onMenuClick(key, path);
-    } else {
-      navigate(path);
-    }
+    if (onMenuClick) onMenuClick(key, path);
+    else navigate(path);
   };
 
   const menuItems = [
     { key: 'dashboard', label: 'Dashboard', icon: 'fas fa-tachometer-alt', path: '/admin/dashboard' },
     { key: 'users', label: 'User Management', icon: 'fas fa-users', path: '/admin/users' },
+    { key: 'waitlist', label: 'Waitlist', icon: 'fas fa-clipboard-list', path: '/admin/waitlist' }, // NEW
     { key: 'reports', label: 'Reports', icon: 'fas fa-flag', path: '/admin/reports' },
     { key: 'swipe-stats', label: 'Swipe Stats', icon: 'fas fa-chart-line', path: '/admin/swipe-stats' },
     { key: 'messages', label: 'Messages', icon: 'fas fa-comment-dots', path: '/admin/messages' },
@@ -71,7 +59,6 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
           <i className="fas fa-heart text-danger fs-4"></i>
         )}
       </div>
-
       <nav className="sidebar-nav">
         <ul className="nav flex-column">
           {menuItems.map((item) => (
@@ -93,7 +80,6 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
           </li>
         </ul>
       </nav>
-
       <div className="sidebar-footer">
         <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
           <i className={`fas ${collapsed ? 'fa-angle-double-right' : 'fa-angle-double-left'}`}></i>

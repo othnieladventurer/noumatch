@@ -6,9 +6,11 @@ from math import ceil
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
+from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 
 from users.models import User
 from interactions.models import Like, Pass, DailySwipe
@@ -20,6 +22,9 @@ from chat.serializers import SupportConversationSerializer, MessageSerializer, M
 from notifications.models import Notification
 from admin_dashboard.models import ProfileImpression
 from admin_dashboard.services.ranking import compute_ranking_score
+
+# Waitlist models only (no serializers import – we define them inline)
+from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
 
 
 # ---------- Admin login ----------
@@ -106,17 +111,7 @@ class AdminUsersListView(APIView):
         })
 
 
-
-
-
-
-
-
-
-
-
-
-# ---------- Dashboard (ONLY ONE) ----------
+# ---------- Dashboard ----------
 class AdminDashboardView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -218,7 +213,7 @@ class AdminDashboardView(APIView):
         })
 
 
-# ---------- Swipe Stats (ONLY ONE) ----------
+# ---------- Swipe Stats ----------
 class AdminSwipeStatsView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -754,3 +749,164 @@ class AdminAnalyticsImpressionsView(APIView):
             })
         
         return Response(data)
+
+
+# ==================== WAITLIST ADMIN VIEWS (with inline serializers) ====================
+
+# Inline serializers to avoid import issues
+from rest_framework import serializers as drf_serializers
+
+class InlineWaitlistEntrySerializer(drf_serializers.ModelSerializer):
+    class Meta:
+        model = WaitlistEntry
+        fields = ['id', 'first_name', 'last_name', 'email', 'gender', 'position', 'joined_at', 'is_accepted', 'accepted_at']
+        read_only_fields = ['id', 'position', 'joined_at']
+
+class InlineContactedArchiveSerializer(drf_serializers.ModelSerializer):
+    class Meta:
+        model = ContactedArchive
+        fields = '__all__'
+
+
+class AdminWaitlistStatsView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request):
+        try:
+            stats = WaitlistStats.get_current_stats()
+            data = {
+                'total_waiting': stats.total_men_waiting + stats.total_women_waiting,
+                'women_waiting': stats.total_women_waiting,
+                'men_waiting': stats.total_men_waiting,
+                'women_accepted': stats.total_women_accepted,
+                'men_accepted': stats.total_men_accepted,
+                'target_ratio': {
+                    'women': stats.target_women_percentage,
+                    'men': stats.target_men_percentage,
+                }
+            }
+            return Response(data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AdminWaitlistWaitingView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request):
+        entries = WaitlistEntry.objects.filter(is_accepted=False).order_by('joined_at')
+        serializer = InlineWaitlistEntrySerializer(entries, many=True)
+        return Response(serializer.data)
+
+
+class AdminWaitlistAcceptedView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request):
+        entries = WaitlistEntry.objects.filter(is_accepted=True).order_by('-accepted_at')
+        serializer = InlineWaitlistEntrySerializer(entries, many=True)
+        return Response(serializer.data)
+
+
+class AdminWaitlistArchivedView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request):
+        archives = ContactedArchive.objects.all().order_by('-removed_at')
+        serializer = InlineContactedArchiveSerializer(archives, many=True)
+        return Response(serializer.data)
+
+
+class AdminWaitlistAcceptView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, entry_id):
+        try:
+            entry = WaitlistEntry.objects.get(id=entry_id, is_accepted=False)
+            entry.is_accepted = True
+            entry.accepted_at = timezone.now()
+            entry.save()
+            stats = WaitlistStats.get_current_stats()
+            stats.update_counts()
+            return Response({'success': True, 'message': f'{entry.first_name} {entry.last_name} accepted'})
+        except WaitlistEntry.DoesNotExist:
+            return Response({'error': 'Entry not found or already accepted'}, status=status.HTTP_404_NOT_FOUND)
+
+
+
+class AdminWaitlistContactView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, entry_id):
+        try:
+            # REMOVE the is_accepted=False condition
+            entry = WaitlistEntry.objects.get(id=entry_id)
+        except WaitlistEntry.DoesNotExist:
+            return Response({'error': 'Entry not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        notes = request.data.get('notes', '')
+        with transaction.atomic():
+            ContactedArchive.objects.create(
+                first_name=entry.first_name,
+                last_name=entry.last_name,
+                email=entry.email,
+                gender=entry.gender,
+                reason='contacted' if not entry.is_accepted else 'accepted',
+                notes=notes
+            )
+            entry.delete()
+            stats = WaitlistStats.get_current_stats()
+            stats.update_counts()
+        return Response({'success': True, 'message': 'Entry moved to contacted archive'})
+    
+
+
+    
+
+class AdminWaitlistDeleteView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def delete(self, request, entry_id):
+        try:
+            entry = WaitlistEntry.objects.get(id=entry_id)
+            entry.delete()
+            stats = WaitlistStats.get_current_stats()
+            stats.update_counts()
+            return Response({'success': True})
+        except WaitlistEntry.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class AdminWaitlistArchiveDeleteView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def delete(self, request, archive_id):
+        try:
+            archive = ContactedArchive.objects.get(id=archive_id)
+            archive.delete()
+            return Response({'success': True})
+        except ContactedArchive.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+
+
+
+
+
+class AdminWaitlistUpdateView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def put(self, request, entry_id):
+        try:
+            entry = WaitlistEntry.objects.get(id=entry_id)
+            data = request.data
+            entry.first_name = data.get('first_name', entry.first_name)
+            entry.last_name = data.get('last_name', entry.last_name)
+            entry.email = data.get('email', entry.email)
+            entry.gender = data.get('gender', entry.gender)
+            entry.save()
+            return Response({'success': True})
+        except WaitlistEntry.DoesNotExist:
+            return Response({'error': 'Not found'}, status=404)
+
+

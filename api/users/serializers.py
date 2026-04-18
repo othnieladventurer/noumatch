@@ -13,24 +13,16 @@ import time
 import requests
 from django.db.models import Q
 
-
 from matches.models import Match
 from report.models import Report
 from block.models import Block
 from interactions.models import Like, Pass
-
-
-
-
-
-
 
 def get_absolute_image_url(file_field):
     """Get absolute URL for image file (works with Cloudflare R2)"""
     if file_field:
         return file_field.url
     return None
-
 
 class UserSerializer(serializers.ModelSerializer):
     profile_photo_url = serializers.SerializerMethodField()
@@ -56,10 +48,6 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_profile_photo_url(self, obj):
         return get_absolute_image_url(obj.profile_photo)
-
-
-
-
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -98,20 +86,43 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if data['password'] != data['password2']:
-            raise serializers.ValidationError("Passwords do not match")
+            raise serializers.ValidationError({"password": "Les mots de passe ne correspondent pas."})
         return data
 
     def validate_birth_date(self, value):
         today = date.today()
         age = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
         if age < 18:
-            raise serializers.ValidationError("You must be at least 18 years old to register.")
+            raise serializers.ValidationError("Vous devez avoir au moins 18 ans pour vous inscrire.")
         return value
 
     def validate_email(self, value):
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
-        return value
+        from waitlist.models import WaitlistEntry, ContactedArchive
+        
+        email = value.strip().lower()
+        
+        # Check if already registered
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("Cet email est déjà utilisé. Veuillez vous connecter.")
+        
+        # Check if in waitlist and contacted
+        waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).first()
+        
+        if waitlist_entry:
+            # User is authorized to register
+            return value
+        
+        # Check in contacted archive
+        archived_entry = ContactedArchive.objects.filter(email=email).first()
+        
+        if archived_entry:
+            # User was contacted and archived - allowed to register
+            return value
+        
+        # User not authorized to register
+        raise serializers.ValidationError(
+            "Accès non autorisé. Vous devez d'abord rejoindre la liste d'attente et être contacté par notre équipe pour vous inscrire."
+        )
 
     def get_coordinates_from_ip(self, ip_address=None):
         """Get latitude and longitude from IP address using ipapi.co"""
@@ -142,6 +153,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
+        from waitlist.models import WaitlistEntry, ContactedArchive
+        
         # Get the request object to access client IP
         request = self.context.get('request')
         client_ip = None
@@ -156,6 +169,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         
         # Log for debugging
         print(f"🔍 Client IP: {client_ip}")
+        print(f"📧 Registering email: {validated_data.get('email')}")
         
         # Get coordinates from IP address (fallback if frontend didn't send them)
         if not validated_data.get('latitude') and not validated_data.get('longitude'):
@@ -191,17 +205,27 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
         
+        # Mark waitlist entry as used (optional - move to archive or mark as registered)
+        email = validated_data.get('email')
+        waitlist_entry = WaitlistEntry.objects.filter(email=email).first()
+        
+        if waitlist_entry:
+            # Move to archive with 'registered' reason
+            ContactedArchive.objects.create(
+                first_name=waitlist_entry.first_name,
+                last_name=waitlist_entry.last_name,
+                email=waitlist_entry.email,
+                gender=waitlist_entry.gender,
+                reason='registered',
+                notes=f"User registered on {date.today()}. Waitlist position: {waitlist_entry.position}"
+            )
+            # Delete from active waitlist
+            waitlist_entry.delete()
+            print(f"📝 Moved waitlist entry to archive: {email}")
+        
         print(f"✅ User created: {user.email} - Location saved: {user.city}, {user.country} - Coordinates: {user.latitude}, {user.longitude}")
         
         return user
-
-
-
-        
-
-
-
-
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -223,9 +247,6 @@ class LoginSerializer(serializers.Serializer):
         attrs["user"] = user
         return attrs
 
-
-
-        
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True)
@@ -250,7 +271,6 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.save()
         return user
 
-
 class MeSerializer(serializers.ModelSerializer):
     profile_photo_url = serializers.SerializerMethodField()
 
@@ -272,10 +292,6 @@ class MeSerializer(serializers.ModelSerializer):
 
     def get_profile_photo_url(self, obj):
         return get_absolute_image_url(obj.profile_photo)
-
-
-
-
 
 class UserProfileSerializer(serializers.ModelSerializer):
     age = serializers.SerializerMethodField()
@@ -303,10 +319,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.profile_photo.url)
             return obj.profile_photo.url
         return None
-
-
-
-
 
 class UserPhotoSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
@@ -350,11 +362,4 @@ class UserPhotoSerializer(serializers.ModelSerializer):
 
 
 
-
-profile_photo_url = serializers.SerializerMethodField()
-
-def get_profile_photo_url(self, obj):
-    if obj.profile_photo:
-        return obj.profile_photo.url
-    return None
-
+        

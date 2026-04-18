@@ -39,6 +39,11 @@ export default function AdminAnalyticsImpressions() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('analytics-impressions');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  
   const [filters, setFilters] = useState({
     viewer_email: '',
     viewed_email: '',
@@ -89,6 +94,7 @@ export default function AdminAnalyticsImpressions() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setImpressions(response.data);
+      setCurrentPage(1); // Reset to first page when new data loads
       setError('');
     } catch (err) {
       console.error('❌ Fetch error:', err);
@@ -126,6 +132,60 @@ export default function AdminAnalyticsImpressions() {
       date_to: ''
     });
     setTimeout(() => fetchImpressions(), 100);
+  };
+
+  // Pagination calculations
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = impressions.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(impressions.length / itemsPerPage);
+
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  // Generate page numbers to display
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+    const maxPagesToShow = 5;
+    
+    if (totalPages <= maxPagesToShow) {
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) {
+          pageNumbers.push(i);
+        }
+        pageNumbers.push('...');
+        pageNumbers.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pageNumbers.push(1);
+        pageNumbers.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) {
+          pageNumbers.push(i);
+        }
+      } else {
+        pageNumbers.push(1);
+        pageNumbers.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+          pageNumbers.push(i);
+        }
+        pageNumbers.push('...');
+        pageNumbers.push(totalPages);
+      }
+    }
+    
+    return pageNumbers;
   };
 
   // Download CSV function
@@ -337,19 +397,19 @@ export default function AdminAnalyticsImpressions() {
                     </tr>
                   </thead>
                   <tbody>
-                    {impressions.length === 0 ? (
+                    {currentItems.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="text-center py-5">
                           <i className="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
                           No impressions recorded yet
-                        </td>
+                         </td>
                       </tr>
                     ) : (
-                      impressions.map(imp => (
+                      currentItems.map(imp => (
                         <tr key={imp.id}>
                           <td className="text-nowrap small">
                             {new Date(imp.timestamp).toLocaleString()}
-                           </td>
+                            </td>
                           <td>
                             <div className="fw-semibold">{imp.viewer_name}</div>
                             <div className="small text-muted">{imp.viewer_email}</div>
@@ -359,7 +419,7 @@ export default function AdminAnalyticsImpressions() {
                                 {imp.viewer_location}
                               </div>
                             )}
-                           </td>
+                            </td>
                           <td>
                             <div className="fw-semibold">{imp.viewed_name}</div>
                             <div className="small text-muted">{imp.viewed_email}</div>
@@ -369,30 +429,64 @@ export default function AdminAnalyticsImpressions() {
                                 {imp.viewed_location}
                               </div>
                             )}
-                           </td>
+                            </td>
                           <td className="text-center">
                             <span className="badge bg-secondary">#{imp.feed_position + 1}</span>
-                           </td>
+                            </td>
                           <td>
                             <span className={`badge ${imp.ranking_score >= 70 ? 'bg-success' : imp.ranking_score >= 40 ? 'bg-warning' : 'bg-danger'}`}>
                               {imp.ranking_score}
                             </span>
-                           </td>
+                            </td>
                           <td>
                             <span className={`badge ${imp.swipe_action === 'like' ? 'bg-success' : imp.swipe_action === 'pass' ? 'bg-danger' : 'bg-secondary'}`}>
                               {imp.swipe_action === 'like' ? <><i className="fas fa-thumbs-up me-1"></i> Like</> : imp.swipe_action === 'pass' ? <><i className="fas fa-thumbs-down me-1"></i> Pass</> : 'Pending'}
                             </span>
-                           </td>
+                            </td>
                           <td>
                             <i className={`fas ${imp.device_type === 'mobile' ? 'fa-mobile-alt' : 'fa-desktop'} me-1`}></i>
                             {imp.device_type}
-                           </td>
+                            </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination */}
+              {impressions.length > 0 && (
+                <div className="d-flex justify-content-between align-items-center mt-4">
+                  <div className="text-muted small">
+                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, impressions.length)} of {impressions.length} entries
+                  </div>
+                  <nav>
+                    <ul className="pagination mb-0">
+                      <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                        <button className="page-link" onClick={prevPage}>
+                          <i className="fas fa-chevron-left"></i>
+                        </button>
+                      </li>
+                      {getPageNumbers().map((number, index) => (
+                        <li key={index} className={`page-item ${number === currentPage ? 'active' : ''} ${number === '...' ? 'disabled' : ''}`}>
+                          {number === '...' ? (
+                            <span className="page-link">...</span>
+                          ) : (
+                            <button className="page-link" onClick={() => paginate(number)}>
+                              {number}
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                      <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                        <button className="page-link" onClick={nextPage}>
+                          <i className="fas fa-chevron-right"></i>
+                        </button>
+                      </li>
+                    </ul>
+                  </nav>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -400,3 +494,6 @@ export default function AdminAnalyticsImpressions() {
     </div>
   );
 }
+
+
+
