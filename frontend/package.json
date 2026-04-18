@@ -18,11 +18,8 @@
     "aos": "^2.3.4",
     "axios": "^1.13.6",
     "bootstrap": "^5.3.8",
-<<<<<<< HEAD
-    "posthog-js": "^1.364.7",
-=======
     "chart.js": "^4.5.1",
->>>>>>> staging
+    "posthog-js": "^1.364.7",
     "react": "^18.2.0",
     "react-bootstrap": "^2.10.10",
     "react-chartjs-2": "^5.3.1",

@@ -11,11 +11,10 @@ from rest_framework.permissions import IsAdminUser
 import threading
 from django.db.models import Max 
 from django.utils import timezone
-<<<<<<< HEAD
+
 from .utils import send_waitlist_welcome_email 
 from .email_api import send_waitlist_welcome_via_api
 
-=======
 
 from .serializers import WaitlistEntrySerializer, ContactedArchiveSerializer
 
@@ -46,7 +45,6 @@ L'équipe NouMatch
     threading.Thread(target=_send, daemon=True).start()
 
 # ==================== PUBLIC ENDPOINTS ====================
->>>>>>> staging
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -160,16 +158,9 @@ def join_waitlist(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-<<<<<<< HEAD
 
 
 
-
-
-
-
-=======
->>>>>>> staging
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def waitlist_stats(request):

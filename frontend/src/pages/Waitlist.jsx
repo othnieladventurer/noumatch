@@ -5,24 +5,6 @@ import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import {
-<<<<<<< HEAD
-  FaVenusMars,
-  FaHeart,
-  FaUsers,
-  FaRocket,
-  FaGift,
-  FaShieldAlt,
-  FaChevronDown,
-  FaChevronUp,
-  FaInfoCircle,
-} from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
-import API from "../api/axios";
-import AOS from "aos";
-import "aos/dist/aos.css";
-import heroBg from "../assets/waitlist-hero.png";
-import sneekPeak from "../assets/apptease.png";
-=======
   Chart as ChartJS,
   ArcElement,
   Tooltip,
@@ -33,7 +15,6 @@ import sneekPeak from "../assets/apptease.png";
   Title,
 } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
->>>>>>> staging
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -143,11 +124,9 @@ export default function AdminWaitlist() {
     const womenNeeded = Math.round((campaignTargetRatio.women / 100) * campaignBatchSize);
     const menNeeded = campaignBatchSize - womenNeeded;
 
-    // Get pending entries
     const availableWomen = pending.filter(entry => entry.gender === 'female');
     const availableMen = pending.filter(entry => entry.gender === 'male');
 
-    // Select women and men respecting ratio
     const selectedWomen = availableWomen.slice(0, womenNeeded);
     const selectedMen = availableMen.slice(0, menNeeded);
 
@@ -233,7 +212,6 @@ export default function AdminWaitlist() {
     }
   };
 
-  // Bulk archive accepted entries
   const confirmBulkArchive = () => {
     if (accepted.length === 0) {
       alert('No accepted entries to archive');
@@ -242,7 +220,6 @@ export default function AdminWaitlist() {
     setShowBulkArchiveModal(true);
   };
 
-  // Delete handlers with modal
   const confirmDelete = (entry, isArchived = false) => {
     setDeleteTarget(entry);
     setDeleteIsArchived(isArchived);
@@ -273,7 +250,6 @@ export default function AdminWaitlist() {
     }
   };
 
-  // Single contact handler with modal
   const confirmContact = (entry) => {
     setContactTarget(entry);
     setContactNotes('Contacted via email');
@@ -300,7 +276,6 @@ export default function AdminWaitlist() {
     }
   };
 
-  // Filter list by search
   const filterList = (list) =>
     list.filter((item) =>
       `${item.first_name} ${item.last_name} ${item.email}`
@@ -308,7 +283,6 @@ export default function AdminWaitlist() {
         .includes(searchTerm.toLowerCase())
     );
 
-  // Chart data
   const waitingMen = stats?.men_waiting || 0;
   const waitingWomen = stats?.women_waiting || 0;
   const acceptedMen = stats?.men_accepted || 0;
@@ -379,7 +353,6 @@ export default function AdminWaitlist() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div className="metrics-grid">
           <div className="metric-card">
             <div className="metric-icon bg-primary-light"><i className="fas fa-hourglass-half text-primary"></i></div>
@@ -402,7 +375,6 @@ export default function AdminWaitlist() {
           </div>
         </div>
 
-        {/* Charts */}
         <div className="row g-3 mb-4 px-4">
           <div className="col-md-5">
             <div className="card border-0 shadow-sm">
@@ -417,146 +389,10 @@ export default function AdminWaitlist() {
               <div className="card-body">
                 <Bar data={barData} options={barOptions} />
               </div>
-<<<<<<< HEAD
-
-              <h1 className="display-5 fw-bold mb-4">
-                Rencontrez <span className="text-danger">des profils près de vous</span> en Haïti
-              </h1>
-
-              <p className="text-light mb-0">
-                <FaHeart className="text-danger me-1" />
-                Swipe. Match. Discute. Rejoignez la liste d’attente pour découvrir NouMatch en avant-première.
-              </p>
-
-              <p className="text-white-50 mt-3 mb-0">
-                Déjà de nombreuses personnes attendent l’ouverture de NouMatch.
-              </p>
-=======
->>>>>>> staging
             </div>
           </div>
         </div>
 
-<<<<<<< HEAD
-      <div className="container my-4">
-        <div className="row justify-content-center g-3">
-          <div className="col-12 col-md-10 col-lg-9">
-            <div className="row g-3">
-              <div className="col-12 col-md-4">
-                <div
-                  className="h-100 d-flex align-items-center gap-3 px-4 py-3 rounded-4 shadow-sm border"
-                  style={{
-                    background: "linear-gradient(135deg, #fff5f7 0%, #ffffff 100%)",
-                    borderColor: "#ffccd5",
-                  }}
-                >
-                  <div
-                    className="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
-                    style={{
-                      width: "52px",
-                      height: "52px",
-                      backgroundColor: "#ff4d6d",
-                      color: "#fff",
-                      fontSize: "1.2rem",
-                    }}
-                  >
-                    <i className="fas fa-bolt"></i>
-                  </div>
-                  <div>
-                    <div
-                      className="fw-bold mb-1"
-                      style={{ color: "#b02a37", fontSize: "1rem" }}
-                    >
-                      Inscription rapide
-                    </div>
-                    <div className="text-muted small">
-                      Environ 30 secondes pour rejoindre la liste d’attente
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12 col-md-4">
-                <div
-                  className="h-100 d-flex align-items-center gap-3 px-4 py-3 rounded-4 shadow-sm border"
-                  style={{
-                    background: "linear-gradient(135deg, #fff0f3 0%, #ffffff 100%)",
-                    borderColor: "#ffb3c1",
-                  }}
-                >
-                  <div
-                    className="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
-                    style={{
-                      width: "52px",
-                      height: "52px",
-                      backgroundColor: "#ff4d6d",
-                      color: "#fff",
-                      fontSize: "1.2rem",
-                    }}
-                  >
-                    <i className="fas fa-gift"></i>
-                  </div>
-                  <div>
-                    <div
-                      className="fw-bold mb-1"
-                      style={{ color: "#b02a37", fontSize: "1rem" }}
-                    >
-                      100% gratuit au lancement
-                    </div>
-                    <div className="text-muted small">
-                      Soyez parmi les premiers à découvrir NouMatch, sans frais au lancement
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-12 col-md-4">
-                <div
-                  className="h-100 d-flex align-items-center gap-3 px-4 py-3 rounded-4 shadow-sm border"
-                  style={{
-                    background: "linear-gradient(135deg, #fff5f7 0%, #ffffff 100%)",
-                    borderColor: "#ffccd5",
-                  }}
-                >
-                  <div
-                    className="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
-                    style={{
-                      width: "52px",
-                      height: "52px",
-                      backgroundColor: "#ff4d6d",
-                      color: "#fff",
-                      fontSize: "1.2rem",
-                    }}
-                  >
-                    <i className="fas fa-shield-alt"></i>
-                  </div>
-                  <div>
-                    <div
-                      className="fw-bold mb-1"
-                      style={{ color: "#b02a37", fontSize: "1rem" }}
-                    >
-                      Données sécurisées
-                    </div>
-                    <div className="text-muted small">
-                      Vos informations restent confidentielles et protégées
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Error Alert */}
-      {error && (
-        <div className="container mt-3" style={{ position: "relative", zIndex: 2 }}>
-          <div className="alert alert-danger text-center">
-            <FaInfoCircle className="me-2" />
-            {error}
-=======
-        {/* Tabs and Tables */}
         <div className="recent-blocks-card">
           <div className="card-header d-flex justify-content-between align-items-center flex-wrap">
             <ul className="nav nav-tabs card-header-tabs">
@@ -587,7 +423,6 @@ export default function AdminWaitlist() {
             </div>
           </div>
           <div className="card-body p-0">
-            {/* Pending Tab */}
             {activeTab === 'pending' && (
               <div className="table-responsive">
                 <table className="table admin-table">
@@ -626,7 +461,6 @@ export default function AdminWaitlist() {
               </div>
             )}
 
-            {/* Accepted Tab */}
             {activeTab === 'accepted' && (
               <div className="table-responsive">
                 <table className="table admin-table">
@@ -661,7 +495,6 @@ export default function AdminWaitlist() {
               </div>
             )}
 
-            {/* Archived Tab */}
             {activeTab === 'archived' && (
               <div className="table-responsive">
                 <table className="table admin-table">
@@ -694,173 +527,9 @@ export default function AdminWaitlist() {
                 </table>
               </div>
             )}
->>>>>>> staging
           </div>
         </div>
 
-<<<<<<< HEAD
-      <div className="container bg-light p-5 my-5 rounded-4">
-        <div className="row align-items-center g-4">
-
-          {/* LEFT TEXT */}
-          <div className="col-12 col-lg-5">
-            <div>
-              <h2 className="fw-bold mb-3 text-danger">
-                Accès prioritaire aux premiers inscrits 🚀
-              </h2>
-
-              <p className="text-muted mb-3">
-                Les premiers inscrits sur NouMatch auront l’opportunité de découvrir l’application en avant-première et de commencer à explorer les profils dès l’ouverture.
-              </p>
-
-              <p className="text-danger fw-semibold small mb-4">
-                🔥 Les premiers inscrits auront plus de visibilité dès le lancement
-              </p>
-
-              <div className="d-flex flex-column gap-3">
-                <div className="d-flex align-items-center gap-2">
-                  <i className="fas fa-star text-danger"></i>
-                  <span className="fw-semibold">
-                    Découverte en avant-première de NouMatch
-                  </span>
-                </div>
-
-                <div className="d-flex align-items-center gap-2">
-                  <i className="fas fa-heart text-danger"></i>
-                  <span className="fw-semibold">
-                    Plus d’opportunités de connexion dès l’ouverture
-                  </span>
-                </div>
-
-                <div className="d-flex align-items-center gap-2">
-                  <i className="fas fa-bolt text-danger"></i>
-                  <span className="fw-semibold">
-                    Un profil visible plus tôt dans l’expérience
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT IMAGE */}
-          <div className="col-12 col-lg-7 d-flex justify-content-center align-items-center">
-            <div className="w-100 d-flex justify-content-center">
-              <img
-                src={sneekPeak}
-                alt="NouMatch App Preview"
-                className="img-fluid rounded-4 shadow"
-                style={{
-                  maxHeight: "650px",
-                  width: "auto",
-                  objectFit: "contain",
-                  transition: "transform 0.3s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "scale(1.03)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                }}
-              />
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Gender Selection Section */}
-      <section className="py-5" style={{ position: "relative", zIndex: 2 }}>
-        <div className="container px-3">
-          <div className="text-center mb-5" data-aos="fade-up">
-            <h2 className="display-5 fw-bold mb-3">Choisissez votre parcours</h2>
-            <p className="lead text-muted mx-auto" style={{ maxWidth: "600px" }}>
-              Sélectionnez votre espace pour rejoindre la liste d’attente NouMatch.
-            </p>
-          </div>
-
-          <div className="row justify-content-center g-4">
-            {/* Women Card - Always Available */}
-            <div className="col-lg-4 col-md-6">
-              <div
-                className="card border-0 shadow-sm rounded-4 text-center h-100 p-4"
-                style={{ cursor: "pointer", transition: "all 0.3s ease" }}
-                onClick={() => handleGenderSelect("female")}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-6px)";
-                  e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.1)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "";
-                }}
-              >
-                <div className="mb-3">
-                  <FaVenusMars size={40} className="text-danger" />
-                </div>
-
-                <h4 className="fw-bold mb-2">Femmes</h4>
-
-                <p className="text-muted mb-4">
-                  Rejoignez les premières femmes inscrites sur NouMatch et découvrez une nouvelle façon de faire des rencontres près de vous.
-                </p>
-
-                <button className="btn btn-danger w-100 py-2 rounded-pill">
-                  Espace Femmes
-                </button>
-              </div>
-            </div>
-
-            {/* Men Card - Can be temporarily blocked */}
-            <div className="col-lg-4 col-md-6">
-              <div
-                className="card border-0 shadow-sm rounded-4 text-center h-100 p-4"
-                style={{
-                  cursor: isMenBlocked ? "not-allowed" : "pointer",
-                  transition: "all 0.3s ease",
-                  opacity: isMenBlocked ? 0.85 : 1
-                }}
-                onClick={() => {
-                  if (isMenBlocked) return;
-                  handleGenderSelect("male");
-                }}
-                onMouseEnter={(e) => {
-                  if (!isMenBlocked) {
-                    e.currentTarget.style.transform = "translateY(-6px)";
-                    e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.1)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isMenBlocked) {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "";
-                  }
-                }}
-              >
-                <div className="mb-3">
-                  <FaVenusMars size={40} className="text-primary" />
-                </div>
-
-                <h4 className="fw-bold mb-2">Hommes</h4>
-
-                <p className="text-muted mb-4">
-                  Rejoignez NouMatch pour découvrir une expérience pensée pour des rencontres plus sincères et plus locales.
-                </p>
-
-                <button
-                  className="btn btn-primary w-100 py-2 rounded-pill"
-                  disabled={isMenBlocked}
-                >
-                  {isMenBlocked ? "Revenir plus tard" : "Espace Hommes"}
-                </button>
-
-                {/* Soft block message for men */}
-                {isMenBlocked && (
-                  <div className="mt-3 text-center" style={{ fontSize: "0.85rem" }}>
-                    <FaInfoCircle className="text-warning me-1" />
-                    <span className="text-muted">
-                      Accès temporairement limité pour garantir une communauté équilibrée et une meilleure expérience. Merci de revenir plus tard.
-                    </span>
-=======
         <footer className="admin-footer">
           <small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small>
         </footer>
@@ -912,12 +581,10 @@ export default function AdminWaitlist() {
                     </div>
                     {campaignUsers.length > 0 && (
                       <>
-                        <h6>Campaign Preview (Respecting {campaignTargetRatio.women}% Women / {campaignTargetRatio.men}% Men)</h6>
+                        <h6>Campaign Preview</h6>
                         <div className="table-responsive" style={{ maxHeight: '300px', overflowY: 'auto' }}>
                           <table className="table table-sm">
-                            <thead>
-                              <tr><th>Name</th><th>Email</th><th>Gender</th></tr>
-                            </thead>
+                            <thead><tr><th>Name</th><th>Email</th><th>Gender</th></tr></thead>
                             <tbody>
                               {campaignUsers.map(user => (
                                 <tr key={user.id}>
@@ -929,35 +596,21 @@ export default function AdminWaitlist() {
                             </tbody>
                           </table>
                         </div>
-                        <div className="mt-3">
-                          <strong>Summary:</strong> {campaignUsers.filter(u => u.gender === 'female').length} Women, {campaignUsers.filter(u => u.gender === 'male').length} Men
-                        </div>
                       </>
                     )}
                   </>
                 ) : (
                   <div className="text-center py-4">
-                    <div className="spinner-border text-primary mb-3" role="status"></div>
+                    <div className="spinner-border text-primary mb-3"></div>
                     <h6>Processing Campaign...</h6>
                     <p>Contacted {campaignProgress.current} of {campaignProgress.total} users</p>
-                    <div className="progress">
-                      <div 
-                        className="progress-bar progress-bar-striped progress-bar-animated" 
-                        style={{ width: `${(campaignProgress.current / campaignProgress.total) * 100}%` }}
-                      ></div>
-                    </div>
->>>>>>> staging
                   </div>
                 )}
               </div>
               <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowCampaignModal(false)} disabled={campaignRunning}>
-                  Cancel
-                </button>
+                <button className="btn btn-secondary" onClick={() => setShowCampaignModal(false)}>Cancel</button>
                 {!campaignRunning && campaignUsers.length > 0 && (
-                  <button className="btn btn-success" onClick={runCampaign}>
-                    <i className="fas fa-play me-1"></i> Start Campaign
-                  </button>
+                  <button className="btn btn-success" onClick={runCampaign}>Start Campaign</button>
                 )}
               </div>
             </div>
@@ -965,59 +618,6 @@ export default function AdminWaitlist() {
         </div>
       )}
 
-<<<<<<< HEAD
-      {/* Benefits Section */}
-      <section className="py-5 bg-white" style={{ position: "relative", zIndex: 2 }}>
-        <div className="container px-3">
-          <div className="text-center mb-5" data-aos="fade-up">
-            <h2 className="fw-bold display-6">Pourquoi rejoindre la liste d’attente NouMatch ?</h2>
-            <p className="text-muted mx-auto" style={{ maxWidth: "600px" }}>
-              Rejoignez dès maintenant et faites partie des premiers à découvrir l’expérience
-            </p>
-          </div>
-
-          <div className="row g-4">
-            <div className="col-md-4" data-aos="fade-up" data-aos-delay="100">
-              <div className="text-center p-4">
-                <div
-                  className="bg-danger bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
-                  style={{ width: "70px", height: "70px" }}
-                >
-                  <FaRocket className="text-danger fs-2" />
-                </div>
-                <h5 className="fw-bold">Accès prioritaire aux nouveautés</h5>
-                <p className="text-muted">Recevez en premier les informations importantes et l’annonce du lancement</p>
-              </div>
-            </div>
-
-            <div className="col-md-4" data-aos="fade-up" data-aos-delay="200">
-              <div className="text-center p-4">
-                <div
-                  className="bg-danger bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
-                  style={{ width: "70px", height: "70px" }}
-                >
-                  <FaGift className="text-danger fs-2" />
-                </div>
-                <h5 className="fw-bold">Inscription gratuite</h5>
-                <p className="text-muted">
-                  Rejoindre la liste d’attente est simple, gratuit et sans engagement
-                </p>
-              </div>
-            </div>
-
-            <div className="col-md-4" data-aos="fade-up" data-aos-delay="300">
-              <div className="text-center p-4">
-                <div
-                  className="bg-danger bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3"
-                  style={{ width: "70px", height: "70px" }}
-                >
-                  <FaShieldAlt className="text-danger fs-2" />
-                </div>
-                <h5 className="fw-bold">Rencontres plus proches de vous</h5>
-                <p className="text-muted">
-                  Découvrez des profils en Haïti et créez des connexions plus naturelles, plus locales
-                </p>
-=======
       {/* Bulk Archive Modal */}
       {showBulkArchiveModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
@@ -1028,87 +628,20 @@ export default function AdminWaitlist() {
                 <button type="button" className="btn-close" onClick={() => setShowBulkArchiveModal(false)}></button>
               </div>
               <div className="modal-body">
-                <p>Are you sure you want to move all <strong>{accepted.length}</strong> accepted users to the archive?</p>
-                <p className="text-warning">This will free up the waitlist for new users to join.</p>
-                <p><strong>Breakdown:</strong></p>
-                <ul>
-                  <li>Women: {accepted.filter(u => u.gender === 'female').length}</li>
-                  <li>Men: {accepted.filter(u => u.gender === 'male').length}</li>
-                </ul>
+                <p>Move all <strong>{accepted.length}</strong> accepted users to archive?</p>
+                <p className="text-warning">This will free up the waitlist for new users.</p>
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowBulkArchiveModal(false)}>Cancel</button>
                 <button className="btn btn-warning" onClick={archiveAllAccepted} disabled={actionLoading}>
                   {actionLoading ? 'Archiving...' : 'Archive All'}
                 </button>
->>>>>>> staging
               </div>
             </div>
           </div>
         </div>
       )}
 
-<<<<<<< HEAD
-      {/* FAQ Section */}
-      <section className="py-5 bg-light" style={{ position: "relative", zIndex: 2 }}>
-        <div className="container px-3">
-          <div className="text-center mb-5" data-aos="fade-up">
-            <h2 className="fw-bold display-6">Questions fréquentes</h2>
-          </div>
-
-          <div className="row justify-content-center">
-            <div className="col-lg-8">
-              <div className="card border-0 shadow-sm mb-3 rounded-3 overflow-hidden">
-                <button
-                  onClick={() => toggleFaq(1)}
-                  className="btn bg-white w-100 text-start p-4 d-flex justify-content-between align-items-center"
-                  style={{ borderRadius: "0", border: "none" }}
-                >
-                  <span className="fw-semibold fs-5">Quand NouMatch sera-t-il disponible ?</span>
-                  {openFaq === 1 ? (
-                    <FaChevronUp className="text-danger" />
-                  ) : (
-                    <FaChevronDown className="text-danger" />
-                  )}
-                </button>
-                <div
-                  style={{
-                    maxHeight: openFaq === 1 ? "200px" : "0",
-                    overflow: "hidden",
-                    transition: "max-height 0.3s ease-in-out"
-                  }}
-                >
-                  <div className="p-4 pt-0 text-muted">
-                    Nous préparons actuellement le lancement de NouMatch. Les personnes inscrites sur la liste d’attente seront informées en priorité dès l’ouverture.
-                  </div>
-                </div>
-              </div>
-
-              <div className="card border-0 shadow-sm mb-3 rounded-3 overflow-hidden">
-                <button
-                  onClick={() => toggleFaq(2)}
-                  className="btn bg-white w-100 text-start p-4 d-flex justify-content-between align-items-center"
-                  style={{ borderRadius: "0", border: "none" }}
-                >
-                  <span className="fw-semibold fs-5">Pourquoi dois-je m'inscrire sur une liste d'attente ?</span>
-                  {openFaq === 2 ? (
-                    <FaChevronUp className="text-danger" />
-                  ) : (
-                    <FaChevronDown className="text-danger" />
-                  )}
-                </button>
-                <div
-                  style={{
-                    maxHeight: openFaq === 2 ? "200px" : "0",
-                    overflow: "hidden",
-                    transition: "max-height 0.3s ease-in-out"
-                  }}
-                >
-                  <div className="p-4 pt-0 text-muted">
-                    La liste d’attente vous permet de réserver votre place, d’être informé en priorité et de faire partie des premiers à découvrir NouMatch.
-                  </div>
-                </div>
-=======
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
@@ -1119,54 +652,34 @@ export default function AdminWaitlist() {
                 <button type="button" className="btn-close" onClick={() => setShowDeleteModal(false)}></button>
               </div>
               <div className="modal-body">
-                <p>Are you sure you want to permanently delete <strong>{deleteTarget?.first_name} {deleteTarget?.last_name}</strong>?</p>
-                <p className="text-danger">This action cannot be undone.</p>
->>>>>>> staging
+                <p>Delete <strong>{deleteTarget?.first_name} {deleteTarget?.last_name}</strong>?</p>
+                <p className="text-danger">This cannot be undone.</p>
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)}>Cancel</button>
                 <button className="btn btn-danger" onClick={executeDelete} disabled={actionLoading}>
-                  {actionLoading ? 'Deleting...' : 'Delete Permanently'}
+                  {actionLoading ? 'Deleting...' : 'Delete'}
                 </button>
-<<<<<<< HEAD
-                <div
-                  style={{
-                    maxHeight: openFaq === 3 ? "200px" : "0",
-                    overflow: "hidden",
-                    transition: "max-height 0.3s ease-in-out"
-                  }}
-                >
-                  <div className="p-4 pt-0 text-muted">
-                    Non. L’inscription sur la liste d’attente est entièrement gratuite.
-                  </div>
-                </div>
-=======
->>>>>>> staging
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Contact / Move to Archive Modal */}
+      {/* Contact Modal */}
       {showContactModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">Mark as Contacted & Archive</h5>
+                <h5 className="modal-title">Mark as Contacted</h5>
                 <button type="button" className="btn-close" onClick={() => setShowContactModal(false)}></button>
               </div>
               <div className="modal-body">
-                <p>Move <strong>{contactTarget?.first_name} {contactTarget?.last_name}</strong> to contacted archive.</p>
+                <p>Move <strong>{contactTarget?.first_name} {contactTarget?.last_name}</strong> to archive.</p>
                 <div className="mb-3">
-                  <label className="form-label">Notes (optional)</label>
-                  <textarea
-                    className="form-control"
-                    rows="3"
-                    value={contactNotes}
-                    onChange={(e) => setContactNotes(e.target.value)}
-                  ></textarea>
+                  <label className="form-label">Notes</label>
+                  <textarea className="form-control" rows="3" value={contactNotes} onChange={(e) => setContactNotes(e.target.value)}></textarea>
                 </div>
               </div>
               <div className="modal-footer">

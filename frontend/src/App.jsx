@@ -35,18 +35,6 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import VerifyOtp from "./pages/VerifyOtp";
 import Terms from "./pages/Terms";
 
-<<<<<<< HEAD
-// PostHog
-import posthog from 'posthog-js';
-
-// Initialize PostHog
-posthog.init('YOUR_PROJECT_TOKEN', {
-  api_host: 'https://app.posthog.com',
-  person_profiles: 'identified_only'
-});
-
-export default function App({ user }) {
-=======
 // Admin Pages
 import AdminLogin from "./pages/AdminLogin.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
@@ -58,7 +46,7 @@ import AdminMessages from "./pages/AdminMessages.jsx";
 import AdminSupportConversationDetail from "./pages/AdminSupportConversationDetail.jsx";
 import AdminUserConversationDetail from "./pages/AdminUserConversationDetail.jsx";
 import AdminFlaggedMessages from "./pages/AdminFlaggedMessages.jsx";
-import AdminWaitlist from "./pages/AdminWaitlist.jsx";  // NEW IMPORT
+import AdminWaitlist from "./pages/AdminWaitlist.jsx";
 
 // Analytics Pages
 import AdminAnalyticsImpressions from "./pages/AdminAnalyticsImpressions.jsx";
@@ -66,20 +54,7 @@ import AdminAnalyticsRanking from "./pages/AdminAnalyticsRanking.jsx";
 import AdminAnalyticsPerformance from "./pages/AdminAnalyticsPerformance.jsx";
 
 export default function App() {
->>>>>>> staging
   const location = useLocation();
-
-  // Track page views
-  useEffect(() => {
-    posthog.capture('$pageview', { path: location.pathname });
-
-    if (user) {
-      posthog.identify(user.id, {
-        email: user.email,
-        username: user.username
-      });
-    }
-  }, [location, user]);
 
   // Routes where public navbar/footer should NOT appear
   const hidePublicLayoutRoutes = [
@@ -110,7 +85,7 @@ export default function App() {
     "/admin/analytics/impressions",
     "/admin/analytics/ranking",
     "/admin/analytics/performance",
-    "/admin/waitlist",  // NEW: hide layout for waitlist admin page
+    "/admin/waitlist",
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -169,7 +144,7 @@ export default function App() {
             <Route path="/admin/messages/user/:id" element={<AdminUserConversationDetail />} />
             <Route path="/admin/flagged-messages" element={<AdminFlaggedMessages />} />
             
-            {/* NEW: Waitlist Admin Route */}
+            {/* Waitlist Admin Route */}
             <Route path="/admin/waitlist" element={<AdminWaitlist />} />
 
             {/* Analytics Routes */}
@@ -184,6 +159,4 @@ export default function App() {
     </NotificationProvider>
   );
 }
-
-
 
