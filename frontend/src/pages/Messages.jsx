@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
-import API from '@/api/axios';// 👈 ADD THIS IMPORT
+import API from '@/api/axios';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
@@ -260,10 +260,10 @@ export default function Messages() {
   };
 
   const getOnlineStatusColor = (status) => {
-    if (status === "online") return "#4ade80";
-    if (status?.includes("Just now")) return "#4ade80";
-    if (status?.includes("m ago") && parseInt(status) < 5) return "#4ade80";
-    return "#adb5bd";
+    if (status === "online") return "#10b981";
+    if (status?.includes("Just now")) return "#10b981";
+    if (status?.includes("m ago") && parseInt(status) < 5) return "#10b981";
+    return "#9ca3af";
   };
 
   const getOnlineStatusText = (isOnline, onlineStatus) => {
@@ -303,20 +303,23 @@ export default function Messages() {
       
       <style>
         {`
+          /* Modern Minimal Design */
           .messenger-container {
             display: flex;
             height: calc(100vh - 80px);
-            background: #f5f7fb;
+            background: #f7f9fc;
             padding: 1rem;
             gap: 1rem;
+            max-width: 1400px;
+            margin: 0 auto;
           }
           
           /* Sidebar Styles */
           .sidebar {
-            width: 350px;
+            width: 340px;
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 5px 20px rgba(255, 77, 109, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -328,50 +331,46 @@ export default function Messages() {
           }
           
           .sidebar-header {
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            color: white;
             padding: 1.5rem;
+            border-bottom: 1px solid #f0f2f5;
           }
           
           .sidebar-header h2 {
             font-size: 1.5rem;
             font-weight: 600;
             margin: 0;
+            color: #1f2a3e;
           }
           
           .sidebar-header p {
             margin: 0.5rem 0 0;
-            opacity: 0.9;
-            font-size: 0.9rem;
+            color: #6c757d;
+            font-size: 0.85rem;
           }
           
           .conversations-list {
             flex: 1;
             overflow-y: auto;
-            padding: 1rem;
+            padding: 0.5rem;
           }
           
           .conversation-item {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            padding: 1rem;
-            border-radius: 15px;
+            gap: 0.75rem;
+            padding: 0.875rem;
+            border-radius: 16px;
             cursor: pointer;
-            transition: all 0.3s;
-            margin-bottom: 0.5rem;
-            border: 1px solid transparent;
-            position: relative;
+            transition: all 0.2s;
+            margin-bottom: 0.25rem;
           }
           
           .conversation-item:hover {
-            background: #fff5f7;
-            border-color: #ffe6e9;
+            background: #f8f9fa;
           }
           
           .conversation-item.active {
             background: #fff5f7;
-            border-left: 4px solid #ff4d6d;
           }
           
           .conversation-item.unread {
@@ -380,16 +379,14 @@ export default function Messages() {
           
           .conversation-avatar-container {
             position: relative;
-            display: inline-block;
+            flex-shrink: 0;
           }
           
           .conversation-avatar {
-            width: 50px;
-            height: 50px;
+            width: 52px;
+            height: 52px;
             border-radius: 50%;
             object-fit: cover;
-            border: 2px solid white;
-            box-shadow: 0 2px 8px rgba(255, 77, 109, 0.2);
           }
           
           .online-indicator {
@@ -400,18 +397,6 @@ export default function Messages() {
             height: 12px;
             border-radius: 50%;
             border: 2px solid white;
-            background-color: #4ade80;
-          }
-          
-          .offline-indicator {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid white;
-            background-color: #adb5bd;
           }
           
           .conversation-info {
@@ -421,21 +406,22 @@ export default function Messages() {
           
           .conversation-name {
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.95rem;
             margin-bottom: 0.25rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            color: #1f2a3e;
           }
           
           .conversation-time {
-            font-size: 0.7rem;
-            color: #adb5bd;
+            font-size: 0.65rem;
+            color: #9ca3af;
           }
           
           .conversation-last-message {
             color: #6c757d;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -447,9 +433,9 @@ export default function Messages() {
           .unread-badge {
             background: #ff4d6d;
             color: white;
-            border-radius: 50px;
-            padding: 0.2rem 0.6rem;
-            font-size: 0.7rem;
+            border-radius: 12px;
+            padding: 0.15rem 0.5rem;
+            font-size: 0.65rem;
             font-weight: 600;
             margin-left: 0.5rem;
           }
@@ -463,106 +449,80 @@ export default function Messages() {
           .chat-area {
             flex: 1;
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 5px 20px rgba(255, 77, 109, 0.1);
+            border-radius: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             overflow: hidden;
             display: flex;
             flex-direction: column;
           }
           
           .chat-header {
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            color: white;
             padding: 1rem 1.5rem;
+            border-bottom: 1px solid #f0f2f5;
             display: flex;
             align-items: center;
             gap: 1rem;
           }
           
           .chat-header .back-btn {
-            background: rgba(255,255,255,0.2);
+            background: #f0f2f5;
             border: none;
-            color: white;
-            width: 35px;
-            height: 35px;
+            color: #ff4d6d;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s;
           }
           
           .chat-header .back-btn:hover {
-            background: white;
-            color: #ff4d6d;
+            background: #ff4d6d;
+            color: white;
           }
           
           .chat-header-info {
             flex: 1;
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.75rem;
             cursor: pointer;
           }
           
-          .chat-header-avatar-container {
-            position: relative;
-            display: inline-block;
-          }
-          
           .chat-header-avatar {
-            width: 45px;
-            height: 45px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            border: 2px solid white;
             object-fit: cover;
-          }
-          
-          .chat-header-online {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid white;
-            background-color: #4ade80;
-          }
-          
-          .chat-header-offline {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid white;
-            background-color: #adb5bd;
           }
           
           .chat-header-name {
             font-weight: 600;
-            font-size: 1.1rem;
+            font-size: 1rem;
             margin: 0;
+            color: #1f2a3e;
           }
           
           .chat-header-status {
-            font-size: 0.8rem;
-            opacity: 0.9;
+            font-size: 0.7rem;
             margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
           }
           
           .messages-area {
             flex: 1;
             overflow-y: auto;
             padding: 1.5rem;
-            background: #f8f9fa;
+            background: #fafbfc;
           }
           
           .message-wrapper {
             display: flex;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
           }
           
           .message-wrapper.mine {
@@ -571,34 +531,35 @@ export default function Messages() {
           
           .message-bubble {
             max-width: 70%;
-            padding: 0.75rem 1rem;
+            padding: 0.625rem 1rem;
             border-radius: 20px;
             position: relative;
+            word-break: break-word;
           }
           
           .message-bubble.mine {
             background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
             color: white;
-            border-bottom-right-radius: 5px;
+            border-bottom-right-radius: 4px;
           }
           
           .message-bubble.other {
             background: white;
-            color: #2c3e50;
-            border-bottom-left-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            color: #1f2a3e;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
           }
           
           .message-content {
-            font-size: 0.95rem;
-            line-height: 1.5;
-            word-wrap: break-word;
+            font-size: 0.9rem;
+            line-height: 1.4;
           }
           
           .message-time {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             margin-top: 0.25rem;
             text-align: right;
+            opacity: 0.8;
           }
           
           .message-bubble.mine .message-time {
@@ -606,90 +567,20 @@ export default function Messages() {
           }
           
           .message-bubble.other .message-time {
-            color: #adb5bd;
-          }
-          
-          .message-status {
-            font-size: 0.7rem;
-            margin-left: 0.25rem;
-          }
-          
-          .message-status .read {
-            color: #4ade80;
-          }
-          
-          .input-area {
-            padding: 1rem 1.5rem;
-            background: white;
-            border-top: 1px solid #f0f0f0;
-          }
-          
-          .input-group {
-            display: flex;
-            gap: 0.5rem;
-          }
-          
-          .message-input {
-            flex: 1;
-            border: 1px solid #e9ecef;
-            border-radius: 50px;
-            padding: 0.75rem 1.5rem;
-            font-size: 0.95rem;
-            transition: all 0.3s;
-          }
-          
-          .message-input:focus {
-            outline: none;
-            border-color: #ff4d6d;
-            box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.1);
-          }
-          
-          .send-btn {
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            border: none;
-            border-radius: 50px;
-            padding: 0.75rem 2rem;
-            color: white;
-            font-weight: 600;
-            transition: all 0.3s;
-            cursor: pointer;
-          }
-          
-          .send-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 77, 109, 0.3);
-          }
-          
-          .send-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+            color: #9ca3af;
           }
           
           .date-divider {
             text-align: center;
-            margin: 1.5rem 0;
-            position: relative;
-          }
-          
-          .date-divider::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            width: 100%;
-            height: 1px;
-            background: #e9ecef;
-            z-index: 1;
+            margin: 1rem 0;
           }
           
           .date-divider span {
-            background: #f8f9fa;
+            background: #eef2f6;
             padding: 0.25rem 1rem;
-            border-radius: 50px;
-            font-size: 0.8rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
             color: #6c757d;
-            position: relative;
-            z-index: 2;
           }
           
           .empty-chat {
@@ -711,28 +602,191 @@ export default function Messages() {
           }
           
           .empty-chat h3 {
-            color: #2c3e50;
+            color: #1f2a3e;
             margin-bottom: 0.5rem;
+            font-size: 1.2rem;
           }
           
-          /* Mobile Responsive */
+          /* Modern Input Area - Smaller Button */
+          .input-area {
+            padding: 1rem 1.5rem;
+            background: white;
+            border-top: 1px solid #f0f2f5;
+          }
+          
+          .input-group {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            width: 100%;
+          }
+          
+          .message-input {
+            flex: 1;
+            min-width: 0;
+            border: 1px solid #e9ecef;
+            border-radius: 24px;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            background: #f8f9fa;
+          }
+          
+          .message-input:focus {
+            outline: none;
+            border-color: #ff4d6d;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.08);
+          }
+          
+          .send-btn {
+            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
+            border: none;
+            border-radius: 24px;
+            padding: 0.75rem 1.25rem;
+            color: white;
+            font-weight: 500;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+          }
+          
+          .send-btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 77, 109, 0.3);
+          }
+          
+          .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          
+          /* Scrollbar */
+          .messages-area::-webkit-scrollbar,
+          .conversations-list::-webkit-scrollbar {
+            width: 5px;
+          }
+          
+          .messages-area::-webkit-scrollbar-track,
+          .conversations-list::-webkit-scrollbar-track {
+            background: #f1f3f4;
+            border-radius: 10px;
+          }
+          
+          .messages-area::-webkit-scrollbar-thumb,
+          .conversations-list::-webkit-scrollbar-thumb {
+            background: #ffc9c9;
+            border-radius: 10px;
+          }
+          
+          /* Responsive */
           @media (max-width: 768px) {
             .messenger-container {
               padding: 0.5rem;
+              gap: 0;
             }
             
             .sidebar {
               width: 100%;
+              border-radius: 20px;
             }
             
             .chat-area {
-              width: 100%;
+              border-radius: 20px;
+            }
+            
+            .message-bubble {
+              max-width: 85%;
+            }
+          }
+          
+          @media (max-width: 576px) {
+            .messenger-container {
+              padding: 0;
+              height: calc(100vh - 70px);
+            }
+            
+            .sidebar, .chat-area {
+              border-radius: 0;
+            }
+            
+            .sidebar-header {
+              padding: 1rem;
+            }
+            
+            .conversation-avatar {
+              width: 48px;
+              height: 48px;
+            }
+            
+            .chat-header {
+              padding: 0.75rem 1rem;
+            }
+            
+            .chat-header-avatar {
+              width: 40px;
+              height: 40px;
+            }
+            
+            .messages-area {
+              padding: 1rem;
+            }
+            
+            .message-bubble {
+              max-width: 90%;
+              padding: 0.5rem 0.875rem;
+            }
+            
+            .message-content {
+              font-size: 0.85rem;
+            }
+            
+            .input-area {
+              padding: 0.75rem 1rem;
+            }
+            
+            .input-group {
+              gap: 0.5rem;
+            }
+            
+            .message-input {
+              padding: 0.6rem 1rem;
+              font-size: 0.85rem;
+            }
+            
+            /* Smaller send button on mobile */
+            .send-btn {
+              padding: 0.6rem 1rem;
+              font-size: 0.8rem;
+            }
+            
+            /* Hide text on mobile, show only icon */
+            .send-btn span {
+              display: none;
+            }
+            
+            .send-btn i {
+              margin: 0;
+              font-size: 0.9rem;
+            }
+          }
+          
+          @media (max-width: 380px) {
+            .send-btn {
+              padding: 0.55rem 0.875rem;
+            }
+            
+            .message-input {
+              padding: 0.55rem 0.875rem;
+              font-size: 0.8rem;
             }
           }
         `}
       </style>
 
-      <div className="messenger-container container">
+      <div className="messenger-container">
         {/* Sidebar */}
         <div className={`sidebar ${!showSidebar ? 'hidden' : ''}`}>
           <div className="sidebar-header">
@@ -765,12 +819,14 @@ export default function Messages() {
                         src={getProfilePhotoUrl(conv.other_user?.profile_photo_url)}
                         alt={conv.other_user?.full_name || "User"}
                         className="conversation-avatar"
-                        onError={(e) => e.target.src = "https://via.placeholder.com/50"}
+                        onError={(e) => e.target.src = "https://via.placeholder.com/52"}
                       />
-                      <span 
-                        className={isOnline ? 'online-indicator' : 'offline-indicator'}
-                        style={{ backgroundColor: statusColor }}
-                      ></span>
+                      {isOnline && (
+                        <span 
+                          className="online-indicator"
+                          style={{ backgroundColor: statusColor }}
+                        ></span>
+                      )}
                     </div>
                     <div className="conversation-info">
                       <div className="conversation-name">
@@ -783,7 +839,7 @@ export default function Messages() {
                         <span>
                           {conv.last_message?.is_from_me && (
                             <span className="text-secondary">
-                              <i className="fas fa-check me-1" style={{ fontSize: "0.7rem" }}></i>
+                              <i className="fas fa-check me-1" style={{ fontSize: "0.65rem" }}></i>
                               You: 
                             </span>
                           )}
@@ -825,22 +881,16 @@ export default function Messages() {
                   </button>
                 )}
                 <div className="chat-header-info" onClick={() => navigate(`/profile/${otherUser?.id}`)}>
-                  <div className="chat-header-avatar-container">
-                    <img
-                      src={getProfilePhotoUrl(otherUser?.profile_photo_url)}
-                      alt={otherUser?.full_name || "User"}
-                      className="chat-header-avatar"
-                      onError={(e) => e.target.src = "https://via.placeholder.com/45"}
-                    />
-                    <span 
-                      className={otherUser?.is_online ? 'chat-header-online' : 'chat-header-offline'}
-                      style={{ backgroundColor: getOnlineStatusColor(otherUser?.online_status) }}
-                    ></span>
-                  </div>
+                  <img
+                    src={getProfilePhotoUrl(otherUser?.profile_photo_url)}
+                    alt={otherUser?.full_name || "User"}
+                    className="chat-header-avatar"
+                    onError={(e) => e.target.src = "https://via.placeholder.com/48"}
+                  />
                   <div>
                     <h3 className="chat-header-name">{otherUser?.full_name || "User"}</h3>
                     <p className="chat-header-status" style={{ color: getOnlineStatusColor(otherUser?.online_status) }}>
-                      <i className="fas fa-circle me-1" style={{ fontSize: "0.5rem" }}></i>
+                      <i className="fas fa-circle" style={{ fontSize: "0.5rem" }}></i>
                       {getOnlineStatusText(otherUser?.is_online, otherUser?.online_status)}
                     </p>
                   </div>
@@ -917,7 +967,8 @@ export default function Messages() {
                       <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                     ) : (
                       <>
-                        Send <i className="fas fa-paper-plane ms-2"></i>
+                        <span className="d-none d-sm-inline">Send </span>
+                        <i className="fas fa-paper-plane"></i>
                       </>
                     )}
                   </button>

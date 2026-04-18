@@ -1,11 +1,12 @@
 // src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { FaHeart, FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
 import "./Navbar.css";
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [userLoggedIn, setUserLoggedIn] = useState(false);
 
   useEffect(() => {
@@ -15,8 +16,24 @@ export default function Navbar() {
 
   const handleScroll = (id) => (e) => {
     e.preventDefault();
-    const section = document.getElementById(id);
-    if (section) section.scrollIntoView({ behavior: "smooth" });
+    
+    // If we're not on the home page, navigate to home first
+    if (location.pathname !== "/") {
+      navigate("/");
+      // Wait for navigation to complete before scrolling
+      setTimeout(() => {
+        const section = document.getElementById(id);
+        if (section) {
+          section.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+    } else {
+      // Already on home page, just scroll
+      const section = document.getElementById(id);
+      if (section) {
+        section.scrollIntoView({ behavior: "smooth" });
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -79,8 +96,8 @@ export default function Navbar() {
             {/* Conditional buttons */}
             {!userLoggedIn ? (
               <li className="nav-item mt-2 mt-lg-0">
-                <Link className="btn btn-danger w-100 w-lg-auto" to="/waitlist">
-                  Liste d'attente
+                <Link className="btn btn-danger w-100 w-lg-auto" to="/login">
+                  Se connecter
                 </Link>
               </li>
             ) : (

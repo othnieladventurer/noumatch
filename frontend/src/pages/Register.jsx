@@ -36,6 +36,12 @@ export default function Register() {
   const [emailAvailable, setEmailAvailable] = useState(false);
   const [shakeEmail, setShakeEmail] = useState(false);
   const emailTimeoutRef = useRef(null);
+  
+  // Waitlist eligibility states
+  const [canRegister, setCanRegister] = useState(false);
+  const [checkingEligibility, setCheckingEligibility] = useState(false);
+  const [showEligibilityModal, setShowEligibilityModal] = useState(false);
+  const [eligibilityMessage, setEligibilityMessage] = useState("");
 
   useEffect(() => {
     detectUserLocation();
@@ -62,9 +68,9 @@ export default function Register() {
       age >= 18 &&
       password === password2 &&
       isEmailValidFormat &&
-      emailAvailable;
+      canRegister;
     setStep1Valid(isValid);
-  }, [formData, emailAvailable]);
+  }, [formData, canRegister]);
 
   useEffect(() => {
     setStep2Valid(formData.gender !== "");
@@ -74,7 +80,7 @@ export default function Register() {
     setStep3Valid(formData.profile_photo !== null);
   }, [formData.profile_photo]);
 
-  // Email existence check (debounced)
+  // Check if email can register (waitlist eligibility)
   useEffect(() => {
     if (emailTimeoutRef.current) clearTimeout(emailTimeoutRef.current);
 
@@ -83,50 +89,85 @@ export default function Register() {
     // If email is empty
     if (email === "") {
       setEmailError("");
-      setEmailAvailable(false);
+      setCanRegister(false);
       setIsCheckingEmail(false);
+      setCheckingEligibility(false);
       return;
     }
 
     // If email format is invalid
     if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email)) {
       setEmailError("Format d'email invalide");
-      setEmailAvailable(false);
+      setCanRegister(false);
       setIsCheckingEmail(false);
+      setCheckingEligibility(false);
       setShakeEmail(true);
       setTimeout(() => setShakeEmail(false), 400);
       return;
     }
 
-    // If email format is valid
+    // Check waitlist eligibility
+    setCheckingEligibility(true);
     setIsCheckingEmail(true);
     setEmailError("");
 
     emailTimeoutRef.current = setTimeout(async () => {
       try {
-        const response = await API.get(`/users/check-email/?email=${encodeURIComponent(email)}`);
-        const exists = response.data.exists === true;
+        // First check if email is already registered
+        const emailCheckResponse = await API.get(`/users/check-email/?email=${encodeURIComponent(email)}`);
+        const exists = emailCheckResponse.data.exists === true;
+        
         if (exists) {
-          setEmailError("Votre email est deja enregistre retournez sur se connecter");
-          setEmailAvailable(false);
+          setEmailError("Votre email est déjà enregistré. Retournez sur connexion.");
+          setCanRegister(false);
           setShakeEmail(true);
           setTimeout(() => setShakeEmail(false), 400);
-        } else {
+          setCheckingEligibility(false);
+          setIsCheckingEmail(false);
+          return;
+        }
+        
+        // Check if email is eligible to register (in contacted waitlist)
+        const eligibilityResponse = await API.get(`/waitlist/check-can-register/?email=${encodeURIComponent(email)}`);
+        
+        if (eligibilityResponse.data.can_register) {
+          setCanRegister(true);
           setEmailError("");
-          setEmailAvailable(true);
+          setEligibilityMessage("");
+        } else {
+          setCanRegister(false);
+          setEmailError("");
+          // Show modal with friendly message
+          setEligibilityMessage(
+            eligibilityResponse.data.message || 
+            "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."
+          );
+          setShowEligibilityModal(true);
         }
       } catch (err) {
-        console.error("Email check failed:", err);
-        setEmailError("Vérification indisponible. Vous pouvez continuer.");
-        setEmailAvailable(true);
+        console.error("Eligibility check failed:", err);
+        if (err.response?.status === 400) {
+          // Bad request - email missing
+          setEmailError("Email requis");
+        } else if (err.response?.status === 404) {
+          // Not in waitlist
+          setCanRegister(false);
+          setEligibilityMessage(
+            "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."
+          );
+          setShowEligibilityModal(true);
+        } else {
+          setEmailError("Vérification indisponible. Veuillez réessayer.");
+          setCanRegister(false);
+        }
       } finally {
+        setCheckingEligibility(false);
         setIsCheckingEmail(false);
       }
-    }, 500);
+    }, 800);
   }, [formData.email]);
 
   const detectUserLocation = async () => {
-    // same as before
     try {
       setDetectingLocation(true);
       let data = null;
@@ -204,7 +245,13 @@ export default function Register() {
   const nextStep = () => {
     setErrorMessage("");
     if (step === 1 && !step1Valid) {
-      setErrorMessage("Veuillez remplir tous les champs correctement");
+      if (!canRegister) {
+        setErrorMessage(
+          "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."
+        );
+      } else {
+        setErrorMessage("Veuillez remplir tous les champs correctement");
+      }
       return;
     }
     if (step === 2 && !step2Valid) {
@@ -258,15 +305,23 @@ export default function Register() {
       console.error("Registration error:", error);
       let message = "Une erreur est survenue. Veuillez réessayer.";
       
-      // Modified catch block with specific backend error handling
       if (error.response) {
-        if (error.response.data.error) {
+        if (error.response.status === 403) {
+          message = "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun.";
+          setShowEligibilityModal(true);
+        } else if (error.response.data.error) {
           message = error.response.data.error;
           setEmailError(message);
           setShakeEmail(true);
           setTimeout(() => setShakeEmail(false), 400);
         } else if (typeof error.response.data === "object") {
-          message = Object.values(error.response.data).flat().join("\n");
+          const errors = Object.values(error.response.data).flat();
+          if (errors.length > 0 && errors[0].toLowerCase().includes("waitlist")) {
+            message = "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun.";
+            setShowEligibilityModal(true);
+          } else {
+            message = errors.join("\n");
+          }
         } else {
           message = error.response.data;
         }
@@ -282,225 +337,270 @@ export default function Register() {
   const progressWidth = `${(step / 3) * 100}%`;
 
   return (
-    <div
-      className="vh-100 d-flex align-items-center justify-content-center position-relative"
-      style={{
-        backgroundImage: "url('https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51961.jpg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        padding: "1rem",
-      }}
-    >
-      <div className="position-absolute top-0 start-0 w-100 h-100" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}></div>
-
+    <>
       <div
-        className="card shadow-lg border-0 rounded-4 p-4 position-relative"
+        className="vh-100 d-flex align-items-center justify-content-center position-relative"
         style={{
-          width: "100%",
-          maxWidth: "500px",
-          maxHeight: "600px",
-          overflow: "hidden",
-          borderRadius: "24px !important",
+          backgroundImage: "url('https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51961.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          padding: "1rem",
         }}
       >
+        <div className="position-absolute top-0 start-0 w-100 h-100" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}></div>
+
         <div
-          className="card-body"
+          className="card shadow-lg border-0 rounded-4 p-4 position-relative"
           style={{
-            height: "100%",
-            overflowY: "auto",
-            padding: "1.5rem",
-            borderRadius: "24px",
+            width: "100%",
+            maxWidth: "500px",
+            maxHeight: "600px",
+            overflow: "hidden",
+            borderRadius: "24px !important",
           }}
         >
-          <div className="text-center mb-4">
-            <h1 className="d-flex justify-content-center align-items-center fw-bold">
-              <FaHeart className="text-danger me-2" />
-              <span className="text-primary">NouMatch</span>
-            </h1>
-            <p className="text-muted mb-0">Créez votre compte</p>
-          </div>
-
-          <div className="progress mb-4" style={{ height: "8px", borderRadius: "20px" }}>
-            <div className="progress-bar bg-danger" role="progressbar" style={{ width: progressWidth, borderRadius: "20px", transition: "width 0.3s ease" }}></div>
-          </div>
-
-          <div className="d-flex justify-content-between mb-4">
-            <div className={`text-center ${step >= 1 ? 'text-danger' : 'text-muted'}`}>
-              <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 1 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>1</div>
-              <small>Informations</small>
+          <div
+            className="card-body"
+            style={{
+              height: "100%",
+              overflowY: "auto",
+              padding: "1.5rem",
+              borderRadius: "24px",
+            }}
+          >
+            <div className="text-center mb-4">
+              <h1 className="d-flex justify-content-center align-items-center fw-bold">
+                <FaHeart className="text-danger me-2" />
+                <span className="text-primary">NouMatch</span>
+              </h1>
+              <p className="text-muted mb-0">Créez votre compte</p>
             </div>
-            <div className={`text-center ${step >= 2 ? 'text-danger' : 'text-muted'}`}>
-              <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 2 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>2</div>
-              <small>Genre</small>
-            </div>
-            <div className={`text-center ${step >= 3 ? 'text-danger' : 'text-muted'}`}>
-              <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 3 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>3</div>
-              <small>Photo</small>
-            </div>
-          </div>
 
-          {errorMessage && (
-            <div className="alert alert-danger white-space-pre-wrap" style={{ borderRadius: "16px" }}>
-              {errorMessage}
+            <div className="progress mb-4" style={{ height: "8px", borderRadius: "20px" }}>
+              <div className="progress-bar bg-danger" role="progressbar" style={{ width: progressWidth, borderRadius: "20px", transition: "width 0.3s ease" }}></div>
             </div>
-          )}
 
-          <form onSubmit={handleSubmit}>
-            {step === 1 && (
-              <div className="row">
-                <div className="col-12 col-md-6 mb-3">
-                  <label className="form-label">Prénom</label>
-                  <input type="text" name="first_name" className="form-control form-control-lg" placeholder="Entrez votre prénom" required value={formData.first_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
-                </div>
-                <div className="col-12 col-md-6 mb-3">
-                  <label className="form-label">Nom</label>
-                  <input type="text" name="last_name" className="form-control form-control-lg" placeholder="Entrez votre nom" required value={formData.last_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
-                </div>
-                <div className="col-12 mb-3">
-                  <label className="form-label">Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    className={`form-control form-control-lg ${shakeEmail ? 'shake' : ''}`}
-                    placeholder="Entrez votre adresse email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    style={{ 
-                      borderRadius: "16px",
-                      borderColor: emailError ? "#dc3545" : (emailAvailable ? "#28a745" : "#ced4da")
-                    }}
-                  />
-                  {/* Updated feedback messages */}
-                  {emailError && (
-                    <div className="text-danger small mt-1" style={{ fontSize: "0.75rem" }}>
-                      {emailError}
-                    </div>
-                  )}
-                  {!emailError && emailAvailable && !isCheckingEmail && (
-                    <div className="text-success small mt-1" style={{ fontSize: "0.75rem" }}>
-                      ✓ 
-                    </div>
-                  )}
-                  {isCheckingEmail && (
-                    <div className="text-secondary small mt-1" style={{ fontSize: "0.7rem" }}>
-                      <i className="fas fa-spinner fa-spin me-1"></i> Vérification...
-                    </div>
-                  )}
-                </div>
-                <div className="col-12 mb-3">
-                  <label className="form-label">Pays</label>
-                  <div className="d-flex align-items-center">
-                    {countryCode && !detectingLocation && countryCode !== "" && (
-                      <img src={`https://flagcdn.com/w40/${countryCode}.png`} width="30" height="22.5" alt={formData.country} style={{ marginRight: "10px", borderRadius: "4px" }} onError={(e) => e.target.style.display = 'none'} />
-                    )}
-                    <input type="text" className="form-control form-control-lg" value={formData.country} readOnly disabled={detectingLocation} placeholder={detectingLocation ? "Détection en cours..." : "Pays détecté"} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#f8f9fa", cursor: detectingLocation ? "wait" : "not-allowed" }} />
+            <div className="d-flex justify-content-between mb-4">
+              <div className={`text-center ${step >= 1 ? 'text-danger' : 'text-muted'}`}>
+                <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 1 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>1</div>
+                <small>Informations</small>
+              </div>
+              <div className={`text-center ${step >= 2 ? 'text-danger' : 'text-muted'}`}>
+                <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 2 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>2</div>
+                <small>Genre</small>
+              </div>
+              <div className={`text-center ${step >= 3 ? 'text-danger' : 'text-muted'}`}>
+                <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 3 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>3</div>
+                <small>Photo</small>
+              </div>
+            </div>
+
+            {errorMessage && (
+              <div className="alert alert-danger white-space-pre-wrap" style={{ borderRadius: "16px" }}>
+                {errorMessage}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              {step === 1 && (
+                <div className="row">
+                  <div className="col-12 col-md-6 mb-3">
+                    <label className="form-label">Prénom</label>
+                    <input type="text" name="first_name" className="form-control form-control-lg" placeholder="Entrez votre prénom" required value={formData.first_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
                   </div>
-                  {detectingLocation && (
-                    <div className="mt-1">
-                      <div className="spinner-border spinner-border-sm text-secondary me-2" role="status"><span className="visually-hidden">Chargement...</span></div>
-                      <small className="text-muted">Détection de votre localisation...</small>
+                  <div className="col-12 col-md-6 mb-3">
+                    <label className="form-label">Nom</label>
+                    <input type="text" name="last_name" className="form-control form-control-lg" placeholder="Entrez votre nom" required value={formData.last_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                  </div>
+                  <div className="col-12 mb-3">
+                    <label className="form-label">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      className={`form-control form-control-lg ${shakeEmail ? 'shake' : ''}`}
+                      placeholder="Entrez votre adresse email"
+                      required
+                      value={formData.email}
+                      onChange={handleChange}
+                      style={{ 
+                        borderRadius: "16px",
+                        borderColor: emailError ? "#dc3545" : (canRegister ? "#28a745" : "#ced4da")
+                      }}
+                    />
+                    {emailError && (
+                      <div className="text-danger small mt-1" style={{ fontSize: "0.75rem" }}>
+                        {emailError}
+                      </div>
+                    )}
+                    {!emailError && canRegister && !checkingEligibility && (
+                      <div className="text-success small mt-1" style={{ fontSize: "0.75rem" }}>
+                        ✓ Email vérifié - Vous pouvez créer votre compte
+                      </div>
+                    )}
+                    {(checkingEligibility || isCheckingEmail) && (
+                      <div className="text-secondary small mt-1" style={{ fontSize: "0.7rem" }}>
+                        <i className="fas fa-spinner fa-spin me-1"></i> Vérification de votre éligibilité...
+                      </div>
+                    )}
+                  </div>
+                  <div className="col-12 mb-3">
+                    <label className="form-label">Pays</label>
+                    <div className="d-flex align-items-center">
+                      {countryCode && !detectingLocation && countryCode !== "" && (
+                        <img src={`https://flagcdn.com/w40/${countryCode}.png`} width="30" height="22.5" alt={formData.country} style={{ marginRight: "10px", borderRadius: "4px" }} onError={(e) => e.target.style.display = 'none'} />
+                      )}
+                      <input type="text" className="form-control form-control-lg" value={formData.country} readOnly disabled={detectingLocation} placeholder={detectingLocation ? "Détection en cours..." : "Pays détecté"} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#f8f9fa", cursor: detectingLocation ? "wait" : "not-allowed" }} />
                     </div>
-                  )}
-                  {!detectingLocation && formData.country && (
-                    <small className="text-muted">Pays automatiquement détecté</small>
-                  )}
+                    {detectingLocation && (
+                      <div className="mt-1">
+                        <div className="spinner-border spinner-border-sm text-secondary me-2" role="status"><span className="visually-hidden">Chargement...</span></div>
+                        <small className="text-muted">Détection de votre localisation...</small>
+                      </div>
+                    )}
+                    {!detectingLocation && formData.country && (
+                      <small className="text-muted">Pays automatiquement détecté</small>
+                    )}
+                  </div>
+                  <div className="col-12 mb-3">
+                    <label className="form-label">Ville</label>
+                    <input type="text" name="city" className="form-control form-control-lg" placeholder={detectingLocation ? "Détection de votre ville..." : "Entrez votre ville"} value={formData.city} onChange={handleChange} disabled={detectingLocation} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#fff" }} />
+                    {!detectingLocation && <small className="text-muted">Vous pouvez modifier votre ville si nécessaire</small>}
+                  </div>
+                  <div className="col-12 mb-3">
+                    <label className="form-label">Date de naissance</label>
+                    <input type="date" name="birth_date" className="form-control form-control-lg" required value={formData.birth_date} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                    <small className="text-muted">Vous devez avoir au moins 18 ans</small>
+                  </div>
+                  <div className="col-12 col-md-6 mb-3">
+                    <label className="form-label">Mot de passe</label>
+                    <input type="password" name="password" className="form-control form-control-lg" placeholder="Créez un mot de passe" required value={formData.password} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                  </div>
+                  <div className="col-12 col-md-6 mb-3">
+                    <label className="form-label">Confirmer</label>
+                    <input type="password" name="password2" className="form-control form-control-lg" placeholder="Confirmez" required value={formData.password2} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                  </div>
                 </div>
-                <div className="col-12 mb-3">
-                  <label className="form-label">Ville</label>
-                  <input type="text" name="city" className="form-control form-control-lg" placeholder={detectingLocation ? "Détection de votre ville..." : "Entrez votre ville"} value={formData.city} onChange={handleChange} disabled={detectingLocation} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#fff" }} />
-                  {!detectingLocation && <small className="text-muted">Vous pouvez modifier votre ville si nécessaire</small>}
-                </div>
-                <div className="col-12 mb-3">
-                  <label className="form-label">Date de naissance</label>
-                  <input type="date" name="birth_date" className="form-control form-control-lg" required value={formData.birth_date} onChange={handleChange} style={{ borderRadius: "16px" }} />
-                  <small className="text-muted">Vous devez avoir au moins 18 ans</small>
-                </div>
-                <div className="col-12 col-md-6 mb-3">
-                  <label className="form-label">Mot de passe</label>
-                  <input type="password" name="password" className="form-control form-control-lg" placeholder="Créez un mot de passe" required value={formData.password} onChange={handleChange} style={{ borderRadius: "16px" }} />
-                </div>
-                <div className="col-12 col-md-6 mb-3">
-                  <label className="form-label">Confirmer</label>
-                  <input type="password" name="password2" className="form-control form-control-lg" placeholder="Confirmez" required value={formData.password2} onChange={handleChange} style={{ borderRadius: "16px" }} />
-                </div>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="row">
-                <div className="col-12 mb-3">
-                  <label className="form-label">Genre</label>
-                  <select name="gender" className="form-control form-control-lg" required onChange={handleChange} value={formData.gender} style={{ borderRadius: "16px" }}>
-                    <option value="" disabled>Sélectionnez votre genre</option>
-                    <option value="male">Homme</option>
-                    <option value="female">Femme</option>
-                  </select>
-                </div>
-                <input type="hidden" name="country" value={formData.country} />
-                <input type="hidden" name="city" value={formData.city} />
-                <input type="hidden" name="latitude" value={formData.latitude} />
-                <input type="hidden" name="longitude" value={formData.longitude} />
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="row">
-                <div className="col-12 mb-3">
-                  <label className="form-label">Photo de profil <span className="text-danger">*</span></label>
-                  <input type="file" name="profile_photo" className="form-control form-control-lg" accept="image/*" onChange={handleChange} required style={{ borderRadius: "16px", borderColor: formData.profile_photo ? "#28a745" : "#e9ecef" }} />
-                  <small className="text-muted">Téléchargez une photo claire de vous-même (requis)</small>
-                  {formData.profile_photo ? (
-                    <div className="mt-2 text-success"><i className="fas fa-check-circle me-1"></i> Photo sélectionnée: {formData.profile_photo.name}</div>
-                  ) : (
-                    <div className="mt-2 text-danger"><i className="fas fa-exclamation-circle me-1"></i> La photo de profil est requise</div>
-                  )}
-                  {formData.profile_photo && (
-                    <div className="mt-3 text-center">
-                      <img src={URL.createObjectURL(formData.profile_photo)} alt="Aperçu" className="rounded-circle" style={{ width: "100px", height: "100px", objectFit: "cover", border: "3px solid #ff4d6d" }} />
-                    </div>
-                  )}
-                </div>
-                <input type="hidden" name="country" value={formData.country} />
-                <input type="hidden" name="city" value={formData.city} />
-                <input type="hidden" name="latitude" value={formData.latitude} />
-                <input type="hidden" name="longitude" value={formData.longitude} />
-              </div>
-            )}
-
-            <div className="d-flex gap-2 mt-4">
-              {step > 1 && (
-                <button type="button" onClick={prevStep} className="btn btn-outline-secondary w-50" disabled={loading} style={{ borderRadius: "16px" }}>Retour</button>
               )}
-              {step < 3 ? (
-                <button
-                  type="button"
-                  onClick={nextStep}
-                  className={`btn btn-danger ${step > 1 ? 'w-50' : 'w-100'}`}
-                  disabled={loading || (step === 1 && !step1Valid) || (step === 2 && !step2Valid)}
-                  style={{ borderRadius: "16px" }}
-                >
-                  Continuer
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  className="btn btn-danger w-100 btn-lg"
-                  disabled={loading || !step3Valid}
-                  style={{ borderRadius: "16px" }}
-                >
-                  {loading ? "Création du compte..." : "Créer mon compte"}
-                </button>
+
+              {step === 2 && (
+                <div className="row">
+                  <div className="col-12 mb-3">
+                    <label className="form-label">Genre</label>
+                    <select name="gender" className="form-control form-control-lg" required onChange={handleChange} value={formData.gender} style={{ borderRadius: "16px" }}>
+                      <option value="" disabled>Sélectionnez votre genre</option>
+                      <option value="male">Homme</option>
+                      <option value="female">Femme</option>
+                    </select>
+                  </div>
+                  <input type="hidden" name="country" value={formData.country} />
+                  <input type="hidden" name="city" value={formData.city} />
+                  <input type="hidden" name="latitude" value={formData.latitude} />
+                  <input type="hidden" name="longitude" value={formData.longitude} />
+                </div>
               )}
+
+              {step === 3 && (
+                <div className="row">
+                  <div className="col-12 mb-3">
+                    <label className="form-label">Photo de profil <span className="text-danger">*</span></label>
+                    <input type="file" name="profile_photo" className="form-control form-control-lg" accept="image/*" onChange={handleChange} required style={{ borderRadius: "16px", borderColor: formData.profile_photo ? "#28a745" : "#e9ecef" }} />
+                    <small className="text-muted">Téléchargez une photo claire de vous-même (requis)</small>
+                    {formData.profile_photo ? (
+                      <div className="mt-2 text-success"><i className="fas fa-check-circle me-1"></i> Photo sélectionnée: {formData.profile_photo.name}</div>
+                    ) : (
+                      <div className="mt-2 text-danger"><i className="fas fa-exclamation-circle me-1"></i> La photo de profil est requise</div>
+                    )}
+                    {formData.profile_photo && (
+                      <div className="mt-3 text-center">
+                        <img src={URL.createObjectURL(formData.profile_photo)} alt="Aperçu" className="rounded-circle" style={{ width: "100px", height: "100px", objectFit: "cover", border: "3px solid #ff4d6d" }} />
+                      </div>
+                    )}
+                  </div>
+                  <input type="hidden" name="country" value={formData.country} />
+                  <input type="hidden" name="city" value={formData.city} />
+                  <input type="hidden" name="latitude" value={formData.latitude} />
+                  <input type="hidden" name="longitude" value={formData.longitude} />
+                </div>
+              )}
+
+              <div className="d-flex gap-2 mt-4">
+                {step > 1 && (
+                  <button type="button" onClick={prevStep} className="btn btn-outline-secondary w-50" disabled={loading} style={{ borderRadius: "16px" }}>Retour</button>
+                )}
+                {step < 3 ? (
+                  <button
+                    type="button"
+                    onClick={nextStep}
+                    className={`btn btn-danger ${step > 1 ? 'w-50' : 'w-100'}`}
+                    disabled={loading || (step === 1 && !step1Valid) || (step === 2 && !step2Valid)}
+                    style={{ borderRadius: "16px" }}
+                  >
+                    Continuer
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    className="btn btn-danger w-100 btn-lg"
+                    disabled={loading || !step3Valid}
+                    style={{ borderRadius: "16px" }}
+                  >
+                    {loading ? "Création du compte..." : "Créer mon compte"}
+                  </button>
+                )}
+              </div>
+            </form>
+
+            <div className="text-center mt-3">
+              <small className="text-muted">Vous avez déjà un compte? <Link to="/login" className="text-danger text-decoration-none fw-semibold">Se connecter</Link></small>
             </div>
-          </form>
-
-          <div className="text-center mt-3">
-            <small className="text-muted">Vous avez déjà un compte? <Link to="/login" className="text-danger text-decoration-none fw-semibold">Se connecter</Link></small>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Eligibility Modal - Only for waitlisted users */}
+      {showEligibilityModal && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999 }}>
+          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "450px" }}>
+            <div className="modal-content rounded-4 shadow-lg">
+              <div className="modal-header border-0 pb-0">
+                <div className="text-center w-100">
+                  <div className="mb-3">
+                    <div className="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mx-auto" style={{ width: "70px", height: "70px" }}>
+                      <i className="fas fa-clock text-warning fs-1"></i>
+                    </div>
+                  </div>
+                  <h5 className="modal-title fw-bold">Accès anticipé - Liste d'attente</h5>
+                </div>
+              </div>
+              <div className="modal-body text-center pt-0">
+                <p className="text-muted mb-3">
+                  {eligibilityMessage || "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."}
+                </p>
+                <div className="alert alert-info bg-light rounded-3 p-3 mb-0">
+                  <i className="fas fa-envelope-open-text text-primary me-2"></i>
+                  <small className="text-dark">
+                    Vous souhaitez faire partie des premiers utilisateurs de NouMatch en Haïti ?
+                  </small>
+                </div>
+              </div>
+              <div className="modal-footer border-0 justify-content-center gap-3 pt-0">
+                <Link to="/waitlist" className="btn btn-danger px-4 rounded-pill">
+                  <i className="fas fa-list me-2"></i>
+                  Rejoindre la liste d'attente
+                </Link>
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary px-4 rounded-pill" 
+                  onClick={() => setShowEligibilityModal(false)}
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

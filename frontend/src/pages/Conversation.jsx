@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
-import API from '../api/axios.js'; // 👈 ADD THIS IMPORT
+import API from '../api/axios.js';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
 export default function Conversation() {
   const navigate = useNavigate();
-  const { id } = useParams(); // conversation ID
+  const { id } = useParams();
   const [user, setUser] = useState(null);
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -18,8 +18,8 @@ export default function Conversation() {
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const messagesAreaRef = useRef(null);
 
-  // Scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -28,7 +28,6 @@ export default function Conversation() {
     scrollToBottom();
   }, [messages]);
 
-  // Fetch user and conversation
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (!token) {
@@ -57,7 +56,6 @@ export default function Conversation() {
   const fetchConversation = async () => {
     try {
       const response = await API.get(`/chat/conversations/${id}/`);
-      console.log("✅ Conversation:", response.data);
       setConversation(response.data);
       setMessages(response.data.messages || []);
     } catch (error) {
@@ -80,7 +78,6 @@ export default function Conversation() {
     setNewMessage("");
     setSending(true);
 
-    // Optimistically add message to UI
     const tempMessage = {
       id: Date.now(),
       content: messageContent,
@@ -100,34 +97,26 @@ export default function Conversation() {
         content: messageContent
       });
 
-      console.log("📥 Response status:", response.status);
-      console.log("📥 Response data:", response.data);
-
-      // Replace temp message with real one
       setMessages(prev => 
         prev.map(msg => 
           msg.id === tempMessage.id ? response.data : msg
         )
       );
 
-      // Update conversation last message
       setConversation(prev => ({
         ...prev,
         last_message: response.data,
         updated_at: new Date().toISOString()
       }));
 
-      // Clear any previous errors
       setError(null);
 
     } catch (error) {
-      console.error("❌ Error sending message:", error);
+      console.error("Error sending message:", error);
       
-      // Remove temp message on error
       setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
-      setNewMessage(messageContent); // Restore message
+      setNewMessage(messageContent);
       
-      // Handle validation errors
       if (error.response?.data) {
         const errorData = error.response.data;
         if (typeof errorData === 'object') {
@@ -230,44 +219,53 @@ export default function Conversation() {
       
       <style>
         {`
+          /* Modern Minimal Design - Only CSS changes, no JS changes */
+          .chat-wrapper {
+            max-width: 1100px;
+            margin: 1rem auto;
+            padding: 0 1rem;
+          }
+          
           .chat-container {
-            max-width: 800px;
-            margin: 2rem auto;
             background: white;
-            border-radius: 30px;
-            box-shadow: 0 10px 40px rgba(255, 77, 109, 0.1);
+            border-radius: 28px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
             overflow: hidden;
-            height: calc(100vh - 120px);
+            height: calc(100vh - 100px);
+            min-height: 500px;
             display: flex;
             flex-direction: column;
           }
           
+          /* Modern Header */
           .chat-header {
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            color: white;
+            background: white;
             padding: 1rem 1.5rem;
             display: flex;
             align-items: center;
             gap: 1rem;
+            border-bottom: 1px solid #f0f2f5;
           }
           
           .chat-header .back-btn {
-            background: rgba(255,255,255,0.2);
+            background: #f5f7fa;
             border: none;
-            color: white;
+            color: #ff4d6d;
             width: 40px;
             height: 40px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s;
+            transition: all 0.2s;
             cursor: pointer;
+            flex-shrink: 0;
           }
           
           .chat-header .back-btn:hover {
-            background: white;
-            color: #ff4d6d;
+            background: #ff4d6d;
+            color: white;
+            transform: scale(1.02);
           }
           
           .chat-header-info {
@@ -276,38 +274,47 @@ export default function Conversation() {
             align-items: center;
             gap: 1rem;
             cursor: pointer;
+            min-width: 0;
           }
           
           .chat-header-avatar {
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
-            border: 3px solid white;
+            border: 2px solid #ff4d6d;
             object-fit: cover;
+            flex-shrink: 0;
           }
           
           .chat-header-name {
             font-weight: 600;
-            font-size: 1.2rem;
+            font-size: 1rem;
             margin: 0;
+            color: #2c3e50;
           }
           
           .chat-header-status {
-            font-size: 0.8rem;
-            opacity: 0.9;
+            font-size: 0.7rem;
             margin: 0;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 4px;
           }
           
+          /* Messages Area */
           .messages-area {
             flex: 1;
             overflow-y: auto;
             padding: 1.5rem;
-            background: #f8f9fa;
+            background: #fafbfc;
+            display: flex;
+            flex-direction: column;
           }
           
           .message-wrapper {
             display: flex;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
           }
           
           .message-wrapper.mine {
@@ -316,34 +323,39 @@ export default function Conversation() {
           
           .message-bubble {
             max-width: 70%;
-            padding: 0.75rem 1rem;
+            padding: 0.625rem 1rem;
             border-radius: 20px;
             position: relative;
+            word-break: break-word;
           }
           
           .message-bubble.mine {
             background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
             color: white;
-            border-bottom-right-radius: 5px;
+            border-bottom-right-radius: 4px;
           }
           
           .message-bubble.other {
             background: white;
             color: #2c3e50;
-            border-bottom-left-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
           }
           
           .message-content {
-            font-size: 0.95rem;
-            line-height: 1.5;
-            word-wrap: break-word;
+            font-size: 0.9rem;
+            line-height: 1.4;
           }
           
           .message-time {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             margin-top: 0.25rem;
             text-align: right;
+            opacity: 0.8;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 4px;
           }
           
           .message-bubble.mine .message-time {
@@ -354,55 +366,97 @@ export default function Conversation() {
             color: #adb5bd;
           }
           
-          .message-status {
+          .date-divider {
+            text-align: center;
+            margin: 1rem 0;
+          }
+          
+          .date-divider span {
+            background: #e9ecef;
+            padding: 0.25rem 1rem;
+            border-radius: 20px;
             font-size: 0.7rem;
-            margin-left: 0.25rem;
+            color: #6c757d;
+          }
+
+          .error-message {
+            background: #fef2f0;
+            color: #dc2626;
+            padding: 0.75rem 1rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
           }
           
-          .message-status .read {
-            color: #4ade80;
+          .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
           }
           
+          .empty-state i {
+            font-size: 3rem;
+            color: #ff8fa3;
+            opacity: 0.4;
+            margin-bottom: 1rem;
+          }
+          
+          .empty-state p {
+            color: #6c757d;
+            margin: 0;
+          }
+          
+          /* Modern Input Area */
           .input-area {
             padding: 1rem 1.5rem;
             background: white;
-            border-top: 1px solid #f0f0f0;
+            border-top: 1px solid #f0f2f5;
           }
           
           .input-group {
             display: flex;
-            gap: 0.5rem;
+            gap: 0.75rem;
+            align-items: center;
+            width: 100%;
           }
           
           .message-input {
             flex: 1;
+            min-width: 0;
             border: 1px solid #e9ecef;
-            border-radius: 50px;
-            padding: 0.75rem 1.5rem;
-            font-size: 0.95rem;
-            transition: all 0.3s;
+            border-radius: 28px;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            background: #f8f9fa;
           }
           
           .message-input:focus {
             outline: none;
             border-color: #ff4d6d;
-            box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.1);
+            background: white;
+            box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.08);
           }
           
           .send-btn {
             background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
             border: none;
-            border-radius: 50px;
-            padding: 0.75rem 2rem;
+            border-radius: 28px;
+            padding: 0.75rem 1.5rem;
             color: white;
-            font-weight: 600;
-            transition: all 0.3s;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all 0.2s;
             cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
           }
           
           .send-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 77, 109, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 77, 109, 0.3);
           }
           
           .send-btn:disabled {
@@ -410,45 +464,102 @@ export default function Conversation() {
             cursor: not-allowed;
           }
           
-          .date-divider {
-            text-align: center;
-            margin: 1.5rem 0;
-            position: relative;
+          /* Scrollbar */
+          .messages-area::-webkit-scrollbar {
+            width: 6px;
           }
           
-          .date-divider::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            width: 100%;
-            height: 1px;
-            background: #e9ecef;
-            z-index: 1;
-          }
-          
-          .date-divider span {
-            background: #f8f9fa;
-            padding: 0.25rem 1rem;
-            border-radius: 50px;
-            font-size: 0.8rem;
-            color: #6c757d;
-            position: relative;
-            z-index: 2;
-          }
-
-          .error-message {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 0.75rem;
+          .messages-area::-webkit-scrollbar-track {
+            background: #f1f3f4;
             border-radius: 10px;
-            margin-bottom: 1rem;
-            font-size: 0.9rem;
+          }
+          
+          .messages-area::-webkit-scrollbar-thumb {
+            background: #ffc9c9;
+            border-radius: 10px;
+          }
+          
+          .messages-area::-webkit-scrollbar-thumb:hover {
+            background: #ff8fa3;
+          }
+          
+          /* Responsive */
+          @media (max-width: 768px) {
+            .message-bubble {
+              max-width: 85%;
+            }
+          }
+          
+          @media (max-width: 576px) {
+            .chat-wrapper {
+              margin: 0;
+              padding: 0;
+            }
+            
+            .chat-container {
+              height: 100vh;
+              border-radius: 0;
+              margin: 0;
+            }
+            
+            .chat-header {
+              padding: 0.75rem 1rem;
+            }
+            
+            .chat-header .back-btn {
+              width: 36px;
+              height: 36px;
+            }
+            
+            .chat-header-avatar {
+              width: 40px;
+              height: 40px;
+            }
+            
+            .messages-area {
+              padding: 1rem;
+            }
+            
+            .message-bubble {
+              max-width: 90%;
+              padding: 0.5rem 0.875rem;
+            }
+            
+            .message-content {
+              font-size: 0.85rem;
+            }
+            
+            .input-area {
+              padding: 0.75rem 1rem;
+            }
+            
+            .input-group {
+              gap: 0.5rem;
+            }
+            
+            .message-input {
+              padding: 0.6rem 1rem;
+              font-size: 0.85rem;
+            }
+            
+            .send-btn {
+              padding: 0.6rem 1rem;
+              font-size: 0.85rem;
+            }
+            
+            /* Hide text on mobile, show only icon */
+            .send-btn span {
+              display: none;
+            }
+            
+            .send-btn i {
+              margin: 0;
+            }
           }
         `}
       </style>
 
-      <div className="container">
+      <div className="chat-wrapper">
         <div className="chat-container">
           {/* Header */}
           <div className="chat-header">
@@ -462,13 +573,13 @@ export default function Conversation() {
                 alt={otherUser?.full_name || "User"}
                 className="chat-header-avatar"
                 onError={(e) => {
-                  e.target.src = "https://via.placeholder.com/50";
+                  e.target.src = "https://via.placeholder.com/48";
                 }}
               />
-              <div>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <h3 className="chat-header-name">{otherUser?.full_name || "User"}</h3>
                 <p className="chat-header-status">
-                  <i className="fas fa-circle me-1" style={{ fontSize: "0.5rem", color: "#4ade80" }}></i>
+                  <i className="fas fa-circle" style={{ fontSize: "0.5rem" }}></i>
                   Online
                 </p>
               </div>
@@ -476,18 +587,18 @@ export default function Conversation() {
           </div>
 
           {/* Messages Area */}
-          <div className="messages-area">
+          <div className="messages-area" ref={messagesAreaRef}>
             {error && (
               <div className="error-message">
-                <i className="fas fa-exclamation-circle me-2"></i>
-                {error}
+                <i className="fas fa-exclamation-circle"></i>
+                <span>{error}</span>
               </div>
             )}
 
             {messages.length === 0 ? (
-              <div className="text-center py-5">
-                <i className="fas fa-comment-dots" style={{ fontSize: "3rem", color: "#ff8fa3", opacity: 0.3 }}></i>
-                <p className="text-secondary mt-3">No messages yet. Start the conversation!</p>
+              <div className="empty-state">
+                <i className="fas fa-comment-dots"></i>
+                <p>No messages yet. Start the conversation!</p>
               </div>
             ) : (
               messages.map((msg, index) => {
@@ -517,9 +628,9 @@ export default function Conversation() {
                           {isMine && (
                             <span className="message-status">
                               {msg.read ? (
-                                <i className="fas fa-check-double read ms-1"></i>
+                                <i className="fas fa-check-double read"></i>
                               ) : (
-                                <i className="fas fa-check ms-1"></i>
+                                <i className="fas fa-check"></i>
                               )}
                             </span>
                           )}
@@ -535,29 +646,32 @@ export default function Conversation() {
 
           {/* Input Area */}
           <div className="input-area">
-            <form onSubmit={sendMessage} className="input-group">
-              <input
-                ref={inputRef}
-                type="text"
-                className="message-input"
-                placeholder="Type a message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                disabled={sending}
-              />
-              <button
-                type="submit"
-                className="send-btn"
-                disabled={!newMessage.trim() || sending}
-              >
-                {sending ? (
-                  <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                ) : (
-                  <>
-                    Send <i className="fas fa-paper-plane ms-2"></i>
-                  </>
-                )}
-              </button>
+            <form onSubmit={sendMessage}>
+              <div className="input-group">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  className="message-input"
+                  placeholder="Type a message..."
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  disabled={sending}
+                />
+                <button
+                  type="submit"
+                  className="send-btn"
+                  disabled={!newMessage.trim() || sending}
+                >
+                  {sending ? (
+                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  ) : (
+                    <>
+                      <span className="d-none d-sm-inline">Send </span>
+                      <i className="fas fa-paper-plane"></i>
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>

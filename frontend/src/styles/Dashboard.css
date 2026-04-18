@@ -3,19 +3,22 @@
 html, body {
   height: 100%;
   overflow: hidden;
+  margin: 0;
+  padding: 0;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: #f5f7fb;
-  margin: 0;
-  padding: 0;
 }
 
+/* Fixed container height – same for all screens */
 .dashboard-container {
   height: calc(100vh - 72px);
   overflow: hidden;
-  background: #f5f7fb;
+  background: #ffffff; /* match card background to avoid visual gap */
+  margin: 0;
+  padding: 0;
 }
 
 .dashboard-row {
@@ -68,6 +71,8 @@ body {
   border-radius: 24px !important;
   overflow: hidden !important;
   background: #ffffff;
+  margin: 0;
+  padding: 0;
 }
 
 .image-container {
@@ -299,18 +304,44 @@ body {
   opacity: 0.8;
 }
 
-/* Responsive adjustments */
+/* ========== MOBILE FIX: Keep fixed height, remove rounded corners, flush layout ========== */
 @media (max-width: 768px) {
+  /* Keep fixed height – same as desktop */
   .dashboard-container {
-    height: auto;
-    overflow: auto;
+    height: calc(100vh - 72px) !important;
+    overflow: hidden !important;
   }
-  
-  html, body {
-    overflow: auto;
+
+  /* Remove rounded corners and shadows from center card */
+  .center-card {
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
-  
+
+  /* Remove any extra margins/paddings */
+  .center-card,
+  .image-container,
+  .card-content {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   .image-container {
-    min-height: 300px;
+    min-height: 58vh !important;
+    max-height: 58vh !important;
+  }
+
+  .card-content {
+    padding: 12px 16px !important;
+  }
+
+  /* Ensure the bottom nav is fixed and the container uses full height minus navbar and bottom nav */
+  .dashboard-container {
+    margin-bottom: 0 !important;
+  }
+
+  /* Remove background that could cause a gap */
+  body {
+    background: #ffffff;
   }
 }

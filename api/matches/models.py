@@ -31,6 +31,14 @@ class Match(models.Model):
         self.clean()
         super().save(*args, **kwargs)
 
+
+    def get_other_user(self, user):
+        if user == self.user1:
+            return self.user2
+        elif user == self.user2:
+            return self.user1
+        return None
+
     def __str__(self):
         return f"Match: {self.user1.username} & {self.user2.username}"
 

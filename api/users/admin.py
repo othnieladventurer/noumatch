@@ -1,27 +1,44 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, OTP
-from django.utils.html import format_html
+from .models import UserStats
+
+
+
+
+
 
 # Inline for OTP - to show OTP inside user detail page
 class OTPInline(admin.TabularInline):
     model = OTP
-    fields = ('code', 'created_at', 'is_used', 'attempts', 'status')
-    readonly_fields = ('code', 'created_at', 'is_used', 'attempts', 'status')
+    fields = ('code', 'created_at', 'is_used', 'attempts')
+    readonly_fields = ('code', 'created_at', 'is_used', 'attempts')
     can_delete = False
     extra = 0
     max_num = 1
     
-    def status(self, obj):
-        if obj.is_used:
-            return format_html('<span style="color: red;">❌ Used</span>')
-        if obj.is_valid():
-            return format_html('<span style="color: green;">✅ Valid</span>')
-        return format_html('<span style="color: orange;">⏰ Expired</span>')
-    status.short_description = "Status"
-    
     def has_add_permission(self, request, obj=None):
         return False
+
+
+
+
+
+
+@admin.register(UserStats)
+class UserStatsAdmin(admin.ModelAdmin):
+    list_display = ('user', 'total_likes_given', 'total_likes_received', 'total_matches', 'active_matches', 'last_active')
+    search_fields = ('user__email', 'user__first_name', 'user__last_name')
+    readonly_fields = ('updated_at',)
+    list_filter = ('active_matches',)
+
+
+
+
+
+
+
+
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -30,14 +47,10 @@ class UserAdmin(BaseUserAdmin):
     # Add OTP inline
     inlines = [OTPInline]
 
-    # Custom method to display coordinates nicely
+    # Custom method to display coordinates nicely - NO HTML TAGS
     def coordinates_display(self, obj):
         if obj.latitude and obj.longitude:
-            return format_html(
-                '<span style="font-family: monospace;">{}, {}</span>',
-                obj.latitude,
-                obj.longitude
-            )
+            return f"{obj.latitude}, {obj.longitude}"
         return "-"
     coordinates_display.short_description = "Coordinates"
     coordinates_display.admin_order_field = "latitude"
@@ -143,3 +156,9 @@ class OTPAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         return False
+
+
+
+
+
+

@@ -1,526 +1,356 @@
-import React from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { formatName } from "../utils/helpers";
 
-const RoundActionBtn = ({ onClick, bg, border, icon, iconColor, label }) => (
-  <button
-    type="button"
-    className="btn rounded-circle shadow-sm d-flex align-items-center justify-content-center round-action-btn position-relative"
-    onClick={onClick}
-    style={{
-      width: 64,
-      height: 64,
-      background: bg,
-      border: border || "none",
-      transition: "all 0.2s ease",
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = "scale(1.05)";
-      e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.15)";
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = "scale(1)";
-      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
-    }}
+const RoundActionBtn = ({ onClick, bg, icon, iconColor, label, size = 52, disabled = false }) => (
+  <button 
+    type="button" 
+    className="round-action-btn border-0 p-0" 
+    onClick={onClick} 
+    disabled={disabled}
+    style={{ 
+      width: size, 
+      height: size, 
+      background: bg, 
+      borderRadius: "50%", 
+      display: "flex", 
+      alignItems: "center", 
+      justifyContent: "center",
+      boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
+      opacity: disabled ? 0.5 : 1,
+      transition: "transform 0.1s active"
+    }} 
     aria-label={label}
   >
-    <i className={icon} style={{ color: iconColor, fontSize: "1.3rem" }} />
-    <span className="round-tooltip">{label}</span>
+    <i className={icon} style={{ color: iconColor, fontSize: size * 0.4 }} />
   </button>
 );
 
-export default function CenterBlock({
-  profilesLoading,
-  apiError,
-  profiles,
-  profileIndex,
-  currentProfile,
-  getCurrentPhotoUrl,
-  openPhotoModal,
-  getCurrentProfilePhotos,
-  currentPhotoIndex,
-  setCurrentPhotoIndex,
-  goToPrevPhoto,
-  goToNextPhoto,
-  isPhotoAnimating,
-  isMatched,
-  isLiked,
-  goToProfile,
-  handlePass,
-  handleLike,
-  isAnimating,
-  goToMessenger,
-  setMatchedProfile,
-  setMatchModalOpen,
-  openReportModal,
-  handleBlock,
-  centerCardStyle,
-  reloadProfiles
-}) {
-  if (profilesLoading) {
-    return (
-      <div className="h-100 d-flex align-items-center justify-content-center">
-        <div className="text-center">
-          <div className="spinner-border text-primary mb-3" role="status" style={{ width: "3rem", height: "3rem" }} />
-          <div className="text-secondary">Chargement des profils...</div>
-        </div>
-      </div>
-    );
-  }
+export default function CenterBlock(props) {
+  const {
+    profilesLoading, apiError, profiles, profileIndex, currentProfile, getCurrentPhotoUrl,
+    openPhotoModal, getCurrentProfilePhotos, currentPhotoIndex,
+    goToPrevPhoto, goToNextPhoto, isMatched, isLiked, goToProfile,
+    handlePass, handleLike, isAnimating, goToMessenger,
+    openReportModal, handleBlock, centerCardStyle, reloadProfiles, swipeLimits, user
+  } = props;
 
-  if (apiError) {
-    return (
-      <div className="h-100 d-flex align-items-center justify-content-center">
-        <div className="text-center p-4">
-          <div className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle bg-danger bg-opacity-10" style={{ width: 80, height: 80 }}>
-            <i className="fas fa-exclamation-triangle text-danger" style={{ fontSize: "2rem" }} />
-          </div>
-          <h5 className="fw-bold mb-2">Erreur de chargement</h5>
-          <p className="text-secondary mb-3">{apiError}</p>
-          <button
-            className="btn btn-outline-primary"
-            onClick={reloadProfiles}
-          >
-            Réessayer
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // FORCE CORRECT LIMITS FOR FREE ACCOUNTS
+  // Use the backend's likes_today (count in last 12h) to compute remaining likes.
+  // This ignores whatever broken daily_limit or likes_remaining the backend sends.
+  const forcedLimit = 20;
+  const forcedRemaining = (swipeLimits?.account_type === 'free' && swipeLimits?.likes_today !== undefined)
+    ? Math.max(0, forcedLimit - swipeLimits.likes_today)
+    : swipeLimits?.likes_remaining;
+  const forcedCanLike = (swipeLimits?.account_type === 'free')
+    ? forcedRemaining > 0
+    : swipeLimits?.can_like;
 
-  if (!profiles.length || profileIndex >= profiles.length || !currentProfile) {
-    return (
-      <div className="h-100 d-flex align-items-center justify-content-center">
-        <div className="text-center p-4">
-          <div
-            className="mx-auto mb-4 d-flex align-items-center justify-content-center rounded-circle"
-            style={{ width: 100, height: 100, background: "rgba(255,77,109,0.1)" }}
-          >
-            <i className="fas fa-heart" style={{ color: "#ff4d6d", fontSize: "2.5rem" }} />
-          </div>
+  const [localLikesRemaining, setLocalLikesRemaining] = useState(forcedRemaining);
+  const [localCanLike, setLocalCanLike] = useState(forcedCanLike);
 
-          <h4 className="fw-bold mb-2">Plus de profils</h4>
-          <p className="text-secondary mb-4">Revenez plus tard pour découvrir de nouvelles personnes !</p>
-
-          <button
-            className="btn btn-primary rounded-pill px-5 py-2"
-            onClick={reloadProfiles}
-            style={{ background: "#ff4d6d", border: "none" }}
-          >
-            Rafraîchir
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Safe wrapper for photo navigation
-  const safeGoToPrevPhoto = (e) => {
-    if (!currentProfile) return;
-    const photos = getCurrentProfilePhotos();
-    if (isPhotoAnimating || !photos || photos.length <= 1) return;
-    goToPrevPhoto(e);
-  };
-
-  const safeGoToNextPhoto = (e) => {
-    if (!currentProfile) return;
-    const photos = getCurrentProfilePhotos();
-    if (isPhotoAnimating || !photos || photos.length <= 1) return;
-    goToNextPhoto(e);
-  };
-
-  const safeOpenPhotoModal = () => {
-    if (!currentProfile) return;
-    const photos = getCurrentProfilePhotos();
-    if (!photos || photos.length === 0) return;
-    openPhotoModal(getCurrentPhotoUrl(), currentProfile.id);
-  };
-
-  const safeSetCurrentPhotoIndex = (idx) => {
-    if (!currentProfile) return;
-    const photos = getCurrentProfilePhotos();
-    if (!photos || idx >= photos.length) return;
-    setCurrentPhotoIndex(idx);
-  };
-
-  const responsiveCardStyle = {
-    ...centerCardStyle,
-    borderRadius: typeof window !== 'undefined' && window.innerWidth < 992 ? '0px' : '24px',
-    height: '100%',
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    margin: 0,
-    padding: 0,
-    overflow: 'hidden'
-  };
-
-  const imageContainerStyle = {
-    position: 'relative',
-    width: '100%',
-    cursor: 'pointer',
-    overflow: 'hidden',
-    backgroundColor: '#f8f9fa',
-    flex: typeof window !== 'undefined' && window.innerWidth < 992 ? '0 0 auto' : 1.5,
-    minHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? 'auto' : 'auto',
-    maxHeight: typeof window !== 'undefined' && window.innerWidth < 992 ? '80vh' : 'none',
-    height: typeof window !== 'undefined' && window.innerWidth < 992 ? '80vh' : 'auto'
-  };
-
-  const imageStyle = {
-    transition: 'transform 0.2s ease, opacity 0.2s ease',
-    transform: 'translateX(0) scale(1)',
-    opacity: 1,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-    display: 'block',
-    objectPosition: 'center'
-  };
-
-  const getLocationDisplay = () => {
-    if (currentProfile.location && currentProfile.location.trim()) {
-      return currentProfile.location;
+  // Update local state when swipeLimits changes (e.g., after a like)
+  useEffect(() => {
+    if (swipeLimits?.account_type === 'free') {
+      const newRemaining = Math.max(0, forcedLimit - (swipeLimits.likes_today || 0));
+      setLocalLikesRemaining(newRemaining);
+      setLocalCanLike(newRemaining > 0);
+    } else {
+      setLocalLikesRemaining(swipeLimits?.likes_remaining);
+      setLocalCanLike(swipeLimits?.can_like);
     }
-    return null;
+  }, [swipeLimits]);
+
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 992;
+  const [showTooltip, setShowTooltip] = useState(false);
+  let tooltipTimeout;
+
+  // Preload next profile image
+  useEffect(() => {
+    if (!currentProfile) return;
+    const img = new Image();
+    img.src = getCurrentPhotoUrl();
+    img.fetchPriority = "high";
+    const nextProfile = profiles[profileIndex + 1];
+    if (nextProfile && nextProfile.profile_photo) {
+      const nextImg = new Image();
+      nextImg.src = nextProfile.profile_photo;
+    }
+  }, [currentProfile, profileIndex, profiles, getCurrentPhotoUrl]);
+
+  const handleMouseEnter = () => {
+    tooltipTimeout = setTimeout(() => setShowTooltip(true), 300);
+  };
+  const handleMouseLeave = () => {
+    clearTimeout(tooltipTimeout);
+    setShowTooltip(false);
   };
 
-  const locationDisplay = getLocationDisplay();
+  const onLike = () => {
+    if (!currentProfile || isAnimating || !localCanLike) return;
+    // Optimistically decrement
+    if (localLikesRemaining !== null && localLikesRemaining > 0) {
+      const newRemaining = localLikesRemaining - 1;
+      setLocalLikesRemaining(newRemaining);
+      if (newRemaining === 0) setLocalCanLike(false);
+    }
+    handleLike(); // backend call (will also refresh swipeLimits)
+  };
+
+  const onPass = () => {
+    if (!currentProfile || isAnimating) return;
+    handlePass();
+  };
+
+  const inviteLink = user?.referral_code 
+    ? `${window.location.origin}/signup?ref=${user.referral_code}`
+    : `${window.location.origin}/signup`;
+
+  const handleCopyInviteLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    alert("Lien d'invitation copié ! Partagez-le avec vos amis.");
+  };
+
+  if (profilesLoading && !currentProfile) return <div className="vh-100 d-flex align-items-center justify-content-center bg-black"><div className="spinner-border text-danger" /></div>;
+  if (apiError || !profiles.length || !currentProfile) {
+    return (
+      <div className="d-flex flex-column align-items-center justify-content-center p-4 text-center" style={{ minHeight: '100%', background: '#000', color: 'white' }}>
+        <div className="mb-4">
+          <i className="fas fa-users fa-3x mb-3" style={{ color: '#ff4d6d' }}></i>
+          <h4 className="mb-3">Plus de profils pour le moment</h4>
+          <p className="small opacity-75 mb-4">
+            De nouveaux profils arrivent bientôt depuis notre liste d'attente.<br />
+            Pour nous aider à grandir et débloquer plus de profils, invitez vos amis à rejoindre NouMatch !
+          </p>
+          <div className="d-flex flex-column gap-3 align-items-center">
+            <button onClick={handleCopyInviteLink} className="btn btn-danger rounded-pill px-4 py-2" style={{ background: 'linear-gradient(145deg, #ff4d6d, #ff3355)', border: 'none' }}>
+              <i className="fas fa-share-alt me-2"></i> Inviter un ami
+            </button>
+            <button onClick={reloadProfiles} className="btn btn-outline-light rounded-pill px-4 py-2">
+              <i className="fas fa-sync-alt me-2"></i> Rafraîchir
+            </button>
+            <small className="text-muted mt-2">(Revenez dans environ 30 minutes)</small>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const photos = getCurrentProfilePhotos();
+  const locationDisplay = currentProfile.location?.trim() || null;
+  const currentImageUrl = getCurrentPhotoUrl();
+
+  const containerStyle = isMobile 
+    ? { ...centerCardStyle, background: '#000', boxShadow: 'none', touchAction: 'pan-y' }
+    : { ...centerCardStyle, height: '100%', touchAction: 'pan-y' };
 
   return (
-    <div className="center-card" style={responsiveCardStyle}>
-      <div 
-        className="image-container" 
-        onClick={safeOpenPhotoModal}
-        style={imageContainerStyle}
-      >
-        {getCurrentPhotoUrl() ? (
-          <>
-            <img
-              src={getCurrentPhotoUrl()}
-              alt={formatName(currentProfile) || "Profil"}
-              style={imageStyle}
-              onError={(e) => {
-                e.target.style.display = 'none';
-                const parent = e.target.parentElement;
-                if (parent && !parent.querySelector('.photo-error-message')) {
-                  const errorDiv = document.createElement('div');
-                  errorDiv.className = 'p-5 text-secondary photo-error-message';
-                  errorDiv.textContent = 'Photo non disponible';
-                  parent.appendChild(errorDiv);
-                }
-              }}
-            />
-            
-            {getCurrentProfilePhotos().length > 1 && (
-              <div className="photo-indicators">
-                {getCurrentProfilePhotos().map((_, idx) => (
-                  <div
-                    key={idx}
-                    className={`photo-dot ${idx === currentPhotoIndex ? 'active' : 'inactive'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      safeSetCurrentPhotoIndex(idx);
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-            
-            {getCurrentProfilePhotos().length > 1 && (
-              <>
-                <button
-                  className="photo-nav-arrow left"
-                  onClick={safeGoToPrevPhoto}
-                  disabled={isPhotoAnimating}
-                  style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
-                >
-                  <i className="fas fa-chevron-left" style={{ color: '#333', fontSize: '1rem' }} />
-                </button>
-                <button
-                  className="photo-nav-arrow right"
-                  onClick={safeGoToNextPhoto}
-                  disabled={isPhotoAnimating}
-                  style={{ opacity: isPhotoAnimating ? 0.5 : 1 }}
-                >
-                  <i className="fas fa-chevron-right" style={{ color: '#333', fontSize: '1rem' }} />
-                </button>
-              </>
-            )}
-            
-            {getCurrentProfilePhotos().length > 1 && (
-              <div style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                background: 'rgba(0,0,0,0.5)',
-                color: 'white',
-                padding: '4px 12px',
-                borderRadius: '20px',
-                fontSize: '0.85rem',
-                zIndex: 15
-              }}>
-                {currentPhotoIndex + 1} / {getCurrentProfilePhotos().length}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="p-5 text-secondary">Photo non disponible</div>
+    <div 
+      className="d-flex flex-column overflow-hidden" 
+      style={containerStyle}
+      onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; touchStartY.current = e.touches[0].clientY; }}
+      onTouchEnd={(e) => {
+        const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+        const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+        if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY)) {
+          if (deltaX > 0) {
+            if (!isAnimating && !isMatched(currentProfile?.id) && localCanLike) onLike();
+          } else {
+            if (!isAnimating) onPass();
+          }
+        }
+      }}
+    >
+      {/* PHOTO AREA */}
+      <div className="position-relative flex-grow-1 overflow-hidden" onClick={() => openPhotoModal(currentImageUrl, currentProfile.id)}>
+        <div style={{ position: 'absolute', width: '100%', height: '100%', background: '#1a1a1a' }} />
+        <img 
+          src={currentImageUrl} 
+          alt={formatName(currentProfile)} 
+          className="w-100 h-100" 
+          style={{ objectFit: 'cover', position: 'absolute' }}
+          fetchPriority="high"
+          decoding="async"
+        />
+        
+        {photos.length > 1 && (
+          <div className="position-absolute top-0 start-0 w-100 d-flex gap-1 p-2" style={{ zIndex: 10 }}>
+            {photos.map((_, idx) => (
+              <div key={idx} className="flex-grow-1" style={{ height: '3px', backgroundColor: idx === currentPhotoIndex ? '#fff' : 'rgba(255,255,255,0.3)', borderRadius: '2px' }} />
+            ))}
+          </div>
         )}
+
+        {photos.length > 1 && (
+          <>
+            <button className="photo-nav-arrow left" onClick={(e) => { e.stopPropagation(); goToPrevPhoto(e); }}><i className="fas fa-chevron-left" /></button>
+            <button className="photo-nav-arrow right" onClick={(e) => { e.stopPropagation(); goToNextPhoto(e); }}><i className="fas fa-chevron-right" /></button>
+            <div className="photo-counter">{currentPhotoIndex + 1} / {photos.length}</div>
+          </>
+        )}
+
+        <div className="position-absolute bottom-0 start-0 w-100" style={{ height: '30%', background: 'linear-gradient(to top, #000, transparent)' }} />
       </div>
 
-      <div className="card-content" style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', margin: 0 }}>
-        <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-          <div className="d-flex align-items-center gap-2 flex-wrap">
-            <h2 className="fw-bold mb-0 clickable-profile" onClick={() => goToProfile(currentProfile.id)}>
-              {formatName(currentProfile)}
-              {currentProfile.age ? `, ${currentProfile.age}` : ''}
-            </h2>
-            {isMatched(currentProfile.id) && (
-              <span className="status-badge matched-badge">Match</span>
-            )}
-            {!isMatched(currentProfile.id) && isLiked(currentProfile.id) && (
-              <span className="status-badge liked-badge">Aimé</span>
-            )}
-          </div>
-          {locationDisplay && (
-            <div className="d-flex align-items-center text-secondary" style={{ fontSize: '0.9rem' }}>
-              <i className="fas fa-map-marker-alt me-1" style={{ fontSize: '0.8rem' }} />
-              <span className="text-truncate" style={{ maxWidth: '150px' }}>{locationDisplay}</span>
-            </div>
+      {/* CONTENT AREA */}
+      <div className="px-3 pb-3 pt-2 text-white" style={{ background: '#000', flexShrink: 0 }}>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <h2 className="fw-bold m-0 text-truncate" style={{ fontSize: '1.4rem' }}>
+            {formatName(currentProfile)}{currentProfile.age ? `, ${currentProfile.age}` : ''}
+          </h2>
+          {locationDisplay && <span className="small opacity-75"><i className="fas fa-map-marker-alt me-1"/>{locationDisplay}</span>}
+        </div>
+
+        <div className="mb-2">
+          {isMatched(currentProfile.id) && <span className="badge rounded-pill bg-danger me-2">Match</span>}
+          {isLiked(currentProfile.id) && !isMatched(currentProfile.id) && <span className="badge rounded-pill bg-warning text-dark me-2">Aimé</span>}
+        </div>
+
+        <p className="small mb-3 opacity-75" style={{ display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.4em' }}>
+          {currentProfile.bio || "Pas encore de bio"}
+        </p>
+
+        <div className="d-flex justify-content-center align-items-center gap-4 py-2">
+          {isMatched(currentProfile.id) ? (
+            <>
+              <RoundActionBtn onClick={onPass} bg="rgba(255,255,255,0.1)" icon="fas fa-times" iconColor="#fff" size={50} />
+              <RoundActionBtn onClick={() => goToMessenger(currentProfile.id)} bg="linear-gradient(135deg, #ff4d6d, #a158ff)" icon="fas fa-comment-dots" iconColor="#fff" size={62} />
+              <RoundActionBtn onClick={() => goToProfile(currentProfile.id)} bg="rgba(255,255,255,0.1)" icon="fas fa-user" iconColor="#fff" size={50} />
+            </>
+          ) : (
+            <>
+              <button onClick={onPass} className="btn border-2 rounded-circle d-flex align-items-center justify-content-center" style={{ width: 56, height: 56, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}>
+                <i className="fas fa-times fs-4"/>
+              </button>
+              
+              <button onClick={onLike} disabled={!localCanLike} className="btn rounded-circle shadow-lg d-flex align-items-center justify-content-center" style={{ width: 76, height: 76, background: 'linear-gradient(145deg, #ff4d6d, #ff3355)', border: 'none', opacity: localCanLike ? 1 : 0.5 }}>
+                <i className="fas fa-heart text-white fs-2"/>
+              </button>
+
+              <button onClick={() => goToProfile(currentProfile.id)} className="btn border-2 rounded-circle d-flex align-items-center justify-content-center" style={{ width: 56, height: 56, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}>
+                <i className="fas fa-user fs-4"/>
+              </button>
+            </>
           )}
         </div>
-        
-        <p className="text-secondary mb-3" style={{ fontSize: "1rem", lineHeight: 1.5 }}>{currentProfile.bio || "Pas encore de bio"}</p>
 
-        {isMatched(currentProfile.id) ? (
-          <div className="d-flex justify-content-center gap-2 flex-wrap mt-2" style={{ marginBottom: 0 }}>
-            <button
-              onClick={handlePass}
-              disabled={isAnimating}
-              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-              style={{
-                width: "60px",
-                height: "60px",
-                background: "#ffffff",
-                border: "1px solid #e9ecef",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f8f9fa";
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#ffffff";
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-              aria-label="Passer"
-            >
-              <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.3rem" }} />
-            </button>
+        {/* SWIPE COUNTER forced to show 20 limit for free accounts */}
+        {!isMatched(currentProfile.id) && (
+          swipeLimits?.account_type === 'free' ? (
+            <div className="text-center small mt-1 d-flex align-items-center justify-content-center gap-2" style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+              <span>
+                <i className="fas fa-heart me-1" style={{ fontSize: '0.6rem' }} />
+                {localLikesRemaining} / 20 likes restants
+              </span>
+              <div className="position-relative d-inline-flex" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+                <i className="fas fa-info-circle" style={{ cursor: 'pointer', fontSize: '0.7rem' }} />
+                {showTooltip && (
+                  <div className="tooltip-bubble">
+                    C'est votre compteur quotidien. Soyez prudent(e) sur les profils que vous likez ou passez. Notre conseil : visitez le profil complètement avant de prendre une décision.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : swipeLimits?.daily_limit && (
+            <div className="text-center small mt-1 d-flex align-items-center justify-content-center gap-2" style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+              <span>
+                <i className="fas fa-heart me-1" style={{ fontSize: '0.6rem' }} />
+                {localLikesRemaining} / {swipeLimits.daily_limit} likes restants
+              </span>
+              <div className="position-relative d-inline-flex" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+                <i className="fas fa-info-circle" style={{ cursor: 'pointer', fontSize: '0.7rem' }} />
+                {showTooltip && (
+                  <div className="tooltip-bubble">
+                    C'est votre compteur quotidien. Soyez prudent(e) sur les profils que vous likez ou passez. Notre conseil : visitez le profil complètement avant de prendre une décision.
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        )}
 
-            <RoundActionBtn
-              onClick={() => goToProfile(currentProfile.id)}
-              bg="#ffffff"
-              border="1px solid #e9ecef"
-              icon="fas fa-user"
-              iconColor="#6f42c1"
-              label="Voir le profil"
-            />
-
-            <RoundActionBtn
-              onClick={() => goToMessenger(currentProfile.id)}
-              bg="linear-gradient(145deg, #6f42c1, #5a32a3)"
-              border="none"
-              icon="fas fa-comment-dots"
-              iconColor="#ffffff"
-              label="Envoyer un message"
-            />
-
-            <RoundActionBtn
-              onClick={() => {
-                setMatchedProfile(currentProfile);
-                setMatchModalOpen(true);
-              }}
-              bg="#ffffff"
-              border="1px solid #dc354530"
-              icon="fas fa-heart-broken"
-              iconColor="#dc3545"
-              label="Annuler le match"
-            />
-
-            <RoundActionBtn
-              onClick={() => openReportModal(currentProfile)}
-              bg="#ffffff"
-              border="1px solid #ffc107"
-              icon="fas fa-flag"
-              iconColor="#ffc107"
-              label="Signaler"
-            />
-
-            <RoundActionBtn
-              onClick={() => handleBlock(currentProfile)}
-              bg="#1a1a1a"
-              border="none"
-              icon="fas fa-ban"
-              iconColor="#ffffff"
-              label="Bloquer"
-            />
-          </div>
-        ) : (
-          <div className="d-flex justify-content-center gap-3 mt-2" style={{ marginBottom: 0, paddingBottom: 0 }}>
-            <button
-              onClick={handlePass}
-              disabled={isAnimating}
-              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-              style={{
-                width: "60px",
-                height: "60px",
-                background: "#ffffff",
-                border: "1px solid #e9ecef",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f8f9fa";
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#ffffff";
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-              aria-label="Passer"
-            >
-              <i className="fas fa-times" style={{ color: "#adb5bd", fontSize: "1.3rem" }} />
-            </button>
-
-            <button
-              onClick={handleLike}
-              disabled={isAnimating}
-              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-              style={{
-                width: "74px",
-                height: "74px",
-                background: "linear-gradient(145deg, #ff4d6d, #ff3355)",
-                border: "none",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "scale(1.08)";
-                e.currentTarget.style.boxShadow = "0 10px 25px rgba(255,77,109,0.4)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "scale(1)";
-                e.currentTarget.style.boxShadow = "0 8px 20px rgba(255,77,109,0.3)";
-              }}
-              aria-label="Aimer"
-            >
-              <i className="fas fa-heart" style={{ color: "#ffffff", fontSize: "1.6rem" }} />
-            </button>
-
-            <button
-              onClick={() => goToProfile(currentProfile.id)}
-              disabled={isAnimating}
-              className="btn rounded-circle shadow d-flex align-items-center justify-content-center"
-              style={{
-                width: "60px",
-                height: "60px",
-                background: "#ffffff",
-                border: "1px solid #e9ecef",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#f8f9fa";
-                e.currentTarget.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#ffffff";
-                e.currentTarget.style.transform = "scale(1)";
-              }}
-              aria-label="Voir le profil"
-            >
-              <i className="fas fa-user" style={{ color: "#6f42c1", fontSize: "1.2rem" }} />
-            </button>
+        {!isMatched(currentProfile.id) && (
+          <div className="d-flex justify-content-center gap-4 mt-1 opacity-25">
+             <button onClick={() => openReportModal(currentProfile)} className="btn btn-sm text-white p-0"><i className="fas fa-flag"/></button>
+             <button onClick={() => handleBlock(currentProfile)} className="btn btn-sm text-white p-0"><i className="fas fa-ban"/></button>
           </div>
         )}
       </div>
 
       <style>{`
-        @media (max-width: 991.98px) {
-          .center-card {
-            border-radius: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            height: 100% !important;
-            width: 100% !important;
-            box-shadow: none !important;
-            position: relative !important;
-            display: flex !important;
-            flex-direction: column !important;
-          }
-          
-          .image-container {
-            border-radius: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            flex: 0 0 auto !important;
-            width: 100% !important;
-            height: 58vh !important;
-            max-height: 58vh !important;
-            min-height: 58vh !important;
-          }
-          
-          .image-container img {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-            object-position: center !important;
-          }
-          
-          .card-content {
-            padding: 12px 16px !important;
-            margin: 0 !important;
-            flex: 1 !important;
-            overflow-y: auto !important;
-            display: flex !important;
-            flex-direction: column !important;
-          }
-          
-          /* Push buttons to bottom */
-          .card-content > div:last-child {
-            margin-top: auto !important;
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
-          }
-          
-          /* Remove any extra spacing from buttons */
-          .card-content .d-flex {
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
-          }
-          
-          /* Ensure the last button container doesn't create space */
-          .d-flex.justify-content-center {
-            margin-bottom: 0 !important;
-          }
+        .photo-nav-arrow {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+          border: none;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 20;
+          transition: all 0.2s ease;
+          color: white;
+          font-size: 18px;
         }
-        
-        @media (min-width: 992px) {
-          .center-card {
-            border-radius: 24px !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
-          }
-          .image-container {
-            flex: 1.5 !important;
-            min-height: 0 !important;
-          }
-          .image-container img {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
-          }
-          .card-content {
-            padding-bottom: 20px !important;
-            overflow-y: visible !important;
-          }
+        .photo-nav-arrow:hover {
+          background: rgba(0, 0, 0, 0.7);
+          transform: translateY(-50%) scale(1.05);
+        }
+        .photo-nav-arrow.left { left: 12px; }
+        .photo-nav-arrow.right { right: 12px; }
+        .photo-counter {
+          position: absolute;
+          top: 16px;
+          right: 16px;
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(4px);
+          color: white;
+          padding: 4px 10px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 500;
+          z-index: 20;
+        }
+        .tooltip-bubble {
+          position: absolute;
+          bottom: 150%;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(8px);
+          color: white;
+          font-size: 0.7rem;
+          padding: 6px 12px;
+          border-radius: 12px;
+          white-space: nowrap;
+          z-index: 100;
+          width: max-content;
+          max-width: 220px;
+          white-space: normal;
+          text-align: center;
+          pointer-events: none;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .tooltip-bubble::after {
+          content: '';
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          border-width: 5px;
+          border-style: solid;
+          border-color: rgba(0, 0, 0, 0.85) transparent transparent transparent;
+        }
+        @media (max-width: 768px) {
+          .photo-nav-arrow { width: 36px; height: 36px; font-size: 14px; }
+          .photo-counter { top: 12px; right: 12px; font-size: 10px; padding: 3px 8px; }
+          .tooltip-bubble { max-width: 180px; font-size: 0.6rem; padding: 5px 10px; }
         }
       `}</style>
     </div>

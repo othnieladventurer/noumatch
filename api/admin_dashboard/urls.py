@@ -1,0 +1,89 @@
+# admin_dashboard/urls.py
+
+from django.urls import path
+from .views import (
+    AdminLoginView,
+    AdminDashboardView,
+    AdminUsersListView,
+    AdminUserDetailView,
+    AdminUserActionView,
+    AdminBlockUserView,
+    AdminBanUserView,
+    AdminUnbanUserView,
+    AdminDeactivateUserView,
+    AdminReportResolveView,
+    AdminReportsListView,
+    AdminReportDetailView,
+    AdminUpdateReportStatusView,
+    AdminBanUserFromReportView,
+    AdminSwipeStatsView,
+    AdminSupportConversationListView,
+    AdminSupportConversationDetailView,
+    AdminReplyToSupportView,
+    AdminFlaggedMessagesListView,
+    AdminTakeActionOnFlaggedMessageView,
+    AdminUserConversationsListView,
+    AdminUserConversationDetailView,
+    AdminUserConversationMessagesView,
+    LogImpressionView,
+    UpdateImpressionView,
+    AdminAnalyticsImpressionsView,
+    # Waitlist views
+    AdminWaitlistStatsView,
+    AdminWaitlistWaitingView,
+    AdminWaitlistAcceptedView,
+    AdminWaitlistArchivedView,
+    AdminWaitlistAcceptView,
+    AdminWaitlistContactView,
+    AdminWaitlistDeleteView,
+    AdminWaitlistArchiveDeleteView,
+    AdminWaitlistUpdateView,
+)
+
+# Import waitlist views directly (only if needed for other patterns; but we will not use them to avoid duplication)
+# from waitlist.views import mark_contacted, delete_archived_entry, bulk_mark_contacted, get_campaign_list
+
+urlpatterns = [
+    path('admin_login/', AdminLoginView.as_view(), name='admin-login'),
+    path('dashboard/', AdminDashboardView.as_view(), name='admin-dashboard'),
+    path('users/list/', AdminUsersListView.as_view(), name='admin-users'),
+    path('users/detail/<int:user_id>/', AdminUserDetailView.as_view(), name='admin-user-detail'),
+    path('user_action/', AdminUserActionView.as_view(), name='admin-user-action'),
+    path('resolve_report/', AdminReportResolveView.as_view(), name='admin-resolve-report'),
+    path('user/block/', AdminBlockUserView.as_view(), name='admin-block-user'),
+    path('user/ban/', AdminBanUserView.as_view(), name='admin-ban-user'),
+    path('user/unban/', AdminUnbanUserView.as_view(), name='admin-unban-user'),
+    path('user/deactivate/', AdminDeactivateUserView.as_view(), name='admin-deactivate-user'),
+    path('reports/list/', AdminReportsListView.as_view(), name='admin-reports-list'),
+    path('reports/detail/<int:pk>/', AdminReportDetailView.as_view(), name='admin-report-detail'),
+    path('reports/update-status/<int:pk>/', AdminUpdateReportStatusView.as_view(), name='admin-report-update-status'),
+    path('reports/ban-user/', AdminBanUserFromReportView.as_view(), name='admin-ban-from-report'),
+    path('swipe-stats/', AdminSwipeStatsView.as_view(), name='admin-swipe-stats'),
+    path('support-conversations/', AdminSupportConversationListView.as_view(), name='admin-support-conversations'),
+    path('support-conversations/<int:pk>/', AdminSupportConversationDetailView.as_view(), name='admin-support-conversation-detail'),
+    path('support-conversations/<int:pk>/reply/', AdminReplyToSupportView.as_view(), name='admin-support-reply'),
+    path('flagged-messages/', AdminFlaggedMessagesListView.as_view(), name='admin-flagged-messages'),
+    path('flagged-messages/<int:pk>/action/', AdminTakeActionOnFlaggedMessageView.as_view(), name='admin-flagged-action'),
+    path('user-conversations/', AdminUserConversationsListView.as_view(), name='admin-user-conversations'),
+    path('user-conversations/<int:pk>/', AdminUserConversationDetailView.as_view(), name='admin-user-conversation-detail'),
+    path('user-conversations/<int:pk>/messages/', AdminUserConversationMessagesView.as_view(), name='admin-user-conversation-messages'),
+    path('analytics/impression/', LogImpressionView.as_view(), name='log_impression'),
+    path('analytics/impression/update/', UpdateImpressionView.as_view(), name='update_impression'),
+    path('analytics/impressions/', AdminAnalyticsImpressionsView.as_view(), name='admin-analytics-impressions'),
+    
+    # ==================== WAITLIST ADMIN ENDPOINTS ====================
+    path('waitlist/stats/', AdminWaitlistStatsView.as_view(), name='admin-waitlist-stats'),
+    path('waitlist/waiting/', AdminWaitlistWaitingView.as_view(), name='admin-waitlist-waiting'),
+    path('waitlist/accepted/', AdminWaitlistAcceptedView.as_view(), name='admin-waitlist-accepted'),
+    path('waitlist/archived/', AdminWaitlistArchivedView.as_view(), name='admin-waitlist-archived'),
+    path('waitlist/<int:entry_id>/accept/', AdminWaitlistAcceptView.as_view(), name='admin-waitlist-accept'),
+    path('waitlist/<int:entry_id>/contact/', AdminWaitlistContactView.as_view(), name='admin-waitlist-contact'),
+    path('waitlist/<int:entry_id>/delete/', AdminWaitlistDeleteView.as_view(), name='admin-waitlist-delete'),
+    path('waitlist/archive/<int:archive_id>/delete/', AdminWaitlistArchiveDeleteView.as_view(), name='admin-waitlist-archive-delete'),
+    path('waitlist/<int:entry_id>/update/', AdminWaitlistUpdateView.as_view(), name='admin-waitlist-update'),
+]
+
+
+
+
+

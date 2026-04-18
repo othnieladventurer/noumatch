@@ -10,25 +10,34 @@ from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAdminUser
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-
-from .models import User, UserPhoto
-from interactions.models import Like, Pass
-from matches.models import Match
-from block.models import Block
-from .serializers import (RegisterSerializer, LoginSerializer, 
-                          ChangePasswordSerializer, UserSerializer, MeSerializer, UserProfileSerializer,
-                          UserPhotoSerializer)
-
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils import timezone
-from .models import OTP
-from .utils import generate_otp, send_otp_email
-from rest_framework import status
-from .email_api import send_otp_via_api
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework.pagination import PageNumberPagination
+
+from .models import User, UserPhoto, OTP
+from interactions.models import Like, Pass
+from matches.models import Match
+from block.models import Block
+from .serializers import (
+    RegisterSerializer, LoginSerializer, 
+    ChangePasswordSerializer, UserSerializer, MeSerializer, 
+    UserProfileSerializer, UserPhotoSerializer
+)
+from .utils import generate_otp, send_otp_email
+from .email_api import send_otp_via_api
+
+from admin_dashboard.services.ranking import compute_ranking_score
+from datetime import timedelta
+
+
+
+
+
+
 
 
 class UserListView(generics.ListAPIView):
@@ -38,33 +47,65 @@ class UserListView(generics.ListAPIView):
 
 
 
-
-
-
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        email = request.data.get('email', '').strip()
+        email = request.data.get('email', '').strip().lower()
 
-        # ✅ SIMPLE EMAIL CHECK
+        # FIRST CHECK: Is this email already registered?
         if User.objects.filter(email=email).exists():
             return Response(
-                {"error": "Votre email est deja enregistre retournez sur connexion"},
+                {"error": "Votre email est déjà enregistré. Retournez sur connexion."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # SECOND CHECK: Is this email in the waitlist and contacted?
+        from waitlist.models import WaitlistEntry, ContactedArchive
+        
+        # Check in active waitlist first
+        waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).first()
+        
+        # If not found in active waitlist, check in contacted archive
+        if not waitlist_entry:
+            archived_entry = ContactedArchive.objects.filter(email=email).first()
+            if archived_entry:
+                # They were contacted and archived - allowed to register
+                pass
+            else:
+                return Response(
+                    {"error": "Accès non autorisé. Vous devez d'abord rejoindre la liste d'attente et être contacté par notre équipe pour vous inscrire."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        # If found in waitlist but not contacted
+        if waitlist_entry and not waitlist_entry.contacted:
+            return Response(
+                {"error": "Votre inscription sur la liste d'attente est en cours de traitement. Vous recevrez un email de confirmation avant de pouvoir créer votre compte."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # User is authorized to register
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Generate OTP
+        # Mark waitlist entry as used (optional - to prevent re-registration)
+        if waitlist_entry:
+            # Optionally move to archive or mark as registered
+            pass
+
+        # Generate 4-digit OTP
         otp_code = generate_otp()
         
-        OTP.objects.update_or_create(
+        # Delete any existing OTP and create new one
+        OTP.objects.filter(user=user).delete()
+        OTP.objects.create(
             user=user,
-            defaults={'code': otp_code, 'is_used': False}
+            code=otp_code,
+            is_used=False,
+            attempts=0
         )
         
         def send_email_background():
@@ -77,15 +118,65 @@ class RegisterView(generics.CreateAPIView):
         thread.daemon = True
         thread.start()
         
-        print(f"🔐 Registration: {user.email} | OTP: {otp_code}")
+        print(f"🔐 Registration: {user.email} | OTP: {otp_code} (valid for 5 minutes)")
         print(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
 
         return Response({
-            "message": "Registration successful. Please verify your email.",
+            "message": "Registration successful. Please verify your email with the 4-digit code sent.",
             "user_id": user.id,
         }, status=status.HTTP_201_CREATED)
 
 
+
+
+
+
+
+class CheckCanRegisterView(APIView):
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        email = request.query_params.get('email', '').strip().lower()
+        
+        if not email:
+            return Response({"can_register": False, "message": "Email requis"}, status=400)
+        
+        from waitlist.models import WaitlistEntry, ContactedArchive
+        
+        # Check if already registered
+        if User.objects.filter(email=email).exists():
+            return Response({
+                "can_register": False, 
+                "message": "Cet email est déjà utilisé. Connectez-vous."
+            })
+        
+        # Check if in waitlist and contacted
+        waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).first()
+        
+        if waitlist_entry:
+            return Response({
+                "can_register": True,
+                "message": "Vous pouvez créer votre compte"
+            })
+        
+        # Check archive
+        archived_entry = ContactedArchive.objects.filter(email=email).first()
+        
+        if archived_entry:
+            return Response({
+                "can_register": True,
+                "message": "Vous pouvez créer votre compte"
+            })
+        
+        return Response({
+            "can_register": False,
+            "message": "Vous devez rejoindre la liste d'attente et être contacté par notre équipe avant de pouvoir vous inscrire."
+        })
+
+
+
+
+        
 
 
 
@@ -96,22 +187,65 @@ class VerifyOTPView(APIView):
         user_id = request.data.get('user_id')
         code = request.data.get('code')
 
+        # Validate input
         if not user_id or not code:
-            return Response({'error': 'user_id and code are required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'user_id and code are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate code format (must be 4 digits)
+        if not str(code).isdigit() or len(str(code)) != 4:
+            return Response(
+                {'error': 'Code must be exactly 4 digits'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             user = User.objects.get(id=user_id)
             otp = OTP.objects.get(user=user)
         except User.DoesNotExist:
-            return Response({'error': 'Invalid user'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'Invalid user'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except OTP.DoesNotExist:
-            return Response({'error': 'OTP not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'error': 'No OTP found. Please request a new code.'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
+        # Check if user can attempt (max 5 attempts)
+        if not otp.can_attempt():
+            remaining_attempts = otp.max_attempts - otp.attempts
+            return Response(
+                {'error': f'Maximum attempts exceeded ({otp.max_attempts}/5). Please request a new code.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Check if OTP is valid (not expired and not used)
         if not otp.is_valid():
-            return Response({'error': 'OTP is invalid or expired'}, status=status.HTTP_400_BAD_REQUEST)
+            if otp.is_used:
+                return Response(
+                    {'error': 'This code has already been used. Please request a new code.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                return Response(
+                    {'error': 'Code has expired (5 minutes). Please request a new code.'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
+        # Increment attempts
+        otp.increment_attempts()
+        
+        # Verify code
         if otp.code != code:
-            return Response({'error': 'Invalid code'}, status=status.HTTP_400_BAD_REQUEST)
+            remaining = otp.max_attempts - otp.attempts
+            return Response(
+                {'error': f'Invalid code. {remaining} attempt(s) remaining.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Mark OTP as used and verify user
         otp.is_used = True
@@ -128,10 +262,10 @@ class VerifyOTPView(APIView):
             'user': {
                 'id': user.id,
                 'email': user.email,
-                'username': user.username,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
             }
         }, status=status.HTTP_200_OK)
-
 
 
 class ResendOTPView(APIView):
@@ -140,23 +274,37 @@ class ResendOTPView(APIView):
     def post(self, request):
         user_id = request.data.get('user_id')
         
+        if not user_id:
+            return Response(
+                {'error': 'user_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return Response({'error': 'Invalid user'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Generate new OTP
+            return Response(
+                {'error': 'Invalid user'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check if user is already verified
+        if user.is_verified:
+            return Response(
+                {'error': 'User is already verified'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Generate new 4-digit OTP
         otp_code = generate_otp()
         
-        # Update OTP in database - reset attempts and timer
-        OTP.objects.update_or_create(
+        # Delete old OTP and create new one (invalidates any previous OTP)
+        OTP.objects.filter(user=user).delete()
+        OTP.objects.create(
             user=user,
-            defaults={
-                'code': otp_code, 
-                'is_used': False, 
-                'attempts': 0,
-                'created_at': timezone.now()  # Reset creation time
-            }
+            code=otp_code,
+            is_used=False,
+            attempts=0
         )
         
         # Send email in background
@@ -169,14 +317,53 @@ class ResendOTPView(APIView):
         thread = threading.Thread(target=send_email_background)
         thread.daemon = True
         thread.start()
+        
+        print(f"🔄 Resent OTP for {user.email}: {otp_code} (valid for 5 minutes)")
 
         return Response(
-            {'message': 'New verification code sent to your email'}, 
+            {'message': 'New 4-digit verification code sent to your email. Valid for 5 minutes.'}, 
             status=status.HTTP_200_OK
         )
+
+
+class CheckOTPStatusView(APIView):
+    """Check if user has a valid OTP (for frontend timer sync)"""
+    permission_classes = [AllowAny]
     
-
-
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        
+        if not user_id:
+            return Response(
+                {'error': 'user_id is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user = User.objects.get(id=user_id)
+            otp = OTP.objects.get(user=user)
+        except (User.DoesNotExist, OTP.DoesNotExist):
+            return Response({
+                'has_valid_otp': False,
+                'message': 'No OTP found'
+            }, status=status.HTTP_200_OK)
+        
+        if otp.is_valid():
+            # Calculate remaining time (5 minutes = 300 seconds)
+            elapsed = (timezone.now() - otp.created_at).total_seconds()
+            remaining = max(0, 300 - elapsed)
+            
+            return Response({
+                'has_valid_otp': True,
+                'remaining_seconds': int(remaining),
+                'attempts_used': otp.attempts,
+                'attempts_remaining': otp.max_attempts - otp.attempts
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'has_valid_otp': False,
+                'message': 'OTP expired or used'
+            }, status=status.HTTP_200_OK)
 
 
 class LoginView(generics.GenericAPIView):
@@ -197,6 +384,13 @@ class LoginView(generics.GenericAPIView):
                 {"detail": "Invalid credentials"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+        
+        # Check if user is verified
+        if not user.is_verified:
+            return Response(
+                {"detail": "Please verify your email before logging in."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
 
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
@@ -209,8 +403,6 @@ class LoginView(generics.GenericAPIView):
             "refresh": str(refresh),
         })
  
-
-
 
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
@@ -252,11 +444,19 @@ class ChangePasswordView(generics.UpdateAPIView):
         return Response({"detail": "Password updated successfully"})
 
 
+class ProfilePagination(PageNumberPagination):
+    page_size = 15
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+
 
 
 class UserProfileListView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = ProfilePagination  
 
     def get_queryset(self):
         user = self.request.user
@@ -269,65 +469,30 @@ class UserProfileListView(generics.ListAPIView):
         queryset = User.objects.none()
         
         try:
-            # Base filter by gender
             if user.gender == 'male':
-                queryset = User.objects.filter(
-                    is_active=True,
-                    gender='female'
-                )
+                queryset = User.objects.filter(is_active=True, gender='female')
                 print(f"🔍 Man looking for women")
-                
             elif user.gender == 'female':
-                queryset = User.objects.filter(
-                    is_active=True,
-                    gender='male'
-                )
+                queryset = User.objects.filter(is_active=True, gender='male')
                 print(f"🔍 Woman looking for men")
-                
             else:
-                queryset = User.objects.filter(
-                    is_active=True
-                )
+                queryset = User.objects.filter(is_active=True)
                 print(f"🔍 Showing all users")
             
-            # Exclude superusers
             queryset = queryset.filter(is_superuser=False)
             
-            # Get IDs of users the current user has already interacted with
             liked_ids = Like.objects.filter(from_user=user).values_list('to_user_id', flat=True)
             matches_as_user1 = Match.objects.filter(user1=user).values_list('user2_id', flat=True)
             matches_as_user2 = Match.objects.filter(user2=user).values_list('user1_id', flat=True)
             matched_ids = list(matches_as_user1) + list(matches_as_user2)
             blocked_ids = Block.objects.filter(blocker=user).values_list('blocked_id', flat=True)
-            active_pass_ids = Pass.objects.filter(
-                from_user=user,
-                expires_at__gt=now
-            ).values_list('to_user_id', flat=True)
+            active_pass_ids = Pass.objects.filter(from_user=user, expires_at__gt=now).values_list('to_user_id', flat=True)
             
-            # Base exclusions (exclude users already interacted with)
             base_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids) | set(active_pass_ids)
             base_exclusions.add(user.id)
             
-            # Apply account type restrictions
-            if user.account_type == 'free':
-                # Free users: Only exclude profiles they've already interacted with
-                # DO NOT exclude profiles that have liked them
-                queryset = queryset.exclude(id__in=base_exclusions)
-                
-                # Optional: Limit free users to 20 profiles per request
-                queryset = queryset[:20]
-                print(f"🔍 FREE USER - Showing profiles (no exclusion of users who liked them)")
-                print(f"🔍 FREE USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
-                
-            else:  # premium or god_mode
-                # Premium/God mode users: show all profiles except those they've already interacted with
-                queryset = queryset.exclude(id__in=base_exclusions)
-                print(f"🔍 PREMIUM/GOD USER - No additional restrictions")
-                print(f"🔍 PREMIUM/GOD USER - Excluding {len(liked_ids)} liked, {len(matched_ids)} matched, {len(blocked_ids)} blocked, {len(active_pass_ids)} passed")
-            
-            print(f"🔍 FINAL RESULTS: {queryset.count()} profiles")
-            for profile in queryset[:5]:
-                print(f"  ✅ Profile ID: {profile.id}, Username: {profile.username}, Gender: {profile.gender}")
+            queryset = queryset.exclude(id__in=base_exclusions)
+            print(f"🔍 TOTAL PROFILES BEFORE RANKING: {queryset.count()}")
             
         except Exception as e:
             print(f"❌ ERROR in get_queryset: {e}")
@@ -339,24 +504,73 @@ class UserProfileListView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
+        debug = request.GET.get('debug') == 'true'
         
-        # 🔍 DEBUG - Print the first profile's photo URL
-        if serializer.data:
-            print("🔍 DEBUG - First profile data:")
-            print(f"   profile_photo: {serializer.data[0].get('profile_photo')}")
-            print(f"   profile_photo_url: {serializer.data[0].get('profile_photo_url')}")
+        # Build list with ranking scores
+        profile_list = []
+        for profile in queryset:
+            score = compute_ranking_score(request.user, profile)
+            reasons = []
+            if debug:
+                reasons = self._get_ranking_reasons(request.user, profile)
+            
+            # Get serializer data
+            serializer = self.get_serializer(profile)
+            profile_data = serializer.data
+            profile_data['ranking_score'] = score
+            if debug:
+                profile_data['ranking_reasons'] = reasons
+            profile_list.append(profile_data)
         
-        print(f"🔍 RETURNING {len(serializer.data)} profiles to frontend")
+        # Sort by ranking score descending (highest first)
+        profile_list.sort(key=lambda x: x['ranking_score'], reverse=True)
         
-        # Add account type info to response for frontend
+        # Apply pagination
+        page = self.paginate_queryset(profile_list)
+        
+        if page is not None:
+            response_data = {
+                "profiles": page,
+                "user_account_type": request.user.account_type,
+                "can_see_who_liked": request.user.account_type != 'free'
+            }
+            paginated_response = self.get_paginated_response(response_data)
+            return paginated_response
+        
         response_data = {
-            "profiles": serializer.data,
+            "profiles": profile_list,
             "user_account_type": request.user.account_type,
             "can_see_who_liked": request.user.account_type != 'free'
         }
-        
         return Response(response_data)
+    
+    def _get_ranking_reasons(self, viewer, profile):
+        reasons = []
+        if profile.profile_photo:
+            reasons.append("Has profile photo (+5)")
+        if profile.bio:
+            reasons.append("Has bio (+5)")
+        if profile.city:
+            reasons.append("Location filled (+3)")
+        if profile.passions:
+            reasons.append("Has passions (+3)")
+        if profile.hobbies:
+            reasons.append("Has hobbies (+2)")
+        if profile.last_activity and profile.last_activity > timezone.now() - timedelta(hours=24):
+            reasons.append("Active in last 24h (+15)")
+        elif profile.last_activity and profile.last_activity > timezone.now() - timedelta(days=7):
+            reasons.append("Active in last 7 days (+8)")
+        if profile.date_joined > timezone.now() - timedelta(days=3):
+            reasons.append("New user boost (+10)")
+        return reasons
+   
+
+
+
+
+
+
+
 
 
 
@@ -413,7 +627,6 @@ def heartbeat(request):
     }, status=status.HTTP_200_OK)
 
 
-
 @require_GET
 @csrf_exempt
 def check_email(request):
@@ -422,10 +635,6 @@ def check_email(request):
         return JsonResponse({'exists': False, 'error': 'No email'}, status=400)
     exists = User.objects.filter(email=email).exists()
     return JsonResponse({'exists': exists})
-
-
-
-
 
 
 class UserPhotoViewSet(viewsets.ModelViewSet):
@@ -550,3 +759,41 @@ class UserPhotoDeleteView(generics.DestroyAPIView):
 
     def get_queryset(self):
         return UserPhoto.objects.filter(user=self.request.user)
+
+
+
+
+
+
+class UserStatsView(APIView):
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            stats = user.stats  # OneToOne relation
+            return Response({
+                'likes_given': stats.total_likes_given,
+                'likes_received': stats.total_likes_received,
+                'matches': stats.total_matches,
+                'active_matches': stats.active_matches,
+                'messages_sent': stats.total_messages_sent,
+                'messages_received': stats.total_messages_received,
+                'blocks_given': stats.total_blocks_given,
+                'blocks_received': stats.total_blocks_received,
+                'reports_filed': stats.total_reports_filed,
+                'reports_received': stats.total_reports_received,
+                'last_active': stats.last_active,
+                'account_age_days': stats.account_age_days,
+                'streak_days': stats.streak_days,
+            })
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=404)
+
+
+
+
+
+
+
+        
