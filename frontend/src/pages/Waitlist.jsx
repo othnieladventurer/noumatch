@@ -666,7 +666,7 @@ export default function AdminWaitlist() {
         </div>
       )}
 
-      {/* Contact Modal */}
+      {/* Contct Modal */}
       {showContactModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog">
