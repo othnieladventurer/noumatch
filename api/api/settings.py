@@ -15,21 +15,29 @@ SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
+
+
 ALLOWED_HOSTS = [
-    'api-staging.noumatch.com', 
-    'https://noumatch.onrender.com',
+    'api.noumatch.com',
+    'noumatch.com',
+    'www.noumatch.com',
+    'noumatch.onrender.com',  # Keep if still on Render
     'localhost',          
     '127.0.0.1',                         
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    'https://staging.noumatch.com', 
-    'https://noumatch.onrender.com', 
+    'https://noumatch.com',
+    'https://www.noumatch.com',
+    'https://noumatch.onrender.com',  # Keep if frontend on Render
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
     'http://127.0.0.1:3000',
 ]
+
+
+
 
 CORS_ALLOW_CREDENTIALS = True
 
