@@ -33,6 +33,8 @@ import Conversation from './pages/Conversation';
 import Notifications from './pages/Notifications'; 
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import VerifyOtp from "./pages/VerifyOtp";
+import Faq from "./pages/Faq";
+import Contact from "./pages/Contact";
 import Terms from "./pages/Terms";
 
 // Admin Pages
@@ -73,6 +75,7 @@ export default function App() {
     "/reset-password",
     "/reset-password-done",
     "/verify-otp",
+    
     "/admin/login",
     "/admin/dashboard",
     "/admin/users",
@@ -109,6 +112,8 @@ export default function App() {
             <Route path="/waitlist/stats" element={<WaitlistStats />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/faq" element={<Faq />} />
+            <Route path="/contact" element={<Contact />} />
 
             {/* Email Verification */}
             <Route path="/verify-email" element={<EmailVerify />} />

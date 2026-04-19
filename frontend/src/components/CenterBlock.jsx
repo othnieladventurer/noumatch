@@ -104,8 +104,8 @@ export default function CenterBlock(props) {
   };
 
   const inviteLink = user?.referral_code 
-    ? `${window.location.origin}/signup?ref=${user.referral_code}`
-    : `${window.location.origin}/signup`;
+    ? `${window.location.origin}/register?ref=${user.referral_code}`
+    : `${window.location.origin}/register`;
 
   const handleCopyInviteLink = () => {
     navigator.clipboard.writeText(inviteLink);
@@ -118,7 +118,7 @@ export default function CenterBlock(props) {
       <div className="d-flex flex-column align-items-center justify-content-center p-4 text-center" style={{ minHeight: '100%', background: '#000', color: 'white' }}>
         <div className="mb-4">
           <i className="fas fa-users fa-3x mb-3" style={{ color: '#ff4d6d' }}></i>
-          <h4 className="mb-3">Plus de profils pour le moment</h4>
+          <h4 className="mb-3">De nouveaux profils arrivent bientôt</h4>
           <p className="small opacity-75 mb-4">
             De nouveaux profils arrivent bientôt depuis notre liste d'attente.<br />
             Pour nous aider à grandir et débloquer plus de profils, invitez vos amis à rejoindre NouMatch !

@@ -82,14 +82,14 @@ export default function Footer() {
                   </Link>
                 </li>
                 <li className="mb-2">
-                  <a href="#contact" className="text-light text-decoration-none opacity-75 hover-opacity-100">
+                  <Link to="/contact" className="text-light text-decoration-none opacity-75 hover-opacity-100">
                     Contact
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#faq" className="text-light text-decoration-none opacity-75 hover-opacity-100">
+                  <Link to="/faq" className="text-light text-decoration-none opacity-75 hover-opacity-100">
                     FAQ
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>

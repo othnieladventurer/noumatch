@@ -559,6 +559,7 @@ export default function Register() {
       </div>
 
       {/* Eligibility Modal - Only for waitlisted users */}
+      {/* Eligibility Modal - Only for waitlisted users */}
       {showEligibilityModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999 }}>
           <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "450px" }}>
@@ -570,12 +571,12 @@ export default function Register() {
                       <i className="fas fa-clock text-warning fs-1"></i>
                     </div>
                   </div>
-                  <h5 className="modal-title fw-bold">Accès anticipé - Liste d'attente</h5>
+                  <h5 className="modal-title fw-bold">Vous devez être sur la liste d'attente</h5>
                 </div>
               </div>
               <div className="modal-body text-center pt-0">
                 <p className="text-muted mb-3">
-                  {eligibilityMessage || "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."}
+                  {eligibilityMessage || "L'accès est limité aux personnes inscrites sur la liste d'attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."}
                 </p>
                 <div className="alert alert-info bg-light rounded-3 p-3 mb-0">
                   <i className="fas fa-envelope-open-text text-primary me-2"></i>
@@ -585,7 +586,11 @@ export default function Register() {
                 </div>
               </div>
               <div className="modal-footer border-0 justify-content-center gap-3 pt-0">
-                <Link to="/waitlist" className="btn btn-danger px-4 rounded-pill">
+                <Link 
+                  to="/waitlist" 
+                  className="btn btn-danger px-4 rounded-pill"
+                  onClick={() => setShowEligibilityModal(false)}
+                >
                   <i className="fas fa-list me-2"></i>
                   Rejoindre la liste d'attente
                 </Link>
@@ -599,8 +604,8 @@ export default function Register() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+  </div>
+)}
     </>
   );
 }

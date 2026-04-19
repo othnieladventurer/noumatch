@@ -21,6 +21,10 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
     navigate('/admin/login');
   };
 
+  const toggleDropdown = () => {
+    setDropdownOpen(!dropdownOpen);
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -34,6 +38,17 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
+
+  // Close dropdown on escape key
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape' && dropdownOpen) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
   }, [dropdownOpen]);
 
   return (
@@ -53,21 +68,24 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           <i className={`fas ${darkMode ? 'fa-sun' : 'fa-moon'}`}></i>
         </button>
         
-        {/* Avatar with hover dropdown */}
-        <div 
-          className="admin-avatar"
-          ref={avatarRef}
-          onMouseEnter={() => setDropdownOpen(true)}
-          onMouseLeave={() => setDropdownOpen(false)}
-        >
-          <i className="fas fa-user-circle"></i>
-          <span className="admin-name">{adminEmail.split('@')[0]}</span>
+        {/* Avatar with click dropdown */}
+        <div className="avatar-container">
+          <button
+            className="admin-avatar"
+            ref={avatarRef}
+            onClick={toggleDropdown}
+            aria-expanded={dropdownOpen}
+            aria-label="User menu"
+          >
+            <i className="fas fa-user-circle"></i>
+            <span className="admin-name">{adminEmail.split('@')[0]}</span>
+            <i className={`fas fa-chevron-${dropdownOpen ? 'up' : 'down'} dropdown-arrow`}></i>
+          </button>
+          
           {dropdownOpen && (
             <div 
               className="avatar-dropdown"
               ref={dropdownRef}
-              onMouseEnter={() => setDropdownOpen(true)}
-              onMouseLeave={() => setDropdownOpen(false)}
             >
               <button className="dropdown-item" onClick={handleLogout}>
                 <i className="fas fa-sign-out-alt me-2"></i> Logout
@@ -77,7 +95,6 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
         </div>
       </div>
 
-      {/* Optional: inject styles to ensure dropdown positioning and behavior */}
       <style>{`
         .admin-navbar {
           display: flex;
@@ -88,6 +105,9 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           background: ${darkMode ? '#1e1e2f' : '#ffffff'};
           border-bottom: 1px solid ${darkMode ? '#2d2d3a' : '#e9ecef'};
           box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+          position: sticky;
+          top: 0;
+          z-index: 100;
         }
         .navbar-left .page-title {
           font-size: 1.25rem;
@@ -105,6 +125,7 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           background: ${darkMode ? '#2d2d3a' : '#f8f9fa'};
           padding: 6px 12px;
           border-radius: 30px;
+          white-space: nowrap;
         }
         .theme-toggle {
           background: transparent;
@@ -115,12 +136,17 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           padding: 8px;
           border-radius: 50%;
           transition: background 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
         .theme-toggle:hover {
           background: ${darkMode ? '#3a3a4a' : '#e9ecef'};
         }
-        .admin-avatar {
+        .avatar-container {
           position: relative;
+        }
+        .admin-avatar {
           display: flex;
           align-items: center;
           gap: 8px;
@@ -128,18 +154,25 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           padding: 6px 12px;
           border-radius: 40px;
           transition: background 0.2s;
+          background: transparent;
+          border: none;
+          font-size: 0.9rem;
+          color: ${darkMode ? '#e9ecef' : '#495057'};
         }
         .admin-avatar:hover {
           background: ${darkMode ? '#2d2d3a' : '#f1f3f5'};
         }
-        .admin-avatar i {
+        .admin-avatar i:first-child {
           font-size: 1.6rem;
           color: ${darkMode ? '#adb5bd' : '#6c757d'};
         }
         .admin-name {
-          font-size: 0.9rem;
           font-weight: 500;
-          color: ${darkMode ? '#e9ecef' : '#495057'};
+        }
+        .dropdown-arrow {
+          font-size: 0.75rem;
+          transition: transform 0.2s;
+          color: ${darkMode ? '#adb5bd' : '#6c757d'};
         }
         .avatar-dropdown {
           position: absolute;
@@ -147,17 +180,28 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           right: 0;
           background: ${darkMode ? '#2d2d3a' : '#ffffff'};
           border-radius: 12px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.15);
           min-width: 160px;
           z-index: 1000;
           overflow: hidden;
           border: 1px solid ${darkMode ? '#3a3a4a' : '#e9ecef'};
+          animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
         .dropdown-item {
           display: flex;
           align-items: center;
           width: 100%;
-          padding: 10px 16px;
+          padding: 12px 16px;
           background: transparent;
           border: none;
           color: ${darkMode ? '#f8f9fa' : '#212529'};
@@ -167,14 +211,59 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           text-align: left;
         }
         .dropdown-item:hover {
-          background: ${darkMode ? '#3a3a4a' : '#f8f9fa'};
+          background: ${darkMode ? '#3a3a4a' : '#f1f3f5'};
         }
+        /* Mobile responsive */
         @media (max-width: 768px) {
-          .admin-navbar { padding: 0 16px; }
-          .date-badge { display: none; }
-          .admin-name { display: none; }
+          .admin-navbar {
+            padding: 0 16px;
+          }
+          .date-badge {
+            display: none;
+          }
+          .admin-name {
+            display: none;
+          }
+          .admin-avatar {
+            padding: 6px 10px;
+          }
+          .avatar-dropdown {
+            position: fixed;
+            top: auto;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            border-radius: 16px 16px 0 0;
+            animation: slideUp 0.3s ease;
+          }
+          @keyframes slideUp {
+            from {
+              transform: translateY(100%);
+            }
+            to {
+              transform: translateY(0);
+            }
+          }
+          .dropdown-item {
+            padding: 16px;
+            justify-content: center;
+            font-size: 1rem;
+          }
+        }
+        /* Tablet responsive */
+        @media (max-width: 1024px) and (min-width: 769px) {
+          .date-badge {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+          }
+          .admin-name {
+            font-size: 0.8rem;
+          }
         }
       `}</style>
     </nav>
   );
 }
+
+
