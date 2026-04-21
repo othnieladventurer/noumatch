@@ -16,11 +16,11 @@ def send_otp_via_api(user, otp_code):
         if not api_key:
             error_msg = "❌ BREVO_API_KEY is NOT configured in environment variables!"
             logger.error(error_msg)
-            print(error_msg)
+            logging.info(error_msg)
             return False
         
         # Log API key presence (first few chars only for security)
-        print(f"🔑 API Key loaded: {api_key[:15]}... (length: {len(api_key)})")
+        logging.info(f"🔑 API Key loaded: {api_key[:15]}... (length: {len(api_key)})")
         logger.info(f"API Key loaded: {api_key[:15]}... (length: {len(api_key)})")
         
         # HTML Email Template
@@ -170,43 +170,43 @@ If you didn't request this verification, please ignore this email.
         }
         
         # Log email attempt
-        print(f"📧 Attempting to send OTP to {user.email}")
-        print(f"🔐 OTP Code: {otp_code}")
+        logging.info(f"📧 Attempting to send OTP to {user.email}")
+        logging.info(f"🔐 OTP Code: {otp_code}")
         logger.info(f"Attempting to send OTP to {user.email}")
         
         # Make the API call
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         
         # Log response
-        print(f"📡 Response Status: {response.status_code}")
-        print(f"📡 Response Body: {response.text}")
+        logging.info(f"📡 Response Status: {response.status_code}")
+        logging.info(f"📡 Response Body: {response.text}")
         logger.info(f"Brevo API Response: {response.status_code}")
         
         if response.status_code == 201:
-            print(f"✅ SUCCESS: OTP sent successfully to {user.email}")
+            logging.info(f"✅ SUCCESS: OTP sent successfully to {user.email}")
             logger.info(f"OTP sent successfully to {user.email}")
             return True
         else:
             error_msg = f"❌ API Error: {response.status_code} - {response.text}"
-            print(error_msg)
+            logging.info(error_msg)
             logger.error(error_msg)
             return False
             
     except requests.exceptions.Timeout:
         error_msg = f"⏰ Timeout sending OTP to {user.email}"
-        print(error_msg)
+        logging.info(error_msg)
         logger.error(error_msg)
         return False
         
     except requests.exceptions.ConnectionError:
         error_msg = f"🔌 Connection error sending OTP to {user.email}"
-        print(error_msg)
+        logging.info(error_msg)
         logger.error(error_msg)
         return False
         
     except Exception as e:
         error_msg = f"❌ Unexpected error: {e}"
-        print(error_msg)
+        logging.info(error_msg)
         logger.error(error_msg)
         return False
 

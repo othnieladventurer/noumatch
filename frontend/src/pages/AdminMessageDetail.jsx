@@ -12,12 +12,12 @@ const getApiBase = () => {
   let baseDomain = '';
 
   if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+    baseDomain = import.meta.env.VITE_API_URL;
   } else if (import.meta.env.PROD) {
     // Production - use production API domain
     baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
       ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : 'https://api.noumatch.com';
+      : import.meta.env.VITE_API_URL;
   } else {
     // Development - use relative path (proxy)
     return '/api/noumatch-admin';
@@ -25,7 +25,6 @@ const getApiBase = () => {
 
   const adminPath = '/api/noumatch-admin';
   const fullUrl = `${baseDomain}${adminPath}`;
-  console.log('🌐 Admin MessageDetail API Base:', fullUrl);
   return fullUrl;
 };
 
@@ -63,14 +62,12 @@ export default function AdminMessageDetail() {
     setError('');
     try {
       const convUrl = `${API_BASE}/support-conversations/${id}/`;
-      console.log('📡 Fetching conversation:', convUrl);
       const convRes = await axios.get(convUrl, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setConversation(convRes.data);
 
       const msgUrl = `${API_BASE}/support-conversations/${id}/messages/`;
-      console.log('📡 Fetching messages:', msgUrl);
       const msgRes = await axios.get(msgUrl, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -98,7 +95,6 @@ export default function AdminMessageDetail() {
     setSending(true);
     try {
       const replyUrl = `${API_BASE}/support-conversations/${id}/reply/`;
-      console.log('📡 Sending reply to:', replyUrl);
       await axios.post(replyUrl, { content: replyText }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -162,3 +158,5 @@ export default function AdminMessageDetail() {
     </div>
   );
 }
+
+

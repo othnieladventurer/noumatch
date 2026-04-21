@@ -1,3 +1,4 @@
+import logging
 # matches/apps.py
 from django.apps import AppConfig
 
@@ -7,4 +8,4 @@ class MatchesConfig(AppConfig):
     
     def ready(self):
         import matches.signals
-        print("🔄 Matches signals loaded")
+        logging.info("🔄 Matches signals loaded")

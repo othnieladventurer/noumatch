@@ -40,7 +40,7 @@ export const getProfilePhotoUrl = (path) => {
   if (path.startsWith('http')) return path;
 
   // For local development or relative paths (fallback)
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const baseUrl = import.meta.env.VITE_API_URL;
   const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
   
   return `${baseUrl}${normalizedPath}`;

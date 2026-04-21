@@ -22,11 +22,11 @@ const getApiBase = () => {
   const env = import.meta.env.VITE_APP_ENVIRONMENT;
   let baseDomain = '';
   if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+    baseDomain = import.meta.env.VITE_API_URL;
   } else if (import.meta.env.PROD) {
     baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
       ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : 'https://api.noumatch.com';
+      : import.meta.env.VITE_API_URL;
   } else {
     return '/api/noumatch-admin';
   }
@@ -704,6 +704,8 @@ export default function AdminWaitlist() {
     </div>
   );
 }
+
+
 
 
 

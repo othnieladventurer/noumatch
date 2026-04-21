@@ -1,3 +1,4 @@
+import logging
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import User, UserPhoto
@@ -143,7 +144,7 @@ class RegisterSerializer(serializers.ModelSerializer):
                     'city': data.get('city', '')
                 }
         except Exception as e:
-            print(f"Error getting coordinates: {e}")
+            logging.info(f"Error getting coordinates: {e}")
         
         return {
             'latitude': None,
@@ -168,8 +169,8 @@ class RegisterSerializer(serializers.ModelSerializer):
                 client_ip = request.META.get('REMOTE_ADDR')
         
         # Log for debugging
-        print(f"🔍 Client IP: {client_ip}")
-        print(f"📧 Registering email: {validated_data.get('email')}")
+        logging.info(f"🔍 Client IP: {client_ip}")
+        logging.info(f"📧 Registering email: {validated_data.get('email')}")
         
         # Get coordinates from IP address (fallback if frontend didn't send them)
         if not validated_data.get('latitude') and not validated_data.get('longitude'):
@@ -179,19 +180,19 @@ class RegisterSerializer(serializers.ModelSerializer):
             if location_data['latitude'] and location_data['longitude']:
                 validated_data['latitude'] = location_data['latitude']
                 validated_data['longitude'] = location_data['longitude']
-                print(f"📍 Coordinates from IP: {location_data['latitude']}, {location_data['longitude']}")
+                logging.info(f"📍 Coordinates from IP: {location_data['latitude']}, {location_data['longitude']}")
             
             # Auto-fill country and city if not provided by frontend
             if not validated_data.get('country') and location_data['country']:
                 validated_data['country'] = location_data['country']
-                print(f"📍 Country from IP: {location_data['country']}")
+                logging.info(f"📍 Country from IP: {location_data['country']}")
             if not validated_data.get('city') and location_data['city']:
                 validated_data['city'] = location_data['city']
-                print(f"📍 City from IP: {location_data['city']}")
+                logging.info(f"📍 City from IP: {location_data['city']}")
         else:
             # Frontend provided coordinates
-            print(f"📍 Coordinates from frontend: {validated_data.get('latitude')}, {validated_data.get('longitude')}")
-            print(f"📍 Location from frontend: {validated_data.get('city')}, {validated_data.get('country')}")
+            logging.info(f"📍 Coordinates from frontend: {validated_data.get('latitude')}, {validated_data.get('longitude')}")
+            logging.info(f"📍 Location from frontend: {validated_data.get('city')}, {validated_data.get('country')}")
         
         # Remove password2 as it's not needed for user creation
         validated_data.pop('password2')
@@ -221,9 +222,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
             # Delete from active waitlist
             waitlist_entry.delete()
-            print(f"📝 Moved waitlist entry to archive: {email}")
+            logging.info(f"📝 Moved waitlist entry to archive: {email}")
         
-        print(f"✅ User created: {user.email} - Location saved: {user.city}, {user.country} - Coordinates: {user.latitude}, {user.longitude}")
+        logging.info(f"✅ User created: {user.email} - Location saved: {user.city}, {user.country} - Coordinates: {user.latitude}, {user.longitude}")
         
         return user
 

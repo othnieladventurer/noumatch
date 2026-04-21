@@ -79,9 +79,7 @@ export default function WaitlistStats() {
 
   const fetchEntries = async () => {
     try {
-      console.log("Fetching entries from: /waitlist/entries/");
       const response = await API.get("/waitlist/entries/");
-      console.log("Entries response:", response.data);
       const entriesData = response.data.results || response.data;
       setEntries(entriesData);
     } catch (err) {
@@ -91,7 +89,6 @@ export default function WaitlistStats() {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
       } else if (err.response?.status === 404) {
-        console.log("Entries endpoint not found, trying alternative...");
         // Try alternative endpoint if main one fails
         try {
           const debugResponse = await API.get("/waitlist/debug/");

@@ -10,12 +10,12 @@ const getApiBase = () => {
   let baseDomain = '';
   
   if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+    baseDomain = import.meta.env.VITE_API_URL;
   } else if (import.meta.env.PROD) {
     // Production - use production API domain
     baseDomain = import.meta.env.VITE_API_URL?.startsWith('http') 
       ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : 'https://api.noumatch.com';
+      : import.meta.env.VITE_API_URL;
   } else {
     // Development - use relative path (proxy)
     return '/api/noumatch-admin';
@@ -23,7 +23,6 @@ const getApiBase = () => {
   
   const adminPath = '/api/noumatch-admin';
   const fullUrl = `${baseDomain}${adminPath}`;
-  console.log('🌐 Admin Login API Base:', fullUrl);
   return fullUrl;
 };
 
@@ -55,9 +54,7 @@ export default function AdminLogin() {
     setError('');
     try {
       const url = `${API_BASE}/admin_login/`;
-      console.log('📡 Login attempt to:', url);
       const res = await axios.post(url, { email, password });
-      console.log('✅ Login success');
       localStorage.setItem('admin_access', res.data.access);
       localStorage.setItem('admin_refresh', res.data.refresh);
       localStorage.setItem('admin_email', res.data.staff_email);
@@ -179,3 +176,5 @@ export default function AdminLogin() {
     </div>
   );
 }
+
+

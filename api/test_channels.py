@@ -1,3 +1,4 @@
+import logging
 # test_channels.py
 import os
 import django
@@ -9,7 +10,7 @@ from channels.layers import get_channel_layer
 channel_layer = get_channel_layer()
 
 if channel_layer:
-    print("✅ Channels is working!")
-    print(f"Channel layer: {channel_layer}")
+    logging.info("✅ Channels is working!")
+    logging.info(f"Channel layer: {channel_layer}")
 else:
-    print("❌ Channels is NOT working")
+    logging.info("❌ Channels is NOT working")

@@ -1,3 +1,4 @@
+import logging
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAdminUser
@@ -36,7 +37,7 @@ L'équipe NouMatch
                 fail_silently=True,
             )
         except Exception as e:
-            print(f"Email error: {e}")
+            logging.info(f"Email error: {e}")
 
     threading.Thread(target=_send, daemon=True).start()
 
@@ -133,7 +134,7 @@ def join_waitlist(request):
         return Response(response_data, status=status.HTTP_201_CREATED)
 
     except Exception as e:
-        print(f"Waitlist error: {e}")
+        logging.info(f"Waitlist error: {e}")
         return Response(
             {
                 "success": False,
@@ -290,7 +291,7 @@ L'équipe NouMatch
                 fail_silently=True,
             )
         except Exception as e:
-            print(f"Email error: {e}")
+            logging.info(f"Email error: {e}")
         
         return Response({
             'success': True, 
@@ -463,6 +464,7 @@ def debug_entries(request):
         'all_entries': WaitlistEntrySerializer(all_entries, many=True).data
     }
     return Response(data)
+
 
 
 

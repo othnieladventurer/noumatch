@@ -12,12 +12,12 @@ const getApiBase = () => {
   let baseDomain = '';
   
   if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+    baseDomain = import.meta.env.VITE_API_URL;
   } else if (import.meta.env.PROD) {
     // Production - use production API domain
     baseDomain = import.meta.env.VITE_API_URL?.startsWith('http') 
       ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : 'https://api.noumatch.com';
+      : import.meta.env.VITE_API_URL;
   } else {
     // Development - use relative path (proxy)
     return '/api/noumatch-admin';
@@ -25,7 +25,6 @@ const getApiBase = () => {
   
   const adminPath = '/api/noumatch-admin';
   const fullUrl = `${baseDomain}${adminPath}`;
-  console.log('🌐 Admin Users API Base:', fullUrl);
   return fullUrl;
 };
 
@@ -91,8 +90,6 @@ export default function AdminUsers() {
       });
       
       const url = `${API_BASE}/users/list/`;
-      console.log('📡 Fetching users from:', url, 'params:', Object.fromEntries(params));
-      
       const res = await axios.get(url, {
         params,
         headers: { Authorization: `Bearer ${token}` }
@@ -321,3 +318,5 @@ export default function AdminUsers() {
     </div>
   );
 }
+
+

@@ -12,12 +12,12 @@ const getApiBase = () => {
   let baseDomain = '';
 
   if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+    baseDomain = import.meta.env.VITE_API_URL;
   } else if (import.meta.env.PROD) {
     // Production - use production API domain
     baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
       ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : 'https://api.noumatch.com';
+      : import.meta.env.VITE_API_URL;
   } else {
     // Development - use relative path (proxy)
     return '/api/noumatch-admin';
@@ -25,7 +25,6 @@ const getApiBase = () => {
 
   const adminPath = '/api/noumatch-admin';
   const fullUrl = `${baseDomain}${adminPath}`;
-  console.log('🌐 Admin Analytics Impressions API Base:', fullUrl);
   return fullUrl;
 };
 
@@ -88,7 +87,6 @@ export default function AdminAnalyticsImpressions() {
       if (filters.date_to) params.append('date_to', filters.date_to);
       
       const url = `${API_BASE}/analytics/impressions/`;
-      console.log('📡 Fetching impressions from:', url, 'params:', Object.fromEntries(params));
       const response = await axios.get(url, {
         params,
         headers: { Authorization: `Bearer ${token}` }
@@ -494,6 +492,9 @@ export default function AdminAnalyticsImpressions() {
     </div>
   );
 }
+
+
+
 
 
 

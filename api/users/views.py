@@ -1,3 +1,4 @@
+import logging
 import threading
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -112,14 +113,14 @@ class RegisterView(generics.CreateAPIView):
             try:
                 send_otp_via_api(user, otp_code)
             except Exception as e:
-                print(f"Background email failed: {e}")
+                logging.info(f"Background email failed: {e}")
         
         thread = threading.Thread(target=send_email_background)
         thread.daemon = True
         thread.start()
         
-        print(f"🔐 Registration: {user.email} | OTP: {otp_code} (valid for 5 minutes)")
-        print(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
+        logging.info(f"🔐 Registration: {user.email} | OTP: {otp_code} (valid for 5 minutes)")
+        logging.info(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
 
         return Response({
             "message": "Registration successful. Please verify your email with the 4-digit code sent.",
@@ -312,13 +313,13 @@ class ResendOTPView(APIView):
             try:
                 send_otp_via_api(user, otp_code)
             except Exception as e:
-                print(f"Resend email failed: {e}")
+                logging.info(f"Resend email failed: {e}")
         
         thread = threading.Thread(target=send_email_background)
         thread.daemon = True
         thread.start()
         
-        print(f"🔄 Resent OTP for {user.email}: {otp_code} (valid for 5 minutes)")
+        logging.info(f"🔄 Resent OTP for {user.email}: {otp_code} (valid for 5 minutes)")
 
         return Response(
             {'message': 'New 4-digit verification code sent to your email. Valid for 5 minutes.'}, 
@@ -462,22 +463,22 @@ class UserProfileListView(generics.ListAPIView):
         user = self.request.user
         now = timezone.now()
         
-        print(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
-        print(f"🔍 USER GENDER: {user.gender}")
-        print(f"🔍 ACCOUNT TYPE: {user.account_type}")
+        logging.info(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
+        logging.info(f"🔍 USER GENDER: {user.gender}")
+        logging.info(f"🔍 ACCOUNT TYPE: {user.account_type}")
         
         queryset = User.objects.none()
         
         try:
             if user.gender == 'male':
                 queryset = User.objects.filter(is_active=True, gender='female')
-                print(f"🔍 Man looking for women")
+                logging.info(f"🔍 Man looking for women")
             elif user.gender == 'female':
                 queryset = User.objects.filter(is_active=True, gender='male')
-                print(f"🔍 Woman looking for men")
+                logging.info(f"🔍 Woman looking for men")
             else:
                 queryset = User.objects.filter(is_active=True)
-                print(f"🔍 Showing all users")
+                logging.info(f"🔍 Showing all users")
             
             queryset = queryset.filter(is_superuser=False)
             
@@ -492,10 +493,10 @@ class UserProfileListView(generics.ListAPIView):
             base_exclusions.add(user.id)
             
             queryset = queryset.exclude(id__in=base_exclusions)
-            print(f"🔍 TOTAL PROFILES BEFORE RANKING: {queryset.count()}")
+            logging.info(f"🔍 TOTAL PROFILES BEFORE RANKING: {queryset.count()}")
             
         except Exception as e:
-            print(f"❌ ERROR in get_queryset: {e}")
+            logging.info(f"❌ ERROR in get_queryset: {e}")
             import traceback
             traceback.print_exc()
             queryset = User.objects.none()
@@ -591,8 +592,8 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         return self.request.user
     
     def put(self, request, *args, **kwargs):
-        print("🔍 Request data:", request.data)
-        print("🔍 Request FILES:", request.FILES)
+        logging.info("🔍 Request data:", request.data)
+        logging.info("🔍 Request FILES:", request.FILES)
         return self.partial_update(request, *args, **kwargs)
     
     def patch(self, request, *args, **kwargs):
@@ -606,7 +607,7 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         try:
             serializer.is_valid(raise_exception=True)
         except Exception as e:
-            print("❌ Validation errors:", serializer.errors)
+            logging.info("❌ Validation errors:", serializer.errors)
             raise e
             
         self.perform_update(serializer)

@@ -18,7 +18,7 @@ export default function DashboardNavbar({ user }) {
 
   const { notifications } = useNotifications();
 
-  const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const BASE_URL = import.meta.env.VITE_API_URL;
 
   // --- NEW: Check if in admin mode ---
   const isAdminMode = () => {
@@ -39,7 +39,6 @@ export default function DashboardNavbar({ user }) {
   useEffect(() => {
     // Don't send heartbeat in admin mode
     if (isAdminMode()) {
-      console.log("💓 [NAVBAR] Admin mode - skipping heartbeat");
       return;
     }
 
@@ -85,7 +84,6 @@ export default function DashboardNavbar({ user }) {
   useEffect(() => {
     // Don't fetch conversations in admin mode
     if (isAdminMode()) {
-      console.log("💬 [NAVBAR] Admin mode - skipping conversations fetch");
       setLoading((prev) => ({ ...prev, messages: false, notifications: false }));
       return;
     }
@@ -104,7 +102,6 @@ export default function DashboardNavbar({ user }) {
     if (!user || !notifications.length) return;
     const lastNotif = notifications[0];
     if (lastNotif.type === 'new_message') {
-      console.log("💬 [NAVBAR] New message notification – refreshing conversations");
       fetchConversations();
       fetchUnreadCount();
     }
@@ -113,7 +110,6 @@ export default function DashboardNavbar({ user }) {
   const fetchConversations = async () => {
     // Skip if in admin mode
     if (isAdminMode()) {
-      console.log("💬 [NAVBAR] Admin mode - skipping fetchConversations");
       return;
     }
 
@@ -166,7 +162,6 @@ export default function DashboardNavbar({ user }) {
   const fetchUnreadCount = async () => {
     // Skip if in admin mode
     if (isAdminMode()) {
-      console.log("💬 [NAVBAR] Admin mode - skipping fetchUnreadCount");
       return;
     }
 
@@ -203,7 +198,7 @@ export default function DashboardNavbar({ user }) {
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/40";
     if (path.startsWith("http")) return path;
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    const baseUrl = import.meta.env.VITE_API_URL;
     const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
     return `${baseUrl}${normalizedPath}`;
   };
@@ -742,3 +737,4 @@ export default function DashboardNavbar({ user }) {
     </>
   );
 }
+

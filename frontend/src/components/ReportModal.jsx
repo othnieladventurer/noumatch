@@ -35,7 +35,7 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
       formData.append('reason', reportReason);
       formData.append('description', reportDescription);
 
-      const response = await fetch('http://127.0.0.1:8000/api/reports/create/', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reports/create/`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -189,3 +189,4 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
 };
 
 export default ReportModal;
+

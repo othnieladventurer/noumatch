@@ -145,8 +145,8 @@ export default function Conversation() {
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/40";
     if (path.startsWith('http')) return path;
-    if (path.startsWith('/media')) return `http://127.0.0.1:8000${path}`;
-    return `http://127.0.0.1:8000${path}`;
+    if (path.startsWith('/media')) return `${import.meta.env.VITE_API_URL}${path}`;
+    return `${import.meta.env.VITE_API_URL}${path}`;
   };
 
   const formatMessageTime = (timeString) => {

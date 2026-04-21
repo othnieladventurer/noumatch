@@ -569,8 +569,6 @@ export default function Dashboard() {
         lastLoggedImpressionId.current = currentProfile.id;
         
         const token = localStorage.getItem('access');
-        console.log('📊 Logging impression for:', currentProfile.id, 'Position:', profileIndex, 'Score:', currentProfile.ranking_score);
-        
         fetch('/api/noumatch-admin/analytics/impression/', {
           method: 'POST',
           headers: {
@@ -588,7 +586,6 @@ export default function Dashboard() {
         .then(res => res.json())
         .then(data => {
           if (data.id) {
-            console.log('✅ Impression logged successfully, ID:', data.id);
           }
         })
         .catch(err => console.error('❌ Failed to log impression:', err));

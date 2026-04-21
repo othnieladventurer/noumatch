@@ -175,7 +175,6 @@ export default function Register() {
         const response = await fetch('https://ipapi.co/json/', { timeout: 5000 });
         if (response.ok) data = await response.json();
       } catch (e) {
-        console.log("ipapi.co failed");
       }
       if (!data || !data.country_name) {
         const response = await fetch('http://ip-api.com/json/');

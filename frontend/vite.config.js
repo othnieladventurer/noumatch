@@ -1,18 +1,17 @@
-// vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig(({ command, mode }) => {
-  // Determine if we're in staging mode
+export default defineConfig(({ mode }) => {
   const isStaging = mode === 'staging';
-  
+  const isDevelopment = mode === 'development';
+
   return {
     plugins: [react()],
-    base: '/',                // base path for deployment
+    base: '/',
     build: {
-      outDir: 'dist',          // output folder
-      emptyOutDir: true,       // clean folder before build
+      outDir: 'dist',
+      emptyOutDir: true,
       rollupOptions: {
         output: {
           entryFileNames: 'assets/[name].[hash].js',
@@ -23,39 +22,30 @@ export default defineConfig(({ command, mode }) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src'),  // <-- alias @ to src
+        '@': path.resolve(__dirname, './src'),
       },
     },
-    // Server configuration for different environments
     server: {
       port: isStaging ? 5174 : 5173,
       open: true,
       proxy: {
-        // Proxy API requests to avoid CORS issues
         '/api': {
-          target: isStaging 
-            ? 'https://api-staging.noumatch.com' 
-            : 'http://localhost:8000',
+          target: isStaging ? 'https://api-staging.noumatch.com' : 'http://localhost:8000',
           changeOrigin: true,
           secure: false,
         },
         '/ws': {
-          target: isStaging 
-            ? 'wss://api-staging.noumatch.com' 
-            : 'ws://localhost:8000',
+          target: isStaging ? 'wss://api-staging.noumatch.com' : 'ws://localhost:8000',
           ws: true,
           changeOrigin: true,
         }
       }
     },
-    // Define environment variables that will be available in the client
     define: {
-      // This makes environment variables available to your app
       'import.meta.env.VITE_APP_ENVIRONMENT': JSON.stringify(
-        isStaging ? 'staging' : 'production'
+        isDevelopment ? 'development' : (isStaging ? 'staging' : 'production')
       ),
     },
-    // Preview configuration for testing builds
     preview: {
       port: isStaging ? 4174 : 4173,
     },

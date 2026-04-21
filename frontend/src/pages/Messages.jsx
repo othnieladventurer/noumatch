@@ -28,7 +28,7 @@ export default function Messages() {
       const token = localStorage.getItem("access");
       if (token && user) {
         try {
-          await fetch("http://127.0.0.1:8000/api/users/heartbeat/", {
+          await fetch(`${import.meta.env.VITE_API_URL}/api/users/heartbeat/`, {
             method: "POST",
             headers: { 
               Authorization: `Bearer ${token}`,
@@ -110,8 +110,6 @@ export default function Messages() {
   const fetchConversations = async () => {
     try {
       const response = await API.get("/chat/conversations/");
-      console.log("✅ Conversations:", response.data);
-      
       // Sort conversations by most recent message
       const sorted = response.data.sort((a, b) => {
         const timeA = a.last_message?.created_at || a.created_at;
@@ -141,7 +139,6 @@ export default function Messages() {
     
     try {
       const response = await API.get(`/chat/conversations/${conversation.id}/`);
-      console.log("✅ Conversation detail:", response.data);
       setMessages(response.data.messages || []);
       
       // Mark conversation as read
@@ -238,8 +235,8 @@ export default function Messages() {
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/50";
     if (path.startsWith('http')) return path;
-    if (path.startsWith('/media')) return `http://127.0.0.1:8000${path}`;
-    return `http://127.0.0.1:8000${path}`;
+    if (path.startsWith('/media')) return `${import.meta.env.VITE_API_URL}${path}`;
+    return `${import.meta.env.VITE_API_URL}${path}`;
   };
 
   const formatMessageTime = (timeString) => {
@@ -987,3 +984,4 @@ export default function Messages() {
     </>
   );
 }
+

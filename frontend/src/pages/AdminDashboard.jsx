@@ -12,12 +12,12 @@ const getApiBase = () => {
   let baseDomain = '';
   
   if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_STAGING_API_URL || 'https://api-staging.noumatch.com';
+    baseDomain = import.meta.env.VITE_API_URL;
   } else if (import.meta.env.PROD) {
     // Production - use production API domain
     baseDomain = import.meta.env.VITE_API_URL?.startsWith('http') 
       ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : 'https://api.noumatch.com';
+      : import.meta.env.VITE_API_URL;
   } else {
     // Development - use relative path (proxy)
     return '/api/noumatch-admin';
@@ -26,7 +26,6 @@ const getApiBase = () => {
   // Combine domain with admin path
   const adminPath = '/api/noumatch-admin';
   const fullUrl = `${baseDomain}${adminPath}`;
-  console.log('🌐 Admin API Base URL:', fullUrl);
   return fullUrl;
 };
 
@@ -66,16 +65,12 @@ export default function AdminDashboard() {
       try {
         setLoading(true);
         const url = `${API_BASE}/dashboard/`;
-        console.log('📡 Fetching admin dashboard from:', url);
-        
         const res = await axios.get(url, {
           headers: { 
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
-        
-        console.log('✅ Dashboard data received:', res.data);
         setMetrics(res.data);
         setError('');
       } catch (err) {
@@ -293,3 +288,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+
