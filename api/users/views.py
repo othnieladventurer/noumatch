@@ -366,6 +366,8 @@ class CheckOTPStatusView(APIView):
             }, status=status.HTTP_200_OK)
 
 
+
+
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny] 
