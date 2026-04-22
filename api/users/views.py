@@ -465,7 +465,7 @@ class ForgotPasswordView(APIView):
             reset_token = f"{uid}.{token}"
 
             frontend_base = getattr(settings, "FRONTEND_URL", "http://localhost:5173").rstrip("/")
-            reset_url = f"{frontend_base}/#/reset-password/{reset_token}"
+            reset_url = f"{frontend_base}/reset-password/{reset_token}"
 
             thread = threading.Thread(
                 target=send_password_reset_email,

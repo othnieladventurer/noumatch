@@ -7,7 +7,7 @@ if (!BASE_URL) {
   throw new Error("VITE_API_URL must be set for non-development builds.");
 }
 
-const getFrontendUrlWithHash = () => {
+const getFrontendUrl = () => {
   const configuredUrl = (import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
   if (configuredUrl) return configuredUrl;
 
@@ -19,7 +19,7 @@ const getFrontendUrlWithHash = () => {
   return `${window.location.protocol}//${window.location.hostname}:${port}`;
 };
 
-const FRONTEND_URL = getFrontendUrlWithHash();
+const FRONTEND_URL = getFrontendUrl();
 
 const isAdminMode = () => {
   const hasAdminToken = !!localStorage.getItem('admin_access');
@@ -51,8 +51,7 @@ const redirectToLogin = () => {
   localStorage.clear();
   sessionStorage.clear();
 
-  const cleanUrl = FRONTEND_URL.replace(/#.*$/, '');
-  window.location.href = `${cleanUrl}/#/login`;
+  window.location.href = `${FRONTEND_URL}/login`;
 };
 
 const redirectToAdminLogin = () => {
@@ -60,8 +59,7 @@ const redirectToAdminLogin = () => {
   localStorage.removeItem('admin_refresh');
   localStorage.removeItem('admin_email');
 
-  const cleanUrl = FRONTEND_URL.replace(/#.*$/, '');
-  window.location.href = `${cleanUrl}/#/admin/login`;
+  window.location.href = `${FRONTEND_URL}/admin/login`;
 };
 
 API.interceptors.response.use(
@@ -148,7 +146,7 @@ adminAPI.interceptors.response.use(
           localStorage.removeItem('admin_access');
           localStorage.removeItem('admin_refresh');
           localStorage.removeItem('admin_email');
-          window.location.href = '/#/admin/login';
+          window.location.href = '/admin/login';
           return Promise.reject(err);
         }
       }

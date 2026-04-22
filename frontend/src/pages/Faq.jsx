@@ -153,7 +153,7 @@ export default function Faq() {
                 <p className="text-muted mb-4">
                   Notre équipe est là pour vous aider. Contactez-nous et nous vous répondrons dans les plus brefs délais.
                 </p>
-                <a href="/#/contact" className="btn btn-danger btn-lg px-5 rounded-pill">
+                <a href="/contact" className="btn btn-danger btn-lg px-5 rounded-pill">
                   Nous contacter
                 </a>
               </div>

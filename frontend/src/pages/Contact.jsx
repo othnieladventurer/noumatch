@@ -239,7 +239,7 @@ export default function Contact() {
 
                 <h4 className="fw-bold mb-3">📋 Avant de nous écrire</h4>
                 <ul className="text-muted list-unstyled">
-                  <li className="mb-2">✓ Consultez notre <a href="/#/faq" className="text-danger text-decoration-none">FAQ</a> pour des réponses rapides</li>
+                  <li className="mb-2">✓ Consultez notre <a href="/faq" className="text-danger text-decoration-none">FAQ</a> pour des réponses rapides</li>
                   <li className="mb-2">✓ Soyez précis dans votre demande pour une réponse plus rapide</li>
                   <li className="mb-2">✓ Incluez votre identifiant si vous avez un problème de compte</li>
                   <li className="mb-2">✓ Vérifiez votre dossier spam si vous n'avez pas reçu de réponse</li>
@@ -271,7 +271,7 @@ export default function Contact() {
         <div className="container px-3 text-center" data-aos="fade-up">
           <h2 className="fw-bold mb-3">Prêt à rejoindre l'aventure ?</h2>
           <p className="mb-4 opacity-75">Des milliers de personnes ont déjà trouvé des connexions sincères sur NouMatch</p>
-          <a href="/#/register" className="btn btn-light btn-lg px-5 rounded-pill text-danger fw-bold">
+          <a href="/register" className="btn btn-light btn-lg px-5 rounded-pill text-danger fw-bold">
             Créer mon compte gratuitement
           </a>
         </div>
