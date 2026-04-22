@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:staging": "vite --mode staging",
-    "build": "vite build",
-    "build:staging": "vite build --mode staging",
+    "build": "vite build && node scripts/generate-spa-route-files.mjs",
+    "build:staging": "vite build --mode staging && node scripts/generate-spa-route-files.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "preview:staging": "vite preview --mode staging"
