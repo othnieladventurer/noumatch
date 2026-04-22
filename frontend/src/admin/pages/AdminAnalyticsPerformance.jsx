@@ -50,6 +50,9 @@ export default function AdminAnalyticsPerformance() {
   const [dateFrom, setDateFrom] = useState(cachedMetrics?.date_from || DEFAULT_FROM);
   const [dateTo, setDateTo] = useState(cachedMetrics?.date_to || TODAY);
   const [actions, setActions] = useState(cachedMetrics?.actions || EVENT_OPTIONS.map((e) => e.key));
+  const [seoMetrics, setSeoMetrics] = useState(null);
+  const [seoLoading, setSeoLoading] = useState(false);
+  const [seoError, setSeoError] = useState('');
 
   useEffect(() => {
     if (darkMode) {
@@ -153,6 +156,31 @@ export default function AdminAnalyticsPerformance() {
 
   useEffect(() => {
     fetchMetrics({ silent: Boolean(cachedMetrics) });
+  }, []);
+
+  const fetchSeoMetrics = async () => {
+    const token = getAdminAuthToken();
+    if (!token) {
+      return;
+    }
+
+    try {
+      setSeoLoading(true);
+      const response = await axios.get(`${API_BASE}/seo/metrics/`, {
+        headers: getAdminAuthHeaders(),
+      });
+      setSeoMetrics(response.data);
+      setSeoError('');
+    } catch (err) {
+      const serverError = err.response?.data?.error || err.message || 'Failed to load SEO metrics';
+      setSeoError(serverError);
+    } finally {
+      setSeoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSeoMetrics();
   }, []);
 
   const handleMenuClick = (menu, path) => {
@@ -350,6 +378,81 @@ export default function AdminAnalyticsPerformance() {
                 </span>
                 {' '}users day over day.
               </p>
+            </div>
+          </div>
+
+          <div className="recent-blocks-card mt-4" style={{ margin: '1.5rem 0 0 0' }}>
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <h5 className="mb-0"><i className="fas fa-globe me-2 text-success"></i>SEO Health</h5>
+              <button className="btn btn-outline-success btn-sm" onClick={fetchSeoMetrics} disabled={seoLoading}>
+                {seoLoading ? 'Refreshing...' : 'Refresh SEO'}
+              </button>
+            </div>
+            <div className="card-body">
+              {seoError && <div className="alert alert-danger mb-3">{seoError}</div>}
+              {!seoError && !seoMetrics && <p className="text-secondary mb-0">No SEO metrics loaded yet.</p>}
+              {seoMetrics && (
+                <>
+                  <div className="row g-3 mb-3">
+                    <div className="col-md-3">
+                      <div className="p-3 rounded border bg-light">
+                        <div className="small text-uppercase text-muted">SEO Score</div>
+                        <div className="fs-3 fw-bold">{seoMetrics.score}/100</div>
+                      </div>
+                    </div>
+                    <div className="col-md-3">
+                      <div className="p-3 rounded border bg-light">
+                        <div className="small text-uppercase text-muted">Indexable Routes</div>
+                        <div className="fs-3 fw-bold">{seoMetrics.indexable_routes?.length || 0}</div>
+                      </div>
+                    </div>
+                    <div className="col-md-3">
+                      <div className="p-3 rounded border bg-light">
+                        <div className="small text-uppercase text-muted">Route Health</div>
+                        <div className="fs-3 fw-bold">{((seoMetrics.checks?.route_health_ratio || 0) * 100).toFixed(0)}%</div>
+                      </div>
+                    </div>
+                    <div className="col-md-3">
+                      <div className="p-3 rounded border bg-light">
+                        <div className="small text-uppercase text-muted">Sitemap</div>
+                        <div className="fs-6 fw-semibold">{seoMetrics.checks?.sitemap_reachable ? 'Reachable' : 'Missing'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="table-responsive mb-3">
+                    <table className="table admin-table mb-0">
+                      <thead>
+                        <tr>
+                          <th>Route</th>
+                          <th>Status</th>
+                          <th>HTTP</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(seoMetrics.route_checks || []).map((row) => (
+                          <tr key={row.route}>
+                            <td>{row.route}</td>
+                            <td>{row.ok ? <span className="text-success">OK</span> : <span className="text-danger">Fail</span>}</td>
+                            <td>{row.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {!!(seoMetrics.recommendations || []).length && (
+                    <div>
+                      <h6 className="mb-2">Recommendations</h6>
+                      <ul className="mb-0">
+                        {seoMetrics.recommendations.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
 

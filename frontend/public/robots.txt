@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /messages
+Disallow: /profile
+Disallow: /notifications
+Disallow: /reset-password
+Disallow: /verify-otp
+
+Sitemap: https://noumatch.com/sitemap.xml

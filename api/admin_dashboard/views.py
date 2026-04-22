@@ -3,6 +3,8 @@ from django.db.models import Q, Count, Avg, Sum
 from django.utils import timezone
 from datetime import timedelta, datetime
 from math import ceil
+from urllib import error as urlerror
+from urllib import request as urlrequest
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
@@ -11,6 +13,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.conf import settings
 
 from users.models import User
 from interactions.models import Like, Pass, DailySwipe
@@ -364,6 +367,130 @@ class AdminActiveUsersMetricsView(APIView):
             'series': series,
             'date_from': date_from.isoformat(),
             'date_to': date_to.isoformat(),
+        })
+
+
+def _probe_public_url(url, timeout_seconds=8):
+    try:
+        req = urlrequest.Request(
+            url,
+            headers={
+                "User-Agent": "NouMatchSEOHealthBot/1.0 (+https://noumatch.com)"
+            },
+        )
+        with urlrequest.urlopen(req, timeout=timeout_seconds) as response:
+            body = response.read(120000).decode("utf-8", errors="ignore")
+            return {
+                "ok": 200 <= response.status < 400,
+                "status": response.status,
+                "body": body,
+            }
+    except urlerror.HTTPError as exc:
+        return {"ok": False, "status": exc.code, "body": ""}
+    except Exception:
+        return {"ok": False, "status": 0, "body": ""}
+
+
+class AdminSEOMetricsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        frontend_base = getattr(settings, "FRONTEND_URL", "https://noumatch.com").rstrip("/")
+
+        public_routes = [
+            "/",
+            "/register",
+            "/waitlist",
+            "/waitlist/women",
+            "/waitlist/men",
+            "/privacy",
+            "/terms",
+        ]
+
+        sitemap_url = f"{frontend_base}/sitemap.xml"
+        robots_url = f"{frontend_base}/robots.txt"
+        home_url = f"{frontend_base}/"
+
+        sitemap_probe = _probe_public_url(sitemap_url)
+        robots_probe = _probe_public_url(robots_url)
+        home_probe = _probe_public_url(home_url)
+
+        route_checks = []
+        success_count = 0
+        for route in public_routes:
+            route_probe = _probe_public_url(f"{frontend_base}{route}")
+            route_checks.append({
+                "route": route,
+                "ok": route_probe["ok"],
+                "status": route_probe["status"],
+            })
+            if route_probe["ok"]:
+                success_count += 1
+
+        route_health = (success_count / len(public_routes)) if public_routes else 0
+
+        home_html = home_probe["body"]
+        has_meta_description = 'name="description"' in home_html
+        has_canonical = 'rel="canonical"' in home_html
+        has_og = 'property="og:' in home_html
+        has_twitter = 'name="twitter:' in home_html
+        uses_hash_routes = "/#/" in home_html
+        robots_has_sitemap = sitemap_url in robots_probe["body"]
+        sitemap_is_xml = "<urlset" in sitemap_probe["body"]
+
+        checks = {
+            "sitemap_reachable": sitemap_probe["ok"],
+            "sitemap_is_xml": sitemap_is_xml,
+            "robots_reachable": robots_probe["ok"],
+            "robots_has_sitemap": robots_has_sitemap,
+            "homepage_reachable": home_probe["ok"],
+            "meta_description_present": has_meta_description,
+            "canonical_present": has_canonical,
+            "open_graph_present": has_og,
+            "twitter_meta_present": has_twitter,
+            "hash_routes_detected_in_homepage": uses_hash_routes,
+            "route_health_ratio": round(route_health, 4),
+        }
+
+        score = 0
+        score += 20 if checks["sitemap_reachable"] else 0
+        score += 10 if checks["sitemap_is_xml"] else 0
+        score += 10 if checks["robots_reachable"] else 0
+        score += 10 if checks["robots_has_sitemap"] else 0
+        score += 15 if checks["homepage_reachable"] else 0
+        score += 10 if checks["meta_description_present"] else 0
+        score += 10 if checks["canonical_present"] else 0
+        score += 7 if checks["open_graph_present"] else 0
+        score += 8 if checks["twitter_meta_present"] else 0
+        score += int(round(10 * route_health))
+        if checks["hash_routes_detected_in_homepage"]:
+            score = max(0, score - 10)
+
+        recommendations = []
+        if not checks["sitemap_reachable"]:
+            recommendations.append("Publish /sitemap.xml on production and ensure it returns HTTP 200.")
+        if checks["sitemap_reachable"] and not checks["sitemap_is_xml"]:
+            recommendations.append("Serve valid XML content from /sitemap.xml.")
+        if not checks["robots_reachable"]:
+            recommendations.append("Publish /robots.txt on production and ensure it returns HTTP 200.")
+        if checks["robots_reachable"] and not checks["robots_has_sitemap"]:
+            recommendations.append("Add a Sitemap directive in robots.txt pointing to sitemap.xml.")
+        if not checks["canonical_present"]:
+            recommendations.append("Add canonical URL tag to homepage to avoid duplicate URL signals.")
+        if checks["hash_routes_detected_in_homepage"]:
+            recommendations.append("Remove hash route URLs from indexable pages and keep clean path URLs.")
+        if route_health < 1:
+            recommendations.append("Ensure SPA fallback rewrite is active so direct route reloads return HTTP 200.")
+
+        return Response({
+            "score": score,
+            "frontend_base_url": frontend_base,
+            "sitemap_url": sitemap_url,
+            "robots_url": robots_url,
+            "checks": checks,
+            "indexable_routes": public_routes,
+            "route_checks": route_checks,
+            "recommendations": recommendations,
         })
 
 
