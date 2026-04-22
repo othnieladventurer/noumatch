@@ -1,0 +1,27 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.worktree-main/
+
+# Python
+**/__pycache__/
+*.py[cod]
+*.pyo
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-staging/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.production.local
+frontend/.env.staging.local
+
+# Django/runtime artifacts
+api/.env
+api/.env.*
+api/*.sqlite3
+api/media/
+api/staticfiles/

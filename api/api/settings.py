@@ -9,6 +9,12 @@ from decouple import config
 from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+ENVIRONMENT = config("ENVIRONMENT", default="development").lower()
+
+
+def parse_csv_env(key):
+    value = config(key, default="")
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj'
@@ -16,21 +22,48 @@ SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = [
-    'api-staging.noumatch.com', 
-    'https://noumatch.onrender.com',
-    'localhost',          
-    '127.0.0.1',                         
+LOCAL_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+LOCAL_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    'https://staging.noumatch.com', 
-    'https://noumatch.onrender.com', 
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000',
-]
+if ENVIRONMENT == "production":
+    ALLOWED_HOSTS = [
+        "api.noumatch.com",
+        "noumatch.com",
+        "www.noumatch.com",
+        "noumatch.onrender.com",
+        *LOCAL_ALLOWED_HOSTS,
+    ]
+    CORS_ALLOWED_ORIGINS = [
+        "https://noumatch.com",
+        "https://www.noumatch.com",
+        "https://noumatch.onrender.com",
+        *LOCAL_CORS_ORIGINS,
+    ]
+elif ENVIRONMENT == "staging":
+    ALLOWED_HOSTS = [
+        "api-staging.noumatch.com",
+        "staging.noumatch.com",
+        "www.staging.noumatch.com",
+        *LOCAL_ALLOWED_HOSTS,
+    ]
+    CORS_ALLOWED_ORIGINS = [
+        "https://staging.noumatch.com",
+        "https://www.staging.noumatch.com",
+        *LOCAL_CORS_ORIGINS,
+    ]
+else:
+    ALLOWED_HOSTS = [
+        *LOCAL_ALLOWED_HOSTS,
+    ]
+    CORS_ALLOWED_ORIGINS = [*LOCAL_CORS_ORIGINS]
+
+ALLOWED_HOSTS += parse_csv_env("EXTRA_ALLOWED_HOSTS")
+CORS_ALLOWED_ORIGINS += parse_csv_env("EXTRA_CORS_ALLOWED_ORIGINS")
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -40,14 +73,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    'https://staging.noumatch.com',
-    'https://www.staging.noumatch.com',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000',
-]
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + parse_csv_env("EXTRA_CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -127,7 +153,6 @@ SIMPLE_JWT = {
 import os
 
 # ========== ENVIRONMENT SETUP ==========
-ENVIRONMENT = config("ENVIRONMENT", default="development").lower()
 DEBUG = True if ENVIRONMENT == "development" else False
 
 logging.info(f"\n{'='*50}")
