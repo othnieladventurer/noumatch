@@ -169,10 +169,6 @@ export default function AdminReports() {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
 
-  if (loading && reports.length === 0) {
-    return <div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger"></div></div>;
-  }
-
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />

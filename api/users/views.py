@@ -1,5 +1,9 @@
 import logging
 import threading
+from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -26,10 +30,11 @@ from block.models import Block
 from .serializers import (
     RegisterSerializer, LoginSerializer, 
     ChangePasswordSerializer, UserSerializer, MeSerializer, 
-    UserProfileSerializer, UserPhotoSerializer
+    UserProfileSerializer, UserPhotoSerializer, ForgotPasswordSerializer,
+    ResetPasswordConfirmSerializer
 )
 from .utils import generate_otp, send_otp_email
-from .email_api import send_otp_via_api
+from .email_api import send_otp_via_api, send_password_reset_email
 
 from admin_dashboard.services.ranking import compute_ranking_score
 from datetime import timedelta
@@ -443,6 +448,81 @@ class ChangePasswordView(generics.UpdateAPIView):
         user.save()
 
         return Response({"detail": "Password updated successfully"})
+
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"].strip().lower()
+
+        user = User.objects.filter(email=email, is_active=True).first()
+        if user:
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            reset_token = f"{uid}.{token}"
+
+            frontend_base = getattr(settings, "FRONTEND_URL", "http://localhost:5173").rstrip("/")
+            reset_url = f"{frontend_base}/#/reset-password/{reset_token}"
+
+            thread = threading.Thread(
+                target=send_password_reset_email,
+                args=(user, reset_url),
+                daemon=True,
+            )
+            thread.start()
+
+        return Response(
+            {
+                "detail": (
+                    "If this email exists, a password reset link has been sent."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ResetPasswordConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        raw_token = serializer.validated_data["token"]
+        new_password = serializer.validated_data["new_password"]
+
+        if "." not in raw_token:
+            return Response(
+                {"detail": "Invalid reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        uidb64, token = raw_token.split(".", 1)
+        try:
+            user_id = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except Exception:
+            return Response(
+                {"detail": "Invalid reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not default_token_generator.check_token(user, token):
+            return Response(
+                {"detail": "This reset link is invalid or has expired."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+
+        return Response(
+            {"detail": "Password reset successful."},
+            status=status.HTTP_200_OK,
+        )
 
 
 class ProfilePagination(PageNumberPagination):

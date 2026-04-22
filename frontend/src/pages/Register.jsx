@@ -2,6 +2,7 @@ import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import API from '@/api/axios';
+import "../styles/auth-redesign.css";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -145,7 +146,6 @@ export default function Register() {
           setShowEligibilityModal(true);
         }
       } catch (err) {
-        console.error("Eligibility check failed:", err);
         if (err.response?.status === 400) {
           // Bad request - email missing
           setEmailError("Email requis");
@@ -205,7 +205,6 @@ export default function Register() {
         setCountryCode("");
       }
     } catch (error) {
-      console.error("Location detection error:", error);
       setFormData(prev => ({ ...prev, country: "", city: "", latitude: "", longitude: "" }));
       setCountryCode("");
     } finally {
@@ -301,7 +300,6 @@ export default function Register() {
         state: { userId: response.data.user_id, email: formData.email }
       });
     } catch (error) {
-      console.error("Registration error:", error);
       let message = "Une erreur est survenue. Veuillez réessayer.";
       
       if (error.response) {
@@ -337,32 +335,20 @@ export default function Register() {
 
   return (
     <>
-      <div
-        className="vh-100 d-flex align-items-center justify-content-center position-relative"
-        style={{
-          backgroundImage: "url('https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51961.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          padding: "1rem",
-        }}
-      >
-        <div className="position-absolute top-0 start-0 w-100 h-100" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}></div>
+      <div className="auth-shell">
 
         <div
-          className="card shadow-lg border-0 rounded-4 p-4 position-relative"
+          className="auth-panel"
           style={{
             width: "100%",
             maxWidth: "500px",
-            maxHeight: "600px",
-            overflow: "hidden",
-            borderRadius: "24px !important",
+            maxHeight: "calc(100vh - 2.4rem)",
           }}
         >
           <div
             className="card-body"
             style={{
-              height: "100%",
+              minHeight: "100%",
               overflowY: "auto",
               padding: "1.5rem",
               borderRadius: "24px",

@@ -1,152 +1,95 @@
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FaArrowUp } from "react-icons/fa";
+import { FaArrowUp, FaFacebookF, FaInstagram, FaTiktok } from "react-icons/fa";
+import "../styles/footer-redesign.css";
 
 export default function Footer() {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 300) {
-        setShowScrollTop(true);
-      } else {
-        setShowScrollTop(false);
-      }
-    };
-
+    const handleScroll = () => setShowScrollTop(window.scrollY > 320);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const scrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
     <>
-      {/* Scroll to Top Button */}
       {showScrollTop && (
-        <button
-          onClick={scrollToTop}
-          className="position-fixed bottom-0 end-0 m-4 btn btn-danger rounded-circle shadow-lg"
-          style={{
-            width: "50px",
-            height: "50px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            transition: "all 0.3s ease",
-            border: "none"
-          }}
-          aria-label="Retour en haut"
-          onMouseEnter={(e) => {
-            e.target.style.transform = "translateY(-5px)";
-            e.target.style.boxShadow = "0 5px 15px rgba(0,0,0,0.3)";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.transform = "translateY(0)";
-            e.target.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
-          }}
-        >
-          <FaArrowUp size={20} />
+        <button onClick={scrollToTop} className="nm-scroll-top" aria-label="Retour en haut">
+          <FaArrowUp />
         </button>
       )}
 
-      <footer className="bg-dark text-light py-5">
+      <footer className="nm-footer">
         <div className="container">
-          <div className="row gy-4">
-            {/* About Section */}
-            <div className="col-md-4">
-              <h5 className="text-uppercase mb-3">NouMatch</h5>
-              <p className="small text-light opacity-75">
-                Des connexions sincères et respectueuses. Rencontrez des personnes authentiques près de chez vous.
+          <div className="nm-footer-cta">
+            <div>
+              <h4>Pret a matcher avec les bonnes personnes ?</h4>
+              <p>Inscription rapide, verification simple, experience premium.</p>
+            </div>
+            <div className="nm-footer-cta-actions">
+              <Link to="/register" className="btn btn-danger">Creer mon compte</Link>
+              <Link to="/login" className="btn btn-outline-light">Se connecter</Link>
+            </div>
+          </div>
+
+          <div className="row g-4 mt-1">
+            <div className="col-lg-4">
+              <h5>NouMatch</h5>
+              <p className="nm-footer-muted">
+                Des connexions sinceres et respectueuses. Une plateforme moderne
+                pour transformer les matchs en vraies rencontres.
               </p>
             </div>
 
-            {/* Links Section */}
-            <div className="col-md-4">
-              <h5 className="text-uppercase mb-3">Liens utiles</h5>
-              <ul className="list-unstyled">
-                <li className="mb-2">
-                  <Link to="/privacy" className="text-light text-decoration-none opacity-75 hover-opacity-100">
-                    Politique de confidentialité
-                  </Link>
-                </li>
-                <li className="mb-2">
-                  <Link to="/terms" className="text-light text-decoration-none opacity-75 hover-opacity-100">
-                    Conditions d'utilisation
-                  </Link>
-                </li>
-                <li className="mb-2">
-                  <a href="#contact" className="text-light text-decoration-none opacity-75 hover-opacity-100">
-                    Contact
-                  </a>
-                </li>
-                <li>
-                  <a href="#faq" className="text-light text-decoration-none opacity-75 hover-opacity-100">
-                    FAQ
-                  </a>
-                </li>
+            <div className="col-lg-4">
+              <h6>Navigation</h6>
+              <ul className="nm-footer-list">
+                <li><Link to="/privacy">Politique de confidentialite</Link></li>
+                <li><Link to="/terms">Conditions d'utilisation</Link></li>
+                <li><a href="#contact">Contact</a></li>
+                <li><a href="#faq">FAQ</a></li>
               </ul>
             </div>
 
-            {/* Social Media Section */}
-            <div className="col-md-4">
-              <h5 className="text-uppercase mb-3">Suivez-nous</h5>
-              <div className="d-flex gap-3">
-                <a
-                  href="https://facebook.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-light fs-4"
-                  aria-label="Facebook"
-                >
-                  <i className="fab fa-facebook-f"></i>
+            <div className="col-lg-4">
+              <h6>Suivez-nous</h6>
+              <div className="nm-footer-socials">
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                  <FaFacebookF />
                 </a>
                 <a
                   href="https://www.instagram.com/noumatchhaiti?igsh=eDM0eHp4aDhwcDFh"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-light fs-4"
                   aria-label="Instagram"
                 >
-                  <i className="fab fa-instagram"></i>
+                  <FaInstagram />
                 </a>
                 <a
                   href="https://www.tiktok.com/@noumatch?_r=1&_t=ZS-959uNIGwKGo"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-light fs-4"
                   aria-label="TikTok"
                 >
-                  <i className="fab fa-tiktok"></i>
+                  <FaTiktok />
                 </a>
               </div>
-              <p className="small mt-3 text-light opacity-75">
-                Rejoignez notre communauté et restez informé des nouveautés.
+              <p className="nm-footer-muted mt-3 mb-0">
+                Rejoignez notre communaute et restez informe des nouveautes.
               </p>
             </div>
           </div>
 
-          <hr className="my-4 border-secondary" />
-
-          <div className="text-center text-light opacity-75 small">
-            © {new Date().getFullYear()} NouMatch — Des connexions sincères et respectueuses
+          <div className="nm-footer-bottom">
+            © {new Date().getFullYear()} NouMatch - Des connexions sinceres et respectueuses
           </div>
         </div>
       </footer>
-
-      <style>
-        {`
-          .hover-opacity-100:hover {
-            opacity: 1 !important;
-          }
-        `}
-      </style>
     </>
   );
 }

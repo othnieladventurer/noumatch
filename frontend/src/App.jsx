@@ -36,22 +36,22 @@ import VerifyOtp from "./pages/VerifyOtp";
 import Terms from "./pages/Terms";
 
 // Admin Pages
-import AdminLogin from "./pages/AdminLogin.jsx";
-import AdminDashboard from "./pages/AdminDashboard.jsx";
-import AdminUsers from "./pages/AdminUsers.jsx";
-import AdminUserDetail from "./pages/AdminUserDetail.jsx";
-import AdminReports from "./pages/AdminReports.jsx";
-import AdminSwipeStats from "./pages/AdminSwipeStats.jsx";
-import AdminMessages from "./pages/AdminMessages.jsx";
-import AdminSupportConversationDetail from "./pages/AdminSupportConversationDetail.jsx";
-import AdminUserConversationDetail from "./pages/AdminUserConversationDetail.jsx";
-import AdminFlaggedMessages from "./pages/AdminFlaggedMessages.jsx";
-import AdminWaitlist from "./pages/AdminWaitlist.jsx";  // NEW IMPORT
+import AdminLogin from "./admin/pages/AdminLogin.jsx";
+import AdminDashboard from "./admin/pages/AdminDashboard.jsx";
+import AdminUsers from "./admin/pages/AdminUsers.jsx";
+import AdminUserDetail from "./admin/pages/AdminUserDetail.jsx";
+import AdminReports from "./admin/pages/AdminReports.jsx";
+import AdminSwipeStats from "./admin/pages/AdminSwipeStats.jsx";
+import AdminMessages from "./admin/pages/AdminMessages.jsx";
+import AdminSupportConversationDetail from "./admin/pages/AdminSupportConversationDetail.jsx";
+import AdminUserConversationDetail from "./admin/pages/AdminUserConversationDetail.jsx";
+import AdminFlaggedMessages from "./admin/pages/AdminFlaggedMessages.jsx";
+import AdminWaitlist from "./admin/pages/AdminWaitlist.jsx";  // NEW IMPORT
 
 // Analytics Pages
-import AdminAnalyticsImpressions from "./pages/AdminAnalyticsImpressions.jsx";
-import AdminAnalyticsRanking from "./pages/AdminAnalyticsRanking.jsx";
-import AdminAnalyticsPerformance from "./pages/AdminAnalyticsPerformance.jsx";
+import AdminAnalyticsImpressions from "./admin/pages/AdminAnalyticsImpressions.jsx";
+import AdminAnalyticsRanking from "./admin/pages/AdminAnalyticsRanking.jsx";
+import AdminAnalyticsPerformance from "./admin/pages/AdminAnalyticsPerformance.jsx";
 
 export default function App() {
   const location = useLocation();

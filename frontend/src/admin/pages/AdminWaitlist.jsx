@@ -304,15 +304,6 @@ export default function AdminWaitlist() {
     navigate(path);
   };
 
-  if (loading) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
-        <div className="spinner-border text-danger"></div>
-        <p className="ms-3">Loading waitlist data...</p>
-      </div>
-    );
-  }
-
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />

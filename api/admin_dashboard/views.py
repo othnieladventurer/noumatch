@@ -1,7 +1,7 @@
 from django.db import models
 from django.db.models import Q, Count, Avg, Sum
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from math import ceil
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -25,6 +25,67 @@ from admin_dashboard.services.ranking import compute_ranking_score
 
 # Waitlist models only (no serializers import – we define them inline)
 from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
+
+
+def _product_users_queryset():
+    # Best-effort filtering to keep internal/test accounts out of product analytics.
+    test_user_q = (
+        Q(email__icontains='test')
+        | Q(email__icontains='demo')
+        | Q(email__icontains='staging')
+        | Q(email__iendswith='@example.com')
+    )
+    return User.objects.filter(is_active=True, is_staff=False, is_superuser=False).exclude(test_user_q)
+
+
+def _active_users_count_since(start_datetime, end_datetime=None):
+    filters = _build_activity_filters(start_datetime, end_datetime, {'login', 'view', 'like', 'message'})
+
+    return _product_users_queryset().filter(filters).distinct().count()
+
+
+def _build_activity_filters(start_datetime, end_datetime=None, actions=None):
+    if not actions:
+        actions = {'login', 'view', 'like', 'message'}
+
+    queries = []
+    if 'login' in actions:
+        if end_datetime is None:
+            queries.append(Q(last_login__gte=start_datetime))
+        else:
+            queries.append(Q(last_login__gte=start_datetime, last_login__lt=end_datetime))
+
+    if 'view' in actions:
+        if end_datetime is None:
+            queries.append(Q(impressions_made__timestamp__gte=start_datetime))
+        else:
+            queries.append(Q(impressions_made__timestamp__gte=start_datetime, impressions_made__timestamp__lt=end_datetime))
+
+    if 'like' in actions:
+        if end_datetime is None:
+            queries.append(Q(likes_sent__created_at__gte=start_datetime))
+        else:
+            queries.append(Q(likes_sent__created_at__gte=start_datetime, likes_sent__created_at__lt=end_datetime))
+
+    if 'message' in actions:
+        if end_datetime is None:
+            queries.append(Q(sent_messages__created_at__gte=start_datetime, sent_messages__sender_type='user'))
+        else:
+            queries.append(
+                Q(
+                    sent_messages__created_at__gte=start_datetime,
+                    sent_messages__created_at__lt=end_datetime,
+                    sent_messages__sender_type='user',
+                )
+            )
+
+    if not queries:
+        return Q(pk__in=[])
+
+    combined = queries[0]
+    for query in queries[1:]:
+        combined |= query
+    return combined
 
 
 # ---------- Admin login ----------
@@ -116,7 +177,13 @@ class AdminDashboardView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        last_24_hours = timezone.now() - timedelta(hours=24)
+        now = timezone.now()
+        last_24_hours = now - timedelta(hours=24)
+        start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        dau = _active_users_count_since(start_today, now)
+        wau = _active_users_count_since(now - timedelta(days=7), now)
+        mau = _active_users_count_since(now - timedelta(days=30), now)
+        stickiness = (dau / mau) if mau else 0
         
         total_users = User.objects.filter(is_active=True).count()
         active_today = User.objects.filter(last_activity__gte=last_24_hours).count()
@@ -210,6 +277,93 @@ class AdminDashboardView(APIView):
             'position1_like_rate': position1_like_rate,
             'top_performing_profiles': top_profiles,
             'position_performance': position_performance,
+            'dau': dau,
+            'wau': wau,
+            'mau': mau,
+            'stickiness': round(stickiness, 4),
+        })
+
+
+class AdminActiveUsersMetricsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        now = timezone.now()
+        start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_yesterday = start_today - timedelta(days=1)
+
+        actions_raw = request.GET.get('actions', '').strip().lower()
+        allowed_actions = {'login', 'view', 'like', 'message'}
+        selected_actions = (
+            {item.strip() for item in actions_raw.split(',') if item.strip() in allowed_actions}
+            if actions_raw and actions_raw != 'all'
+            else set(allowed_actions)
+        )
+        if not selected_actions:
+            selected_actions = set(allowed_actions)
+
+        def count_active(start_dt, end_dt):
+            filters = _build_activity_filters(start_dt, end_dt, selected_actions)
+            return _product_users_queryset().filter(filters).distinct().count()
+
+        dau = count_active(start_today, now)
+        yesterday_dau = count_active(start_yesterday, start_today)
+        wau = count_active(now - timedelta(days=7), now)
+        mau = count_active(now - timedelta(days=30), now)
+        stickiness = (dau / mau) if mau else 0
+
+        date_from_raw = request.GET.get('date_from')
+        date_to_raw = request.GET.get('date_to')
+        default_start_date = (start_today - timedelta(days=13)).date()
+        default_end_date = start_today.date()
+
+        try:
+            date_from = datetime.strptime(date_from_raw, '%Y-%m-%d').date() if date_from_raw else default_start_date
+        except ValueError:
+            date_from = default_start_date
+        try:
+            date_to = datetime.strptime(date_to_raw, '%Y-%m-%d').date() if date_to_raw else default_end_date
+        except ValueError:
+            date_to = default_end_date
+
+        if date_from > date_to:
+            date_from, date_to = date_to, date_from
+
+        max_days = 90
+        if (date_to - date_from).days + 1 > max_days:
+            date_from = date_to - timedelta(days=max_days - 1)
+
+        series = []
+        current_date = date_from
+        tz = timezone.get_current_timezone()
+        while current_date <= date_to:
+            day_start = timezone.make_aware(datetime.combine(current_date, datetime.min.time()), timezone=tz)
+            day_end = day_start + timedelta(days=1)
+            day_dau = count_active(day_start, day_end)
+            day_wau = count_active(day_end - timedelta(days=7), day_end)
+            day_mau = count_active(day_end - timedelta(days=30), day_end)
+            day_stickiness = (day_dau / day_mau) if day_mau else 0
+
+            series.append({
+                'date': current_date.isoformat(),
+                'dau': day_dau,
+                'wau': day_wau,
+                'mau': day_mau,
+                'stickiness': round(day_stickiness, 4),
+            })
+            current_date += timedelta(days=1)
+
+        return Response({
+            'dau': dau,
+            'wau': wau,
+            'mau': mau,
+            'stickiness': round(stickiness, 4),
+            'yesterday_dau': yesterday_dau,
+            'dau_delta': dau - yesterday_dau,
+            'actions': sorted(selected_actions),
+            'series': series,
+            'date_from': date_from.isoformat(),
+            'date_to': date_to.isoformat(),
         })
 
 

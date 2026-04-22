@@ -1,4 +1,4 @@
-// src/pages/AdminUserConversations.jsx
+// src/pages/AdminFlaggedMessages.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -8,13 +8,13 @@ import './AdminDashboard.css';
 
 const API_BASE = '/api/noumatch-admin';
 
-export default function AdminUserConversations() {
-  const [conversations, setConversations] = useState([]);
+export default function AdminFlaggedMessages() {
+  const [flags, setFlags] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
-  const [activeMenu, setActiveMenu] = useState('user-conversations');
+  const [activeMenu, setActiveMenu] = useState('flagged');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,36 +27,46 @@ export default function AdminUserConversations() {
     }
   }, [darkMode]);
 
-  const fetchConversations = async () => {
+  const fetchFlags = async () => {
     const token = localStorage.getItem('admin_access');
     if (!token) {
       navigate('/admin/login');
       return;
     }
-    setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/user-conversations/`, {
+      const res = await axios.get(`${API_BASE}/flagged-messages/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setConversations(res.data);
+      setFlags(res.data);
     } catch (err) {
-      console.error(err);
-      setError('Failed to load user conversations');
+      setError('Failed to load flagged messages');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchConversations();
+    fetchFlags();
   }, []);
+
+  const handleAction = async (flagId, action) => {
+    const token = localStorage.getItem('admin_access');
+    try {
+      await axios.post(`${API_BASE}/flagged-messages/${flagId}/action/`, { action }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert(`Action "${action}" taken. Flag removed.`);
+      fetchFlags(); // refresh
+    } catch (err) {
+      alert('Action failed');
+    }
+  };
 
   const handleMenuClick = (menu, path) => {
     setActiveMenu(menu);
     navigate(path);
   };
 
-  if (loading) return <div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger"></div></div>;
   if (error) return <div className="alert alert-danger m-4">{error}</div>;
 
   return (
@@ -65,34 +75,39 @@ export default function AdminUserConversations() {
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
         <div className="dashboard-hero">
-          <h2>User Conversations (Matches)</h2>
-          <p>Monitor all user-to-user chat conversations</p>
+          <h2>Flagged Messages</h2>
+          <p>Review suspicious messages and take action (ban, delete, warn)</p>
         </div>
         <div className="recent-blocks-card" style={{ margin: '0 1rem 1.5rem' }}>
           <div className="card-header">
-            <h5><i className="fas fa-comments text-primary me-2"></i>All Conversations</h5>
+            <h5><i className="fas fa-flag text-danger me-2"></i>All Flags</h5>
           </div>
           <div className="card-body p-0">
             <div className="table-responsive">
               <table className="table admin-table">
                 <thead>
-                  <tr><th>ID</th><th>Participants</th><th>Last Message</th><th>Last Message At</th><th>Created</th><th>Actions</th></tr>
+                  <tr><th>Message</th><th>Sender</th><th>Reason</th><th>Score</th><th>Date</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
-                  {conversations.map(conv => (
-                    <tr key={conv.id}>
-                      <td>{conv.id}</td>
-                      <td>{conv.participants.join(' & ')}</td>
-                      <td>{conv.last_message || '—'}</td>
-                      <td>{conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : '—'}</td>
-                      <td>{new Date(conv.created_at).toLocaleDateString()}</td>
+                  {flags.map(flag => (
+                    <tr key={flag.id}>
+                      <td>{flag.message_content?.substring(0, 100)}...</td>
+                      <td>{flag.sender_email}</td>
+                      <td><span className="badge bg-danger">{flag.reason}</span></td>
+                      <td>{flag.score}</td>
+                      <td>{new Date(flag.created_at).toLocaleString()}</td>
                       <td>
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => navigate(`/admin/user-conversations/${conv.id}`)}
-                        >
-                          <i className="fas fa-eye"></i> View
-                        </button>
+                        <div className="btn-group btn-group-sm">
+                          <button className="btn btn-outline-danger" onClick={() => handleAction(flag.id, 'ban_user')}>
+                            <i className="fas fa-ban"></i> Ban User
+                          </button>
+                          <button className="btn btn-outline-warning" onClick={() => handleAction(flag.id, 'warn')}>
+                            <i className="fas fa-exclamation-triangle"></i> Warn
+                          </button>
+                          <button className="btn btn-outline-secondary" onClick={() => handleAction(flag.id, 'delete_message')}>
+                            <i className="fas fa-trash"></i> Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -106,6 +121,8 @@ export default function AdminUserConversations() {
     </div>
   );
 }
+
+
 
 
 

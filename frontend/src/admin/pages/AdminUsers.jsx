@@ -160,17 +160,6 @@ export default function AdminUsers() {
     }
   }, [totalPages, isFetching]);
 
-  // Render loading state
-  if (loading && users.length === 0) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
-        <div className="spinner-border text-danger" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar 
@@ -225,7 +214,7 @@ export default function AdminUsers() {
             <h5>
               <i className="fas fa-users text-primary me-2"></i> 
               All Users ({totalUsers})
-              {isFetching && <span className="ms-2 spinner-border spinner-border-sm text-muted"></span>}
+              {isFetching && <span className="ms-2 text-muted small">Refreshing...</span>}
             </h5>
             {totalPages > 1 && (
               <div className="pagination-controls">

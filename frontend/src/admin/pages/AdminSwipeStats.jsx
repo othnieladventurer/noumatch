@@ -32,7 +32,13 @@ const API_BASE = getApiBase();
 const DAYS_PER_PAGE = 10;
 
 export default function AdminSwipeStats() {
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState({
+    total_likes: 0,
+    total_passes: 0,
+    today_likes: 0,
+    today_passes: 0,
+    top_users: [],
+  });
   const [dailyData, setDailyData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -105,9 +111,7 @@ export default function AdminSwipeStats() {
     }
   };
 
-  if (loading) return <div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger"></div></div>;
   if (error) return <div className="alert alert-danger m-4">{error}</div>;
-  if (!stats) return null;
 
   const totalSwipes = stats.total_likes + stats.total_passes;
   const likePercent = totalSwipes ? ((stats.total_likes / totalSwipes) * 100).toFixed(1) : 0;

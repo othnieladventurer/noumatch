@@ -185,7 +185,6 @@ export default function AdminUserDetail() {
     return <span className="badge bg-success px-3 py-2">Low Risk</span>;
   };
 
-  if (loading) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="spinner-border text-danger"></div></div>;
   if (error) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="alert alert-danger">{error}</div></div>;
   if (!user) return null;
 

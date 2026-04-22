@@ -93,7 +93,6 @@ export default function AdminMessages() {
     navigate(path);
   };
 
-  if (loading) return <div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger"></div></div>;
   if (error) return <div className="alert alert-danger m-4">{error}</div>;
 
   return (

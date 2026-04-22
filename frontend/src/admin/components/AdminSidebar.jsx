@@ -30,6 +30,7 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
 
   const handleMenuClick = (key, path) => {
     setInternalActiveMenu(key);
+    if (location.pathname === path) return;
     if (onMenuClick) onMenuClick(key, path);
     else navigate(path);
   };
@@ -44,7 +45,7 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     { key: 'analytics-impressions', label: 'Profile Impressions', icon: 'fas fa-eye', path: '/admin/analytics/impressions' },
     { key: 'analytics-ranking', label: 'Ranking Analytics', icon: 'fas fa-chart-bar', path: '/admin/analytics/ranking' },
     { key: 'analytics-performance', label: 'Performance Metrics', icon: 'fas fa-trophy', path: '/admin/analytics/performance' },
-    { key: 'settings', label: 'Settings', icon: 'fas fa-cog', path: '/admin/settings' },
+
   ];
 
   return (

@@ -5,35 +5,17 @@ import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { getAdminApiBase, getAdminAuthHeaders, getAdminAuthToken } from '../utils/adminApi';
+import { readFreshCache, writeCache } from '../utils/adminCache';
 
-// Build the correct API base URL from environment variables (consistent with other admin pages)
-const getApiBase = () => {
-  const env = import.meta.env.VITE_APP_ENVIRONMENT;
-  let baseDomain = '';
-
-  if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_API_URL;
-  } else if (import.meta.env.PROD) {
-    // Production - use production API domain
-    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : import.meta.env.VITE_API_URL;
-  } else {
-    // Development - use relative path (proxy)
-    return '/api/noumatch-admin';
-  }
-
-  const adminPath = '/api/noumatch-admin';
-  const fullUrl = `${baseDomain}${adminPath}`;
-  return fullUrl;
-};
-
-const API_BASE = getApiBase();
+const API_BASE = getAdminApiBase();
+const IMPRESSIONS_CACHE_KEY = 'admin_impressions_v1';
 
 export default function AdminAnalyticsImpressions() {
   const navigate = useNavigate();
-  const [impressions, setImpressions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cachedImpressions = readFreshCache(IMPRESSIONS_CACHE_KEY, 120000);
+  const [impressions, setImpressions] = useState(cachedImpressions || []);
+  const [loading, setLoading] = useState(!cachedImpressions);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
@@ -62,23 +44,25 @@ export default function AdminAnalyticsImpressions() {
   }, [darkMode]);
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
     }
-    fetchImpressions();
+    fetchImpressions(Boolean(cachedImpressions));
   }, []);
 
-  const fetchImpressions = async () => {
-    const token = localStorage.getItem('admin_access');
+  const fetchImpressions = async (silent = false) => {
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
     }
 
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const params = new URLSearchParams();
       if (filters.viewer_email) params.append('viewer_email', filters.viewer_email);
       if (filters.viewed_email) params.append('viewed_email', filters.viewed_email);
@@ -89,9 +73,10 @@ export default function AdminAnalyticsImpressions() {
       const url = `${API_BASE}/analytics/impressions/`;
       const response = await axios.get(url, {
         params,
-        headers: { Authorization: `Bearer ${token}` }
+        headers: getAdminAuthHeaders(),
       });
       setImpressions(response.data);
+      writeCache(IMPRESSIONS_CACHE_KEY, response.data);
       setCurrentPage(1); // Reset to first page when new data loads
       setError('');
     } catch (err) {
@@ -256,14 +241,6 @@ export default function AdminAnalyticsImpressions() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading && impressions.length === 0) {
-    return (
-      <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
-        <div className="spinner-border text-danger"></div>
-      </div>
-    );
-  }
-
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
@@ -276,6 +253,11 @@ export default function AdminAnalyticsImpressions() {
               <i className="fas fa-eye me-2 text-danger"></i>
               Profile Impressions Analytics
             </h2>
+            {loading && (
+              <div className="small text-secondary">
+                Refreshing...
+              </div>
+            )}
             <div className="btn-group">
               <button 
                 className="btn btn-success btn-sm" 

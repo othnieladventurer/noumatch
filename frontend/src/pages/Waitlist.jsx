@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import AdminSidebar from '../components/AdminSidebar';
-import AdminTopNav from '../components/AdminTopNav';
+import AdminSidebar from '../admin/components/AdminSidebar';
+import AdminTopNav from '../admin/components/AdminTopNav';
 import {
   Chart as ChartJS,
   ArcElement,

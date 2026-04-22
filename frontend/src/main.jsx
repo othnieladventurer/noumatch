@@ -45,7 +45,7 @@ window.addEventListener('unhandledrejection', (event) => {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <HashRouter>  {/* Changed from BrowserRouter */}
+      <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <App />
       </HashRouter>
     </ErrorBoundary>

@@ -272,6 +272,27 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.save()
         return user
 
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordConfirmSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "Les mots de passe ne correspondent pas."}
+            )
+        return attrs
+
 class MeSerializer(serializers.ModelSerializer):
     profile_photo_url = serializers.SerializerMethodField()
 
