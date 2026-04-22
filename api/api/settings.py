@@ -1,6 +1,7 @@
 """
 Django settings for api project.
 """
+import logging
 import dj_database_url
 import os
 from pathlib import Path
@@ -8,6 +9,12 @@ from decouple import config
 from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+ENVIRONMENT = config("ENVIRONMENT", default="development").lower()
+
+
+def parse_csv_env(key):
+    value = config(key, default="")
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj'
@@ -17,24 +24,48 @@ DEBUG = False
 
 
 
-ALLOWED_HOSTS = [
-    'api.noumatch.com',
-    'noumatch.com',
-    'www.noumatch.com',
-    'noumatch.onrender.com',  # Keep if still on Render
-    'localhost',          
-    '127.0.0.1',                         
+LOCAL_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+LOCAL_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    'https://noumatch.com',
-    'https://www.noumatch.com',
-    'https://noumatch.onrender.com',  # Keep if frontend on Render
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000',
-]
+if ENVIRONMENT == "production":
+    ALLOWED_HOSTS = [
+        "api.noumatch.com",
+        "noumatch.com",
+        "www.noumatch.com",
+        "noumatch.onrender.com",
+        *LOCAL_ALLOWED_HOSTS,
+    ]
+    CORS_ALLOWED_ORIGINS = [
+        "https://noumatch.com",
+        "https://www.noumatch.com",
+        "https://noumatch.onrender.com",
+        *LOCAL_CORS_ORIGINS,
+    ]
+elif ENVIRONMENT == "staging":
+    ALLOWED_HOSTS = [
+        "api-staging.noumatch.com",
+        "staging.noumatch.com",
+        "www.staging.noumatch.com",
+        *LOCAL_ALLOWED_HOSTS,
+    ]
+    CORS_ALLOWED_ORIGINS = [
+        "https://staging.noumatch.com",
+        "https://www.staging.noumatch.com",
+        *LOCAL_CORS_ORIGINS,
+    ]
+else:
+    ALLOWED_HOSTS = [
+        *LOCAL_ALLOWED_HOSTS,
+    ]
+    CORS_ALLOWED_ORIGINS = [*LOCAL_CORS_ORIGINS]
+
+ALLOWED_HOSTS += parse_csv_env("EXTRA_ALLOWED_HOSTS")
+CORS_ALLOWED_ORIGINS += parse_csv_env("EXTRA_CORS_ALLOWED_ORIGINS")
 
 
 
@@ -47,14 +78,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
 ]
 
-CSRF_TRUSTED_ORIGINS = [
-    'https://staging.noumatch.com',
-    'https://www.staging.noumatch.com',
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:3000',
-]
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + parse_csv_env("EXTRA_CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -134,12 +158,11 @@ SIMPLE_JWT = {
 import os
 
 # ========== ENVIRONMENT SETUP ==========
-ENVIRONMENT = config("ENVIRONMENT", default="development").lower()
 DEBUG = True if ENVIRONMENT == "development" else False
 
-print(f"\n{'='*50}")
-print(f"🌍 ENVIRONMENT: {ENVIRONMENT.upper()}")
-print(f"{'='*50}\n")
+logging.info(f"\n{'='*50}")
+logging.info(f"🌍 ENVIRONMENT: {ENVIRONMENT.upper()}")
+logging.info(f"{'='*50}\n")
 
 # ========== CHANNEL LAYERS (REDIS) ==========
 if ENVIRONMENT == "production":
@@ -152,10 +175,10 @@ if ENVIRONMENT == "production":
                 },
             },
         }
-        print("✅ Redis: PRODUCTION mode - Redis configured")
+        logging.info("✅ Redis: PRODUCTION mode - Redis configured")
     else:
         CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}}
-        print("⚠️  Redis: PRODUCTION mode - No REDIS_URL, using in-memory")
+        logging.info("⚠️  Redis: PRODUCTION mode - No REDIS_URL, using in-memory")
         
 elif ENVIRONMENT == "staging":
     if config('STAGING_REDIS_URL', default=None):
@@ -167,10 +190,10 @@ elif ENVIRONMENT == "staging":
                 },
             },
         }
-        print("✅ Redis: STAGING mode - Redis configured")
+        logging.info("✅ Redis: STAGING mode - Redis configured")
     else:
         CHANNEL_LAYERS = {'default': {'BACKEND': 'channels.layers.InMemoryChannelLayer'}}
-        print("⚠️  Redis: STAGING mode - No STAGING_REDIS_URL, using in-memory")
+        logging.info("⚠️  Redis: STAGING mode - No STAGING_REDIS_URL, using in-memory")
         
 else:  # development
     CHANNEL_LAYERS = {
@@ -178,7 +201,7 @@ else:  # development
             'BACKEND': 'channels.layers.InMemoryChannelLayer',
         },
     }
-    print("✅ Redis: DEVELOPMENT mode - Using in-memory channels")
+    logging.info("✅ Redis: DEVELOPMENT mode - Using in-memory channels")
 
 TIME_ZONE = 'America/New_York'
 USE_TZ = True
@@ -204,8 +227,8 @@ if ENVIRONMENT == "production":
         DATABASES = {
             "default": dj_database_url.parse(config("DATABASE_URL"))
         }
-        print("✅ Database: PRODUCTION mode - PostgreSQL configured")
-        print(f"   📊 Database: {DATABASES['default']['NAME'].split('@')[-1] if '@' in DATABASES['default']['NAME'] else 'PostgreSQL'}")
+        logging.info("✅ Database: PRODUCTION mode - PostgreSQL configured")
+        logging.info(f"   📊 Database: {DATABASES['default']['NAME'].split('@')[-1] if '@' in DATABASES['default']['NAME'] else 'PostgreSQL'}")
     else:
         DATABASES = {
             "default": {
@@ -213,15 +236,15 @@ if ENVIRONMENT == "production":
                 "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
             }
         }
-        print("⚠️  Database: PRODUCTION mode - No DATABASE_URL, using SQLite fallback")
+        logging.info("⚠️  Database: PRODUCTION mode - No DATABASE_URL, using SQLite fallback")
         
 elif ENVIRONMENT == "staging":
     if config('STAGING_DATABASE_URL', default=None):
         DATABASES = {
             "default": dj_database_url.parse(config("STAGING_DATABASE_URL"))
         }
-        print("✅ Database: STAGING mode - PostgreSQL configured")
-        print(f"   📊 Database: {DATABASES['default']['NAME'].split('/')[-1] if '/' in DATABASES['default']['NAME'] else 'PostgreSQL'}")
+        logging.info("✅ Database: STAGING mode - PostgreSQL configured")
+        logging.info(f"   📊 Database: {DATABASES['default']['NAME'].split('/')[-1] if '/' in DATABASES['default']['NAME'] else 'PostgreSQL'}")
     else:
         DATABASES = {
             "default": {
@@ -229,7 +252,7 @@ elif ENVIRONMENT == "staging":
                 "NAME": os.path.join(BASE_DIR, "staging_db.sqlite3"),
             }
         }
-        print("⚠️  Database: STAGING mode - No STAGING_DATABASE_URL, using SQLite fallback")
+        logging.info("⚠️  Database: STAGING mode - No STAGING_DATABASE_URL, using SQLite fallback")
         
 else:  # development
     DATABASES = {
@@ -238,15 +261,15 @@ else:  # development
             "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
         }
     }
-    print("✅ Database: DEVELOPMENT mode - SQLite configured")
+    logging.info("✅ Database: DEVELOPMENT mode - SQLite configured")
 
 # Test connection without exposing credentials
 try:
     from django.db import connections
     connections['default'].cursor()
-    print("✅ Database Connection: SUCCESSFUL\n")
+    logging.info("✅ Database Connection: SUCCESSFUL\n")
 except Exception as e:
-    print(f"❌ Database Connection: FAILED - {str(e)[:100]}\n")
+    logging.info(f"❌ Database Connection: FAILED - {str(e)[:100]}\n")
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -332,12 +355,12 @@ if ENVIRONMENT in ["production", "staging"] and all([r2_bucket, r2_account_id, r
         MEDIA_URL = f"https://{r2_bucket}.{r2_account_id}.r2.cloudflarestorage.com/media/"
 
     # Debug output – clearly shows which R2 is active
-    print(f"\n{'='*50}")
-    print(f"☁️  Cloudflare R2: {r2_config_name} mode ACTIVE")
-    print(f"   📦 Bucket: {r2_bucket}")
-    print(f"   🆔 Account ID: {r2_account_id[:6]}...{r2_account_id[-4:] if len(r2_account_id) > 10 else ''}")
-    print(f"   🌐 Public URL: {r2_public_url if r2_public_url else 'Using default endpoint'}")
-    print(f"{'='*50}\n")
+    logging.info(f"\n{'='*50}")
+    logging.info(f"☁️  Cloudflare R2: {r2_config_name} mode ACTIVE")
+    logging.info(f"   📦 Bucket: {r2_bucket}")
+    logging.info(f"   🆔 Account ID: {r2_account_id[:6]}...{r2_account_id[-4:] if len(r2_account_id) > 10 else ''}")
+    logging.info(f"   🌐 Public URL: {r2_public_url if r2_public_url else 'Using default endpoint'}")
+    logging.info(f"{'='*50}\n")
 
 else:
     # Fallback to local media storage
@@ -349,9 +372,9 @@ else:
         if not r2_account_id: missing.append("ACCOUNT_ID")
         if not r2_access_key: missing.append("ACCESS_KEY")
         if not r2_secret_key: missing.append("SECRET_KEY")
-        print(f"\n⚠️  Cloudflare R2: {ENVIRONMENT.upper()} mode - Missing {', '.join(missing)} → Using LOCAL storage")
+        logging.info(f"\n⚠️  Cloudflare R2: {ENVIRONMENT.upper()} mode - Missing {', '.join(missing)} → Using LOCAL storage")
     else:
-        print("✅ Cloud Storage: DEVELOPMENT mode - Using local storage")
+        logging.info("✅ Cloud Storage: DEVELOPMENT mode - Using local storage")
 
 
 
@@ -383,7 +406,7 @@ AUTH_PASSWORD_VALIDATORS = [
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     DEFAULT_FROM_EMAIL = 'NouMatch <no-reply@noumatch.com>'
-    print("📧 Email: DEVELOPMENT mode - Console backend")
+    logging.info("📧 Email: DEVELOPMENT mode - Console backend")
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = config('EMAIL_HOST', default='smtp-relay.brevo.com')
@@ -393,28 +416,28 @@ else:
     if ENVIRONMENT == "staging":
         EMAIL_HOST_USER = config('STAGING_EMAIL_HOST_USER', default=config('EMAIL_HOST_USER', default=''))
         EMAIL_HOST_PASSWORD = config('STAGING_EMAIL_HOST_PASSWORD', default=config('EMAIL_HOST_PASSWORD', default=''))
-        print("📧 Email: STAGING mode - SMTP configured")
+        logging.info("📧 Email: STAGING mode - SMTP configured")
     else:
         EMAIL_HOST_USER = config('EMAIL_HOST_USER')
         EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
-        print("📧 Email: PRODUCTION mode - SMTP configured")
+        logging.info("📧 Email: PRODUCTION mode - SMTP configured")
     
     DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='NouMatch <no-reply@noumatch.com>')
-    print(f"   📧 Host: {EMAIL_HOST}")
+    logging.info(f"   📧 Host: {EMAIL_HOST}")
 
 # ========== BREVO API ==========
 if ENVIRONMENT == "staging":
     BREVO_API_KEY = config('STAGING_BREVO_API_KEY', default='')
     if BREVO_API_KEY:
-        print("✅ Brevo API: STAGING mode - Key configured")
+        logging.info("✅ Brevo API: STAGING mode - Key configured")
     else:
-        print("⚠️  Brevo API: STAGING mode - No key found")
+        logging.info("⚠️  Brevo API: STAGING mode - No key found")
 else:
     BREVO_API_KEY = config('BREVO_API_KEY', default='')
     if BREVO_API_KEY:
-        print(f"✅ Brevo API: {ENVIRONMENT.upper()} mode - Key configured")
+        logging.info(f"✅ Brevo API: {ENVIRONMENT.upper()} mode - Key configured")
     else:
-        print(f"⚠️  Brevo API: {ENVIRONMENT.upper()} mode - No key found")
+        logging.info(f"⚠️  Brevo API: {ENVIRONMENT.upper()} mode - No key found")
     
 # ========== FRONTEND URL ==========
 if ENVIRONMENT == "production":
@@ -424,10 +447,11 @@ elif ENVIRONMENT == "staging":
 else:
     FRONTEND_URL = 'http://localhost:5173'
 
-print(f"🌐 Frontend URL: {FRONTEND_URL}")
+logging.info(f"🌐 Frontend URL: {FRONTEND_URL}")
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-print(f"\n{'='*50}")
-print(f"✅ Settings loaded successfully in {ENVIRONMENT.upper()} mode")
-print(f"{'='*50}\n")
+logging.info(f"\n{'='*50}")
+logging.info(f"✅ Settings loaded successfully in {ENVIRONMENT.upper()} mode")
+logging.info(f"{'='*50}\n")
+
