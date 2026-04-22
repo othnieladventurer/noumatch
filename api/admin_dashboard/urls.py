@@ -29,6 +29,7 @@ from .views import (
     UpdateImpressionView,
     AdminAnalyticsImpressionsView,
     AdminActiveUsersMetricsView,
+    AdminSEOMetricsView,
     # Waitlist views
     AdminWaitlistStatsView,
     AdminWaitlistWaitingView,
@@ -73,6 +74,7 @@ urlpatterns = [
     path('analytics/impressions/', AdminAnalyticsImpressionsView.as_view(), name='admin-analytics-impressions'),
     path('admin/metrics/active-users/', AdminActiveUsersMetricsView.as_view(), name='admin-active-users-metrics'),
     path('metrics/active-users/', AdminActiveUsersMetricsView.as_view(), name='admin-active-users-metrics-compat'),
+    path('seo/metrics/', AdminSEOMetricsView.as_view(), name='admin-seo-metrics'),
     
     # ==================== WAITLIST ADMIN ENDPOINTS ====================
     path('waitlist/stats/', AdminWaitlistStatsView.as_view(), name='admin-waitlist-stats'),
