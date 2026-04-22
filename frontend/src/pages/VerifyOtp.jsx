@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '@/api/axios';
 import { FaHeart, FaSpinner, FaCheckCircle, FaEnvelope, FaClock, FaShieldAlt } from 'react-icons/fa';
+import "../styles/auth-redesign.css";
 
 export default function VerifyOtp() {
   const location = useLocation();
@@ -138,7 +139,6 @@ export default function VerifyOtp() {
         navigate('/dashboard');
       }, 1500);
     } catch (err) {
-      console.error('Verification error:', err);
       const errorMsg = err.response?.data?.error || 'Code invalide. Veuillez réessayer.';
       setError(errorMsg);
       
@@ -173,7 +173,6 @@ export default function VerifyOtp() {
         setEmailSending(false);
       }, 3000);
     } catch (err) {
-      console.error('Resend error:', err);
       setError(err.response?.data?.error || 'Échec de l\'envoi du code.');
       setEmailSending(false);
     } finally {
@@ -189,23 +188,10 @@ export default function VerifyOtp() {
   }, [otp]);
 
   return (
-    <div
-      className="vh-100 d-flex align-items-center justify-content-center position-relative"
-      style={{
-        backgroundImage: "url('https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51961.jpg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        padding: "1rem",
-      }}
-    >
-      <div
-        className="position-absolute top-0 start-0 w-100 h-100"
-        style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
-      ></div>
+    <div className="auth-shell">
 
       <div
-        className="card shadow-lg border-0 rounded-4 p-4 position-relative"
+        className="auth-panel"
         style={{ width: "100%", maxWidth: "450px" }}
       >
         <div className="text-center mb-4">

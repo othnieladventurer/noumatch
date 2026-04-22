@@ -1,3 +1,4 @@
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics, permissions, status
@@ -48,14 +49,14 @@ class ReceivedLikesView(APIView):
 
     def get(self, request):
         try:
-            print(f"🔵 Fetching received likes for user {request.user.id}")
+            logging.info(f"🔵 Fetching received likes for user {request.user.id}")
             likes = Like.objects.filter(to_user=request.user).select_related('from_user')
-            print(f"📊 Found {likes.count()} received likes")
+            logging.info(f"📊 Found {likes.count()} received likes")
             
             serializer = LikeSerializer(likes, many=True, context={'request': request})
             return Response(serializer.data)
         except Exception as e:
-            print(f"❌ Error fetching received likes: {str(e)}")
+            logging.info(f"❌ Error fetching received likes: {str(e)}")
             import traceback
             traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -69,14 +70,14 @@ class SentLikesView(APIView):
 
     def get(self, request):
         try:
-            print(f"🔵 Fetching sent likes for user {request.user.id}")
+            logging.info(f"🔵 Fetching sent likes for user {request.user.id}")
             likes = Like.objects.filter(from_user=request.user).select_related('to_user')
-            print(f"📊 Found {likes.count()} sent likes")
+            logging.info(f"📊 Found {likes.count()} sent likes")
             
             serializer = LikeSerializer(likes, many=True, context={'request': request})
             return Response(serializer.data)
         except Exception as e:
-            print(f"❌ Error fetching sent likes: {str(e)}")
+            logging.info(f"❌ Error fetching sent likes: {str(e)}")
             import traceback
             traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -96,7 +97,7 @@ class UnlikeView(APIView):
         and the target user is the user_id
         """
         try:
-            print(f"🔵 Unlike request: user {request.user.id} unliking user {user_id}")
+            logging.info(f"🔵 Unlike request: user {request.user.id} unliking user {user_id}")
             
             # Find the like where current user is the from_user and target is the user_id
             like = get_object_or_404(
@@ -110,7 +111,7 @@ class UnlikeView(APIView):
             
             # Delete the like
             like.delete()
-            print(f"✅ Unlike successful: user {request.user.id} unliked user {user_id}")
+            logging.info(f"✅ Unlike successful: user {request.user.id} unliked user {user_id}")
             
             return Response(
                 {"message": "Like removed successfully", "like": like_data},
@@ -118,7 +119,7 @@ class UnlikeView(APIView):
             )
             
         except Exception as e:
-            print(f"❌ Unlike failed: {str(e)}")
+            logging.info(f"❌ Unlike failed: {str(e)}")
             import traceback
             traceback.print_exc()
             return Response(
@@ -133,7 +134,7 @@ class UnlikeByLikeIdView(APIView):
     def delete(self, request, like_id):
 
         try:
-            print(f"🔵 Unlike request: user {request.user.id} deleting like {like_id}")
+            logging.info(f"🔵 Unlike request: user {request.user.id} deleting like {like_id}")
             
             # Find the like by ID and ensure it belongs to the current user
             like = get_object_or_404(
@@ -147,7 +148,7 @@ class UnlikeByLikeIdView(APIView):
             
             # Delete the like
             like.delete()
-            print(f"✅ Unlike successful: like {like_id} deleted")
+            logging.info(f"✅ Unlike successful: like {like_id} deleted")
             
             return Response(
                 {"message": "Like removed successfully", "like": like_data},
@@ -155,7 +156,7 @@ class UnlikeByLikeIdView(APIView):
             )
             
         except Exception as e:
-            print(f"❌ Unlike failed: {str(e)}")
+            logging.info(f"❌ Unlike failed: {str(e)}")
             import traceback
             traceback.print_exc()
             return Response(
@@ -341,7 +342,7 @@ class GetSwipeLimitsView(APIView):
             created_at__gte=twelve_hours_ago
         ).count()
 
-        print(f"DEBUG: user={user.email}, account_type={account_type}, likes_last_12h={likes_last_12h}")
+        logging.info(f"DEBUG: user={user.email}, account_type={account_type}, likes_last_12h={likes_last_12h}")
 
         # For any account that is NOT premium or god_mode, use 20 likes limit
         if account_type in ['premium', 'god_mode']:

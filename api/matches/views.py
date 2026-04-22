@@ -1,3 +1,4 @@
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
@@ -87,7 +88,7 @@ class UnmatchView(APIView):
         Delete a match by its ID, ensuring the user is part of it
         """
         try:
-            print(f"🔵 Unmatch request: user {request.user.id} unmatching match {match_id}")
+            logging.info(f"🔵 Unmatch request: user {request.user.id} unmatching match {match_id}")
             
             # Find the match by ID and ensure the current user is part of it
             match = get_object_or_404(
@@ -107,7 +108,7 @@ class UnmatchView(APIView):
             
             # Delete the match
             match.delete()
-            print(f"✅ Unmatch successful: match {match_id} deleted")
+            logging.info(f"✅ Unmatch successful: match {match_id} deleted")
             
             return Response(
                 {"message": "Match removed successfully", "match": match_data},
@@ -115,7 +116,7 @@ class UnmatchView(APIView):
             )
             
         except Exception as e:
-            print(f"❌ Unmatch failed: {str(e)}")
+            logging.info(f"❌ Unmatch failed: {str(e)}")
             import traceback
             traceback.print_exc()
             return Response(
@@ -135,7 +136,7 @@ class UnmatchByUserView(APIView):
         Delete a match where the current user is matched with the specified user
         """
         try:
-            print(f"🔵 Unmatch request: user {request.user.id} unmatching user {user_id}")
+            logging.info(f"🔵 Unmatch request: user {request.user.id} unmatching user {user_id}")
             
             # Find the match where current user is matched with the specified user
             match = get_object_or_404(
@@ -149,7 +150,7 @@ class UnmatchByUserView(APIView):
             
             # Delete the match
             match.delete()
-            print(f"✅ Unmatch successful: user {request.user.id} unmatched user {user_id}")
+            logging.info(f"✅ Unmatch successful: user {request.user.id} unmatched user {user_id}")
             
             return Response(
                 {"message": "Match removed successfully", "match": match_data},
@@ -157,7 +158,7 @@ class UnmatchByUserView(APIView):
             )
             
         except Exception as e:
-            print(f"❌ Unmatch failed: {str(e)}")
+            logging.info(f"❌ Unmatch failed: {str(e)}")
             import traceback
             traceback.print_exc()
             return Response(

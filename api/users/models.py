@@ -339,110 +339,6 @@ class UserStats(models.Model):
 
 
 
-class UserStats(models.Model):
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='stats'
-    )
-    
-    # Swipe activity
-    total_likes_given = models.PositiveIntegerField(default=0)
-    total_likes_received = models.PositiveIntegerField(default=0)
-    total_passes_given = models.PositiveIntegerField(default=0)
-    total_passes_received = models.PositiveIntegerField(default=0)
-    
-    # Match activity
-    total_matches = models.PositiveIntegerField(default=0)
-    active_matches = models.PositiveIntegerField(default=0)  # matches with recent messages
-    
-    # Message activity
-    total_messages_sent = models.PositiveIntegerField(default=0)
-    total_messages_received = models.PositiveIntegerField(default=0)
-    
-    # Safety
-    total_blocks_given = models.PositiveIntegerField(default=0)
-    total_blocks_received = models.PositiveIntegerField(default=0)
-    total_reports_filed = models.PositiveIntegerField(default=0)
-    total_reports_received = models.PositiveIntegerField(default=0)
-    
-    # Engagement
-    last_active = models.DateTimeField(null=True, blank=True)
-    account_age_days = models.PositiveIntegerField(default=0)
-    streak_days = models.PositiveIntegerField(default=0)  # consecutive days with activity
-    
-    # Timestamp for last stats update
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = "User Statistics"
-        verbose_name_plural = "User Statistics"
-    
-    def __str__(self):
-        return f"Stats for {self.user.email}"
-    
-    def update_all_stats(self):
-        """Recompute all stats from existing data"""
-        from interactions.models import Like, Pass
-        from matches.models import Match
-        from block.models import Block
-        from report.models import Report
-        from chat.models import Message
-        
-        user = self.user
-        
-        # Likes
-        self.total_likes_given = Like.objects.filter(from_user=user).count()
-        self.total_likes_received = Like.objects.filter(to_user=user).count()
-        
-        # Passes
-        self.total_passes_given = Pass.objects.filter(from_user=user).count()
-        self.total_passes_received = Pass.objects.filter(to_user=user).count()
-        
-        # Matches
-        matches = Match.objects.filter(models.Q(user1=user) | models.Q(user2=user))
-        self.total_matches = matches.count()
-        
-        # Active matches (has messages in last 7 days)
-        seven_days_ago = timezone.now() - timezone.timedelta(days=7)
-        active_match_ids = []
-        for match in matches:
-            conv = getattr(match, 'conversation', None)
-            if conv and conv.last_message_at and conv.last_message_at >= seven_days_ago:
-                active_match_ids.append(match.id)
-        self.active_matches = len(active_match_ids)
-        
-        # Messages
-        from chat.models import Message, Conversation
-        convs = Conversation.objects.filter(match__in=matches)
-        self.total_messages_sent = Message.objects.filter(conversation__in=convs, sender=user).count()
-        self.total_messages_received = Message.objects.filter(conversation__in=convs).exclude(sender=user).count()
-        
-        # Blocks
-        self.total_blocks_given = Block.objects.filter(blocker=user).count()
-        self.total_blocks_received = Block.objects.filter(blocked=user).count()
-        
-        # Reports
-        self.total_reports_filed = Report.objects.filter(reporter=user).count()
-        self.total_reports_received = Report.objects.filter(reported_user=user).count()
-        
-        # Last active
-        self.last_active = user.last_activity or user.date_joined
-        
-        # Account age in days
-        delta = timezone.now() - user.date_joined
-        self.account_age_days = delta.days
-        
-        # Streak days (simplified: count days with any activity)
-        # We'll implement a simple version using DailySwipe model
-        from interactions.models import DailySwipe
-        swipe_dates = DailySwipe.objects.filter(user=user).values_list('date', flat=True).distinct()
-        # This is basic; you can enhance later
-        self.streak_days = swipe_dates.count()
-        
-        self.save()
-            
-                        
 
 
 class UserPhoto(models.Model):
@@ -500,6 +396,7 @@ class OTP(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.code}"
+
 
 
 

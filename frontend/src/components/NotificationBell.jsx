@@ -18,8 +18,6 @@ export default function NotificationBell({ user }) {
   } = useNotifications();
 
   useEffect(() => {
-    console.log('🔔 NotificationBell - unreadCount:', unreadCount);
-    console.log('🔔 NotificationBell - notifications:', notifications);
   }, [unreadCount, notifications]);
 
   useEffect(() => {
@@ -290,4 +288,5 @@ export default function NotificationBell({ user }) {
     </>
   );
 }
+
 

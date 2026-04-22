@@ -1,3 +1,4 @@
+import logging
 # chat/apps.py
 from django.apps import AppConfig
 
@@ -7,6 +8,6 @@ class ChatConfig(AppConfig):
 
     def ready(self):
         import chat.signals
-        print("🔄 Chat signals loaded")
+        logging.info("🔄 Chat signals loaded")
 
         

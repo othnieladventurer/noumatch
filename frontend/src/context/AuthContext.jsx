@@ -18,7 +18,6 @@ export const AuthProvider = ({ children }) => {
   const fetchUser = useCallback(async () => {
     // Skip fetching user if in admin mode
     if (isAdminMode()) {
-      console.log("🔐 [AUTH] Admin mode detected - skipping user fetch");
       setLoading(false);
       return;
     }
@@ -26,7 +25,6 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await API.get("users/me/");
       setUser(response.data); // full user object including profile_photo
-      console.log("✅ [AUTH] User fetched successfully:", response.data?.email);
     } catch (error) {
       console.error("❌ [AUTH] Failed to fetch user:", error);
       setUser(null);
@@ -74,7 +72,6 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     // Handle admin logout if in admin mode
     if (isAdminMode()) {
-      console.log("🔐 [AUTH] Admin mode logout");
       localStorage.removeItem("admin_access");
       localStorage.removeItem("admin_refresh");
       localStorage.removeItem("admin_email");
@@ -105,7 +102,6 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("admin_access", response.data.access);
       localStorage.setItem("admin_refresh", response.data.refresh);
       localStorage.setItem("admin_email", email);
-      console.log("✅ [AUTH] Admin login successful");
       return response.data;
     } catch (error) {
       console.error("❌ [AUTH] Admin login failed:", error);
@@ -123,22 +119,14 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem("access");
     const adminToken = localStorage.getItem("admin_access");
     const isAdminPath = window.location.pathname.startsWith('/admin');
-    
-    console.log("🔐 [AUTH] Initializing auth...");
-    console.log("   User token present:", !!token);
-    console.log("   Admin token present:", !!adminToken);
-    console.log("   Is admin path:", isAdminPath);
-    
     // If we're on admin path but have no admin token, don't fetch user
     if (isAdminPath && !adminToken) {
-      console.log("🔐 [AUTH] On admin path without admin token - skipping user fetch");
       setLoading(false);
       return;
     }
     
     // If we have admin token, don't fetch regular user
     if (adminToken) {
-      console.log("🔐 [AUTH] Admin token present - skipping regular user fetch");
       setLoading(false);
       return;
     }
@@ -159,7 +147,6 @@ export const AuthProvider = ({ children }) => {
     if (isAdminPath && adminToken) {
       // Clear regular user data when in admin mode
       if (user) {
-        console.log("🔐 [AUTH] Clearing regular user data for admin mode");
         setUser(null);
       }
     }

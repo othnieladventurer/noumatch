@@ -1,0 +1,125 @@
+.nm-footer {
+  position: relative;
+  background: radial-gradient(circle at top right, #374151 0%, #0f172a 48%, #020617 100%);
+  color: #f8fafc;
+  padding: 52px 0 28px;
+}
+
+.nm-footer-cta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 8px;
+  padding: 18px;
+  margin-bottom: 26px;
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.nm-footer-cta h4 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.nm-footer-cta p {
+  margin: 4px 0 0;
+  color: #cbd5e1;
+  font-size: 0.95rem;
+}
+
+.nm-footer-cta-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.nm-footer h5 {
+  margin-bottom: 10px;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.nm-footer h6 {
+  margin-bottom: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.nm-footer-muted {
+  color: #94a3b8;
+}
+
+.nm-footer-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.nm-footer-list a {
+  color: #e2e8f0;
+  text-decoration: none;
+}
+
+.nm-footer-list a:hover {
+  color: #fff;
+}
+
+.nm-footer-socials {
+  display: flex;
+  gap: 10px;
+}
+
+.nm-footer-socials a {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #f8fafc;
+  text-decoration: none;
+  transition: transform 0.2s ease;
+}
+
+.nm-footer-socials a:hover {
+  transform: translateY(-2px);
+  background: rgba(220, 38, 38, 0.3);
+}
+
+.nm-footer-bottom {
+  margin-top: 22px;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  padding-top: 14px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.nm-scroll-top {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  background: #dc2626;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
+}
+
+@media (max-width: 991px) {
+  .nm-footer-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

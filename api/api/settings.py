@@ -1,7 +1,7 @@
+import logging
 """
 Django settings for api project.
 """
-import logging
 import dj_database_url
 import os
 from pathlib import Path
@@ -21,8 +21,6 @@ SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
-
-
 
 LOCAL_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 LOCAL_CORS_ORIGINS = [
@@ -66,9 +64,6 @@ else:
 
 ALLOWED_HOSTS += parse_csv_env("EXTRA_ALLOWED_HOSTS")
 CORS_ALLOWED_ORIGINS += parse_csv_env("EXTRA_CORS_ALLOWED_ORIGINS")
-
-
-
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -454,4 +449,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 logging.info(f"\n{'='*50}")
 logging.info(f"✅ Settings loaded successfully in {ENVIRONMENT.upper()} mode")
 logging.info(f"{'='*50}\n")
-

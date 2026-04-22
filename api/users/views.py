@@ -1,4 +1,9 @@
+import logging
 import threading
+from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -25,10 +30,11 @@ from block.models import Block
 from .serializers import (
     RegisterSerializer, LoginSerializer, 
     ChangePasswordSerializer, UserSerializer, MeSerializer, 
-    UserProfileSerializer, UserPhotoSerializer
+    UserProfileSerializer, UserPhotoSerializer, ForgotPasswordSerializer,
+    ResetPasswordConfirmSerializer
 )
 from .utils import generate_otp, send_otp_email
-from .email_api import send_otp_via_api
+from .email_api import send_otp_via_api, send_password_reset_email
 
 from admin_dashboard.services.ranking import compute_ranking_score
 from datetime import timedelta
@@ -112,14 +118,14 @@ class RegisterView(generics.CreateAPIView):
             try:
                 send_otp_via_api(user, otp_code)
             except Exception as e:
-                print(f"Background email failed: {e}")
+                logging.info(f"Background email failed: {e}")
         
         thread = threading.Thread(target=send_email_background)
         thread.daemon = True
         thread.start()
         
-        print(f"🔐 Registration: {user.email} | OTP: {otp_code} (valid for 5 minutes)")
-        print(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
+        logging.info(f"🔐 Registration: {user.email} | OTP: {otp_code} (valid for 5 minutes)")
+        logging.info(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
 
         return Response({
             "message": "Registration successful. Please verify your email with the 4-digit code sent.",
@@ -312,13 +318,13 @@ class ResendOTPView(APIView):
             try:
                 send_otp_via_api(user, otp_code)
             except Exception as e:
-                print(f"Resend email failed: {e}")
+                logging.info(f"Resend email failed: {e}")
         
         thread = threading.Thread(target=send_email_background)
         thread.daemon = True
         thread.start()
         
-        print(f"🔄 Resent OTP for {user.email}: {otp_code} (valid for 5 minutes)")
+        logging.info(f"🔄 Resent OTP for {user.email}: {otp_code} (valid for 5 minutes)")
 
         return Response(
             {'message': 'New 4-digit verification code sent to your email. Valid for 5 minutes.'}, 
@@ -364,8 +370,6 @@ class CheckOTPStatusView(APIView):
                 'has_valid_otp': False,
                 'message': 'OTP expired or used'
             }, status=status.HTTP_200_OK)
-
-
 
 
 class LoginView(generics.GenericAPIView):
@@ -446,6 +450,81 @@ class ChangePasswordView(generics.UpdateAPIView):
         return Response({"detail": "Password updated successfully"})
 
 
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"].strip().lower()
+
+        user = User.objects.filter(email=email, is_active=True).first()
+        if user:
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            token = default_token_generator.make_token(user)
+            reset_token = f"{uid}.{token}"
+
+            frontend_base = getattr(settings, "FRONTEND_URL", "http://localhost:5173").rstrip("/")
+            reset_url = f"{frontend_base}/#/reset-password/{reset_token}"
+
+            thread = threading.Thread(
+                target=send_password_reset_email,
+                args=(user, reset_url),
+                daemon=True,
+            )
+            thread.start()
+
+        return Response(
+            {
+                "detail": (
+                    "If this email exists, a password reset link has been sent."
+                )
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class ResetPasswordConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        raw_token = serializer.validated_data["token"]
+        new_password = serializer.validated_data["new_password"]
+
+        if "." not in raw_token:
+            return Response(
+                {"detail": "Invalid reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        uidb64, token = raw_token.split(".", 1)
+        try:
+            user_id = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=user_id, is_active=True)
+        except Exception:
+            return Response(
+                {"detail": "Invalid reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not default_token_generator.check_token(user, token):
+            return Response(
+                {"detail": "This reset link is invalid or has expired."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+
+        return Response(
+            {"detail": "Password reset successful."},
+            status=status.HTTP_200_OK,
+        )
+
+
 class ProfilePagination(PageNumberPagination):
     page_size = 15
     page_size_query_param = 'page_size'
@@ -464,22 +543,22 @@ class UserProfileListView(generics.ListAPIView):
         user = self.request.user
         now = timezone.now()
         
-        print(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
-        print(f"🔍 USER GENDER: {user.gender}")
-        print(f"🔍 ACCOUNT TYPE: {user.account_type}")
+        logging.info(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
+        logging.info(f"🔍 USER GENDER: {user.gender}")
+        logging.info(f"🔍 ACCOUNT TYPE: {user.account_type}")
         
         queryset = User.objects.none()
         
         try:
             if user.gender == 'male':
                 queryset = User.objects.filter(is_active=True, gender='female')
-                print(f"🔍 Man looking for women")
+                logging.info(f"🔍 Man looking for women")
             elif user.gender == 'female':
                 queryset = User.objects.filter(is_active=True, gender='male')
-                print(f"🔍 Woman looking for men")
+                logging.info(f"🔍 Woman looking for men")
             else:
                 queryset = User.objects.filter(is_active=True)
-                print(f"🔍 Showing all users")
+                logging.info(f"🔍 Showing all users")
             
             queryset = queryset.filter(is_superuser=False)
             
@@ -494,10 +573,10 @@ class UserProfileListView(generics.ListAPIView):
             base_exclusions.add(user.id)
             
             queryset = queryset.exclude(id__in=base_exclusions)
-            print(f"🔍 TOTAL PROFILES BEFORE RANKING: {queryset.count()}")
+            logging.info(f"🔍 TOTAL PROFILES BEFORE RANKING: {queryset.count()}")
             
         except Exception as e:
-            print(f"❌ ERROR in get_queryset: {e}")
+            logging.info(f"❌ ERROR in get_queryset: {e}")
             import traceback
             traceback.print_exc()
             queryset = User.objects.none()
@@ -593,8 +672,8 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         return self.request.user
     
     def put(self, request, *args, **kwargs):
-        print("🔍 Request data:", request.data)
-        print("🔍 Request FILES:", request.FILES)
+        logging.info("🔍 Request data:", request.data)
+        logging.info("🔍 Request FILES:", request.FILES)
         return self.partial_update(request, *args, **kwargs)
     
     def patch(self, request, *args, **kwargs):
@@ -608,7 +687,7 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         try:
             serializer.is_valid(raise_exception=True)
         except Exception as e:
-            print("❌ Validation errors:", serializer.errors)
+            logging.info("❌ Validation errors:", serializer.errors)
             raise e
             
         self.perform_update(serializer)

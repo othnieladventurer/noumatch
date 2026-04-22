@@ -1,22 +1,18 @@
-// src/pages/Login.jsx
 import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import API from '@/api/axios';
+import API from "@/api/axios";
+import "../styles/auth-redesign.css";
 
 export default function Login() {
   const navigate = useNavigate();
-
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
@@ -25,57 +21,17 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // FIXED: Use the correct admin login endpoint or check your backend URL patterns
-      // Try one of these based on your backend configuration:
-      
-      // Option 1: Standard Django REST Framework login
-      const response = await API.post("/users/login/", formData);
-      
-      // Option 2: If using JWT token endpoint (more common)
-      // const response = await API.post("/users/token/", formData);
-      
-      // Option 3: If using admin login (for admin users only)
-      // const response = await API.post("/noumatch-admin/admin_login/", formData);
-      
-      // Store tokens
-      if (response.data.access) {
-        localStorage.setItem("access", response.data.access);
-        localStorage.setItem("refresh", response.data.refresh);
-      }
-      
-      // Check if user is admin
-      if (response.data.is_staff || response.data.is_admin) {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/dashboard");
-      }
-      
+      const response = await API.post("users/login/", formData);
+      localStorage.setItem("access", response.data.access);
+      localStorage.setItem("refresh", response.data.refresh);
+      navigate("/dashboard");
     } catch (error) {
-      console.error("Erreur de connexion:", error);
-      
-      if (error.response) {
-        if (error.response.status === 401) {
-          setErrorMessage("Email ou mot de passe incorrect");
-        } else if (error.response.status === 405) {
-          setErrorMessage("Erreur de configuration du serveur. Veuillez contacter l'administrateur.");
-          console.error("API endpoint may be incorrect. Check your backend URL patterns.");
-        } else if (error.response.status === 404) {
-          setErrorMessage("Service de connexion indisponible. Veuillez réessayer plus tard.");
-        } else {
-          let message = "";
-          if (typeof error.response.data === "object") {
-            for (let key in error.response.data) {
-              message += `${key}: ${error.response.data[key]}\n`;
-            }
-          } else {
-            message = error.response.data || "Échec de la connexion";
-          }
-          setErrorMessage(message);
-        }
-      } else if (error.request) {
-        setErrorMessage("Erreur réseau ou serveur. Veuillez réessayer.");
+      if (error.response?.status === 401 || error.response?.status === 404) {
+        setErrorMessage("Email ou mot de passe incorrect");
+      } else if (error.response?.data?.detail) {
+        setErrorMessage(error.response.data.detail);
       } else {
-        setErrorMessage("Une erreur est survenue. Veuillez réessayer.");
+        setErrorMessage("Connexion impossible. Veuillez reessayer.");
       }
     } finally {
       setLoading(false);
@@ -83,90 +39,60 @@ export default function Login() {
   };
 
   return (
-    <div
-      className="vh-100 d-flex align-items-center justify-content-center position-relative p-4"
-      style={{
-        backgroundImage:
-          "url('https://img.freepik.com/free-photo/happy-african-loving-couple-hugging-outdoors-beach_171337-16188.jpg?semt=ais_hybrid&w=740&q=80')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
-      <div
-        className="position-absolute top-0 start-0 w-100 h-100"
-        style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
-      ></div>
+    <div className="auth-shell">
+      <div className="auth-panel">
+        <div className="auth-brand">
+          <h1>
+            <FaHeart className="text-danger me-2" />
+            NouMatch
+          </h1>
+          <p>Connectez-vous a votre compte</p>
+        </div>
 
-      <div
-        className="card shadow-lg border-0 rounded-4 p-4 position-relative"
-        style={{ width: "100%", maxWidth: "400px" }}
-      >
-        <div className="card-body">
-          <div className="text-center mb-4">
-            <h1 className="d-flex justify-content-center align-items-center fw-bold">
-              <FaHeart className="text-danger me-2" />
-              <span className="text-primary">NouMatch</span>
-            </h1>
-            <p className="text-muted mb-0">Trouvez votre âme sœur</p>
+        {errorMessage && <div className="alert alert-danger">{errorMessage}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="mb-3">
+            <label className="form-label">Email</label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="form-control form-control-lg"
+              placeholder="email@exemple.com"
+              required
+            />
           </div>
 
-          {errorMessage && (
-            <div className="alert alert-danger white-space-pre-wrap">
-              {errorMessage}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div className="mb-3">
-              <label className="form-label">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="form-control form-control-lg"
-                placeholder="email@exemple.com"
-                required
-              />
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">Mot de passe</label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="form-control form-control-lg"
-                placeholder="Entrez votre mot de passe"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-danger w-100 btn-lg"
-              disabled={loading}
-            >
-              {loading ? "Connexion en cours..." : "Se connecter"}
-            </button>
-          </form>
-
-          <div className="text-center mt-3">
-            <small className="text-muted">
-              Vous n'avez pas de compte ?{" "}
-              <Link
-                to="/register"
-                className="text-danger text-decoration-none fw-semibold"
-              >
-                S'inscrire
-              </Link>
-            </small>
+          <div className="mb-2">
+            <label className="form-label">Mot de passe</label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              className="form-control form-control-lg"
+              placeholder="Entrez votre mot de passe"
+              required
+            />
           </div>
+
+          <div className="text-end mb-3">
+            <Link to="/forgot-password" className="auth-link">
+              Mot de passe oublie ?
+            </Link>
+          </div>
+
+          <button type="submit" className="btn btn-danger btn-lg w-100 auth-btn" disabled={loading}>
+            {loading ? "Connexion..." : "Se connecter"}
+          </button>
+        </form>
+
+        <div className="text-center mt-3 text-muted">
+          Pas encore de compte ? <Link to="/register" className="auth-link">S'inscrire</Link>
         </div>
       </div>
     </div>
   );
 }
-

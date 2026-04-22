@@ -5,12 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:staging": "vite --config vite.config.staging.js",
+    "dev:staging": "vite --mode staging",
     "build": "vite build",
-    "build:staging": "vite build --config vite.config.staging.js",
+    "build:staging": "vite build --mode staging",
     "lint": "eslint .",
     "preview": "vite preview",
-    "preview:staging": "vite preview --config vite.config.staging.js"
+    "preview:staging": "vite preview --mode staging"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",
@@ -19,7 +19,6 @@
     "axios": "^1.13.6",
     "bootstrap": "^5.3.8",
     "chart.js": "^4.5.1",
-    "posthog-js": "^1.364.7",
     "react": "^18.2.0",
     "react-bootstrap": "^2.10.10",
     "react-chartjs-2": "^5.3.1",

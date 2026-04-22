@@ -3,6 +3,7 @@
 Thumbs.db
 .vscode/
 .idea/
+.worktree-main/
 
 # Python
 **/__pycache__/

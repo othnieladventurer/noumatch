@@ -1,3 +1,4 @@
+import logging
 # notifications/consumers.py
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -11,17 +12,17 @@ User = get_user_model()
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        print("=" * 50)
-        print("🔌 WEBSOCKET CONNECT ATTEMPT")
+        logging.info("=" * 50)
+        logging.info("🔌 WEBSOCKET CONNECT ATTEMPT")
         
         # Get token from query string
         query_string = self.scope['query_string'].decode()
         query_params = parse_qs(query_string)
         token = query_params.get('token', [None])[0]
         
-        print(f"Token present: {bool(token)}")
-        print(f"Path: {self.scope['path']}")
-        print("=" * 50)
+        logging.info(f"Token present: {bool(token)}")
+        logging.info(f"Path: {self.scope['path']}")
+        logging.info("=" * 50)
         
         if token:
             # Authenticate with token
@@ -38,7 +39,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 )
                 
                 await self.accept()
-                print(f"✅ WebSocket connection accepted for user {user.id} ({user.email})")
+                logging.info(f"✅ WebSocket connection accepted for user {user.id} ({user.email})")
                 
                 # Send confirmation
                 await self.send(text_data=json.dumps({
@@ -49,11 +50,11 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 return
         
         # No valid token, reject connection
-        print("❌ WebSocket connection rejected - no valid token")
+        logging.info("❌ WebSocket connection rejected - no valid token")
         await self.close()
     
     async def disconnect(self, close_code):
-        print(f"🔌 WebSocket disconnected: {close_code}")
+        logging.info(f"🔌 WebSocket disconnected: {close_code}")
         
         # Remove from group if we were in one
         if hasattr(self, 'group_name'):
@@ -61,10 +62,10 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 self.group_name,
                 self.channel_name
             )
-            print(f"   Removed from group: {self.group_name}")
+            logging.info(f"   Removed from group: {self.group_name}")
     
     async def receive(self, text_data):
-        print(f"📩 Received from client: {text_data}")
+        logging.info(f"📩 Received from client: {text_data}")
         
         try:
             data = json.loads(text_data)
@@ -100,9 +101,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 }))
                 
         except json.JSONDecodeError:
-            print("❌ Invalid JSON received")
+            logging.info("❌ Invalid JSON received")
         except Exception as e:
-            print(f"❌ Error processing message: {e}")
+            logging.info(f"❌ Error processing message: {e}")
     
     # Notification sending method (called from other parts of the app)
     async def send_notification(self, event):
@@ -116,7 +117,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             'type': 'new_notification',
             'notification': notification
         }))
-        print(f"📨 Sent notification to user {self.user.id}")
+        logging.info(f"📨 Sent notification to user {self.user.id}")
     
     # Helper methods
     @database_sync_to_async
@@ -136,14 +137,14 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                     user = User.objects.get(id=user_id)
                     return user
                 except User.DoesNotExist:
-                    print(f"❌ User {user_id} not found")
+                    logging.info(f"❌ User {user_id} not found")
                     return None
         except jwt.ExpiredSignatureError:
-            print("❌ Token expired")
+            logging.info("❌ Token expired")
         except jwt.InvalidTokenError as e:
-            print(f"❌ Invalid token: {e}")
+            logging.info(f"❌ Invalid token: {e}")
         except Exception as e:
-            print(f"❌ Token error: {e}")
+            logging.info(f"❌ Token error: {e}")
         
         return None
     
@@ -158,10 +159,10 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 recipient=self.user
             )
             notification.mark_as_read()
-            print(f"✅ Marked notification {notification_id} as read")
+            logging.info(f"✅ Marked notification {notification_id} as read")
             return True
         except Notification.DoesNotExist:
-            print(f"❌ Notification {notification_id} not found")
+            logging.info(f"❌ Notification {notification_id} not found")
             return False
     
     @database_sync_to_async
@@ -170,7 +171,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         from .models import Notification
         
         count = Notification.mark_all_as_read(self.user)
-        print(f"✅ Marked {count} notifications as read for user {self.user.id}")
+        logging.info(f"✅ Marked {count} notifications as read for user {self.user.id}")
         return count
 
 

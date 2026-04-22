@@ -5,7 +5,8 @@ from . import views
 from .views import (RegisterView, LoginView, 
                     LogoutView, ChangePasswordView, ResendOTPView,
                     UserListView, MeView, UserProfileListView, UserDetailView, 
-                    ProfileUpdateView, VerifyOTPView, ResendOTPView, check_email)
+                    ProfileUpdateView, VerifyOTPView, ResendOTPView, check_email,
+                    ForgotPasswordView, ResetPasswordConfirmView)
 
 urlpatterns = [
     path("all/", UserListView.as_view(), name="user-list"),
@@ -20,6 +21,8 @@ urlpatterns = [
 
     path("logout/", LogoutView.as_view(), name="logout"),
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
+    path("forgot-password/", ForgotPasswordView.as_view(), name="forgot_password"),
+    path("reset-password/", ResetPasswordConfirmView.as_view(), name="reset_password_confirm"),
 
 
    

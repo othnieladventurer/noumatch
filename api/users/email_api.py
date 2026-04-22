@@ -1,213 +1,145 @@
-import requests
 import logging
+import requests
 from django.conf import settings
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
-def send_otp_via_api(user, otp_code):
-    """Send OTP using Brevo API with full logging"""
-    
+
+def _send_brevo_email(payload):
+    api_key = getattr(settings, "BREVO_API_KEY", "")
+    if not api_key:
+        logger.error("BREVO_API_KEY is not configured")
+        return False
+
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json",
+    }
+
     try:
-        url = "https://api.brevo.com/v3/smtp/email"
-        
-        # Debug: Check if API key exists
-        api_key = getattr(settings, 'BREVO_API_KEY', None)
-        if not api_key:
-            error_msg = "❌ BREVO_API_KEY is NOT configured in environment variables!"
-            logger.error(error_msg)
-            print(error_msg)
-            return False
-        
-        # Log API key presence (first few chars only for security)
-        print(f"🔑 API Key loaded: {api_key[:15]}... (length: {len(api_key)})")
-        logger.info(f"API Key loaded: {api_key[:15]}... (length: {len(api_key)})")
-        
-        # HTML Email Template
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Verify Your NouMatch Account</title>
-            <style>
-                body {{
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    margin: 0;
-                    padding: 0;
-                }}
-                .container {{
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 20px;
-                }}
-                .header {{
-                    background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-                    padding: 30px;
-                    text-align: center;
-                    border-radius: 10px 10px 0 0;
-                }}
-                .header h1 {{
-                    color: white;
-                    margin: 0;
-                    font-size: 28px;
-                }}
-                .content {{
-                    background: #f9f9f9;
-                    padding: 30px;
-                    border-radius: 0 0 10px 10px;
-                }}
-                .code-container {{
-                    background: white;
-                    padding: 20px;
-                    text-align: center;
-                    margin: 20px 0;
-                    border-radius: 8px;
-                    border: 2px solid #ff4d6d;
-                }}
-                .code {{
-                    font-size: 36px;
-                    font-weight: bold;
-                    letter-spacing: 5px;
-                    color: #ff4d6d;
-                    font-family: monospace;
-                }}
-                .warning {{
-                    color: #ff4d6d;
-                    font-weight: bold;
-                    text-align: center;
-                    margin: 15px 0;
-                    padding: 10px;
-                    background: #fff0f0;
-                    border-radius: 5px;
-                }}
-                .footer {{
-                    text-align: center;
-                    margin-top: 20px;
-                    font-size: 12px;
-                    color: #999;
-                }}
-                hr {{
-                    margin: 20px 0;
-                    border: none;
-                    border-top: 1px solid #e0e0e0;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>NouMatch</h1>
-                </div>
-                <div class="content">
-                    <h2>Hello {user.first_name}!</h2>
-                    <p>Thank you for joining NouMatch. Use the code below to verify your email address:</p>
-                    
-                    <div class="code-container">
-                        <span class="code">{otp_code}</span>
-                    </div>
-                    
-                    <div class="warning">
-                        ⚠️ This code expires in <strong>90 seconds</strong> for security reasons!
-                    </div>
-                    
-                    <p>If you didn't request this verification, please ignore this email.</p>
-                    
-                    <hr>
-                    
-                    <p style="font-size: 12px; color: #666;">
-                        This is an automated message from NouMatch. Please do not reply to this email.
-                    </p>
-                </div>
-                <div class="footer">
-                    <p>© 2026 NouMatch. All rights reserved.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        
-        # Plain text fallback
-        text_content = f"""
-Hello {user.first_name}!
-
-Thank you for joining NouMatch. Use the code below to verify your email address:
-
-{otp_code}
-
-⚠️ IMPORTANT: This code expires in 90 seconds for security reasons!
-
-If you didn't request this verification, please ignore this email.
-
-© 2026 NouMatch. All rights reserved.
-"""
-        
-        payload = {
-            "sender": {
-                "name": "NouMatch",
-                "email": "no-reply@noumatch.com"
-            },
-            "to": [
-                {
-                    "email": user.email,
-                    "name": f"{user.first_name} {user.last_name}"
-                }
-            ],
-            "subject": "Your NouMatch Verification Code (Expires in 90 Seconds)",
-            "htmlContent": html_content,
-            "textContent": text_content,
-            "headers": {
-                "X-Mailin-custom": "OTP verification - 90 seconds expiry"
-            }
-        }
-        
-        headers = {
-            "accept": "application/json",
-            "api-key": api_key,
-            "content-type": "application/json"
-        }
-        
-        # Log email attempt
-        print(f"📧 Attempting to send OTP to {user.email}")
-        print(f"🔐 OTP Code: {otp_code}")
-        logger.info(f"Attempting to send OTP to {user.email}")
-        
-        # Make the API call
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        
-        # Log response
-        print(f"📡 Response Status: {response.status_code}")
-        print(f"📡 Response Body: {response.text}")
-        logger.info(f"Brevo API Response: {response.status_code}")
-        
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            json=payload,
+            headers=headers,
+            timeout=10,
+        )
         if response.status_code == 201:
-            print(f"✅ SUCCESS: OTP sent successfully to {user.email}")
-            logger.info(f"OTP sent successfully to {user.email}")
             return True
-        else:
-            error_msg = f"❌ API Error: {response.status_code} - {response.text}"
-            print(error_msg)
-            logger.error(error_msg)
-            return False
-            
-    except requests.exceptions.Timeout:
-        error_msg = f"⏰ Timeout sending OTP to {user.email}"
-        print(error_msg)
-        logger.error(error_msg)
+
+        logger.error("Brevo email failed with status %s", response.status_code)
         return False
-        
-    except requests.exceptions.ConnectionError:
-        error_msg = f"🔌 Connection error sending OTP to {user.email}"
-        print(error_msg)
-        logger.error(error_msg)
-        return False
-        
-    except Exception as e:
-        error_msg = f"❌ Unexpected error: {e}"
-        print(error_msg)
-        logger.error(error_msg)
+    except Exception as exc:
+        logger.error("Brevo email exception: %s", exc)
         return False
 
-        
+
+def send_otp_via_api(user, otp_code):
+    """Send OTP verification email via Brevo."""
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset=\"UTF-8\">
+      <title>Verify Your NouMatch Account</title>
+      <style>
+        body {{ font-family: Arial, sans-serif; color: #222; background: #f5f7fb; margin: 0; }}
+        .container {{ max-width: 640px; margin: 0 auto; padding: 24px; }}
+        .header {{ background: linear-gradient(135deg, #ff4d6d, #ff8fa3); color: #fff; border-radius: 14px 14px 0 0; padding: 28px; text-align: center; }}
+        .content {{ background: #fff; border-radius: 0 0 14px 14px; padding: 28px; }}
+        .code {{ font-size: 34px; font-weight: 700; letter-spacing: 6px; color: #ff4d6d; font-family: monospace; }}
+        .notice {{ background: #fff5f7; border-left: 4px solid #ff4d6d; padding: 10px 12px; margin-top: 16px; border-radius: 8px; }}
+      </style>
+    </head>
+    <body>
+      <div class=\"container\">
+        <div class=\"header\"><h1 style=\"margin:0;\">NouMatch</h1></div>
+        <div class=\"content\">
+          <p>Hello {user.first_name or user.email},</p>
+          <p>Use this verification code to confirm your account:</p>
+          <p class=\"code\">{otp_code}</p>
+          <div class=\"notice\">This code expires in 5 minutes.</div>
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+
+    text_content = (
+        f"Hello {user.first_name or user.email},\n\n"
+        f"Your NouMatch verification code is: {otp_code}\n"
+        "This code expires in 5 minutes."
+    )
+
+    payload = {
+        "sender": {"name": "NouMatch", "email": "no-reply@noumatch.com"},
+        "to": [{"email": user.email, "name": f"{user.first_name} {user.last_name}".strip()}],
+        "subject": "Your NouMatch verification code",
+        "htmlContent": html_content,
+        "textContent": text_content,
+    }
+
+    sent = _send_brevo_email(payload)
+    if sent:
+        logger.info("OTP email sent to %s", user.email)
+    return sent
+
+
+def send_password_reset_email(user, reset_url):
+    """Send password reset email via Brevo."""
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset=\"UTF-8\">
+        <title>Reset Your NouMatch Password</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; color: #222; margin: 0; padding: 0; background: #f5f7fb; }}
+            .container {{ max-width: 640px; margin: 0 auto; padding: 24px; }}
+            .header {{ background: linear-gradient(135deg, #ff4d6d, #ff8fa3); color: #fff; border-radius: 14px 14px 0 0; padding: 28px; text-align: center; }}
+            .content {{ background: #fff; border-radius: 0 0 14px 14px; padding: 28px; }}
+            .button {{ display: inline-block; background: #ff4d6d; color: #fff !important; text-decoration: none; font-weight: 700; padding: 12px 22px; border-radius: 10px; margin: 16px 0; }}
+            .link {{ word-break: break-all; color: #ff4d6d; font-size: 13px; }}
+            .notice {{ background: #fff5f7; border-left: 4px solid #ff4d6d; padding: 10px 12px; margin-top: 16px; border-radius: 8px; font-size: 14px; }}
+            .footer {{ margin-top: 18px; text-align: center; color: #777; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class=\"container\">
+            <div class=\"header\">
+                <h1 style=\"margin:0;\">NouMatch</h1>
+                <p style=\"margin:8px 0 0;\">Password Reset Request</p>
+            </div>
+            <div class=\"content\">
+                <p>Hello {user.first_name or user.email},</p>
+                <p>We received a request to reset your NouMatch password.</p>
+                <p><a class=\"button\" href=\"{reset_url}\" target=\"_blank\" rel=\"noopener noreferrer\">Reset My Password</a></p>
+                <p>If the button does not work, copy and paste this link:</p>
+                <p class=\"link\">{reset_url}</p>
+                <div class=\"notice\">For your security, this link expires automatically. If you did not request this, you can ignore this email.</div>
+            </div>
+            <div class=\"footer\">(c) 2026 NouMatch. All rights reserved.</div>
+        </div>
+    </body>
+    </html>
+    """
+
+    text_content = (
+        f"Hello {user.first_name or user.email},\n\n"
+        "We received a request to reset your NouMatch password.\n"
+        f"Reset link: {reset_url}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+
+    payload = {
+        "sender": {"name": "NouMatch", "email": "no-reply@noumatch.com"},
+        "to": [{"email": user.email, "name": f"{user.first_name} {user.last_name}".strip()}],
+        "subject": "Reset your NouMatch password",
+        "htmlContent": html_content,
+        "textContent": text_content,
+    }
+
+    sent = _send_brevo_email(payload)
+    if sent:
+        logger.info("Password reset email sent to %s", user.email)
+    return sent

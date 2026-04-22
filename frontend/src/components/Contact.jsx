@@ -15,7 +15,6 @@ export default function Contact() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log("Contact form submitted:", formData);
     alert("Merci ! Votre message a été envoyé.");
     setFormData({ email: "", subject: "", message: "" });
   };
@@ -105,3 +104,4 @@ export default function Contact() {
     </section>
   );
 }
+

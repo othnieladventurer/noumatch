@@ -2,6 +2,7 @@ import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import API from '@/api/axios';
+import "../styles/auth-redesign.css";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -145,7 +146,6 @@ export default function Register() {
           setShowEligibilityModal(true);
         }
       } catch (err) {
-        console.error("Eligibility check failed:", err);
         if (err.response?.status === 400) {
           // Bad request - email missing
           setEmailError("Email requis");
@@ -175,7 +175,6 @@ export default function Register() {
         const response = await fetch('https://ipapi.co/json/', { timeout: 5000 });
         if (response.ok) data = await response.json();
       } catch (e) {
-        console.log("ipapi.co failed");
       }
       if (!data || !data.country_name) {
         const response = await fetch('http://ip-api.com/json/');
@@ -206,7 +205,6 @@ export default function Register() {
         setCountryCode("");
       }
     } catch (error) {
-      console.error("Location detection error:", error);
       setFormData(prev => ({ ...prev, country: "", city: "", latitude: "", longitude: "" }));
       setCountryCode("");
     } finally {
@@ -302,7 +300,6 @@ export default function Register() {
         state: { userId: response.data.user_id, email: formData.email }
       });
     } catch (error) {
-      console.error("Registration error:", error);
       let message = "Une erreur est survenue. Veuillez réessayer.";
       
       if (error.response) {
@@ -338,32 +335,20 @@ export default function Register() {
 
   return (
     <>
-      <div
-        className="vh-100 d-flex align-items-center justify-content-center position-relative"
-        style={{
-          backgroundImage: "url('https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51961.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          padding: "1rem",
-        }}
-      >
-        <div className="position-absolute top-0 start-0 w-100 h-100" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}></div>
+      <div className="auth-shell">
 
         <div
-          className="card shadow-lg border-0 rounded-4 p-4 position-relative"
+          className="auth-panel"
           style={{
             width: "100%",
             maxWidth: "500px",
-            maxHeight: "600px",
-            overflow: "hidden",
-            borderRadius: "24px !important",
+            maxHeight: "calc(100vh - 2.4rem)",
           }}
         >
           <div
             className="card-body"
             style={{
-              height: "100%",
+              minHeight: "100%",
               overflowY: "auto",
               padding: "1.5rem",
               borderRadius: "24px",
@@ -559,7 +544,6 @@ export default function Register() {
       </div>
 
       {/* Eligibility Modal - Only for waitlisted users */}
-      {/* Eligibility Modal - Only for waitlisted users */}
       {showEligibilityModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999 }}>
           <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "450px" }}>
@@ -571,12 +555,12 @@ export default function Register() {
                       <i className="fas fa-clock text-warning fs-1"></i>
                     </div>
                   </div>
-                  <h5 className="modal-title fw-bold">Vous devez être sur la liste d'attente</h5>
+                  <h5 className="modal-title fw-bold">Accès anticipé - Liste d'attente</h5>
                 </div>
               </div>
               <div className="modal-body text-center pt-0">
                 <p className="text-muted mb-3">
-                  {eligibilityMessage || "L'accès est limité aux personnes inscrites sur la liste d'attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."}
+                  {eligibilityMessage || "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."}
                 </p>
                 <div className="alert alert-info bg-light rounded-3 p-3 mb-0">
                   <i className="fas fa-envelope-open-text text-primary me-2"></i>
@@ -586,11 +570,7 @@ export default function Register() {
                 </div>
               </div>
               <div className="modal-footer border-0 justify-content-center gap-3 pt-0">
-                <Link 
-                  to="/waitlist" 
-                  className="btn btn-danger px-4 rounded-pill"
-                  onClick={() => setShowEligibilityModal(false)}
-                >
+                <Link to="/waitlist" className="btn btn-danger px-4 rounded-pill">
                   <i className="fas fa-list me-2"></i>
                   Rejoindre la liste d'attente
                 </Link>
@@ -604,8 +584,8 @@ export default function Register() {
               </div>
             </div>
           </div>
-  </div>
-)}
+        </div>
+      )}
     </>
   );
 }

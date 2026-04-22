@@ -11,8 +11,8 @@ export default function LikesSection({ user }) {
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/150";
     if (path.startsWith('http')) return path;
-    if (path.startsWith('/media')) return `http://127.0.0.1:8000${path}`;
-    return `http://127.0.0.1:8000${path}`;
+    if (path.startsWith('/media')) return `${import.meta.env.VITE_API_URL}${path}`;
+    return `${import.meta.env.VITE_API_URL}${path}`;
   };
 
   // Helper: calculate age (copied from Dashboard)
@@ -37,7 +37,7 @@ export default function LikesSection({ user }) {
       if (!token) return;
 
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/interactions/likes/received/", {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/interactions/likes/received/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -94,7 +94,7 @@ export default function LikesSection({ user }) {
     if (!token) return;
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/interactions/like/", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/interactions/like/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -108,8 +108,6 @@ export default function LikesSection({ user }) {
       }
 
       const likeData = await response.json();
-      console.log("Like back created:", likeData);
-
       // Remove this profile from likesList (optional, but keeps list clean)
       setLikesList(prev => prev.filter(p => p.id !== selectedLike.id));
 
@@ -374,3 +372,5 @@ export default function LikesSection({ user }) {
     </>
   );
 }
+
+

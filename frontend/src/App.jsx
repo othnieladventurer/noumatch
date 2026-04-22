@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useEffect } from "react";
+import React from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 
 // Context Providers
@@ -33,27 +33,25 @@ import Conversation from './pages/Conversation';
 import Notifications from './pages/Notifications'; 
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import VerifyOtp from "./pages/VerifyOtp";
-import Faq from "./pages/Faq";
-import Contact from "./pages/Contact";
 import Terms from "./pages/Terms";
 
 // Admin Pages
-import AdminLogin from "./pages/AdminLogin.jsx";
-import AdminDashboard from "./pages/AdminDashboard.jsx";
-import AdminUsers from "./pages/AdminUsers.jsx";
-import AdminUserDetail from "./pages/AdminUserDetail.jsx";
-import AdminReports from "./pages/AdminReports.jsx";
-import AdminSwipeStats from "./pages/AdminSwipeStats.jsx";
-import AdminMessages from "./pages/AdminMessages.jsx";
-import AdminSupportConversationDetail from "./pages/AdminSupportConversationDetail.jsx";
-import AdminUserConversationDetail from "./pages/AdminUserConversationDetail.jsx";
-import AdminFlaggedMessages from "./pages/AdminFlaggedMessages.jsx";
-import AdminWaitlist from "./pages/AdminWaitlist.jsx";
+import AdminLogin from "./admin/pages/AdminLogin.jsx";
+import AdminDashboard from "./admin/pages/AdminDashboard.jsx";
+import AdminUsers from "./admin/pages/AdminUsers.jsx";
+import AdminUserDetail from "./admin/pages/AdminUserDetail.jsx";
+import AdminReports from "./admin/pages/AdminReports.jsx";
+import AdminSwipeStats from "./admin/pages/AdminSwipeStats.jsx";
+import AdminMessages from "./admin/pages/AdminMessages.jsx";
+import AdminSupportConversationDetail from "./admin/pages/AdminSupportConversationDetail.jsx";
+import AdminUserConversationDetail from "./admin/pages/AdminUserConversationDetail.jsx";
+import AdminFlaggedMessages from "./admin/pages/AdminFlaggedMessages.jsx";
+import AdminWaitlist from "./admin/pages/AdminWaitlist.jsx";  // NEW IMPORT
 
 // Analytics Pages
-import AdminAnalyticsImpressions from "./pages/AdminAnalyticsImpressions.jsx";
-import AdminAnalyticsRanking from "./pages/AdminAnalyticsRanking.jsx";
-import AdminAnalyticsPerformance from "./pages/AdminAnalyticsPerformance.jsx";
+import AdminAnalyticsImpressions from "./admin/pages/AdminAnalyticsImpressions.jsx";
+import AdminAnalyticsRanking from "./admin/pages/AdminAnalyticsRanking.jsx";
+import AdminAnalyticsPerformance from "./admin/pages/AdminAnalyticsPerformance.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -75,7 +73,6 @@ export default function App() {
     "/reset-password",
     "/reset-password-done",
     "/verify-otp",
-    
     "/admin/login",
     "/admin/dashboard",
     "/admin/users",
@@ -88,7 +85,7 @@ export default function App() {
     "/admin/analytics/impressions",
     "/admin/analytics/ranking",
     "/admin/analytics/performance",
-    "/admin/waitlist",
+    "/admin/waitlist",  // NEW: hide layout for waitlist admin page
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -112,8 +109,6 @@ export default function App() {
             <Route path="/waitlist/stats" element={<WaitlistStats />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
-            <Route path="/faq" element={<Faq />} />
-            <Route path="/contact" element={<Contact />} />
 
             {/* Email Verification */}
             <Route path="/verify-email" element={<EmailVerify />} />
@@ -149,7 +144,7 @@ export default function App() {
             <Route path="/admin/messages/user/:id" element={<AdminUserConversationDetail />} />
             <Route path="/admin/flagged-messages" element={<AdminFlaggedMessages />} />
             
-            {/* Waitlist Admin Route */}
+            {/* NEW: Waitlist Admin Route */}
             <Route path="/admin/waitlist" element={<AdminWaitlist />} />
 
             {/* Analytics Routes */}
@@ -164,4 +159,6 @@ export default function App() {
     </NotificationProvider>
   );
 }
+
+
 
