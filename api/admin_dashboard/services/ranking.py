@@ -4,6 +4,7 @@ from django.db.models.functions import Coalesce
 from datetime import timedelta
 from django.utils import timezone
 from admin_dashboard.models import ProfileImpression
+from users.models import UserEngagementScore
 
 
 
@@ -51,6 +52,15 @@ def compute_ranking_score(viewer, profile):
     # 5. Boost fresh profiles (registered in last 3 days)
     if profile.date_joined > timezone.now() - timedelta(days=3):
         score += 10
+
+    # 6. Behavior score boost (active + healthy users shown more)
+    scorecard = getattr(profile, "engagement_scorecard", None)
+    if scorecard is None:
+        scorecard = UserEngagementScore.objects.filter(user=profile).only("overall_score", "trust_score").first()
+    if scorecard:
+        score += min(10, (scorecard.overall_score / 100) * 10)
+        if scorecard.trust_score < 40:
+            score -= 10
 
     return max(0, min(100, score))
 

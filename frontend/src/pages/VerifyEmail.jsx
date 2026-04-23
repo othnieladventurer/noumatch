@@ -1,4 +1,4 @@
-import { FaHeart } from "react-icons/fa";
+import BrandLogo from "../components/BrandLogo";
 import "../styles/auth.css";
 
 export default function VerifyEmail() {
@@ -6,10 +6,9 @@ export default function VerifyEmail() {
     <div className="auth-wrapper">
       <div className="auth-card">
         <div className="text-center mb-4">
-          <h1 className="brand">
-            <FaHeart className="text-danger me-2" />
-            <span className="text-primary">NouMatch</span>
-          </h1>
+          <div className="d-flex justify-content-center mb-2">
+            <BrandLogo height={42} />
+          </div>
           <p className="text-muted">Verify your email</p>
         </div>
 

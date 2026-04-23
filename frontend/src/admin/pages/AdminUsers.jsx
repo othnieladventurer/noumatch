@@ -92,7 +92,7 @@ export default function AdminUsers() {
       const url = `${API_BASE}/users/list/`;
       const res = await axios.get(url, {
         params,
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       
       // Handle both paginated and non-paginated responses
@@ -307,5 +307,6 @@ export default function AdminUsers() {
     </div>
   );
 }
+
 
 

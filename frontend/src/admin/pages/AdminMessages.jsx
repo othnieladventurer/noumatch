@@ -62,13 +62,13 @@ export default function AdminMessages() {
     try {
       const supportUrl = `${API_BASE}/support-conversations/`;
       const supportRes = await axios.get(supportUrl, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setSupportConvs(supportRes.data);
 
       const userUrl = `${API_BASE}/user-conversations/`;
       const userRes = await axios.get(userUrl, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setUserConvs(userRes.data);
     } catch (err) {
@@ -210,5 +210,6 @@ export default function AdminMessages() {
     </div>
   );
 }
+
 
 

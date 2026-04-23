@@ -5,6 +5,7 @@ import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { adminRequest } from '../utils/adminApi';
 
 const API_BASE = '/api/noumatch-admin';
 
@@ -26,7 +27,7 @@ export default function AdminUserDetail() {
   const [showMessagesModal, setShowMessagesModal] = useState(false);
 
   const getAuthHeader = () => ({
-    headers: { Authorization: `Bearer ${localStorage.getItem('admin_access')}` }
+    withCredentials: true
   });
 
   useEffect(() => {
@@ -49,12 +50,11 @@ export default function AdminUserDetail() {
     const fetchUserDetail = async () => {
       try {
         setLoading(true);
-        // FIXED: removed '/detail/' from URL, now uses standard DRF detail endpoint
-        const res = await axios.get(`${API_BASE}/users/${id}/?full=true`, getAuthHeader());
+        const res = await adminRequest({ method: 'get', url: `${API_BASE}/users/detail/${id}/?full=true` });
         setUser(res.data);
       } catch (err) {
         console.error('Fetch error:', err);
-        if (err.response?.status === 401 || err.response?.status === 403) {
+        if (err.authExpired || err.response?.status === 401 || err.response?.status === 403) {
           localStorage.removeItem('admin_access');
           localStorage.removeItem('admin_refresh');
           localStorage.removeItem('admin_email');
@@ -138,8 +138,8 @@ export default function AdminUserDetail() {
     if (!token) return;
     if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
     try {
-      await axios.post(`${API_BASE}/user_action/`, { user_id: id, action }, getAuthHeader());
-      const res = await axios.get(`${API_BASE}/users/${id}/?full=true`, getAuthHeader());
+      await adminRequest({ method: 'post', url: `${API_BASE}/user_action/`, data: { user_id: id, action } });
+      const res = await adminRequest({ method: 'get', url: `${API_BASE}/users/detail/${id}/?full=true` });
       setUser(res.data);
       alert(`User ${action}ed successfully`);
     } catch (err) {
@@ -152,7 +152,7 @@ export default function AdminUserDetail() {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
     try {
-      await axios.post(`${API_BASE}/user/block/`, { user_id: id, reason: modalReason }, getAuthHeader());
+      await adminRequest({ method: 'post', url: `${API_BASE}/user/block/`, data: { user_id: id, reason: modalReason } });
       alert('User blocked by admin');
       setShowBlockModal(false);
       setModalReason('');
@@ -166,8 +166,8 @@ export default function AdminUserDetail() {
     const token = localStorage.getItem('admin_access');
     if (!token) return;
     try {
-      await axios.post(`${API_BASE}/user/deactivate/`, { user_id: id, reason: modalReason }, getAuthHeader());
-      const res = await axios.get(`${API_BASE}/users/${id}/?full=true`, getAuthHeader());
+      await adminRequest({ method: 'post', url: `${API_BASE}/user/deactivate/`, data: { user_id: id, reason: modalReason } });
+      const res = await adminRequest({ method: 'get', url: `${API_BASE}/users/detail/${id}/?full=true` });
       setUser(res.data);
       alert('User deactivated');
       setShowDeactivateModal(false);
@@ -229,12 +229,30 @@ export default function AdminUserDetail() {
 
           {/* Quick stats */}
           <div className="row g-4 mb-5">
+            <div className="col-md-6 col-lg-3"><div className="metric-card p-3 text-center"><i className="fas fa-ranking-star fa-2x text-warning mb-2"></i><h6 className="text-muted mb-1">User Score</h6><p className="display-6 fw-bold mb-0">{user.score?.overall_score || 0}</p></div></div>
+            <div className="col-md-6 col-lg-3"><div className="metric-card p-3 text-center"><i className="fas fa-coins fa-2x text-secondary mb-2"></i><h6 className="text-muted mb-1">Total Points</h6><p className="display-6 fw-bold mb-0">{user.score?.total_points || 0}</p></div></div>
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart fa-2x text-danger mb-2"></i><h6 className="text-muted mb-1">Likes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_likes_given || 0}</p></div></div>
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart-broken fa-2x text-secondary mb-2"></i><h6 className="text-muted mb-1">Passes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_passes_given || 0}</p></div></div>
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-handshake fa-2x text-warning mb-2"></i><h6 className="text-muted mb-1">Total Matches</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_matches || 0}</p></div></div>
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-comment-dots fa-2x text-primary mb-2"></i><h6 className="text-muted mb-1">Messages Sent</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_messages_sent || 0}</p></div></div>
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-flag fa-2x text-danger mb-2"></i><h6 className="text-muted mb-1">Reports Received</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_reports_received || 0}</p></div></div>
             <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-calendar-alt fa-2x text-info mb-2"></i><h6 className="text-muted mb-1">Streak Days</h6><p className="display-6 fw-bold mb-0">{user.stats?.streak_days || 0}</p></div></div>
+          </div>
+
+          <div className="recent-blocks-card mb-5">
+            <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-chart-line text-warning me-2"></i>Score Breakdown</h5></div>
+            <div className="card-body pt-0 pb-4 px-4">
+              <div className="row g-3">
+                <div className="col-md-3"><div className="text-muted small">Engagement</div><div className="fw-semibold">{user.score?.engagement_score || 0}</div></div>
+                <div className="col-md-3"><div className="text-muted small">Quality</div><div className="fw-semibold">{user.score?.quality_score || 0}</div></div>
+                <div className="col-md-3"><div className="text-muted small">Trust</div><div className="fw-semibold">{user.score?.trust_score || 0}</div></div>
+                <div className="col-md-3"><div className="text-muted small">Profile Completion</div><div className="fw-semibold">{user.score?.profile_completion_percent || 0}%</div></div>
+                <div className="col-md-3"><div className="text-muted small">Onboarding Points</div><div className="fw-semibold">{user.score?.onboarding_points || 0}</div></div>
+                <div className="col-md-3"><div className="text-muted small">Activity Points</div><div className="fw-semibold">{user.score?.activity_points || 0}</div></div>
+                <div className="col-md-3"><div className="text-muted small">Quality Points</div><div className="fw-semibold">{user.score?.quality_points || 0}</div></div>
+                <div className="col-md-3"><div className="text-muted small">Penalty Points</div><div className="fw-semibold">{user.score?.penalty_points || 0}</div></div>
+              </div>
+            </div>
           </div>
 
           {/* Profile & Activity */}
@@ -419,3 +437,4 @@ export default function AdminUserDetail() {
     </div>
   );
 }
+

@@ -10,12 +10,15 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.conf import settings
 
-from users.models import User
+from users.models import User, UserEngagementScore
+from users.scoring import refresh_user_score
 from interactions.models import Like, Pass, DailySwipe
 from matches.models import Match
 from block.models import Block
@@ -25,6 +28,8 @@ from chat.serializers import SupportConversationSerializer, MessageSerializer, M
 from notifications.models import Notification
 from admin_dashboard.models import ProfileImpression
 from admin_dashboard.services.ranking import compute_ranking_score
+from users.throttles import AdminLoginThrottle
+from users.auth_cookies import set_auth_cookies, clear_auth_cookies, get_refresh_token_from_request
 
 # Waitlist models only (no serializers import – we define them inline)
 from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
@@ -94,6 +99,7 @@ def _build_activity_filters(start_datetime, end_datetime=None, actions=None):
 # ---------- Admin login ----------
 class AdminLoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AdminLoginThrottle]
 
     def post(self, request):
         email = request.data.get('email')
@@ -104,16 +110,59 @@ class AdminLoginView(APIView):
         user = authenticate(request, email=email, password=password)
         if not user:
             return Response({'error': 'Invalid credentials'}, status=401)
+        if not user.is_active:
+            return Response({'error': 'Account disabled'}, status=403)
         if not user.is_staff:
             return Response({'error': 'Not authorized as staff'}, status=403)
 
         refresh = RefreshToken.for_user(user)
-        return Response({
+        response = Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'staff_id': user.id,
             'staff_email': user.email,
         })
+        set_auth_cookies(response, str(refresh.access_token), str(refresh), admin=True)
+        return response
+
+
+class AdminTokenRefreshView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        refresh_token = get_refresh_token_from_request(request, admin=True)
+        if not refresh_token:
+            response = Response({'detail': 'Refresh token not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
+            clear_auth_cookies(response, admin=True)
+            return response
+
+        serializer = TokenRefreshSerializer(data={"refresh": refresh_token})
+        try:
+            serializer.is_valid(raise_exception=True)
+            new_access = serializer.validated_data.get("access")
+            rotated_refresh = serializer.validated_data.get("refresh")
+
+            auth = JWTAuthentication()
+            validated_access = auth.get_validated_token(new_access)
+            user = auth.get_user(validated_access)
+            if not user.is_staff:
+                response = Response({'detail': 'Not authorized as staff'}, status=status.HTTP_403_FORBIDDEN)
+                clear_auth_cookies(response, admin=True)
+                return response
+
+            response = Response(
+                {
+                    "access": new_access,
+                    "refresh": rotated_refresh or refresh_token,
+                },
+                status=status.HTTP_200_OK,
+            )
+            set_auth_cookies(response, new_access, rotated_refresh or refresh_token, admin=True)
+            return response
+        except Exception:
+            response = Response({'detail': 'Invalid refresh token.'}, status=status.HTTP_401_UNAUTHORIZED)
+            clear_auth_cookies(response, admin=True)
+            return response
 
 
 # ---------- Admin Users List ----------
@@ -146,12 +195,19 @@ class AdminUsersListView(APIView):
         start = (page - 1) * limit
         end = start + limit
         paginated_users = queryset[start:end]
+        scorecards = {
+            card.user_id: card
+            for card in UserEngagementScore.objects.filter(user__in=paginated_users)
+        }
 
         data = []
         for user in paginated_users:
             matches_count = Match.objects.filter(Q(user1=user) | Q(user2=user)).count()
             reports_received_count = Report.objects.filter(reported_user=user).count()
             risk = 'risky' if reports_received_count >= 5 else 'watch' if reports_received_count >= 2 else 'safe'
+            scorecard = scorecards.get(user.id)
+            if scorecard is None:
+                scorecard = refresh_user_score(user)
             
             data.append({
                 'id': user.id,
@@ -161,6 +217,8 @@ class AdminUsersListView(APIView):
                 'is_active': user.is_active,
                 'is_verified': user.is_verified,
                 'profile_score': user.profile_score,
+                'user_score': scorecard.overall_score if scorecard else 0,
+                'total_points': scorecard.total_points if scorecard else 0,
                 'matches_count': matches_count,
                 'reports_received_count': reports_received_count,
                 'risk_status': risk,
@@ -264,6 +322,26 @@ class AdminDashboardView(APIView):
                     'pass_rate': round((pos_passes / pos_total) * 100, 1),
                 })
 
+        score_qs = UserEngagementScore.objects.select_related('user')
+        score_aggregates = score_qs.aggregate(
+            avg_user_score=Avg('overall_score'),
+            avg_engagement_score=Avg('engagement_score'),
+            avg_quality_score=Avg('quality_score'),
+            avg_trust_score=Avg('trust_score'),
+            avg_points=Avg('total_points'),
+        )
+        high_scoring_users = score_qs.filter(overall_score__gte=80).count()
+        top_scored_users = [
+            {
+                'user_id': item.user_id,
+                'user_email': item.user.email,
+                'full_name': f"{item.user.first_name} {item.user.last_name}".strip() or item.user.email,
+                'overall_score': item.overall_score,
+                'total_points': item.total_points,
+            }
+            for item in score_qs.order_by('-overall_score', '-total_points')[:10]
+        ]
+
         return Response({
             'total_users': total_users,
             'active_today': active_today,
@@ -284,6 +362,13 @@ class AdminDashboardView(APIView):
             'wau': wau,
             'mau': mau,
             'stickiness': round(stickiness, 4),
+            'avg_user_score': round(score_aggregates['avg_user_score'] or 0, 1),
+            'avg_engagement_score': round(score_aggregates['avg_engagement_score'] or 0, 1),
+            'avg_quality_score': round(score_aggregates['avg_quality_score'] or 0, 1),
+            'avg_trust_score': round(score_aggregates['avg_trust_score'] or 0, 1),
+            'avg_points': round(score_aggregates['avg_points'] or 0, 1),
+            'high_scoring_users': high_scoring_users,
+            'top_scored_users': top_scored_users,
         })
 
 
@@ -307,7 +392,9 @@ class AdminActiveUsersMetricsView(APIView):
 
         def count_active(start_dt, end_dt):
             filters = _build_activity_filters(start_dt, end_dt, selected_actions)
-            return _product_users_queryset().filter(filters).distinct().count()
+            return product_users.filter(filters).distinct().count()
+
+        product_users = _product_users_queryset()
 
         dau = count_active(start_today, now)
         yesterday_dau = count_active(start_yesterday, start_today)
@@ -337,6 +424,7 @@ class AdminActiveUsersMetricsView(APIView):
             date_from = date_to - timedelta(days=max_days - 1)
 
         series = []
+        daily_activity_mix = []
         current_date = date_from
         tz = timezone.get_current_timezone()
         while current_date <= date_to:
@@ -354,7 +442,103 @@ class AdminActiveUsersMetricsView(APIView):
                 'mau': day_mau,
                 'stickiness': round(day_stickiness, 4),
             })
+
+            daily_activity_mix.append({
+                'date': current_date.isoformat(),
+                'login': product_users.filter(
+                    last_login__gte=day_start,
+                    last_login__lt=day_end,
+                ).distinct().count(),
+                'view': product_users.filter(
+                    impressions_made__timestamp__gte=day_start,
+                    impressions_made__timestamp__lt=day_end,
+                ).distinct().count(),
+                'like': product_users.filter(
+                    likes_sent__created_at__gte=day_start,
+                    likes_sent__created_at__lt=day_end,
+                ).distinct().count(),
+                'message': product_users.filter(
+                    sent_messages__created_at__gte=day_start,
+                    sent_messages__created_at__lt=day_end,
+                    sent_messages__sender_type='user',
+                    sent_messages__conversation__isnull=False,
+                ).distinct().count(),
+            })
             current_date += timedelta(days=1)
+
+        tz = timezone.get_current_timezone()
+        range_start = timezone.make_aware(datetime.combine(date_from, datetime.min.time()), timezone=tz)
+        range_end = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time()), timezone=tz)
+
+        range_activity_mix = {
+            'login': product_users.filter(
+                last_login__gte=range_start,
+                last_login__lt=range_end,
+            ).distinct().count(),
+            'view': product_users.filter(
+                impressions_made__timestamp__gte=range_start,
+                impressions_made__timestamp__lt=range_end,
+            ).distinct().count(),
+            'like': product_users.filter(
+                likes_sent__created_at__gte=range_start,
+                likes_sent__created_at__lt=range_end,
+            ).distinct().count(),
+            'message': product_users.filter(
+                sent_messages__created_at__gte=range_start,
+                sent_messages__created_at__lt=range_end,
+                sent_messages__sender_type='user',
+                sent_messages__conversation__isnull=False,
+            ).distinct().count(),
+        }
+
+        product_user_ids = product_users.values_list('id', flat=True)
+        funnel_views = ProfileImpression.objects.filter(
+            viewer_id__in=product_user_ids,
+            timestamp__gte=range_start,
+            timestamp__lt=range_end,
+        ).values('viewer_id').distinct().count()
+        funnel_likes = Like.objects.filter(
+            from_user_id__in=product_user_ids,
+            created_at__gte=range_start,
+            created_at__lt=range_end,
+        ).values('from_user_id').distinct().count()
+        funnel_matches = product_users.filter(
+            Q(matches_as_user1__created_at__gte=range_start, matches_as_user1__created_at__lt=range_end)
+            | Q(matches_as_user2__created_at__gte=range_start, matches_as_user2__created_at__lt=range_end)
+        ).distinct().count()
+        funnel_messages = Message.objects.filter(
+            sender_id__in=product_user_ids,
+            sender_type='user',
+            conversation__isnull=False,
+            created_at__gte=range_start,
+            created_at__lt=range_end,
+        ).values('sender_id').distinct().count()
+
+        def _conv(current, previous):
+            return round((current / previous) * 100, 1) if previous else 0.0
+
+        funnel_steps = [
+            {
+                'step': 'Views',
+                'users': funnel_views,
+                'conversion_from_previous': 100.0 if funnel_views else 0.0,
+            },
+            {
+                'step': 'Likes',
+                'users': funnel_likes,
+                'conversion_from_previous': _conv(funnel_likes, funnel_views),
+            },
+            {
+                'step': 'Matches',
+                'users': funnel_matches,
+                'conversion_from_previous': _conv(funnel_matches, funnel_likes),
+            },
+            {
+                'step': 'Messages',
+                'users': funnel_messages,
+                'conversion_from_previous': _conv(funnel_messages, funnel_matches),
+            },
+        ]
 
         return Response({
             'dau': dau,
@@ -365,8 +549,43 @@ class AdminActiveUsersMetricsView(APIView):
             'dau_delta': dau - yesterday_dau,
             'actions': sorted(selected_actions),
             'series': series,
+            'activity_mix': {
+                'range_unique_users': range_activity_mix,
+                'daily_unique_users': daily_activity_mix,
+            },
+            'funnel': {
+                'steps': funnel_steps,
+                'date_from': date_from.isoformat(),
+                'date_to': date_to.isoformat(),
+            },
             'date_from': date_from.isoformat(),
             'date_to': date_to.isoformat(),
+        })
+
+
+class AdminUserScoringRefreshView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        if user_id:
+            user = get_object_or_404(User, id=user_id)
+            scorecard = refresh_user_score(user)
+            return Response({
+                'refreshed': 1,
+                'user_id': user.id,
+                'overall_score': scorecard.overall_score,
+                'total_points': scorecard.total_points,
+            })
+
+        refreshed = 0
+        for user in User.objects.filter(is_active=True):
+            refresh_user_score(user)
+            refreshed += 1
+
+        return Response({
+            'refreshed': refreshed,
+            'message': 'User scores recalculated successfully.',
         })
 
 
@@ -565,6 +784,12 @@ class AdminUserDetailView(APIView):
     def get(self, request, user_id):
         user = get_object_or_404(User, id=user_id)
         full = request.query_params.get('full') == 'true'
+        try:
+            scorecard, _ = UserEngagementScore.objects.get_or_create(user=user)
+            if not scorecard.last_calculated_at:
+                scorecard = refresh_user_score(user)
+        except Exception:
+            scorecard = None
 
         response_data = {
             'id': user.id,
@@ -582,9 +807,31 @@ class AdminUserDetailView(APIView):
             'date_joined': user.date_joined,
             'last_activity': user.last_activity,
             'is_online': user.is_online,
-            'age': user.birth_date.year if user.birth_date else None,
+            'age': (
+                timezone.now().date().year - user.birth_date.year
+                - (
+                    (timezone.now().date().month, timezone.now().date().day)
+                    < (user.birth_date.month, user.birth_date.day)
+                )
+            ) if user.birth_date else None,
             'latitude': float(user.latitude) if user.latitude else None,
             'longitude': float(user.longitude) if user.longitude else None,
+            'score': {
+                'overall_score': scorecard.overall_score if scorecard else 0,
+                'engagement_score': scorecard.engagement_score if scorecard else 0,
+                'quality_score': scorecard.quality_score if scorecard else 0,
+                'trust_score': scorecard.trust_score if scorecard else 0,
+                'profile_completion_percent': scorecard.profile_completion_percent if scorecard else 0,
+                'total_points': scorecard.total_points if scorecard else 0,
+                'onboarding_points': scorecard.onboarding_points if scorecard else 0,
+                'activity_points': scorecard.activity_points if scorecard else 0,
+                'quality_points': scorecard.quality_points if scorecard else 0,
+                'penalty_points': scorecard.penalty_points if scorecard else 0,
+                'allow_perfect_score': scorecard.allow_perfect_score if scorecard else False,
+                'score_cap': scorecard.score_cap if scorecard else 99,
+                'breakdown': scorecard.breakdown if scorecard else {},
+                'last_calculated_at': scorecard.last_calculated_at if scorecard else None,
+            },
         }
 
         # Stats
@@ -599,7 +846,13 @@ class AdminUserDetailView(APIView):
         reports_received = Report.objects.filter(reported_user=user).count()
         reports_filed = Report.objects.filter(reporter=user).count()
         account_age_days = (timezone.now() - user.date_joined).days
-        messages_received = Message.objects.filter(recipient=user).count()
+        user_match_ids = Match.objects.filter(
+            Q(user1=user) | Q(user2=user)
+        ).values_list('id', flat=True)
+        messages_received = Message.objects.filter(
+            conversation__match_id__in=user_match_ids,
+            sender_type='user',
+        ).exclude(sender=user).count()
 
         response_data['stats'] = {
             'total_likes_given': likes_given,

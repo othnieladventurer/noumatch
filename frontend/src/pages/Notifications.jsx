@@ -19,6 +19,7 @@ export default function Notifications() {
   const { 
     notifications, 
     unreadCount, 
+    isConnected,
     markAsRead, 
     markAllAsRead, 
     deleteNotification,
@@ -158,6 +159,9 @@ export default function Notifications() {
           <h1 className="h3 fw-bold mb-0" style={{ color: '#212529' }}>
             Notifications
           </h1>
+          <span className={`badge rounded-pill ${isConnected ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'}`}>
+            {isConnected ? 'Live' : 'Reconnecting'}
+          </span>
         </div>
 
         {/* Stats Cards */}

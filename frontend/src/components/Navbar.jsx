@@ -1,7 +1,8 @@
 // src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FaHeart, FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
+import { FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
+import BrandLogo from "./BrandLogo";
 import "./Navbar.css";
 
 export default function Navbar() {
@@ -47,8 +48,7 @@ export default function Navbar() {
     <nav className="navbar navbar-expand-lg navbar-light bg-white shadow fixed-top">
       <div className="container">
         <Link className="navbar-brand d-flex align-items-center" to="/">
-          <FaHeart className="text-danger me-2" />
-          <span className="text-primary fw-bold fs-4">NouMatch</span>
+          <BrandLogo className="navbar-brand-logo" height={36} />
         </Link>
 
         {/* Hamburger */}

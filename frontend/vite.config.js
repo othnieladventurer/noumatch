@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
+      sourcemap: isDevelopment,
+      minify: 'esbuild',
+      target: 'es2020',
       rollupOptions: {
         output: {
           entryFileNames: 'assets/[name].[hash].js',
@@ -45,6 +48,9 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_APP_ENVIRONMENT': JSON.stringify(
         isDevelopment ? 'development' : (isStaging ? 'staging' : 'production')
       ),
+    },
+    esbuild: {
+      drop: isDevelopment ? [] : ['console', 'debugger'],
     },
     preview: {
       port: isStaging ? 4174 : 4173,

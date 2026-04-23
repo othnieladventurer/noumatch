@@ -30,6 +30,7 @@ body.dark-mode {
   background: var(--bg-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   transition: background 0.2s ease;
+  overflow-x: hidden;
 }
 
 /* Sidebar */
@@ -316,7 +317,7 @@ body.dark-mode {
 /* Metrics Grid */
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 1.5rem;
   padding: 1.5rem 2rem;
 }
@@ -412,6 +413,294 @@ body.dark-mode {
   border-bottom: 1px solid var(--border-color);
 }
 
+.analytics-panel {
+  margin: 0 2rem 1.5rem 2rem;
+  padding: 1.25rem;
+  border-radius: 24px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.analytics-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.quick-range-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.analytics-filters-row {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: 170px 170px 1fr;
+  gap: 1rem;
+}
+
+.action-chip-wrap {
+  min-width: 0;
+}
+
+.action-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.action-chip {
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+  text-transform: capitalize;
+}
+
+.action-chip.active {
+  color: #ffffff;
+  background: #0ea5e9;
+  border-color: #0ea5e9;
+}
+
+.analytics-chart-grid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.chart-card {
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--card-bg);
+  padding: 0.9rem;
+}
+
+.chart-card-header h6 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+}
+
+.chart-card-body {
+  position: relative;
+  height: 280px;
+}
+
+.chart-card-body-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gauge-wrap {
+  position: relative;
+  width: 220px;
+  height: 220px;
+}
+
+.gauge-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.funnel-list {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.75rem;
+}
+
+.funnel-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+  padding: 0.2rem 0;
+}
+
+/* Force consistent dark-mode tables/cards across admin dashboard + stats */
+body.dark-mode .admin-dashboard .recent-blocks-card,
+body.dark-mode .admin-dashboard .recent-blocks-card .card-header,
+body.dark-mode .admin-dashboard .recent-blocks-card .card-body,
+body.dark-mode .admin-dashboard .table-responsive,
+body.dark-mode .admin-dashboard .admin-table,
+body.dark-mode .admin-dashboard .admin-table thead,
+body.dark-mode .admin-dashboard .admin-table tbody,
+body.dark-mode .admin-dashboard .admin-table tr,
+body.dark-mode .admin-dashboard .admin-table th,
+body.dark-mode .admin-dashboard .admin-table td {
+  background: #141b2b !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
+}
+
+body.dark-mode .admin-dashboard .recent-blocks-card h5,
+body.dark-mode .admin-dashboard .recent-blocks-card h6,
+body.dark-mode .admin-dashboard .recent-blocks-card p,
+body.dark-mode .admin-dashboard .recent-blocks-card small,
+body.dark-mode .admin-dashboard .recent-blocks-card span,
+body.dark-mode .admin-dashboard .recent-blocks-card .text-secondary,
+body.dark-mode .admin-dashboard .recent-blocks-card .text-muted {
+  color: #ffffff !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Global admin dark/light theming hardening                                  */
+/* -------------------------------------------------------------------------- */
+
+/* Light mode: ensure readable dark text on light surfaces */
+body:not(.dark-mode) .admin-dashboard .text-muted,
+body:not(.dark-mode) .admin-dashboard small {
+  color: var(--text-secondary) !important;
+}
+
+body:not(.dark-mode) .admin-dashboard .text-dark,
+body:not(.dark-mode) .admin-dashboard .table,
+body:not(.dark-mode) .admin-dashboard .table td,
+body:not(.dark-mode) .admin-dashboard .table th,
+body:not(.dark-mode) .admin-dashboard .card,
+body:not(.dark-mode) .admin-dashboard .card-body,
+body:not(.dark-mode) .admin-dashboard .card-header {
+  color: var(--text-primary) !important;
+}
+
+/* Dark mode: no white surfaces anywhere in admin dashboard area */
+body.dark-mode .admin-dashboard,
+body.dark-mode .admin-dashboard .admin-main,
+body.dark-mode .admin-dashboard .container,
+body.dark-mode .admin-dashboard .container-fluid,
+body.dark-mode .admin-dashboard .dashboard-hero {
+  background: #0a0f1c !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .admin-dashboard .card,
+body.dark-mode .admin-dashboard .card-body,
+body.dark-mode .admin-dashboard .card-header,
+body.dark-mode .admin-dashboard .recent-blocks-card,
+body.dark-mode .admin-dashboard .metric-card,
+body.dark-mode .admin-dashboard .list-group-item,
+body.dark-mode .admin-dashboard .modal-content,
+body.dark-mode .admin-dashboard .modal-header,
+body.dark-mode .admin-dashboard .modal-body,
+body.dark-mode .admin-dashboard .modal-footer,
+body.dark-mode .admin-dashboard .table-responsive,
+body.dark-mode .admin-dashboard .dropdown-menu {
+  background: #141b2b !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
+}
+
+body.dark-mode .admin-dashboard .table,
+body.dark-mode .admin-dashboard .table thead,
+body.dark-mode .admin-dashboard .table tbody,
+body.dark-mode .admin-dashboard .table tr,
+body.dark-mode .admin-dashboard .table th,
+body.dark-mode .admin-dashboard .table td,
+body.dark-mode .admin-dashboard .table-light,
+body.dark-mode .admin-dashboard .table-hover > tbody > tr:hover > * {
+  background: #141b2b !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
+}
+
+body.dark-mode .admin-dashboard .bg-white,
+body.dark-mode .admin-dashboard .bg-light,
+body.dark-mode .admin-dashboard .bg-body,
+body.dark-mode .admin-dashboard .bg-transparent {
+  background: #141b2b !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .admin-dashboard .text-muted,
+body.dark-mode .admin-dashboard .text-secondary,
+body.dark-mode .admin-dashboard .text-dark,
+body.dark-mode .admin-dashboard small,
+body.dark-mode .admin-dashboard p,
+body.dark-mode .admin-dashboard span,
+body.dark-mode .admin-dashboard label,
+body.dark-mode .admin-dashboard td,
+body.dark-mode .admin-dashboard th,
+body.dark-mode .admin-dashboard li,
+body.dark-mode .admin-dashboard h1,
+body.dark-mode .admin-dashboard h2,
+body.dark-mode .admin-dashboard h3,
+body.dark-mode .admin-dashboard h4,
+body.dark-mode .admin-dashboard h5,
+body.dark-mode .admin-dashboard h6 {
+  color: #ffffff !important;
+}
+
+body.dark-mode .admin-dashboard .form-control,
+body.dark-mode .admin-dashboard .form-select,
+body.dark-mode .admin-dashboard input,
+body.dark-mode .admin-dashboard textarea,
+body.dark-mode .admin-dashboard select {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
+}
+
+body.dark-mode .admin-dashboard .form-control::placeholder,
+body.dark-mode .admin-dashboard textarea::placeholder,
+body.dark-mode .admin-dashboard input::placeholder {
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode .admin-dashboard .btn-outline-secondary,
+body.dark-mode .admin-dashboard .btn-outline-primary,
+body.dark-mode .admin-dashboard .btn-outline-info,
+body.dark-mode .admin-dashboard .btn-outline-warning,
+body.dark-mode .admin-dashboard .btn-outline-danger,
+body.dark-mode .admin-dashboard .btn-outline-success {
+  color: #ffffff !important;
+  border-color: #475569 !important;
+  background: transparent !important;
+}
+
+body.dark-mode .admin-dashboard .btn-outline-secondary:hover,
+body.dark-mode .admin-dashboard .btn-outline-primary:hover,
+body.dark-mode .admin-dashboard .btn-outline-info:hover,
+body.dark-mode .admin-dashboard .btn-outline-warning:hover,
+body.dark-mode .admin-dashboard .btn-outline-danger:hover,
+body.dark-mode .admin-dashboard .btn-outline-success:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: #64748b !important;
+}
+
+body.dark-mode .admin-dashboard .nav-tabs,
+body.dark-mode .admin-dashboard .nav-tabs .nav-link {
+  border-color: #334155 !important;
+}
+
+body.dark-mode .admin-dashboard .nav-tabs .nav-link {
+  background: #1e293b !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .admin-dashboard .nav-tabs .nav-link.active {
+  background: #0f172a !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .admin-dashboard .progress {
+  background: #334155 !important;
+}
+
+body.dark-mode .admin-dashboard .pagination-controls span {
+  color: #ffffff !important;
+}
+
 .empty-state {
   text-align: center;
   padding: 3rem;
@@ -446,6 +735,69 @@ body.dark-mode {
   }
   .recent-blocks-card {
     margin: 0 1rem 1rem;
+  }
+  .analytics-panel {
+    margin: 0 1rem 1rem;
+    padding: 1rem;
+  }
+  .analytics-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .analytics-filters-row {
+    grid-template-columns: 1fr;
+  }
+  .analytics-chart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1200px) {
+  .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+  .analytics-chart-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 992px) {
+  .admin-sidebar {
+    transform: translateX(-100%);
+    width: 260px;
+  }
+  .sidebar-collapsed .admin-sidebar {
+    transform: translateX(0);
+  }
+  .admin-main,
+  .sidebar-collapsed .admin-main {
+    margin-left: 0 !important;
+  }
+  .admin-navbar {
+    padding: 0.85rem 1rem;
+  }
+  .dashboard-hero {
+    padding: 1.25rem 1rem 0.25rem 1rem;
+  }
+  .metrics-grid {
+    padding: 1rem;
+  }
+  .recent-blocks-card {
+    margin: 0 1rem 1rem 1rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .metric-value {
+    font-size: 1.55rem;
+  }
+  .metric-card {
+    border-radius: 14px;
+    padding: 0.9rem;
+  }
+  .analytics-panel {
+    border-radius: 16px;
   }
 }
 
@@ -497,4 +849,128 @@ body.dark-mode {
 
 .back-btn:hover {
   background: var(--border-color);
+}
+
+/* Swipe Stats dark mode readability */
+body.dark-mode .admin-swipe-stats .dashboard-hero h2,
+body.dark-mode .admin-swipe-stats .dashboard-hero p,
+body.dark-mode .admin-swipe-stats .metric-card h2,
+body.dark-mode .admin-swipe-stats .metric-card h6,
+body.dark-mode .admin-swipe-stats .metric-card p,
+body.dark-mode .admin-swipe-stats .recent-blocks-card h5,
+body.dark-mode .admin-swipe-stats .recent-blocks-card span,
+body.dark-mode .admin-swipe-stats .recent-blocks-card td,
+body.dark-mode .admin-swipe-stats .recent-blocks-card th,
+body.dark-mode .admin-swipe-stats .recent-blocks-card small,
+body.dark-mode .admin-swipe-stats .pagination-controls span,
+body.dark-mode .admin-swipe-stats .text-muted {
+  color: #ffffff !important;
+}
+
+body.dark-mode .admin-swipe-stats .btn-outline-secondary {
+  color: #ffffff;
+  border-color: #475569;
+}
+
+body.dark-mode .admin-swipe-stats .btn-outline-secondary:hover {
+  color: #ffffff;
+  border-color: #64748b;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Chat pages: force dark chat surfaces and white text in dark mode */
+body.dark-mode .admin-dashboard .chat-messages {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+body.dark-mode .admin-dashboard .chat-messages .bg-light,
+body.dark-mode .admin-dashboard .chat-messages .bg-primary.bg-opacity-10 {
+  background: #1e293b !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .admin-dashboard .chat-messages .text-muted,
+body.dark-mode .admin-dashboard .chat-messages small,
+body.dark-mode .admin-dashboard .chat-messages div,
+body.dark-mode .admin-dashboard .chat-messages strong {
+  color: #ffffff !important;
+}
+
+body.dark-mode .admin-dashboard .reply-box .form-control {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #334155;
+}
+
+body.dark-mode .admin-dashboard .reply-box .form-control::placeholder {
+  color: #cbd5e1;
+}
+
+/* Chat-related tables (including table-sm) */
+body.dark-mode .admin-dashboard .table.table-sm,
+body.dark-mode .admin-dashboard .table.table-sm thead th,
+body.dark-mode .admin-dashboard .table.table-sm tbody td {
+  background: #141b2b !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
+}
+
+/* Stats pages: keep muted/small text correctly reversed by theme */
+.admin-swipe-stats .text-muted,
+.admin-analytics-performance .text-muted,
+.admin-analytics-ranking .text-muted,
+.admin-swipe-stats small,
+.admin-analytics-performance small,
+.admin-analytics-ranking small {
+  color: var(--text-secondary) !important;
+}
+
+body.dark-mode .admin-swipe-stats .text-muted,
+body.dark-mode .admin-analytics-performance .text-muted,
+body.dark-mode .admin-analytics-ranking .text-muted,
+body.dark-mode .admin-swipe-stats small,
+body.dark-mode .admin-analytics-performance small,
+body.dark-mode .admin-analytics-ranking small {
+  color: #ffffff !important;
+}
+
+/* Stats pages dark surfaces */
+body.dark-mode .admin-swipe-stats .recent-blocks-card,
+body.dark-mode .admin-analytics-performance .recent-blocks-card,
+body.dark-mode .admin-analytics-ranking .recent-blocks-card,
+body.dark-mode .admin-swipe-stats .metric-card,
+body.dark-mode .admin-analytics-performance .metric-card,
+body.dark-mode .admin-analytics-ranking .metric-card {
+  background: #141b2b !important;
+  border-color: #334155 !important;
+}
+
+/* Bootstrap bg-light blocks on stats pages */
+body.dark-mode .admin-analytics-performance .bg-light,
+body.dark-mode .admin-analytics-ranking .bg-light,
+body.dark-mode .admin-swipe-stats .bg-light {
+  background: #1e293b !important;
+  color: #ffffff !important;
+  border-color: #334155 !important;
+}
+
+/* Form controls and labels on stats pages */
+body.dark-mode .admin-analytics-performance .form-control,
+body.dark-mode .admin-analytics-performance .form-select,
+body.dark-mode .admin-swipe-stats .form-control,
+body.dark-mode .admin-swipe-stats .form-select,
+body.dark-mode .admin-analytics-ranking .form-control,
+body.dark-mode .admin-analytics-ranking .form-select {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #334155;
+}
+
+body.dark-mode .admin-analytics-performance .form-label,
+body.dark-mode .admin-swipe-stats .form-label,
+body.dark-mode .admin-analytics-ranking .form-label {
+  color: #ffffff;
 }

@@ -1,6 +1,6 @@
 import logging
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from django.core.mail import send_mail
@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db import transaction
 from .models import WaitlistEntry, WaitlistStats, ContactedArchive
 from users.models import User
+from users.throttles import WaitlistJoinThrottle
 from rest_framework.permissions import IsAdminUser
 import threading
 from django.db.models import Max 
@@ -45,6 +46,7 @@ L'équipe NouMatch
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([WaitlistJoinThrottle])
 def join_waitlist(request):
     gender = request.data.get("gender")
     email = request.data.get("email", "").strip().lower()
@@ -133,8 +135,8 @@ def join_waitlist(request):
 
         return Response(response_data, status=status.HTTP_201_CREATED)
 
-    except Exception as e:
-        logging.info(f"Waitlist error: {e}")
+    except Exception:
+        logging.exception("Waitlist error")
         return Response(
             {
                 "success": False,
@@ -162,17 +164,10 @@ def waitlist_stats(request):
                 'men': stats.target_men_percentage,
             }
         }
-        response = Response(data)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        response = Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    response["Access-Control-Allow-Origin"] = "http://localhost:5173"
-    response["Access-Control-Allow-Credentials"] = "true"
-    response["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
-    response["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
-    return response
+        return Response(data)
+    except Exception:
+        logging.exception("waitlist_stats failed")
+        return Response({'error': 'Unable to fetch waitlist stats'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

@@ -9,6 +9,9 @@ export default defineConfig({
   build: {
     outDir: 'dist-staging',    // Different output folder for staging
     emptyOutDir: true,
+    sourcemap: false,
+    minify: 'esbuild',
+    target: 'es2020',
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name].[hash].js',
@@ -40,6 +43,9 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_APP_ENVIRONMENT': JSON.stringify('staging'),
+  },
+  esbuild: {
+    drop: ['console', 'debugger'],
   },
 })
 

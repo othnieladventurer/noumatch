@@ -1,7 +1,7 @@
-import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import API from "@/api/axios";
+import BrandLogo from "../components/BrandLogo";
 import "../styles/auth-redesign.css";
 
 export default function Login() {
@@ -21,9 +21,9 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await API.post("users/login/", formData);
-      localStorage.setItem("access", response.data.access);
-      localStorage.setItem("refresh", response.data.refresh);
+      await API.post("users/login/", formData);
+      localStorage.setItem("access", "1");
+      sessionStorage.setItem("nm_user_session", "1");
       navigate("/dashboard");
     } catch (error) {
       if (error.response?.status === 401 || error.response?.status === 404) {
@@ -39,13 +39,12 @@ export default function Login() {
   };
 
   return (
-    <div className="auth-shell">
+    <div className="auth-shell auth-shell-login">
       <div className="auth-panel">
         <div className="auth-brand">
-          <h1>
-            <FaHeart className="text-danger me-2" />
-            NouMatch
-          </h1>
+          <div className="d-flex justify-content-center mb-2">
+            <BrandLogo height={42} />
+          </div>
           <p>Connectez-vous a votre compte</p>
         </div>
 

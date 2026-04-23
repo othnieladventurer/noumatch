@@ -100,7 +100,9 @@ body.dark-mode {
 }
 
 .brand-icon {
-  font-size: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 1.5rem;
   animation: float 3s ease-in-out infinite;
 }
@@ -112,14 +114,6 @@ body.dark-mode {
   50% {
     transform: translateY(-10px);
   }
-}
-
-.brand-icon i {
-  background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: #ff4d6d;
-  text-shadow: 0 0 30px rgba(255, 77, 109, 0.5);
 }
 
 .brand-title {

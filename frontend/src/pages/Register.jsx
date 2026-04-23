@@ -1,7 +1,7 @@
-import { FaHeart } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import API from '@/api/axios';
+import BrandLogo from "../components/BrandLogo";
 import "../styles/auth-redesign.css";
 
 export default function Register() {
@@ -335,7 +335,7 @@ export default function Register() {
 
   return (
     <>
-      <div className="auth-shell">
+      <div className="auth-shell auth-shell-register">
 
         <div
           className="auth-panel"
@@ -355,10 +355,9 @@ export default function Register() {
             }}
           >
             <div className="text-center mb-4">
-              <h1 className="d-flex justify-content-center align-items-center fw-bold">
-                <FaHeart className="text-danger me-2" />
-                <span className="text-primary">NouMatch</span>
-              </h1>
+              <div className="d-flex justify-content-center mb-2">
+                <BrandLogo height={42} />
+              </div>
               <p className="text-muted mb-0">Créez votre compte</p>
             </div>
 
@@ -589,3 +588,5 @@ export default function Register() {
     </>
   );
 }
+
+

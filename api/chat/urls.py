@@ -27,6 +27,10 @@ urlpatterns = [
     path('conversations/<int:conversation_id>/mark-read/', 
          views.MarkMessagesReadView.as_view(), 
          name='mark-messages-read'),
+
+    path('conversations/<int:conversation_id>/icebreakers/',
+         views.IcebreakerListView.as_view(),
+         name='conversation-icebreakers'),
     
     # Unread count
     path('unread-count/', 

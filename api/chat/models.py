@@ -73,6 +73,11 @@ class SupportConversation(models.Model):
 
 
 class Message(models.Model):
+    MESSAGE_TYPES = (
+        ('text', 'Text'),
+        ('image', 'Image'),
+        ('video', 'Video'),
+    )
     SENDER_TYPES = (
         ('user', 'User'),
         ('admin', 'Admin'),
@@ -82,7 +87,9 @@ class Message(models.Model):
     support_conversation = models.ForeignKey(SupportConversation, on_delete=models.CASCADE, null=True, blank=True, related_name='messages')
     sender = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='sent_messages')
     sender_type = models.CharField(max_length=10, choices=SENDER_TYPES, default='user')
-    content = models.TextField()
+    content = models.TextField(blank=True, default='')
+    message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES, default='text')
+    attachment = models.FileField(upload_to='chat_attachments/', null=True, blank=True)
     read = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
 

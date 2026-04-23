@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import BrandLogo from '../../components/BrandLogo';
 import './AdminLogin.css';
 
 // Build the correct API base URL from environment variables (same as AdminDashboard)
@@ -54,9 +55,8 @@ export default function AdminLogin() {
     setError('');
     try {
       const url = `${API_BASE}/admin_login/`;
-      const res = await axios.post(url, { email, password });
-      localStorage.setItem('admin_access', res.data.access);
-      localStorage.setItem('admin_refresh', res.data.refresh);
+      const res = await axios.post(url, { email, password }, { withCredentials: true });
+      localStorage.setItem('admin_access', '1');
       localStorage.setItem('admin_email', res.data.staff_email);
       navigate('/admin/dashboard');
     } catch (err) {
@@ -82,7 +82,7 @@ export default function AdminLogin() {
       <div className="login-left">
         <div className="brand-content">
           <div className="brand-icon">
-            <i className="fas fa-heart"></i>
+            <BrandLogo height={84} />
           </div>
           <h1 className="brand-title">
             <span className="text-danger">NouMatch</span>

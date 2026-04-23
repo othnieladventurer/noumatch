@@ -13,6 +13,7 @@ import string
 import time
 import requests
 from django.db.models import Q
+from PIL import Image, UnidentifiedImageError
 
 from matches.models import Match
 from report.models import Report
@@ -24,6 +25,24 @@ def get_absolute_image_url(file_field):
     if file_field:
         return file_field.url
     return None
+
+
+def validate_uploaded_image(image_file):
+    max_bytes = getattr(settings, "MAX_UPLOAD_IMAGE_BYTES", 10 * 1024 * 1024)
+    if image_file.size > max_bytes:
+        raise serializers.ValidationError(
+            f"Image exceeds max size of {max_bytes // (1024 * 1024)}MB."
+        )
+    try:
+        image_file.seek(0)
+        with Image.open(image_file) as img:
+            if (img.format or "").upper() not in {"JPEG", "PNG", "GIF", "WEBP"}:
+                raise serializers.ValidationError("Unsupported image format. Use JPG, PNG, GIF, or WEBP.")
+    except (UnidentifiedImageError, OSError):
+        raise serializers.ValidationError("Invalid image file.")
+    finally:
+        image_file.seek(0)
+    return image_file
 
 class UserSerializer(serializers.ModelSerializer):
     profile_photo_url = serializers.SerializerMethodField()
@@ -88,6 +107,9 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, data):
         if data['password'] != data['password2']:
             raise serializers.ValidationError({"password": "Les mots de passe ne correspondent pas."})
+        profile_photo = data.get("profile_photo")
+        if profile_photo:
+            validate_uploaded_image(profile_photo)
         return data
 
     def validate_birth_date(self, value):
@@ -144,7 +166,7 @@ class RegisterSerializer(serializers.ModelSerializer):
                     'city': data.get('city', '')
                 }
         except Exception as e:
-            logging.info(f"Error getting coordinates: {e}")
+            logging.info("Error getting coordinates from IP provider")
         
         return {
             'latitude': None,
@@ -168,10 +190,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             else:
                 client_ip = request.META.get('REMOTE_ADDR')
         
-        # Log for debugging
-        logging.info(f"🔍 Client IP: {client_ip}")
-        logging.info(f"📧 Registering email: {validated_data.get('email')}")
-        
         # Get coordinates from IP address (fallback if frontend didn't send them)
         if not validated_data.get('latitude') and not validated_data.get('longitude'):
             location_data = self.get_coordinates_from_ip(client_ip)
@@ -180,19 +198,12 @@ class RegisterSerializer(serializers.ModelSerializer):
             if location_data['latitude'] and location_data['longitude']:
                 validated_data['latitude'] = location_data['latitude']
                 validated_data['longitude'] = location_data['longitude']
-                logging.info(f"📍 Coordinates from IP: {location_data['latitude']}, {location_data['longitude']}")
             
             # Auto-fill country and city if not provided by frontend
             if not validated_data.get('country') and location_data['country']:
                 validated_data['country'] = location_data['country']
-                logging.info(f"📍 Country from IP: {location_data['country']}")
             if not validated_data.get('city') and location_data['city']:
                 validated_data['city'] = location_data['city']
-                logging.info(f"📍 City from IP: {location_data['city']}")
-        else:
-            # Frontend provided coordinates
-            logging.info(f"📍 Coordinates from frontend: {validated_data.get('latitude')}, {validated_data.get('longitude')}")
-            logging.info(f"📍 Location from frontend: {validated_data.get('city')}, {validated_data.get('country')}")
         
         # Remove password2 as it's not needed for user creation
         validated_data.pop('password2')
@@ -222,9 +233,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             )
             # Delete from active waitlist
             waitlist_entry.delete()
-            logging.info(f"📝 Moved waitlist entry to archive: {email}")
+            logging.info("Moved waitlist entry to archive for newly registered user_id=%s", user.id)
         
-        logging.info(f"✅ User created: {user.email} - Location saved: {user.city}, {user.country} - Coordinates: {user.latitude}, {user.longitude}")
+        logging.info("User created user_id=%s", user.id)
         
         return user
 
@@ -342,6 +353,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
             return obj.profile_photo.url
         return None
 
+    def validate_profile_photo(self, value):
+        if value:
+            return validate_uploaded_image(value)
+        return value
+
 class UserPhotoSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     user_email = serializers.ReadOnlyField(source='user.email')
@@ -378,6 +394,9 @@ class UserPhotoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "You cannot upload more than 10 photos."
             )
+        image = data.get("image")
+        if image:
+            validate_uploaded_image(image)
         return data
 
 

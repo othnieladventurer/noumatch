@@ -1,5 +1,5 @@
-import { FaHeart } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import BrandLogo from "../components/BrandLogo";
 import "../styles/auth-redesign.css";
 
 export default function ResetSuccess() {
@@ -7,9 +7,9 @@ export default function ResetSuccess() {
     <div className="auth-shell">
       <div className="auth-panel text-center">
         <div className="auth-brand">
-          <h1>
-            <FaHeart className="text-danger me-2" /> NouMatch
-          </h1>
+          <div className="d-flex justify-content-center mb-2">
+            <BrandLogo height={42} />
+          </div>
           <p>Mot de passe mis a jour</p>
         </div>
 

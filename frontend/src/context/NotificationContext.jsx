@@ -26,13 +26,11 @@ export const NotificationProvider = ({ children }) => {
     return hasAdminToken || isAdminPath;
   }, []);
 
-  // --- CRITICAL FIX: Use environment variable with fallback ---
   const getBaseUrl = () => {
-    // Use the same pattern as axios.js
-    if (import.meta.env.PROD) {
-      return import.meta.env.VITE_API_URL;
-    }
-    return import.meta.env.VITE_API_URL;
+    const configured = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+    if (configured) return configured;
+    if (import.meta.env.DEV) return "http://127.0.0.1:8000";
+    return `${window.location.protocol}//${window.location.host}`;
   };
 
   const BASE_URL = getBaseUrl();
@@ -44,7 +42,7 @@ export const NotificationProvider = ({ children }) => {
     if (isAdminMode()) {
       return false;
     }
-    return !!localStorage.getItem('access');
+    return sessionStorage.getItem("nm_user_session") === "1";
   };
 
   const fetchNotifications = async () => {
@@ -60,16 +58,13 @@ export const NotificationProvider = ({ children }) => {
     try {
       fetchNotifications.isFetching = true;
 
-      const token = localStorage.getItem('access');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+
       const response = await fetch(`${BASE_URL}/api/notifications/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        credentials: 'include',
+        headers,
       });
 
       if (response.ok) {
@@ -112,10 +107,6 @@ export const NotificationProvider = ({ children }) => {
       return;
     }
 
-    const token = localStorage.getItem('access');
-    if (!token) {
-      return;
-    }
 
     // Limit reconnection attempts
     connectionAttemptRef.current += 1;
@@ -132,7 +123,7 @@ export const NotificationProvider = ({ children }) => {
       }
     }
 
-    const wsUrl = `${WS_BASE_URL}/ws/notifications/?token=${token}`;
+    const wsUrl = `${WS_BASE_URL}/ws/notifications/`;
     try {
       socketRef.current = new WebSocket(wsUrl);
 
@@ -280,8 +271,7 @@ export const NotificationProvider = ({ children }) => {
       return;
     }
     
-    const token = localStorage.getItem('access');
-    if (token && !socketRef.current && connectionAttemptRef.current < 5 && !isAdminMode()) {
+    if (!socketRef.current && connectionAttemptRef.current < 5 && !isAdminMode()) {
       // Small delay to ensure everything is ready
       const timer = setTimeout(() => {
         connectWebSocket();
@@ -311,12 +301,11 @@ export const NotificationProvider = ({ children }) => {
     setUnreadCount(prev => Math.max(0, prev - 1));
 
     try {
-      const token = localStorage.getItem('access');
       const response = await fetch(`${BASE_URL}/api/notifications/mark-read/`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ notification_ids: [notificationId] }),
       });
@@ -350,12 +339,11 @@ export const NotificationProvider = ({ children }) => {
     setUnreadCount(0);
 
     try {
-      const token = localStorage.getItem('access');
       const response = await fetch(`${BASE_URL}/api/notifications/mark-read/`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ mark_all: true }),
       });
@@ -372,6 +360,31 @@ export const NotificationProvider = ({ children }) => {
       setUnreadCount(previousUnreadCount);
     }
   }, [notifications, unreadCount, BASE_URL, isAdminMode]);
+
+  const deleteNotification = useCallback(async (notificationId) => {
+    if (isAdminMode()) return;
+    if (!notificationId) return;
+
+    const previous = [...notifications];
+    const deleted = notifications.find((n) => n.id === notificationId);
+
+    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    if (deleted && !deleted.is_read) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+
+    try {
+      const response = await fetch(`${BASE_URL}/api/notifications/${notificationId}/delete/`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Delete failed');
+    } catch (error) {
+      console.error('❌ [CONTEXT] Error deleting notification:', error);
+      setNotifications(previous);
+      setUnreadCount(previous.filter((n) => !n.is_read).length);
+    }
+  }, [notifications, BASE_URL, isAdminMode]);
 
   const refresh = useCallback(() => {
     // Skip if in admin mode
@@ -391,6 +404,7 @@ export const NotificationProvider = ({ children }) => {
     loading,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
     refresh,
   };
 

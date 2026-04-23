@@ -37,11 +37,11 @@ export default function AdminUserConversationDetail() {
     }
     try {
       const convRes = await axios.get(`${API_BASE}/user-conversations/${id}/`, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setConversation(convRes.data);
       const msgRes = await axios.get(`${API_BASE}/user-conversations/${id}/messages/`, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setMessages(msgRes.data);
     } catch (err) {
@@ -93,6 +93,7 @@ export default function AdminUserConversationDetail() {
     </div>
   );
 }
+
 
 
 

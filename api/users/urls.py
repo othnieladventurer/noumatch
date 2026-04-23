@@ -6,12 +6,13 @@ from .views import (RegisterView, LoginView,
                     LogoutView, ChangePasswordView, ResendOTPView,
                     UserListView, MeView, UserProfileListView, UserDetailView, 
                     ProfileUpdateView, VerifyOTPView, ResendOTPView, check_email,
-                    ForgotPasswordView, ResetPasswordConfirmView)
+                    ForgotPasswordView, ResetPasswordConfirmView, TokenRefreshCookieView)
 
 urlpatterns = [
     path("all/", UserListView.as_view(), name="user-list"),
     path("register/", RegisterView.as_view(), name="register"),
     path("login/", LoginView.as_view(), name="login"),
+    path("token/refresh/", TokenRefreshCookieView.as_view(), name="token-refresh"),
     path('heartbeat/', views.heartbeat, name='heartbeat'),
     path("me/", MeView.as_view(), name="me"),
     path('profiles/', UserProfileListView.as_view(), name='profile-list'),

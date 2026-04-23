@@ -7,6 +7,8 @@ if (!BASE_URL) {
   throw new Error("VITE_API_URL must be set for non-development builds.");
 }
 
+const API_ORIGIN = new URL(BASE_URL).origin;
+
 const getFrontendUrl = () => {
   const configuredUrl = (import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");
   if (configuredUrl) return configuredUrl;
@@ -15,93 +17,145 @@ const getFrontendUrl = () => {
     return `${window.location.protocol}//${window.location.host}`;
   }
 
-  const port = window.location.port || '5173';
+  const port = window.location.port || "5173";
   return `${window.location.protocol}//${window.location.hostname}:${port}`;
 };
 
 const FRONTEND_URL = getFrontendUrl();
 
 const isAdminMode = () => {
-  const hasAdminToken = !!localStorage.getItem('admin_access');
-  const isAdminPath = window.location.pathname.startsWith('/admin');
+  const hasAdminToken = !!localStorage.getItem("admin_access");
+  const isAdminPath = window.location.pathname.startsWith("/admin");
   return hasAdminToken || isAdminPath;
 };
 
+const looksLikeJwt = (value) => typeof value === "string" && value.split(".").length === 3;
+
+const isTrustedApiRequest = (config) => {
+  if (!config?.url) return true;
+
+  try {
+    const requestUrl = new URL(config.url, config.baseURL || `${window.location.origin}/`);
+    if (!["http:", "https:"].includes(requestUrl.protocol)) return false;
+
+    return requestUrl.origin === API_ORIGIN || requestUrl.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
+const applyDefaultSecurityHeaders = (config) => {
+  config.headers = {
+    ...(config.headers || {}),
+    Accept: "application/json",
+    "X-Requested-With": "XMLHttpRequest",
+  };
+  return config;
+};
+
+const clearUserAuthTokens = () => {
+  localStorage.removeItem("access");
+  localStorage.removeItem("refresh");
+};
+
+const clearAdminAuthTokens = () => {
+  localStorage.removeItem("admin_access");
+  localStorage.removeItem("admin_refresh");
+  localStorage.removeItem("admin_email");
+};
+
+const isAuthRefreshEndpoint = (url = "") =>
+  /users\/token\/refresh\/|noumatch-admin\/token\/refresh\//.test(url);
+
+const isAuthenticationEndpoint = (url = "") =>
+  /users\/login\/|users\/register\/|users\/verify-otp\/|users\/resend-otp\/|users\/forgot-password\/|users\/reset-password\/|noumatch-admin\/admin_login\/|noumatch-admin\/login\//.test(
+    url
+  );
+
 const API = axios.create({
   baseURL: `${BASE_URL}/api/`,
+  timeout: 15000,
+  withCredentials: true,
 });
 
 API.interceptors.request.use((config) => {
-  if (config.url?.includes('/noumatch-admin/') || isAdminMode()) {
+  applyDefaultSecurityHeaders(config);
+
+  if (!isTrustedApiRequest(config)) {
+    return config;
+  }
+
+  if (config.url?.includes("/noumatch-admin/") || isAdminMode()) {
     const adminToken = localStorage.getItem("admin_access");
-    if (adminToken) {
+    if (looksLikeJwt(adminToken)) {
       config.headers.Authorization = `Bearer ${adminToken}`;
     }
     return config;
   }
 
   const token = localStorage.getItem("access");
-  if (token) {
+  if (looksLikeJwt(token)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
 const redirectToLogin = () => {
-  localStorage.clear();
+  clearUserAuthTokens();
   sessionStorage.clear();
-
   window.location.href = `${FRONTEND_URL}/login`;
 };
 
 const redirectToAdminLogin = () => {
-  localStorage.removeItem('admin_access');
-  localStorage.removeItem('admin_refresh');
-  localStorage.removeItem('admin_email');
-
+  clearAdminAuthTokens();
   window.location.href = `${FRONTEND_URL}/admin/login`;
 };
 
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
+    const status = error.response?.status;
+    const requestUrl = originalRequest.url || "";
 
-    if (error.response?.status === 401 && !originalRequest?._retry) {
+    if (
+      status === 401 &&
+      !originalRequest._retry &&
+      !isAuthRefreshEndpoint(requestUrl) &&
+      !isAuthenticationEndpoint(requestUrl)
+    ) {
       originalRequest._retry = true;
 
-      const isAdminRequest = originalRequest.url?.includes('/noumatch-admin/') || isAdminMode();
+      const isAdminRequest = requestUrl.includes("/noumatch-admin/") || isAdminMode();
 
       if (isAdminRequest) {
-        const adminRefresh = localStorage.getItem("admin_refresh");
-        if (adminRefresh) {
-          try {
-            const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {
-              refresh: adminRefresh
-            });
-            localStorage.setItem("admin_access", res.data.access);
-            originalRequest.headers.Authorization = `Bearer ${res.data.access}`;
-            return API(originalRequest);
-          } catch (err) {
-            redirectToAdminLogin();
-            return Promise.reject(err);
+        try {
+          const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {}, {
+            withCredentials: true,
+          });
+          localStorage.setItem("admin_access", "1");
+          if (res.data?.access) {
+            originalRequest.headers = {
+              ...(originalRequest.headers || {}),
+              Authorization: `Bearer ${res.data.access}`,
+            };
           }
+          return API(originalRequest);
+        } catch (err) {
+          redirectToAdminLogin();
+          return Promise.reject(err);
         }
-
-        redirectToAdminLogin();
-        return Promise.reject(error);
-      }
-
-      const refresh = localStorage.getItem("refresh");
-      if (!refresh) {
-        redirectToLogin();
-        return Promise.reject(error);
       }
 
       try {
-        const res = await API.post("users/token/refresh/", { refresh });
-        localStorage.setItem("access", res.data.access);
-        originalRequest.headers.Authorization = `Bearer ${res.data.access}`;
+        const res = await API.post("users/token/refresh/", {}, { withCredentials: true });
+        if (res.data?.access) {
+          localStorage.setItem("access", "1");
+          originalRequest.headers = {
+            ...(originalRequest.headers || {}),
+            Authorization: `Bearer ${res.data.access}`,
+          };
+        }
         return API(originalRequest);
       } catch (err) {
         redirectToLogin();
@@ -115,11 +169,19 @@ API.interceptors.response.use(
 
 export const adminAPI = axios.create({
   baseURL: `${BASE_URL}/api/noumatch-admin/`,
+  timeout: 15000,
+  withCredentials: true,
 });
 
 adminAPI.interceptors.request.use((config) => {
+  applyDefaultSecurityHeaders(config);
+
+  if (!isTrustedApiRequest(config)) {
+    return config;
+  }
+
   const token = localStorage.getItem("admin_access");
-  if (token) {
+  if (looksLikeJwt(token)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -128,27 +190,28 @@ adminAPI.interceptors.request.use((config) => {
 adminAPI.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config || {};
+    const status = error.response?.status;
+    const requestUrl = originalRequest.url || "";
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (status === 401 && !originalRequest._retry && !isAuthRefreshEndpoint(requestUrl)) {
       originalRequest._retry = true;
-      const adminRefresh = localStorage.getItem("admin_refresh");
-
-      if (adminRefresh) {
-        try {
-          const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {
-            refresh: adminRefresh
-          });
-          localStorage.setItem("admin_access", res.data.access);
-          originalRequest.headers.Authorization = `Bearer ${res.data.access}`;
-          return adminAPI(originalRequest);
-        } catch (err) {
-          localStorage.removeItem('admin_access');
-          localStorage.removeItem('admin_refresh');
-          localStorage.removeItem('admin_email');
-          window.location.href = '/admin/login';
-          return Promise.reject(err);
+      try {
+        const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {}, {
+          withCredentials: true,
+        });
+        localStorage.setItem("admin_access", "1");
+        if (res.data?.access) {
+          originalRequest.headers = {
+            ...(originalRequest.headers || {}),
+            Authorization: `Bearer ${res.data.access}`,
+          };
         }
+        return adminAPI(originalRequest);
+      } catch (err) {
+        clearAdminAuthTokens();
+        window.location.href = "/admin/login";
+        return Promise.reject(err);
       }
     }
 
