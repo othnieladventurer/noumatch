@@ -116,11 +116,9 @@ class UnmatchView(APIView):
             )
             
         except Exception as e:
-            logging.info(f"❌ Unmatch failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logging.exception("Unmatch failed")
             return Response(
-                {"error": str(e)}, 
+                {"error": "Unable to unmatch right now"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -158,11 +156,9 @@ class UnmatchByUserView(APIView):
             )
             
         except Exception as e:
-            logging.info(f"❌ Unmatch failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logging.exception("Unmatch-by-user failed")
             return Response(
-                {"error": str(e)}, 
+                {"error": "Unable to unmatch right now"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

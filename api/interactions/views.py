@@ -56,10 +56,8 @@ class ReceivedLikesView(APIView):
             serializer = LikeSerializer(likes, many=True, context={'request': request})
             return Response(serializer.data)
         except Exception as e:
-            logging.info(f"❌ Error fetching received likes: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logging.exception("Error fetching received likes")
+            return Response({"error": "Unable to fetch received likes"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
@@ -77,10 +75,8 @@ class SentLikesView(APIView):
             serializer = LikeSerializer(likes, many=True, context={'request': request})
             return Response(serializer.data)
         except Exception as e:
-            logging.info(f"❌ Error fetching sent likes: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logging.exception("Error fetching sent likes")
+            return Response({"error": "Unable to fetch sent likes"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
@@ -119,11 +115,9 @@ class UnlikeView(APIView):
             )
             
         except Exception as e:
-            logging.info(f"❌ Unlike failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logging.exception("Unlike failed")
             return Response(
-                {"error": str(e)}, 
+                {"error": "Unable to remove like"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -156,11 +150,9 @@ class UnlikeByLikeIdView(APIView):
             )
             
         except Exception as e:
-            logging.info(f"❌ Unlike failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logging.exception("Unlike-by-id failed")
             return Response(
-                {"error": str(e)}, 
+                {"error": "Unable to remove like"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -342,7 +334,7 @@ class GetSwipeLimitsView(APIView):
             created_at__gte=twelve_hours_ago
         ).count()
 
-        logging.info(f"DEBUG: user={user.email}, account_type={account_type}, likes_last_12h={likes_last_12h}")
+        logging.debug("swipe-limits user_id=%s account_type=%s likes_last_12h=%s", user.id, account_type, likes_last_12h)
 
         # For any account that is NOT premium or god_mode, use 20 likes limit
         if account_type in ['premium', 'god_mode']:
@@ -369,49 +361,6 @@ class GetSwipeLimitsView(APIView):
 
 
         
-class IncrementLikeView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        user = request.user
-        to_user_id = request.data.get('to_user_id')
-
-        if not to_user_id:
-            return Response({"error": "to_user_id required"}, status=status.HTTP_400_BAD_REQUEST)
-        if user.id == to_user_id:
-            return Response({"error": "Cannot like yourself"}, status=status.HTTP_400_BAD_REQUEST)
-
-        twelve_hours_ago = timezone.now() - timedelta(hours=12)
-        likes_last_12h = Like.objects.filter(
-            from_user=user,
-            created_at__gte=twelve_hours_ago
-        ).count()
-
-        if user.account_type == 'free' and likes_last_12h >= 20:
-            return Response(
-                {"error": "You have reached 20 likes in the last 12 hours. Please wait."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        try:
-            like, created = Like.objects.get_or_create(
-                from_user=user,
-                to_user_id=to_user_id
-            )
-            if created:
-                # Optional: analytics
-                DailySwipe.increment_swipe(user, 'like')
-                # ... rest of your match logic ...
-                return Response({"success": True}, status=status.HTTP_201_CREATED)
-            else:
-                return Response({"success": True, "message": "Already liked"}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-            
-
-
 class IncrementLikeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -470,8 +419,9 @@ class IncrementLikeView(APIView):
             else:
                 return Response({"success": True, "message": "Like already exists"}, status=200)
 
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
+        except Exception:
+            logging.exception("IncrementLikeView failed")
+            return Response({"error": "Unable to register like"}, status=400)
 
 
 
@@ -502,5 +452,6 @@ class IncrementPassView(APIView):
                 return Response({"success": True, "message": "Pass recorded"}, status=201)
             else:
                 return Response({"success": True, "message": "Already passed"}, status=200)
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
+        except Exception:
+            logging.exception("IncrementPassView failed")
+            return Response({"error": "Unable to register pass"}, status=400)

@@ -76,7 +76,7 @@ export default function AdminAnalyticsRanking() {
   const positionPerformance = rankingData.position_performance || [];
 
   return (
-    <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`admin-dashboard admin-analytics-ranking ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />

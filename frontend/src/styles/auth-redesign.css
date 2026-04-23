@@ -7,6 +7,17 @@
   background-image: linear-gradient(135deg, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.4)), url("https://images.pexels.com/photos/6589330/pexels-photo-6589330.jpeg");
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
+}
+
+.auth-shell-login {
+  background-image: linear-gradient(135deg, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.4)),
+    url("https://images.pexels.com/photos/7312043/pexels-photo-7312043.jpeg?auto=compress&cs=tinysrgb&w=1920");
+}
+
+.auth-shell-register {
+  background-image: linear-gradient(135deg, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.4)),
+    url("https://images.pexels.com/photos/20479940/pexels-photo-20479940.jpeg?auto=compress&cs=tinysrgb&w=1920");
 }
 
 .auth-panel {

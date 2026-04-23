@@ -1,8 +1,9 @@
 // components/DashboardNavbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaHeart, FaEnvelope } from "react-icons/fa";
+import { FaEnvelope } from "react-icons/fa";
 import NotificationBell from "./NotificationBell";
+import BrandLogo from "./BrandLogo";
 import { useNotifications } from '../context/NotificationContext';
 import API from '../api/axios.js';
 
@@ -43,15 +44,14 @@ export default function DashboardNavbar({ user }) {
     }
 
     const sendHeartbeat = async () => {
-      const token = localStorage.getItem("access");
-      if (token && user) {
+      if (user) {
         try {
           await fetch(`${BASE_URL}/api/users/heartbeat/`, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${token}`,
               "Content-Type": "application/json"
-            }
+            },
+            credentials: "include",
           });
         } catch (error) {
           // Silent fail for 401 errors
@@ -114,8 +114,8 @@ export default function DashboardNavbar({ user }) {
     }
 
     try {
-      const token = localStorage.getItem("access");
-      if (!token) {
+      const hasUserSession = !!sessionStorage.getItem("nm_user_session") || !!localStorage.getItem("access");
+      if (!hasUserSession) {
         navigate("/login");
         return;
       }
@@ -264,6 +264,10 @@ export default function DashboardNavbar({ user }) {
             display: flex;
             align-items: center;
           }
+          .nm-brand-logo {
+            max-height: 36px;
+            width: auto;
+          }
           .nm-profile-btn {
             border: none;
             background: transparent;
@@ -290,8 +294,8 @@ export default function DashboardNavbar({ user }) {
         <nav className="navbar navbar-expand-lg nm-navbar">
           <div className="container">
             <Link className="navbar-brand d-flex align-items-center" to="/admin/dashboard">
-              <FaHeart className="text-danger me-2" />
-              <span className="fw-bold fs-4" style={{ color: "#ff4d6d" }}>
+              <BrandLogo className="nm-brand-logo" height={32} />
+              <span className="fw-bold ms-2" style={{ color: "#ff4d6d" }}>
                 Admin Panel
               </span>
             </Link>
@@ -376,8 +380,7 @@ export default function DashboardNavbar({ user }) {
       <nav className="navbar navbar-expand-lg nm-navbar">
         <div className="container">
           <Link className="navbar-brand d-flex align-items-center" to="/dashboard">
-            <FaHeart className="text-danger me-2" />
-            <span className="fw-bold fs-4" style={{ color: "#ff4d6d" }}>NM</span>
+            <BrandLogo className="nm-brand-logo" height={32} />
           </Link>
           <div className="d-flex align-items-center gap-3 ms-auto">
             <div className="spinner-border spinner-border-sm text-danger" role="status" />
@@ -413,6 +416,10 @@ export default function DashboardNavbar({ user }) {
           padding: 0;
           display: flex;
           align-items: center;
+        }
+        .nm-brand-logo {
+          max-height: 36px;
+          width: auto;
         }
 
         .nm-nav-icon-btn {
@@ -509,10 +516,7 @@ export default function DashboardNavbar({ user }) {
       <nav className="navbar navbar-expand-lg nm-navbar">
         <div className="container">
           <Link className="navbar-brand d-flex align-items-center" to="/dashboard">
-            <FaHeart className="text-danger me-2" />
-            <span className="fw-bold fs-4" style={{ color: "#ff4d6d" }}>
-              NM
-            </span>
+            <BrandLogo className="nm-brand-logo" height={32} />
           </Link>
 
           <div className="d-flex align-items-center gap-3 ms-auto">
@@ -737,4 +741,5 @@ export default function DashboardNavbar({ user }) {
     </>
   );
 }
+
 

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, OTP
-from .models import UserStats
+from .models import UserStats, UserEngagementScore
 
 
 
@@ -31,6 +31,23 @@ class UserStatsAdmin(admin.ModelAdmin):
     search_fields = ('user__email', 'user__first_name', 'user__last_name')
     readonly_fields = ('updated_at',)
     list_filter = ('active_matches',)
+
+
+@admin.register(UserEngagementScore)
+class UserEngagementScoreAdmin(admin.ModelAdmin):
+    list_display = (
+        'user',
+        'overall_score',
+        'total_points',
+        'engagement_score',
+        'quality_score',
+        'trust_score',
+        'allow_perfect_score',
+        'score_cap',
+        'last_calculated_at',
+    )
+    search_fields = ('user__email', 'user__first_name', 'user__last_name')
+    list_filter = ('allow_perfect_score',)
 
 
 

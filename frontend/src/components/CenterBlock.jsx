@@ -30,7 +30,7 @@ export default function CenterBlock(props) {
     profilesLoading, apiError, profiles, profileIndex, currentProfile, getCurrentPhotoUrl,
     openPhotoModal, getCurrentProfilePhotos, currentPhotoIndex,
     goToPrevPhoto, goToNextPhoto, isMatched, isLiked, goToProfile,
-    handlePass, handleLike, isAnimating, goToMessenger,
+    handlePass, handleLike, handleUnmatch, isAnimating, goToMessenger,
     openReportModal, handleBlock, centerCardStyle, reloadProfiles, swipeLimits, user
   } = props;
 
@@ -104,8 +104,8 @@ export default function CenterBlock(props) {
   };
 
   const inviteLink = user?.referral_code 
-    ? `${window.location.origin}/signup?ref=${user.referral_code}`
-    : `${window.location.origin}/signup`;
+    ? `${window.location.origin}/register?ref=${user.referral_code}`
+    : `${window.location.origin}/register`;
 
   const handleCopyInviteLink = () => {
     navigator.clipboard.writeText(inviteLink);
@@ -118,7 +118,7 @@ export default function CenterBlock(props) {
       <div className="d-flex flex-column align-items-center justify-content-center p-4 text-center" style={{ minHeight: '100%', background: '#000', color: 'white' }}>
         <div className="mb-4">
           <i className="fas fa-users fa-3x mb-3" style={{ color: '#ff4d6d' }}></i>
-          <h4 className="mb-3">Plus de profils pour le moment</h4>
+          <h4 className="mb-3">More profiles are coming from the waitlist, come back in a while.</h4>
           <p className="small opacity-75 mb-4">
             De nouveaux profils arrivent bientôt depuis notre liste d'attente.<br />
             Pour nous aider à grandir et débloquer plus de profils, invitez vos amis à rejoindre NouMatch !
@@ -142,8 +142,8 @@ export default function CenterBlock(props) {
   const currentImageUrl = getCurrentPhotoUrl();
 
   const containerStyle = isMobile 
-    ? { ...centerCardStyle, background: '#000', boxShadow: 'none', touchAction: 'pan-y' }
-    : { ...centerCardStyle, height: '100%', touchAction: 'pan-y' };
+    ? { ...centerCardStyle, background: '#000', boxShadow: 'none', touchAction: 'pan-y', overflow: 'hidden', minHeight: 0 }
+    : { ...centerCardStyle, height: '100%', touchAction: 'pan-y', overflow: 'hidden', minHeight: 0 };
 
   return (
     <div 
@@ -214,7 +214,7 @@ export default function CenterBlock(props) {
         <div className="d-flex justify-content-center align-items-center gap-4 py-2">
           {isMatched(currentProfile.id) ? (
             <>
-              <RoundActionBtn onClick={onPass} bg="rgba(255,255,255,0.1)" icon="fas fa-times" iconColor="#fff" size={50} />
+              <RoundActionBtn onClick={() => handleUnmatch?.(currentProfile)} bg="rgba(255,255,255,0.1)" icon="fas fa-heart-broken" iconColor="#fff" size={50} label="Unmatch" />
               <RoundActionBtn onClick={() => goToMessenger(currentProfile.id)} bg="linear-gradient(135deg, #ff4d6d, #a158ff)" icon="fas fa-comment-dots" iconColor="#fff" size={62} />
               <RoundActionBtn onClick={() => goToProfile(currentProfile.id)} bg="rgba(255,255,255,0.1)" icon="fas fa-user" iconColor="#fff" size={50} />
             </>

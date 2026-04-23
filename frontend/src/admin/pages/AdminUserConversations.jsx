@@ -36,7 +36,7 @@ export default function AdminUserConversations() {
     setLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/user-conversations/`, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setConversations(res.data);
     } catch (err) {
@@ -105,6 +105,7 @@ export default function AdminUserConversations() {
     </div>
   );
 }
+
 
 
 

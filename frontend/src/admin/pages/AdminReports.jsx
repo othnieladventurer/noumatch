@@ -5,6 +5,7 @@ import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { adminRequest } from '../utils/adminApi';
 
 // Build the correct API base URL from environment variables (consistent with other admin pages)
 const getApiBase = () => {
@@ -73,12 +74,12 @@ export default function AdminReports() {
         status: filterStatus !== 'all' ? filterStatus : '',
       });
       const url = `${API_BASE}/reports/list/`;
-      const res = await axios.get(url, { params, headers: { Authorization: `Bearer ${token}` } });
+      const res = await adminRequest({ method: 'get', url, params });
       setReports(res.data.data || []);
       setTotalReports(res.data.total || 0);
     } catch (err) {
       console.error('❌ Fetch error:', err);
-      if (err.response?.status === 401) {
+      if (err.authExpired || err.response?.status === 401) {
         localStorage.clear();
         navigate('/admin/login');
       } else {
@@ -107,9 +108,7 @@ export default function AdminReports() {
     }
     try {
       const url = `${API_BASE}/reports/detail/${reportId}/`;
-      const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await adminRequest({ method: 'get', url });
       setSelectedReport(res.data);
       setUpdateStatus(res.data.status);
       setAdminNotes(res.data.admin_notes || '');
@@ -130,11 +129,11 @@ export default function AdminReports() {
     }
     try {
       const url = `${API_BASE}/reports/update-status/${selectedReport.id}/`;
-      await axios.patch(url, {
+      await adminRequest({ method: 'patch', url, data: {
         status: updateStatus,
         admin_notes: adminNotes,
         action_taken: actionTaken,
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      }});
       setShowModal(false);
       fetchReports();
     } catch (err) {
@@ -153,9 +152,7 @@ export default function AdminReports() {
     }
     try {
       const url = `${API_BASE}/reports/ban-user/`;
-      await axios.post(url, { report_id: selectedReport.id }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await adminRequest({ method: 'post', url, data: { report_id: selectedReport.id } });
       setShowModal(false);
       fetchReports();
     } catch (err) {

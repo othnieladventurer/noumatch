@@ -11,6 +11,10 @@
   font-weight: bold;
 }
 
+.navbar-brand-logo {
+  max-height: 38px;
+}
+
 .navbar-brand:hover {
   opacity: 0.9;
 }

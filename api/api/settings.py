@@ -16,11 +16,25 @@ def parse_csv_env(key):
     value = config(key, default="")
     return [item.strip() for item in value.split(",") if item.strip()]
 
+
+def env_bool(key, default=False):
+    return config(key, default=default, cast=bool)
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-t84l(_xg3hn&%x0b*bv+b^#@dp8*(+z9_ojzh2z*#2&@6rt4dj'
+SECRET_KEY = config(
+    "DJANGO_SECRET_KEY",
+    default=config(
+        "SECRET_KEY",
+        default="django-insecure-dev-only-change-me",
+    ),
+)
+if ENVIRONMENT in {"production", "staging"} and SECRET_KEY.startswith("django-insecure"):
+    if env_bool("STRICT_SECURITY_CHECKS", default=False):
+        raise RuntimeError("Set a non-default DJANGO_SECRET_KEY before launch.")
+    logging.warning("Using weak/default SECRET_KEY in %s. Set DJANGO_SECRET_KEY before launch.", ENVIRONMENT)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = ENVIRONMENT == "development"
 
 LOCAL_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 LOCAL_CORS_ORIGINS = [
@@ -74,6 +88,27 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 ]
 
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + parse_csv_env("EXTRA_CSRF_TRUSTED_ORIGINS")
+
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=True)
+    SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", default=True)
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+    SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+else:
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+
+VERBOSE_NOTIFICATION_LOGS = env_bool("VERBOSE_NOTIFICATION_LOGS", default=False)
+VERBOSE_WEBSOCKET_LOGS = env_bool("VERBOSE_WEBSOCKET_LOGS", default=False)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -133,11 +168,31 @@ ASGI_APPLICATION = 'api.asgi.application'
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "users.authentication.CookieJWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "60/min",
+        "user": "300/min",
+        "admin_login": "10/min",
+        "auth_login": "10/min",
+        "auth_register": "5/min",
+        "auth_otp_verify": "20/hour",
+        "auth_otp_resend": "10/hour",
+        "password_reset": "5/hour",
+        "email_check": "30/min",
+        "waitlist_join": "10/hour",
+        "chat_send_message": "90/min",
+        "heartbeat": "120/min",
+        "photo_upload": "30/hour",
+    },
 }
 
 AUTH_USER_MODEL = "users.User"
@@ -148,7 +203,21 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "AUTH_HEADER_TYPES": ("Bearer",),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
 }
+
+COOKIE_ENV_PREFIX = "nmstg" if ENVIRONMENT == "staging" else "nm"
+AUTH_ACCESS_COOKIE_NAME = f"{COOKIE_ENV_PREFIX}_access"
+AUTH_REFRESH_COOKIE_NAME = f"{COOKIE_ENV_PREFIX}_refresh"
+AUTH_ADMIN_ACCESS_COOKIE_NAME = f"{COOKIE_ENV_PREFIX}_admin_access"
+AUTH_ADMIN_REFRESH_COOKIE_NAME = f"{COOKIE_ENV_PREFIX}_admin_refresh"
+AUTH_COOKIE_SECURE = not DEBUG
+AUTH_COOKIE_HTTPONLY = True
+AUTH_COOKIE_SAMESITE = config("AUTH_COOKIE_SAMESITE", default="Lax")
+AUTH_COOKIE_PATH = "/"
+AUTH_COOKIE_DOMAIN = config("AUTH_COOKIE_DOMAIN", default=None)
 
 import os
 
@@ -204,6 +273,12 @@ USE_I18N = True
 USE_L10N = True
 
 PASS_EXPIRY_HOURS = 1/60
+MAX_UPLOAD_IMAGE_MB = config("MAX_UPLOAD_IMAGE_MB", default=10, cast=int)
+MAX_UPLOAD_IMAGE_BYTES = MAX_UPLOAD_IMAGE_MB * 1024 * 1024
+MAX_CHAT_ATTACHMENT_MB = config("MAX_CHAT_ATTACHMENT_MB", default=20, cast=int)
+MAX_CHAT_ATTACHMENT_BYTES = MAX_CHAT_ATTACHMENT_MB * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = config("DATA_UPLOAD_MAX_MEMORY_SIZE", default=12 * 1024 * 1024, cast=int)
+FILE_UPLOAD_MAX_MEMORY_SIZE = config("FILE_UPLOAD_MAX_MEMORY_SIZE", default=12 * 1024 * 1024, cast=int)
 
 
 

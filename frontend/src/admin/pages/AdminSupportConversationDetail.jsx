@@ -39,11 +39,11 @@ export default function AdminSupportConversationDetail() {
     }
     try {
       const convRes = await axios.get(`${API_BASE}/support-conversations/${id}/`, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setConversation(convRes.data);
       const msgRes = await axios.get(`${API_BASE}/support-conversations/${id}/messages/`, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setMessages(msgRes.data);
     } catch (err) {
@@ -63,7 +63,7 @@ export default function AdminSupportConversationDetail() {
     setSending(true);
     try {
       await axios.post(`${API_BASE}/support-conversations/${id}/reply/`, { content: replyText }, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setReplyText('');
       fetchConversation();
@@ -117,6 +117,7 @@ export default function AdminSupportConversationDetail() {
     </div>
   );
 }
+
 
 
 

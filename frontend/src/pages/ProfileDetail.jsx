@@ -878,22 +878,44 @@ export default function ProfileDetail() {
           transition: all 0.2s;
           display: inline-flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
+          font-weight: 500;
         }
-        
+
         .interest-tag:hover {
           background: #ff4d6d;
           color: white;
           border-color: #ff4d6d;
+          transform: translateY(-1px);
         }
-        
-        .interest-tag:hover i {
-          color: white;
+
+        .interest-tag::before {
+          content: '';
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #ff4d6d;
+          display: inline-block;
+          flex-shrink: 0;
         }
-        
-        .interest-tag i {
-          color: #ff4d6d;
-          transition: all 0.2s;
+
+        .interest-tag:hover::before {
+          background: #ffffff;
+        }
+
+        .interest-tag.passion-tag {
+          border-color: #ffd8df;
+          background: #fff6f8;
+        }
+
+        .interest-tag.hobby-tag {
+          border-color: #d7ecff;
+          background: #f5fbff;
+        }
+
+        .interest-tag.music-tag {
+          border-color: #efe2ff;
+          background: #faf7ff;
         }
         
         .professional-grid {
@@ -1299,8 +1321,7 @@ export default function ProfileDetail() {
                   </h6>
                   <div className="interest-tags">
                     {profile.passions.split(',').map((item, index) => (
-                      <span key={index} className="interest-tag">
-                        <i className="fas fa-heart"></i>
+                      <span key={index} className="interest-tag passion-tag">
                         {item.trim()}
                       </span>
                     ))}
@@ -1316,8 +1337,7 @@ export default function ProfileDetail() {
                   </h6>
                   <div className="interest-tags">
                     {profile.hobbies.split(',').map((item, index) => (
-                      <span key={index} className="interest-tag">
-                        <i className="fas fa-heart"></i>
+                      <span key={index} className="interest-tag hobby-tag">
                         {item.trim()}
                       </span>
                     ))}
@@ -1333,8 +1353,7 @@ export default function ProfileDetail() {
                   </h6>
                   <div className="interest-tags">
                     {profile.favorite_music.split(',').map((item, index) => (
-                      <span key={index} className="interest-tag">
-                        <i className="fas fa-heart"></i>
+                      <span key={index} className="interest-tag music-tag">
                         {item.trim()}
                       </span>
                     ))}

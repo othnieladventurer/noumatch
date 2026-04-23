@@ -5,6 +5,7 @@ import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { adminRequest } from '../utils/adminApi';
 
 // Build the correct API base URL from environment variables (consistent with other admin pages)
 const getApiBase = () => {
@@ -69,9 +70,10 @@ export default function AdminSwipeStats() {
     setError('');
     try {
       const url = `${API_BASE}/swipe-stats/`;
-      const res = await axios.get(url, {
+      const res = await adminRequest({
+        method: 'get',
+        url,
         params: { page, limit: DAYS_PER_PAGE },
-        headers: { Authorization: `Bearer ${token}` }
       });
       setStats({
         total_likes: res.data.total_likes,
@@ -85,7 +87,7 @@ export default function AdminSwipeStats() {
       setTotalPages(res.data.pages);
     } catch (err) {
       console.error('❌ Fetch error:', err);
-      if (err.response?.status === 401) {
+      if (err.authExpired || err.response?.status === 401) {
         localStorage.clear();
         navigate('/admin/login');
       } else {
@@ -118,7 +120,7 @@ export default function AdminSwipeStats() {
   const passPercent = totalSwipes ? ((stats.total_passes / totalSwipes) * 100).toFixed(1) : 0;
 
   return (
-    <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`admin-dashboard admin-swipe-stats ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />

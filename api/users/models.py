@@ -325,6 +325,40 @@ class UserStats(models.Model):
         self.save()
 
 
+class UserEngagementScore(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='engagement_scorecard',
+    )
+    onboarding_points = models.IntegerField(default=0)
+    activity_points = models.IntegerField(default=0)
+    quality_points = models.IntegerField(default=0)
+    penalty_points = models.IntegerField(default=0)
+    total_points = models.IntegerField(default=0)
+
+    profile_completion_percent = models.PositiveSmallIntegerField(default=0)
+    engagement_score = models.PositiveSmallIntegerField(default=0)
+    quality_score = models.PositiveSmallIntegerField(default=0)
+    trust_score = models.PositiveSmallIntegerField(default=0)
+    overall_score = models.PositiveSmallIntegerField(default=0)
+
+    # By default we cap at 99 so no user reaches 100 without explicit admin decision.
+    allow_perfect_score = models.BooleanField(default=False)
+    score_cap = models.PositiveSmallIntegerField(default=99)
+
+    breakdown = models.JSONField(default=dict, blank=True)
+    last_calculated_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "User Engagement Score"
+        verbose_name_plural = "User Engagement Scores"
+
+    def __str__(self):
+        return f"{self.user.email} score={self.overall_score} points={self.total_points}"
+
 
         
 

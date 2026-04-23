@@ -85,12 +85,12 @@ export default function AdminWaitlist() {
     if (!token) return;
     setLoading(true);
     try {
-      const headers = { Authorization: `Bearer ${token}` };
+      const requestConfig = { withCredentials: true };
       const [statsRes, pendingRes, acceptedRes, archivedRes] = await Promise.all([
-        axios.get(`${API_BASE}/waitlist/stats/`, { headers }),
-        axios.get(`${API_BASE}/waitlist/waiting/`, { headers }),
-        axios.get(`${API_BASE}/waitlist/accepted/`, { headers }),
-        axios.get(`${API_BASE}/waitlist/archived/`, { headers }),
+        axios.get(`${API_BASE}/waitlist/stats/`, requestConfig),
+        axios.get(`${API_BASE}/waitlist/waiting/`, requestConfig),
+        axios.get(`${API_BASE}/waitlist/accepted/`, requestConfig),
+        axios.get(`${API_BASE}/waitlist/archived/`, requestConfig),
       ]);
       setStats(statsRes.data);
       setPending(pendingRes.data);
@@ -135,7 +135,7 @@ export default function AdminWaitlist() {
     try {
       await axios.post(`${API_BASE}/waitlist/${user.id}/contact/`, 
         { notes: `Contacted via campaign on ${new Date().toISOString()}` }, 
-        { headers: { Authorization: `Bearer ${token}` } }
+        { withCredentials: true }
       );
       return true;
     } catch (err) {
@@ -152,7 +152,7 @@ export default function AdminWaitlist() {
       try {
         await axios.post(`${API_BASE}/waitlist/${user.id}/contact/`, 
           { notes: `Bulk archived on ${new Date().toISOString()} - Moved to archive to free waitlist` }, 
-          { headers: { Authorization: `Bearer ${token}` } }
+          { withCredentials: true }
         );
         successCount++;
       } catch (err) {
@@ -186,7 +186,7 @@ export default function AdminWaitlist() {
     try {
       const token = localStorage.getItem('admin_access');
       await axios.post(`${API_BASE}/waitlist/${entry.id}/accept/`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       await fetchAllData();
     } catch (err) {
@@ -217,11 +217,11 @@ export default function AdminWaitlist() {
     try {
       if (deleteIsArchived) {
         await axios.delete(`${API_BASE}/waitlist/archive/${deleteTarget.id}/delete/`, {
-          headers: { Authorization: `Bearer ${token}` }
+          withCredentials: true
         });
       } else {
         await axios.delete(`${API_BASE}/waitlist/${deleteTarget.id}/delete/`, {
-          headers: { Authorization: `Bearer ${token}` }
+          withCredentials: true
         });
       }
       await fetchAllData();
@@ -246,7 +246,7 @@ export default function AdminWaitlist() {
     setActionLoading(true);
     try {
       await axios.post(`${API_BASE}/waitlist/${contactTarget.id}/contact/`, { notes: contactNotes }, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       await fetchAllData();
       setShowContactModal(false);
@@ -695,6 +695,7 @@ export default function AdminWaitlist() {
     </div>
   );
 }
+
 
 
 

@@ -35,7 +35,7 @@ export default function AdminFlaggedMessages() {
     }
     try {
       const res = await axios.get(`${API_BASE}/flagged-messages/`, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setFlags(res.data);
     } catch (err) {
@@ -53,7 +53,7 @@ export default function AdminFlaggedMessages() {
     const token = localStorage.getItem('admin_access');
     try {
       await axios.post(`${API_BASE}/flagged-messages/${flagId}/action/`, { action }, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       alert(`Action "${action}" taken. Flag removed.`);
       fetchFlags(); // refresh
@@ -121,6 +121,7 @@ export default function AdminFlaggedMessages() {
     </div>
   );
 }
+
 
 
 

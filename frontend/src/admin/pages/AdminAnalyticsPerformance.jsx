@@ -258,7 +258,7 @@ export default function AdminAnalyticsPerformance() {
   };
 
   return (
-    <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`admin-dashboard admin-analytics-performance ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />

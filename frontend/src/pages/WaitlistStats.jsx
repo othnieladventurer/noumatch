@@ -45,8 +45,7 @@ export default function WaitlistStats() {
       easing: "ease-in-out",
     });
     
-    const token = localStorage.getItem("access");
-    if (token) {
+    if (localStorage.getItem("admin_access") || sessionStorage.getItem("nm_user_session") === "1") {
       setIsAuthorized(true);
     }
     
@@ -86,8 +85,7 @@ export default function WaitlistStats() {
       console.error("Failed to fetch entries:", err);
       if (err.response?.status === 401) {
         setIsAuthorized(false);
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
+        sessionStorage.removeItem("nm_user_session");
       } else if (err.response?.status === 404) {
         // Try alternative endpoint if main one fails
         try {
@@ -154,9 +152,8 @@ export default function WaitlistStats() {
         password: adminPassword
       });
       
-      if (response.data.access) {
-        localStorage.setItem("access", response.data.access);
-        localStorage.setItem("refresh", response.data.refresh);
+      if (response.data.access || response.status === 200) {
+        sessionStorage.setItem("nm_user_session", "1");
         setIsAuthorized(true);
         setShowAdmin(false);
         setAdminEmail("");
@@ -172,8 +169,7 @@ export default function WaitlistStats() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
+    sessionStorage.removeItem("nm_user_session");
     setIsAuthorized(false);
     setEntries([]);
   };

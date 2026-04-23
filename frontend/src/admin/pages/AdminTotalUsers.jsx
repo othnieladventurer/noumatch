@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import BrandLogo from '../../components/BrandLogo';
 import './AdminDashboard.css';
 
 const API_BASE = '/api/noumatch-admin';
@@ -36,7 +37,7 @@ export default function AdminTotalUsers() {
     const fetchUsers = async () => {
       try {
         const res = await axios.get(`${API_BASE}/users/`, {
-          headers: { Authorization: `Bearer ${token}` }
+          withCredentials: true
         });
         setUsers(res.data);
       } catch (err) {
@@ -67,12 +68,12 @@ export default function AdminTotalUsers() {
       <aside className="admin-sidebar">
         <div className="sidebar-header">
           {!sidebarCollapsed ? (
-            <h4 className="mb-0 fw-bold">
-              <span className="text-danger">NouMatch</span>
-              <span className="text-white"> Admin</span>
-            </h4>
+            <div className="d-flex align-items-center justify-content-center gap-2">
+              <BrandLogo height={28} />
+              <span className="text-white fw-bold">Admin</span>
+            </div>
           ) : (
-            <i className="fas fa-heart text-danger fs-4"></i>
+            <BrandLogo variant="mark" height={30} />
           )}
         </div>
         <nav className="sidebar-nav">
@@ -176,6 +177,7 @@ export default function AdminTotalUsers() {
     </div>
   );
 }
+
 
 
 

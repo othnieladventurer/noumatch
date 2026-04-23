@@ -1,127 +1,157 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
-import API from '@/api/axios';
-import "bootstrap/dist/css/bootstrap.min.css";
-import "@fortawesome/fontawesome-free/css/all.min.css";
+import API from "@/api/axios";
+
+const getWsBase = () => {
+  const configured = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+  if (configured) return configured.replace(/^http/, "ws");
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${window.location.host}`;
+};
+
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 export default function Messages() {
   const navigate = useNavigate();
   const location = useLocation();
+  const messagesEndRef = useRef(null);
+  const wsRef = useRef(null);
+  const fileInputRef = useRef(null);
+
   const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState("");
+  const [text, setText] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState(null);
+  const [icebreakers, setIcebreakers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState(null);
-  const [mobileView, setMobileView] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
-  
-  const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
+  const [error, setError] = useState("");
 
-  // Heartbeat to keep user online – still uses fetch (doesn't need API)
+  const activeConversationId = activeConversation?.id;
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const otherUser = activeConversation?.other_user;
+
+  const mediaPreview = useMemo(() => {
+    if (!attachmentFile) return null;
+    return URL.createObjectURL(attachmentFile);
+  }, [attachmentFile]);
+
   useEffect(() => {
-    const sendHeartbeat = async () => {
-      const token = localStorage.getItem("access");
-      if (token && user) {
-        try {
-          await fetch(`${import.meta.env.VITE_API_URL}/api/users/heartbeat/`, {
-            method: "POST",
-            headers: { 
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json"
-            },
-          });
-        } catch (error) {
-          console.error("Heartbeat error:", error);
-        }
-      }
+    return () => {
+      if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     };
+  }, [mediaPreview]);
 
-    const interval = setInterval(sendHeartbeat, 120000);
-    sendHeartbeat();
+  const getPhotoUrl = (path) => {
+    if (!path) return "https://via.placeholder.com/40";
+    if (path.startsWith("http")) return path;
+    return `${import.meta.env.VITE_API_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+  };
 
-    return () => clearInterval(interval);
-  }, [user]);
+  const formatTime = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
 
-  // Check screen size for responsive design
-  useEffect(() => {
-    const checkScreenSize = () => {
-      setMobileView(window.innerWidth < 768);
-      if (window.innerWidth < 768) {
-        setShowSidebar(!activeConversation);
-      } else {
-        setShowSidebar(true);
-      }
-    };
-    
-    checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    return () => window.removeEventListener('resize', checkScreenSize);
-  }, [activeConversation]);
+  const updateConversationLastMessage = (conversationId, message) => {
+    setConversations((prev) => {
+      const next = prev.map((conv) =>
+        conv.id === conversationId
+          ? { ...conv, last_message: message, updated_at: message.created_at, unread_count: conv.id === activeConversationId ? 0 : (conv.unread_count || 0) + (message.is_from_me ? 0 : 1) }
+          : conv
+      );
+      return next.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+    });
+  };
 
-  // Scroll to bottom of messages
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Fetch user and conversations
-  useEffect(() => {
+  const connectConversationSocket = (conversationId) => {
+    if (!conversationId) return;
     const token = localStorage.getItem("access");
-    if (!token) {
-      navigate("/login");
-      return;
+
+    if (wsRef.current) {
+      wsRef.current.close(1000, "switch conversation");
+      wsRef.current = null;
     }
 
-    const fetchUser = async () => {
+    const wsPath = token
+      ? `${getWsBase()}/ws/chat/${conversationId}/?token=${encodeURIComponent(token)}`
+      : `${getWsBase()}/ws/chat/${conversationId}/`;
+    const ws = new WebSocket(wsPath);
+    wsRef.current = ws;
+
+    ws.onmessage = (event) => {
       try {
-        const response = await API.get("/users/me/");
-        setUser(response.data);
-      } catch (error) {
-        console.error("Error fetching user:", error);
-        if (error.response?.status === 401) {
-          localStorage.removeItem("access");
-          localStorage.removeItem("refresh");
-          navigate("/login");
+        const data = JSON.parse(event.data);
+        if (data.type === "message_created" && data.payload?.message) {
+          const incoming = data.payload.message;
+          if (incoming.sender?.id === user?.id) return;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === incoming.id)) return prev;
+            return [...prev, incoming];
+          });
+          updateConversationLastMessage(conversationId, incoming);
+          scrollToBottom();
         }
+        if (data.type === "messages_read" && data.payload?.reader_id !== user?.id) {
+          setMessages((prev) => prev.map((m) => (m.is_from_me ? { ...m, read: true } : m)));
+        }
+      } catch (_) {
+        // noop
       }
     };
 
-    fetchUser();
-    fetchConversations();
-  }, [navigate]);
-
-  // Auto-select conversation from URL parameter
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const conversationId = params.get('conversation');
-    
-    if (conversationId && conversations.length > 0 && !activeConversation) {
-      const conversation = conversations.find(c => c.id === parseInt(conversationId));
-      if (conversation) {
-        selectConversation(conversation);
-      }
-    }
-  }, [location.search, conversations, activeConversation]);
+    ws.onclose = () => {
+      if (wsRef.current === ws) wsRef.current = null;
+    };
+  };
 
   const fetchConversations = async () => {
+    const response = await API.get("/chat/conversations/");
+    const sorted = [...response.data].sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+    setConversations(sorted);
+    return sorted;
+  };
+
+  const openConversation = async (conversation) => {
+    setActiveConversation(conversation);
+    navigate(`/messages?conversation=${conversation.id}`, { replace: true });
+
+    const detail = await API.get(`/chat/conversations/${conversation.id}/`);
+    const list = detail.data.messages || [];
+    setMessages(list);
+    setConversations((prev) => prev.map((c) => (c.id === conversation.id ? { ...c, unread_count: 0 } : c)));
+
+    const ice = await API.get(`/chat/conversations/${conversation.id}/icebreakers/`);
+    setIcebreakers(ice.data.icebreakers || []);
+    connectConversationSocket(conversation.id);
+    setTimeout(scrollToBottom, 50);
+  };
+
+  const initialize = async () => {
     try {
-      const response = await API.get("/chat/conversations/");
-      // Sort conversations by most recent message
-      const sorted = response.data.sort((a, b) => {
-        const timeA = a.last_message?.created_at || a.created_at;
-        const timeB = b.last_message?.created_at || b.created_at;
-        return new Date(timeB) - new Date(timeA);
-      });
-      
-      setConversations(sorted);
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-      setError(error.response?.data?.message || error.message);
-      if (error.response?.status === 401) {
+      const token = localStorage.getItem("access");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+      const me = await API.get("/users/me/");
+      setUser(me.data);
+      const convs = await fetchConversations();
+      const params = new URLSearchParams(location.search);
+      const selectedId = Number(params.get("conversation"));
+      const selected = convs.find((c) => c.id === selectedId) || convs[0];
+      if (selected) await openConversation(selected);
+    } catch (e) {
+      setError(e.response?.data?.error || e.message || "Unable to load messages");
+      if (e.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         navigate("/login");
@@ -131,164 +161,92 @@ export default function Messages() {
     }
   };
 
-  const selectConversation = async (conversation) => {
-    setActiveConversation(conversation);
-    
-    // Update URL with conversation ID
-    navigate(`/messages?conversation=${conversation.id}`, { replace: true });
-    
-    try {
-      const response = await API.get(`/chat/conversations/${conversation.id}/`);
-      setMessages(response.data.messages || []);
-      
-      // Mark conversation as read
-      setConversations(prev => prev.map(c => 
-        c.id === conversation.id ? { ...c, unread_count: 0 } : c
-      ));
-      
-      if (mobileView) setShowSidebar(false);
-    } catch (error) {
-      console.error("Error fetching conversation:", error);
-      setError(error.response?.data?.message || error.message);
-      if (error.response?.status === 401) {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        navigate("/login");
-      }
+  useEffect(() => {
+    initialize();
+    return () => {
+      if (wsRef.current) wsRef.current.close(1000, "unmount");
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const onSelectFile = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    if (!isImage && !isVideo) {
+      setError("Only image and video files are allowed.");
+      return;
     }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setError("Attachment is too large. Max size is 20MB.");
+      return;
+    }
+    setError("");
+    setAttachmentFile(file);
   };
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || sending || !activeConversation) return;
-
-    const messageContent = newMessage.trim();
-    setNewMessage("");
+  const sendMessage = async (event) => {
+    event.preventDefault();
+    if (!activeConversationId || sending) return;
+    if (!text.trim() && !attachmentFile) return;
     setSending(true);
+    setError("");
 
-    // Optimistically add message to UI
+    const form = new FormData();
+    if (text.trim()) form.append("content", text.trim());
+    if (attachmentFile) form.append("attachment", attachmentFile);
+    if (attachmentFile?.type.startsWith("image/")) form.append("message_type", "image");
+    if (attachmentFile?.type.startsWith("video/")) form.append("message_type", "video");
+
+    const tempId = `temp-${Date.now()}`;
     const tempMessage = {
-      id: Date.now(),
-      content: messageContent,
-      created_at: new Date().toISOString(),
+      id: tempId,
+      content: text.trim(),
+      message_type: attachmentFile?.type.startsWith("video/") ? "video" : attachmentFile?.type.startsWith("image/") ? "image" : "text",
+      attachment_url: mediaPreview,
       is_from_me: true,
-      sender: { 
-        id: user?.id,
-        full_name: "You",
-        profile_photo_url: user?.profile_photo
-      },
       read: false,
+      created_at: new Date().toISOString(),
+      sender: { id: user?.id, full_name: "You", profile_photo_url: user?.profile_photo },
     };
-    setMessages(prev => [...prev, tempMessage]);
+
+    setMessages((prev) => [...prev, tempMessage]);
+    setText("");
+    setAttachmentFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    scrollToBottom();
 
     try {
-      const response = await API.post(`/chat/conversations/${activeConversation.id}/send/`, {
-        content: messageContent
+      const response = await API.post(`/chat/conversations/${activeConversationId}/send/`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-
-      const sentMessage = response.data;
-      
-      // Replace temp message with real one
-      setMessages(prev => prev.map(msg => msg.id === tempMessage.id ? sentMessage : msg));
-
-      // Update conversation in sidebar
-      setConversations(prev => {
-        const updated = prev.map(conv => {
-          if (conv.id === activeConversation.id) {
-            return {
-              ...conv,
-              last_message: sentMessage,
-              updated_at: new Date().toISOString()
-            };
-          }
-          return conv;
-        });
-        // Re-sort conversations
-        return updated.sort((a, b) => {
-          const timeA = a.last_message?.created_at || a.created_at;
-          const timeB = b.last_message?.created_at || b.created_at;
-          return new Date(timeB) - new Date(timeA);
-        });
-      });
-
-    } catch (error) {
-      console.error("Error sending message:", error);
-      // Remove temp message on error
-      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
-      setNewMessage(messageContent);
-      setError(error.response?.data?.message || error.message);
-      if (error.response?.status === 401) {
-        localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-        navigate("/login");
-      }
+      const sent = response.data;
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+      updateConversationLastMessage(activeConversationId, sent);
+      setIcebreakers([]);
+    } catch (e) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setError(e.response?.data?.error || "Message failed to send");
     } finally {
       setSending(false);
-      inputRef.current?.focus();
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const applyIcebreaker = (value) => {
+    setText(value);
   };
-
-  const getProfilePhotoUrl = (path) => {
-    if (!path) return "https://via.placeholder.com/50";
-    if (path.startsWith('http')) return path;
-    if (path.startsWith('/media')) return `${import.meta.env.VITE_API_URL}${path}`;
-    return `${import.meta.env.VITE_API_URL}${path}`;
-  };
-
-  const formatMessageTime = (timeString) => {
-    if (!timeString) return '';
-    const date = new Date(timeString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
-
-  const getOnlineStatusColor = (status) => {
-    if (status === "online") return "#10b981";
-    if (status?.includes("Just now")) return "#10b981";
-    if (status?.includes("m ago") && parseInt(status) < 5) return "#10b981";
-    return "#9ca3af";
-  };
-
-  const getOnlineStatusText = (isOnline, onlineStatus) => {
-    if (isOnline) return "Online";
-    if (onlineStatus === "online") return "Online";
-    if (onlineStatus?.includes("Just now")) return "Online";
-    if (onlineStatus) return onlineStatus;
-    return "Offline";
-  };
-
-  const goBackToSidebar = () => {
-    setActiveConversation(null);
-    setMessages([]);
-    setShowSidebar(true);
-    navigate('/messages', { replace: true });
-  };
-
-  const otherUser = activeConversation?.other_user;
 
   if (loading) {
     return (
       <>
         <DashboardNavbar user={user} />
         <div className="container py-5 text-center">
-          <div className="spinner-border text-danger" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
-          <p className="mt-3 text-secondary">Loading your conversations...</p>
+          <div className="spinner-border text-danger" role="status" />
         </div>
       </>
     );
@@ -297,688 +255,136 @@ export default function Messages() {
   return (
     <>
       <DashboardNavbar user={user} />
-      
-      <style>
-        {`
-          /* Modern Minimal Design */
-          .messenger-container {
-            display: flex;
-            height: calc(100vh - 80px);
-            background: #f7f9fc;
-            padding: 1rem;
-            gap: 1rem;
-            max-width: 1400px;
-            margin: 0 auto;
-          }
-          
-          /* Sidebar Styles */
-          .sidebar {
-            width: 340px;
-            background: white;
-            border-radius: 24px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            transition: all 0.3s ease;
-          }
-          
-          .sidebar.hidden {
-            display: none;
-          }
-          
-          .sidebar-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid #f0f2f5;
-          }
-          
-          .sidebar-header h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin: 0;
-            color: #1f2a3e;
-          }
-          
-          .sidebar-header p {
-            margin: 0.5rem 0 0;
-            color: #6c757d;
-            font-size: 0.85rem;
-          }
-          
-          .conversations-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0.5rem;
-          }
-          
-          .conversation-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.875rem;
-            border-radius: 16px;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-bottom: 0.25rem;
-          }
-          
-          .conversation-item:hover {
-            background: #f8f9fa;
-          }
-          
-          .conversation-item.active {
-            background: #fff5f7;
-          }
-          
-          .conversation-item.unread {
-            background: #fff0f2;
-          }
-          
-          .conversation-avatar-container {
-            position: relative;
-            flex-shrink: 0;
-          }
-          
-          .conversation-avatar {
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
-            object-fit: cover;
-          }
-          
-          .online-indicator {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            border: 2px solid white;
-          }
-          
-          .conversation-info {
-            flex: 1;
-            min-width: 0;
-          }
-          
-          .conversation-name {
-            font-weight: 600;
-            font-size: 0.95rem;
-            margin-bottom: 0.25rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: #1f2a3e;
-          }
-          
-          .conversation-time {
-            font-size: 0.65rem;
-            color: #9ca3af;
-          }
-          
-          .conversation-last-message {
-            color: #6c757d;
-            font-size: 0.8rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          
-          .unread-badge {
-            background: #ff4d6d;
-            color: white;
-            border-radius: 12px;
-            padding: 0.15rem 0.5rem;
-            font-size: 0.65rem;
-            font-weight: 600;
-            margin-left: 0.5rem;
-          }
-          
-          .online-status-text {
-            font-size: 0.65rem;
-            margin-top: 0.25rem;
-          }
-          
-          /* Chat Area Styles */
-          .chat-area {
-            flex: 1;
-            background: white;
-            border-radius: 24px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-          }
-          
-          .chat-header {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid #f0f2f5;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-          }
-          
-          .chat-header .back-btn {
-            background: #f0f2f5;
-            border: none;
-            color: #ff4d6d;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s;
-          }
-          
-          .chat-header .back-btn:hover {
-            background: #ff4d6d;
-            color: white;
-          }
-          
-          .chat-header-info {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            cursor: pointer;
-          }
-          
-          .chat-header-avatar {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            object-fit: cover;
-          }
-          
-          .chat-header-name {
-            font-weight: 600;
-            font-size: 1rem;
-            margin: 0;
-            color: #1f2a3e;
-          }
-          
-          .chat-header-status {
-            font-size: 0.7rem;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-          }
-          
-          .messages-area {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1.5rem;
-            background: #fafbfc;
-          }
-          
-          .message-wrapper {
-            display: flex;
-            margin-bottom: 0.75rem;
-          }
-          
-          .message-wrapper.mine {
-            justify-content: flex-end;
-          }
-          
-          .message-bubble {
-            max-width: 70%;
-            padding: 0.625rem 1rem;
-            border-radius: 20px;
-            position: relative;
-            word-break: break-word;
-          }
-          
-          .message-bubble.mine {
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            color: white;
-            border-bottom-right-radius: 4px;
-          }
-          
-          .message-bubble.other {
-            background: white;
-            color: #1f2a3e;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-          }
-          
-          .message-content {
-            font-size: 0.9rem;
-            line-height: 1.4;
-          }
-          
-          .message-time {
-            font-size: 0.65rem;
-            margin-top: 0.25rem;
-            text-align: right;
-            opacity: 0.8;
-          }
-          
-          .message-bubble.mine .message-time {
-            color: rgba(255,255,255,0.8);
-          }
-          
-          .message-bubble.other .message-time {
-            color: #9ca3af;
-          }
-          
-          .date-divider {
-            text-align: center;
-            margin: 1rem 0;
-          }
-          
-          .date-divider span {
-            background: #eef2f6;
-            padding: 0.25rem 1rem;
-            border-radius: 20px;
-            font-size: 0.7rem;
-            color: #6c757d;
-          }
-          
-          .empty-chat {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: #adb5bd;
-            padding: 2rem;
-            text-align: center;
-          }
-          
-          .empty-chat i {
-            font-size: 4rem;
-            color: #ff8fa3;
-            opacity: 0.3;
-            margin-bottom: 1rem;
-          }
-          
-          .empty-chat h3 {
-            color: #1f2a3e;
-            margin-bottom: 0.5rem;
-            font-size: 1.2rem;
-          }
-          
-          /* Modern Input Area - Smaller Button */
-          .input-area {
-            padding: 1rem 1.5rem;
-            background: white;
-            border-top: 1px solid #f0f2f5;
-          }
-          
-          .input-group {
-            display: flex;
-            gap: 0.75rem;
-            align-items: center;
-            width: 100%;
-          }
-          
-          .message-input {
-            flex: 1;
-            min-width: 0;
-            border: 1px solid #e9ecef;
-            border-radius: 24px;
-            padding: 0.75rem 1.25rem;
-            font-size: 0.9rem;
-            transition: all 0.2s;
-            background: #f8f9fa;
-          }
-          
-          .message-input:focus {
-            outline: none;
-            border-color: #ff4d6d;
-            background: white;
-            box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.08);
-          }
-          
-          .send-btn {
-            background: linear-gradient(135deg, #ff4d6d, #ff8fa3);
-            border: none;
-            border-radius: 24px;
-            padding: 0.75rem 1.25rem;
-            color: white;
-            font-weight: 500;
-            font-size: 0.85rem;
-            transition: all 0.2s;
-            cursor: pointer;
-            white-space: nowrap;
-            flex-shrink: 0;
-          }
-          
-          .send-btn:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(255, 77, 109, 0.3);
-          }
-          
-          .send-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-          
-          /* Scrollbar */
-          .messages-area::-webkit-scrollbar,
-          .conversations-list::-webkit-scrollbar {
-            width: 5px;
-          }
-          
-          .messages-area::-webkit-scrollbar-track,
-          .conversations-list::-webkit-scrollbar-track {
-            background: #f1f3f4;
-            border-radius: 10px;
-          }
-          
-          .messages-area::-webkit-scrollbar-thumb,
-          .conversations-list::-webkit-scrollbar-thumb {
-            background: #ffc9c9;
-            border-radius: 10px;
-          }
-          
-          /* Responsive */
-          @media (max-width: 768px) {
-            .messenger-container {
-              padding: 0.5rem;
-              gap: 0;
-            }
-            
-            .sidebar {
-              width: 100%;
-              border-radius: 20px;
-            }
-            
-            .chat-area {
-              border-radius: 20px;
-            }
-            
-            .message-bubble {
-              max-width: 85%;
-            }
-          }
-          
-          @media (max-width: 576px) {
-            .messenger-container {
-              padding: 0;
-              height: calc(100vh - 70px);
-            }
-            
-            .sidebar, .chat-area {
-              border-radius: 0;
-            }
-            
-            .sidebar-header {
-              padding: 1rem;
-            }
-            
-            .conversation-avatar {
-              width: 48px;
-              height: 48px;
-            }
-            
-            .chat-header {
-              padding: 0.75rem 1rem;
-            }
-            
-            .chat-header-avatar {
-              width: 40px;
-              height: 40px;
-            }
-            
-            .messages-area {
-              padding: 1rem;
-            }
-            
-            .message-bubble {
-              max-width: 90%;
-              padding: 0.5rem 0.875rem;
-            }
-            
-            .message-content {
-              font-size: 0.85rem;
-            }
-            
-            .input-area {
-              padding: 0.75rem 1rem;
-            }
-            
-            .input-group {
-              gap: 0.5rem;
-            }
-            
-            .message-input {
-              padding: 0.6rem 1rem;
-              font-size: 0.85rem;
-            }
-            
-            /* Smaller send button on mobile */
-            .send-btn {
-              padding: 0.6rem 1rem;
-              font-size: 0.8rem;
-            }
-            
-            /* Hide text on mobile, show only icon */
-            .send-btn span {
-              display: none;
-            }
-            
-            .send-btn i {
-              margin: 0;
-              font-size: 0.9rem;
-            }
-          }
-          
-          @media (max-width: 380px) {
-            .send-btn {
-              padding: 0.55rem 0.875rem;
-            }
-            
-            .message-input {
-              padding: 0.55rem 0.875rem;
-              font-size: 0.8rem;
-            }
-          }
-        `}
-      </style>
-
-      <div className="messenger-container">
-        {/* Sidebar */}
-        <div className={`sidebar ${!showSidebar ? 'hidden' : ''}`}>
-          <div className="sidebar-header">
-            <h2>Messages</h2>
-            <p>Chat with your matches</p>
-          </div>
-          
-          <div className="conversations-list">
-            {error && (
-              <div className="alert alert-danger m-3">
-                <i className="fas fa-exclamation-circle me-2"></i>
-                {error}
+      <div className="container-fluid py-3" style={{ maxWidth: 1400 }}>
+        <div className="row g-3">
+          <div className="col-lg-4">
+            <div className="card border-0 shadow-sm rounded-4 h-100">
+              <div className="card-header bg-white border-0 pt-3">
+                <h5 className="mb-0">Messages</h5>
               </div>
-            )}
-
-            {conversations.length > 0 ? (
-              conversations.map((conv) => {
-                const isOnline = conv.other_user?.is_online || false;
-                const onlineStatus = conv.other_user?.online_status || "offline";
-                const statusColor = getOnlineStatusColor(onlineStatus);
-                
-                return (
-                  <div
+              <div className="card-body pt-2" style={{ maxHeight: "74vh", overflowY: "auto" }}>
+                {conversations.length === 0 && <p className="text-secondary small mb-0">No conversations yet.</p>}
+                {conversations.map((conv) => (
+                  <button
                     key={conv.id}
-                    onClick={() => selectConversation(conv)}
-                    className={`conversation-item ${activeConversation?.id === conv.id ? 'active' : ''} ${conv.unread_count > 0 ? 'unread' : ''}`}
+                    type="button"
+                    onClick={() => openConversation(conv)}
+                    className={`w-100 text-start border-0 rounded-4 p-2 mb-2 ${activeConversationId === conv.id ? "bg-danger-subtle" : "bg-light"}`}
                   >
-                    <div className="conversation-avatar-container">
+                    <div className="d-flex align-items-center gap-2">
                       <img
-                        src={getProfilePhotoUrl(conv.other_user?.profile_photo_url)}
-                        alt={conv.other_user?.full_name || "User"}
-                        className="conversation-avatar"
-                        onError={(e) => e.target.src = "https://via.placeholder.com/52"}
+                        src={getPhotoUrl(conv.other_user?.profile_photo_url)}
+                        alt={conv.other_user?.full_name || "user"}
+                        style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }}
                       />
-                      {isOnline && (
-                        <span 
-                          className="online-indicator"
-                          style={{ backgroundColor: statusColor }}
-                        ></span>
-                      )}
-                    </div>
-                    <div className="conversation-info">
-                      <div className="conversation-name">
-                        <span>{conv.other_user?.full_name || "User"}</span>
-                        <span className="conversation-time">
-                          {formatMessageTime(conv.last_message?.created_at || conv.created_at)}
-                        </span>
-                      </div>
-                      <div className="conversation-last-message">
-                        <span>
-                          {conv.last_message?.is_from_me && (
-                            <span className="text-secondary">
-                              <i className="fas fa-check me-1" style={{ fontSize: "0.65rem" }}></i>
-                              You: 
-                            </span>
-                          )}
-                          {conv.last_message?.content || 'Start a conversation'}
-                        </span>
-                        {conv.unread_count > 0 && (
-                          <span className="unread-badge">
-                            {conv.unread_count}
-                          </span>
-                        )}
-                      </div>
-                      <div className="online-status-text" style={{ color: statusColor }}>
-                        {getOnlineStatusText(isOnline, onlineStatus)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center py-5">
-                <i className="fas fa-comment-dots" style={{ fontSize: "3rem", color: "#ff8fa3", opacity: 0.3 }}></i>
-                <p className="text-secondary mt-3">No conversations yet</p>
-                <button onClick={() => navigate('/dashboard')} className="btn btn-outline-danger mt-2">
-                  Find Matches
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Chat Area */}
-        <div className="chat-area">
-          {activeConversation ? (
-            <>
-              <div className="chat-header">
-                {mobileView && (
-                  <button onClick={goBackToSidebar} className="back-btn">
-                    <i className="fas fa-arrow-left"></i>
-                  </button>
-                )}
-                <div className="chat-header-info" onClick={() => navigate(`/profile/${otherUser?.id}`)}>
-                  <img
-                    src={getProfilePhotoUrl(otherUser?.profile_photo_url)}
-                    alt={otherUser?.full_name || "User"}
-                    className="chat-header-avatar"
-                    onError={(e) => e.target.src = "https://via.placeholder.com/48"}
-                  />
-                  <div>
-                    <h3 className="chat-header-name">{otherUser?.full_name || "User"}</h3>
-                    <p className="chat-header-status" style={{ color: getOnlineStatusColor(otherUser?.online_status) }}>
-                      <i className="fas fa-circle" style={{ fontSize: "0.5rem" }}></i>
-                      {getOnlineStatusText(otherUser?.is_online, otherUser?.online_status)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="messages-area">
-                {messages.length === 0 ? (
-                  <div className="empty-chat">
-                    <i className="fas fa-comment-dots"></i>
-                    <p>No messages yet. Start the conversation!</p>
-                  </div>
-                ) : (
-                  messages.map((msg, index) => {
-                    const isMine = msg.is_from_me;
-                    const showDate = index === 0 || 
-                      new Date(msg.created_at).toDateString() !== 
-                      new Date(messages[index - 1]?.created_at).toDateString();
-
-                    return (
-                      <React.Fragment key={msg.id}>
-                        {showDate && (
-                          <div className="date-divider">
-                            <span>
-                              {new Date(msg.created_at).toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </span>
-                          </div>
-                        )}
-                        <div className={`message-wrapper ${isMine ? 'mine' : ''}`}>
-                          <div className={`message-bubble ${isMine ? 'mine' : 'other'}`}>
-                            <div className="message-content">{msg.content}</div>
-                            <div className="message-time">
-                              {formatMessageTime(msg.created_at)}
-                              {isMine && (
-                                <span className="message-status">
-                                  {msg.read ? (
-                                    <i className="fas fa-check-double read ms-1"></i>
-                                  ) : (
-                                    <i className="fas fa-check ms-1"></i>
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                          </div>
+                      <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                        <div className="d-flex justify-content-between">
+                          <span className="fw-semibold text-truncate">{conv.other_user?.full_name || "User"}</span>
+                          <small className="text-muted">{formatTime(conv.last_message?.created_at || conv.updated_at)}</small>
                         </div>
-                      </React.Fragment>
-                    );
-                  })
+                        <small className="text-muted text-truncate d-block">
+                          {conv.last_message?.content || (conv.last_message?.message_type === "image" ? "Photo" : conv.last_message?.message_type === "video" ? "Video" : "Start chatting")}
+                        </small>
+                      </div>
+                      {!!conv.unread_count && <span className="badge rounded-pill bg-danger">{conv.unread_count}</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="col-lg-8">
+            <div className="card border-0 shadow-sm rounded-4">
+              <div className="card-header bg-white border-0 pt-3 d-flex align-items-center gap-2">
+                {otherUser ? (
+                  <>
+                    <img src={getPhotoUrl(otherUser.profile_photo_url)} alt={otherUser.full_name} style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover" }} />
+                    <div>
+                      <div className="fw-semibold">{otherUser.full_name}</div>
+                      <small className="text-muted">{otherUser.online_status || "offline"}</small>
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-muted">Select a conversation</span>
                 )}
+              </div>
+
+              <div className="card-body" style={{ height: "56vh", overflowY: "auto", background: "#fafbff" }}>
+                {error && <div className="alert alert-danger py-2">{error}</div>}
+                {messages.map((msg) => {
+                  const mine = !!msg.is_from_me;
+                  return (
+                    <div key={msg.id} className={`d-flex mb-2 ${mine ? "justify-content-end" : "justify-content-start"}`}>
+                      <div
+                        className={`p-2 px-3 rounded-4 ${mine ? "text-white" : "bg-white border"}`}
+                        style={{ maxWidth: "72%", background: mine ? "linear-gradient(135deg,#ff4d6d,#ff8fa3)" : undefined }}
+                      >
+                        {msg.content ? <div className="small">{msg.content}</div> : null}
+                        {msg.attachment_url ? (
+                          msg.message_type === "video" ? (
+                            <video src={msg.attachment_url} controls style={{ width: "100%", maxHeight: 260, borderRadius: 10 }} />
+                          ) : (
+                            <img src={msg.attachment_url} alt="attachment" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10 }} />
+                          )
+                        ) : null}
+                        <div className={`small mt-1 ${mine ? "text-white-50" : "text-muted"}`}>{formatTime(msg.created_at)}{mine && msg.read ? " - read" : ""}</div>
+                      </div>
+                    </div>
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="input-area">
-                <form onSubmit={sendMessage} className="input-group">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    className="message-input"
-                    placeholder="Type a message..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    disabled={sending}
-                  />
-                  <button
-                    type="submit"
-                    className="send-btn"
-                    disabled={!newMessage.trim() || sending}
-                  >
-                    {sending ? (
-                      <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              {activeConversationId && !messages.length && icebreakers.length > 0 && (
+                <div className="px-3 pt-2">
+                  <small className="text-muted d-block mb-2">Icebreakers</small>
+                  <div className="d-flex flex-wrap gap-2">
+                    {icebreakers.map((line) => (
+                      <button key={line} type="button" className="btn btn-sm btn-outline-danger rounded-pill" onClick={() => applyIcebreaker(line)}>
+                        {line}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="card-footer bg-white border-0 pb-3">
+                {mediaPreview && (
+                  <div className="mb-2">
+                    {attachmentFile?.type.startsWith("video/") ? (
+                      <video src={mediaPreview} controls style={{ width: 180, borderRadius: 10 }} />
                     ) : (
-                      <>
-                        <span className="d-none d-sm-inline">Send </span>
-                        <i className="fas fa-paper-plane"></i>
-                      </>
+                      <img src={mediaPreview} alt="preview" style={{ width: 120, height: 120, objectFit: "cover", borderRadius: 10 }} />
                     )}
+                  </div>
+                )}
+                <form onSubmit={sendMessage} className="d-flex gap-2 align-items-center">
+                  <button type="button" className="btn btn-light rounded-circle" onClick={() => fileInputRef.current?.click()} title="Attach image/video">
+                    <i className="fas fa-paperclip" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={onSelectFile}
+                    style={{ display: "none" }}
+                  />
+                  <input
+                    type="text"
+                    className="form-control rounded-pill"
+                    placeholder="Type your message..."
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    disabled={!activeConversationId || sending}
+                  />
+                  <button className="btn btn-danger rounded-pill px-3" disabled={sending || (!text.trim() && !attachmentFile) || !activeConversationId}>
+                    {sending ? "..." : "Send"}
                   </button>
                 </form>
               </div>
-            </>
-          ) : (
-            <div className="empty-chat">
-              <i className="fas fa-comment-dots"></i>
-              <h3>Select a conversation</h3>
-              <p>Choose a conversation from the sidebar to start chatting</p>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </>

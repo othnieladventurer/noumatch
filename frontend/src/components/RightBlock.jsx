@@ -1,7 +1,7 @@
 import React from "react";
 import { formatName, calculateAge, getProfilePhotoUrl } from "../utils/helpers";
 
-export default function RightBlock({ currentProfile, getCurrentProfilePhotos, isMatched, isLiked, goToProfile, goToMessenger }) {
+export default function RightBlock({ currentProfile, getCurrentProfilePhotos, isMatched, isLiked, goToProfile, goToMessenger, handleUnmatch }) {
   if (!currentProfile) return <div className="p-4 text-center"><div className="mx-auto mb-3 rounded-circle bg-light d-flex align-items-center justify-content-center" style={{width:70,height:70}}><i className="fas fa-user-slash text-secondary fs-1"/></div><p className="text-secondary">Aucun profil sélectionné</p></div>;
 
   const getGenderIcon = () => {
@@ -59,8 +59,9 @@ export default function RightBlock({ currentProfile, getCurrentProfilePhotos, is
       </div>
 
       {isMatched(currentProfile.id) && (
-        <div className="mt-3 text-center">
+        <div className="mt-3 text-center d-grid gap-2">
           <button onClick={() => goToMessenger(currentProfile.id)} className="btn w-100 py-2" style={{ borderRadius: "40px", background: "linear-gradient(145deg, #ff4d6d, #ff8fa3)", color: "white", border: "none", fontSize: "0.9rem", fontWeight: "500", transition: "transform 0.2s" }} onMouseEnter={(e)=>e.currentTarget.style.transform="scale(1.02)"} onMouseLeave={(e)=>e.currentTarget.style.transform="scale(1)"}><i className="fas fa-comment-dots me-2"/>Envoyer un message</button>
+          <button onClick={() => handleUnmatch?.(currentProfile)} className="btn btn-outline-danger w-100 py-2" style={{ borderRadius: "40px", fontSize: "0.9rem", fontWeight: "500" }}><i className="fas fa-heart-broken me-2"/>Unmatch</button>
         </div>
       )}
     </div>

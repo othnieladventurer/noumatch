@@ -1,6 +1,7 @@
 // src/components/AdminSidebar.jsx
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import BrandLogo from '../../components/BrandLogo';
 
 export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMenuClick }) {
   const navigate = useNavigate();
@@ -52,12 +53,12 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     <aside className={`admin-sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
       <div className="sidebar-header">
         {!collapsed ? (
-          <h4 className="mb-0 fw-bold">
-            <span className="text-danger">NouMatch</span>
-            <span className="text-white"> Admin</span>
-          </h4>
+          <div className="d-flex align-items-center justify-content-center gap-2">
+            <BrandLogo height={28} />
+            <span className="text-white fw-bold">Admin</span>
+          </div>
         ) : (
-          <i className="fas fa-heart text-danger fs-4"></i>
+          <BrandLogo variant="mark" height={30} />
         )}
       </div>
       <nav className="sidebar-nav">

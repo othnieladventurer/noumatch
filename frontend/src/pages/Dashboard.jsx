@@ -13,7 +13,7 @@ import API from '@/api/axios';
 import "../styles/Dashboard.css";
 import { v4 as uuidv4 } from 'uuid';
 
-const MOBILE_BOTTOM_NAV_HEIGHT = 72;
+const MOBILE_BOTTOM_NAV_HEIGHT = 88;
 const PROFILES_PER_PAGE = 15;
 const PRELOAD_THRESHOLD = 5;
 
@@ -568,13 +568,12 @@ export default function Dashboard() {
       if (lastLoggedImpressionId.current !== currentProfile.id) {
         lastLoggedImpressionId.current = currentProfile.id;
         
-        const token = localStorage.getItem('access');
         fetch('/api/noumatch-admin/analytics/impression/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
           },
+          credentials: 'include',
           body: JSON.stringify({
             viewed_user_id: currentProfile.id,
             feed_position: profileIndex,
@@ -618,13 +617,12 @@ export default function Dashboard() {
     likeInProgress.current = true;
     triggerSlide("right");
     
-    const token = localStorage.getItem('access');
     fetch('/api/noumatch-admin/analytics/impression/update/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
       },
+      credentials: 'include',
       body: JSON.stringify({
         viewed_user_id: currentProfile.id,
         swipe_action: 'like',
@@ -659,13 +657,12 @@ export default function Dashboard() {
     passInProgress.current = true;
     triggerSlide("left");
     
-    const token = localStorage.getItem('access');
     fetch('/api/noumatch-admin/analytics/impression/update/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
       },
+      credentials: 'include',
       body: JSON.stringify({
         viewed_user_id: currentProfile.id,
         swipe_action: 'pass',
@@ -827,37 +824,73 @@ export default function Dashboard() {
     if (!selectedLike) return;
     try {
       await API.post("/interactions/like/", { to_user_id: selectedLike.id });
-      setSentLikesIds(prev => [...prev, selectedLike.id]);
+      await API.post("/interactions/swipe/like/", { to_user_id: selectedLike.id }).catch(() => {});
+      setSentLikesIds(prev => (prev.includes(selectedLike.id) ? prev : [...prev, selectedLike.id]));
       await checkForMatch(selectedLike.id);
+      await fetchSentLikes();
+      await fetchMatches(blockedIds);
+      await fetchLikesReceived(blockedIds);
       closeLikeModal();
     } catch (error) {
       console.error("Error returning like:", error);
       closeLikeModal();
     }
-  }, [selectedLike, checkForMatch, closeLikeModal]);
+  }, [selectedLike, checkForMatch, closeLikeModal, fetchSentLikes, fetchMatches, fetchLikesReceived, blockedIds]);
   
   const handleUnlikeFromModal = useCallback(async () => {
     if (!selectedLike) return;
+    const activeMatch = matchesList.find(match => match.id === selectedLike.id);
     const success = await deleteLike(selectedLike.id);
     if (success) {
+      if (activeMatch?.match_id) {
+        await deleteMatch(activeMatch.match_id);
+      }
       setSentLikesIds(prev => prev.filter(id => id !== selectedLike.id));
-      setLikesList(prev => prev.filter(like => like.id !== selectedLike.id));
+      setMatchesList(prev => prev.filter(match => match.id !== selectedLike.id));
+      setMatchesIds(prev => prev.filter(id => id !== selectedLike.id));
+      setLikesList(prev => (
+        prev.some(like => like.id === selectedLike.id)
+          ? prev
+          : [selectedLike, ...prev]
+      ));
+      await fetchSentLikes();
+      await fetchLikesReceived(blockedIds);
+      await fetchMatches(blockedIds);
+      await fetchConversations();
       closeLikeModal();
     }
-  }, [selectedLike, deleteLike, closeLikeModal]);
+  }, [selectedLike, matchesList, deleteLike, deleteMatch, closeLikeModal, fetchSentLikes, fetchLikesReceived, fetchMatches, fetchConversations, blockedIds]);
   
   const handleUnmatch = useCallback(async (profile) => {
-    if (!profile?.match_id) return;
-    const success = await deleteMatch(profile.match_id);
+    if (!profile?.id) return;
+    const resolvedMatchId = profile.match_id || matchesList.find(m => m.id === profile.id)?.match_id;
+    if (!resolvedMatchId) return;
+    const success = await deleteMatch(resolvedMatchId);
     if (success) {
+      await deleteLike(profile.id);
       setMatchesList(prev => prev.filter(m => m.id !== profile.id));
       setMatchesIds(prev => prev.filter(id => id !== profile.id));
       setSentLikesIds(prev => prev.filter(id => id !== profile.id));
-      setLikesList(prev => prev.filter(like => like.id !== profile.id));
+      setLikesList(prev => (
+        prev.some(like => like.id === profile.id)
+          ? prev
+          : [{
+              id: profile.id,
+              first_name: profile.first_name || "",
+              last_name: profile.last_name || "",
+              age: profile.age,
+              bio: profile.bio || "",
+              photo: profile.photo || profile.profile_photo || "",
+              gender: profile.gender
+            }, ...prev]
+      ));
+      await fetchLikesReceived(blockedIds);
+      await fetchSentLikes();
+      await fetchMatches(blockedIds);
       closeMatchModal();
-      fetchConversations();
+      await fetchConversations();
     }
-  }, [deleteMatch, fetchConversations]);
+  }, [deleteMatch, deleteLike, matchesList, fetchLikesReceived, fetchSentLikes, fetchMatches, fetchConversations, blockedIds]);
   
   const openMatchModalFor = useCallback((profile) => {
     setMatchedProfile(profile);
@@ -993,7 +1026,7 @@ export default function Dashboard() {
     height: "100%",
     display: "flex",
     flexDirection: "column",
-    overflow: "visible",
+    overflow: "hidden",
     backgroundColor: "#ffffff",
     boxShadow: windowWidth < 992 ? "none" : "0 4px 20px rgba(0,0,0,0.1)",
     willChange: "transform",
@@ -1043,7 +1076,7 @@ export default function Dashboard() {
         );
       default:
         return (
-          <div style={{ height: '100%', overflow: 'hidden' }}>
+          <div style={{ height: '100%', overflow: 'hidden', minHeight: 0 }}>
             <CenterBlock
               profilesLoading={profilesLoading}
               apiError={apiError}
@@ -1063,6 +1096,7 @@ export default function Dashboard() {
               goToProfile={goToProfile}
               handlePass={handlePass}
               handleLike={handleLike}
+              handleUnmatch={handleUnmatch}
               isAnimating={isAnimating}
               goToMessenger={goToMessenger}
               setMatchedProfile={setMatchedProfile}
@@ -1090,7 +1124,7 @@ export default function Dashboard() {
   return (
     <>
       <DashboardNavbar user={user} />
-      <div className="dashboard-container" style={{ height: 'calc(100vh - 72px)', overflow: 'hidden', position: 'relative', margin: 0, padding: 0 }}>
+      <div className="dashboard-container" style={{ height: 'calc(100dvh - 72px)', overflow: 'hidden', position: 'relative', margin: 0, padding: 0 }}>
         {user ? (
           <>
             {/* Desktop Layout */}
@@ -1129,6 +1163,7 @@ export default function Dashboard() {
                       goToProfile={goToProfile}
                       handlePass={handlePass}
                       handleLike={handleLike}
+                      handleUnmatch={handleUnmatch}
                       isAnimating={isAnimating}
                       goToMessenger={goToMessenger}
                       setMatchedProfile={setMatchedProfile}
@@ -1149,6 +1184,7 @@ export default function Dashboard() {
                       isLiked={isLiked}
                       goToProfile={goToProfile}
                       goToMessenger={goToMessenger}
+                      handleUnmatch={handleUnmatch}
                     />
                   </div>
                 </div>
@@ -1156,8 +1192,8 @@ export default function Dashboard() {
             </div>
             
             {/* Mobile Layout */}
-            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px)`, overflow: 'hidden' }}>
+            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px - env(safe-area-inset-bottom, 0px))`, overflow: 'hidden', minHeight: 0 }}>
                 {renderMobileContent()}
               </div>
             </div>
@@ -1237,10 +1273,12 @@ export default function Dashboard() {
           bottom: 0;
           left: 0;
           right: 0;
+          height: calc(${MOBILE_BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom, 0px));
+          box-sizing: border-box;
           background: rgba(255, 255, 255, 0.98);
           backdrop-filter: blur(20px);
           border-top: 0.5px solid rgba(0, 0, 0, 0.08);
-          padding: 12px 16px 24px;
+          padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
           display: flex;
           justify-content: space-around;
           align-items: center;
@@ -1378,7 +1416,7 @@ export default function Dashboard() {
             height: 48px;
           }
           .mobile-bottom-nav {
-            padding: 10px 12px 20px;
+            padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
           }
           .nav-icon {
             font-size: 20px;

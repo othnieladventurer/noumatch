@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import API from '@/api/axios';
-import { FaHeart, FaSpinner, FaCheckCircle, FaEnvelope, FaClock, FaShieldAlt } from 'react-icons/fa';
+import { FaSpinner, FaCheckCircle, FaEnvelope, FaClock, FaShieldAlt } from 'react-icons/fa';
+import BrandLogo from "../components/BrandLogo";
 import "../styles/auth-redesign.css";
 
 export default function VerifyOtp() {
@@ -124,10 +125,9 @@ export default function VerifyOtp() {
         code: code,
       });
       
-      // Store tokens
-      if (response.data.access) {
-        localStorage.setItem('access', response.data.access);
-        localStorage.setItem('refresh', response.data.refresh);
+      if (response.data.access || response.status === 200) {
+        localStorage.setItem("access", "1");
+        sessionStorage.setItem("nm_user_session", "1");
       }
       
       // Clear unverified user data
@@ -195,10 +195,9 @@ export default function VerifyOtp() {
         style={{ width: "100%", maxWidth: "450px" }}
       >
         <div className="text-center mb-4">
-          <h1 className="d-flex justify-content-center align-items-center fw-bold">
-            <FaHeart className="text-danger me-2" />
-            <span className="text-primary">NouMatch</span>
-          </h1>
+          <div className="d-flex justify-content-center mb-2">
+            <BrandLogo height={42} />
+          </div>
           <p className="text-muted">Vérifiez votre email</p>
         </div>
 
@@ -314,3 +313,5 @@ export default function VerifyOtp() {
     </div>
   );
 }
+
+

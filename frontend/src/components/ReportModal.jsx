@@ -29,7 +29,6 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
     setReportError('');
 
     try {
-      const token = localStorage.getItem('access');
       const formData = new FormData();
       formData.append('reported_user', reportedUser.id);
       formData.append('reason', reportReason);
@@ -37,9 +36,7 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reports/create/`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        credentials: 'include',
         body: formData,
       });
 

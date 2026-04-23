@@ -3,6 +3,7 @@
 from django.urls import path
 from .views import (
     AdminLoginView,
+    AdminTokenRefreshView,
     AdminDashboardView,
     AdminUsersListView,
     AdminUserDetailView,
@@ -29,6 +30,7 @@ from .views import (
     UpdateImpressionView,
     AdminAnalyticsImpressionsView,
     AdminActiveUsersMetricsView,
+    AdminUserScoringRefreshView,
     AdminSEOMetricsView,
     # Waitlist views
     AdminWaitlistStatsView,
@@ -47,6 +49,8 @@ from .views import (
 
 urlpatterns = [
     path('admin_login/', AdminLoginView.as_view(), name='admin-login'),
+    path('login/', AdminLoginView.as_view(), name='admin-login-compat'),
+    path('token/refresh/', AdminTokenRefreshView.as_view(), name='admin-token-refresh'),
     path('dashboard/', AdminDashboardView.as_view(), name='admin-dashboard'),
     path('users/list/', AdminUsersListView.as_view(), name='admin-users'),
     path('users/detail/<int:user_id>/', AdminUserDetailView.as_view(), name='admin-user-detail'),
@@ -74,6 +78,7 @@ urlpatterns = [
     path('analytics/impressions/', AdminAnalyticsImpressionsView.as_view(), name='admin-analytics-impressions'),
     path('admin/metrics/active-users/', AdminActiveUsersMetricsView.as_view(), name='admin-active-users-metrics'),
     path('metrics/active-users/', AdminActiveUsersMetricsView.as_view(), name='admin-active-users-metrics-compat'),
+    path('metrics/user-scores/refresh/', AdminUserScoringRefreshView.as_view(), name='admin-user-scores-refresh'),
     path('seo/metrics/', AdminSEOMetricsView.as_view(), name='admin-seo-metrics'),
     
     # ==================== WAITLIST ADMIN ENDPOINTS ====================

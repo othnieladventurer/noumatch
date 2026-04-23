@@ -63,13 +63,13 @@ export default function AdminMessageDetail() {
     try {
       const convUrl = `${API_BASE}/support-conversations/${id}/`;
       const convRes = await axios.get(convUrl, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setConversation(convRes.data);
 
       const msgUrl = `${API_BASE}/support-conversations/${id}/messages/`;
       const msgRes = await axios.get(msgUrl, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setMessages(msgRes.data);
     } catch (err) {
@@ -96,7 +96,7 @@ export default function AdminMessageDetail() {
     try {
       const replyUrl = `${API_BASE}/support-conversations/${id}/reply/`;
       await axios.post(replyUrl, { content: replyText }, {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       setReplyText('');
       fetchConversation(); // refresh
@@ -157,5 +157,6 @@ export default function AdminMessageDetail() {
     </div>
   );
 }
+
 
 

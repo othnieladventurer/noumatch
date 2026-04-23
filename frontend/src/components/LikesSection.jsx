@@ -33,12 +33,9 @@ export default function LikesSection({ user }) {
     if (!user) return;
 
     const fetchReceivedLikes = async () => {
-      const token = localStorage.getItem("access");
-      if (!token) return;
-
       try {
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/interactions/likes/received/`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
         });
 
         if (response.ok) {
@@ -90,16 +87,13 @@ export default function LikesSection({ user }) {
   const handleLikeBack = async () => {
     if (!selectedLike) return;
 
-    const token = localStorage.getItem("access");
-    if (!token) return;
-
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/interactions/like/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
+        credentials: "include",
         body: JSON.stringify({ to_user: selectedLike.id }),
       });
 
@@ -372,5 +366,6 @@ export default function LikesSection({ user }) {
     </>
   );
 }
+
 
 

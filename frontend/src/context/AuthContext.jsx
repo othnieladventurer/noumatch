@@ -32,8 +32,7 @@ export const AuthProvider = ({ children }) => {
       // Only clear tokens if it's an auth error and not in admin mode
       if (error.response?.status === 401 && !isAdminMode()) {
         localStorage.removeItem("access");
-        localStorage.removeItem("refresh");
-      }
+              }
     } finally {
       setLoading(false);
     }
@@ -48,8 +47,8 @@ export const AuthProvider = ({ children }) => {
     }
 
     const response = await API.post("users/login/", { email, password });
-    localStorage.setItem("access", response.data.access);
-    localStorage.setItem("refresh", response.data.refresh);
+    localStorage.setItem("access", "1");
+    sessionStorage.setItem("nm_user_session", "1");
     await fetchUser(); // immediately fetch user object
     return response.data;
   };
@@ -82,15 +81,12 @@ export const AuthProvider = ({ children }) => {
 
     // Regular user logout
     try {
-      const refresh = localStorage.getItem("refresh");
-      if (refresh) {
-        await API.post("users/logout/", { refresh });
-      }
+      await API.post("users/logout/", {});
     } catch (error) {
       console.error("❌ [AUTH] Logout error:", error);
     } finally {
       localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
+            sessionStorage.removeItem("nm_user_session");
       setUser(null);
     }
   };
@@ -98,9 +94,8 @@ export const AuthProvider = ({ children }) => {
   // 🔹 Admin login (separate method)
   const adminLogin = async (email, password) => {
     try {
-      const response = await API.post("/api/noumatch-admin/login/", { email, password });
-      localStorage.setItem("admin_access", response.data.access);
-      localStorage.setItem("admin_refresh", response.data.refresh);
+      const response = await API.post("noumatch-admin/admin_login/", { email, password });
+      localStorage.setItem("admin_access", "1");
       localStorage.setItem("admin_email", email);
       return response.data;
     } catch (error) {
@@ -169,3 +164,4 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+

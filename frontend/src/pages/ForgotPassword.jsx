@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { FaHeart } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import API from "@/api/axios";
+import BrandLogo from "../components/BrandLogo";
 import "../styles/auth-redesign.css";
 
 export default function ForgotPassword() {
@@ -30,9 +30,9 @@ export default function ForgotPassword() {
     <div className="auth-shell">
       <div className="auth-panel">
         <div className="auth-brand">
-          <h1>
-            <FaHeart className="text-danger me-2" /> NouMatch
-          </h1>
+          <div className="d-flex justify-content-center mb-2">
+            <BrandLogo height={42} />
+          </div>
           <p>Reinitialiser votre mot de passe</p>
         </div>
 

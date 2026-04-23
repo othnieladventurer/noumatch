@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import axios from 'axios';
 import App from './App.jsx';
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -41,6 +42,9 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason);
 });
+
+axios.defaults.withCredentials = true;
+axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
 const normalizeLegacyHashRoute = () => {
   const hash = window.location.hash || '';

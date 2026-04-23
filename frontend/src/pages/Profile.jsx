@@ -55,17 +55,28 @@ export default function Profile() {
     return `${baseUrl}${normalizedPath}`;
   };
 
+  const normalizeImageUrl = (url) => {
+    if (!url) return "";
+    return String(url).split("?")[0].split("#")[0].trim();
+  };
+
   const getAllPhotos = () => {
     const photos = [];
+    const seen = new Set();
+
+    const pushUnique = (photo) => {
+      const normalized = normalizeImageUrl(photo?.image);
+      if (!normalized || seen.has(normalized)) return;
+      seen.add(normalized);
+      photos.push(photo);
+    };
 
     if (photoPreview) {
-      photos.push({ id: "main", image: photoPreview, is_main: true });
+      pushUnique({ id: "main", image: photoPreview, is_main: true });
     }
 
     userPhotos.forEach((photo) => {
-      if (photo.image !== photoPreview) {
-        photos.push(photo);
-      }
+      pushUnique(photo);
     });
 
     return photos;
@@ -76,6 +87,17 @@ export default function Profile() {
     if (photos.length === 0) return photoPreview || "https://via.placeholder.com/800";
     return photos[activePhotoIndex]?.image || photos[0]?.image;
   };
+
+  useEffect(() => {
+    const photos = getAllPhotos();
+    if (photos.length === 0 && activePhotoIndex !== 0) {
+      setActivePhotoIndex(0);
+      return;
+    }
+    if (activePhotoIndex > photos.length - 1) {
+      setActivePhotoIndex(0);
+    }
+  }, [photoPreview, userPhotos, activePhotoIndex]);
 
   const nextPhoto = (e) => {
     e?.stopPropagation();
@@ -315,6 +337,12 @@ export default function Profile() {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
+  const parseInterestTags = (rawValue) =>
+    (rawValue || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
 
   const handleMainPhotoChange = (e) => {
     const file = e.target.files[0];
@@ -976,11 +1004,76 @@ export default function Profile() {
           width: 16px;
         }
 
+        .interest-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .interest-tag {
+          background: #f8f9fa;
+          padding: 8px 16px;
+          border-radius: 30px;
+          font-size: 0.9rem;
+          color: #2d2d2d;
+          border: 1px solid #e9ecef;
+          transition: all 0.2s;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-weight: 500;
+        }
+
+        .interest-tag::before {
+          content: "";
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #ff4d6d;
+          display: inline-block;
+          flex-shrink: 0;
+        }
+
+        .interest-tag:hover {
+          background: #ff4d6d;
+          color: white;
+          border-color: #ff4d6d;
+          transform: translateY(-1px);
+        }
+
+        .interest-tag:hover::before {
+          background: #fff;
+        }
+
+        .interest-tag.passion-tag {
+          border-color: #ffd8df;
+          background: #fff6f8;
+        }
+
+        .interest-tag.hobby-tag {
+          border-color: #d7ecff;
+          background: #f5fbff;
+        }
+
+        .interest-tag.music-tag {
+          border-color: #efe2ff;
+          background: #faf7ff;
+        }
+
+        .edit-interest-preview {
+          margin-top: 10px;
+          padding: 10px;
+          border-radius: 12px;
+          border: 1px dashed #e5e7eb;
+          background: #fafafa;
+        }
+
         .photo-gallery-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
           gap: 12px;
           margin-top: 16px;
+          align-items: start;
         }
 
         .gallery-item {
@@ -1175,6 +1268,18 @@ export default function Profile() {
           .profile-content {
             margin-top: -20px;
           }
+
+          .photo-gallery-grid {
+            grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+            gap: 10px;
+          }
+
+          .gallery-item-btn {
+            min-width: 30px;
+            height: 30px;
+            padding: 0 10px;
+            font-size: 0.68rem;
+          }
         }
       `}</style>
 
@@ -1265,8 +1370,8 @@ export default function Profile() {
             <div className="thumbnail-strip">
               {photos.map((photo, index) => (
                 <img
-                  key={index}
-                  src={photo.image}
+                  key={photo.id || index}
+                  src={photo.image || photo}
                   alt={`Thumbnail ${index + 1}`}
                   className={`thumbnail ${activePhotoIndex === index ? "active" : ""}`}
                   onClick={() => setActivePhotoIndex(index)}
@@ -1602,8 +1707,7 @@ export default function Profile() {
                       </h6>
                       <div className="interest-tags">
                         {user.passions.split(",").map((item, index) => (
-                          <span key={index} className="interest-tag">
-                            <i className="fas fa-heart"></i>
+                          <span key={index} className="interest-tag passion-tag">
                             {item.trim()}
                           </span>
                         ))}
@@ -1619,8 +1723,7 @@ export default function Profile() {
                       </h6>
                       <div className="interest-tags">
                         {user.hobbies.split(",").map((item, index) => (
-                          <span key={index} className="interest-tag">
-                            <i className="fas fa-heart"></i>
+                          <span key={index} className="interest-tag hobby-tag">
                             {item.trim()}
                           </span>
                         ))}
@@ -1636,8 +1739,7 @@ export default function Profile() {
                       </h6>
                       <div className="interest-tags">
                         {user.favorite_music.split(",").map((item, index) => (
-                          <span key={index} className="interest-tag">
-                            <i className="fas fa-heart"></i>
+                          <span key={index} className="interest-tag music-tag">
                             {item.trim()}
                           </span>
                         ))}
@@ -1657,6 +1759,17 @@ export default function Profile() {
                       onChange={handleInputChange}
                       placeholder="Separate with commas"
                     />
+                    {parseInterestTags(formData.passions).length > 0 && (
+                      <div className="edit-interest-preview">
+                        <div className="interest-tags">
+                          {parseInterestTags(formData.passions).map((item, index) => (
+                            <span key={`passion-preview-${index}`} className="interest-tag passion-tag">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="col-12">
                     <label className="edit-form-label">Hobbies</label>
@@ -1668,6 +1781,17 @@ export default function Profile() {
                       onChange={handleInputChange}
                       placeholder="Separate with commas"
                     />
+                    {parseInterestTags(formData.hobbies).length > 0 && (
+                      <div className="edit-interest-preview">
+                        <div className="interest-tags">
+                          {parseInterestTags(formData.hobbies).map((item, index) => (
+                            <span key={`hobby-preview-${index}`} className="interest-tag hobby-tag">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="col-12">
                     <label className="edit-form-label">Favorite Music</label>
@@ -1679,6 +1803,17 @@ export default function Profile() {
                       onChange={handleInputChange}
                       placeholder="Separate with commas"
                     />
+                    {parseInterestTags(formData.favorite_music).length > 0 && (
+                      <div className="edit-interest-preview">
+                        <div className="interest-tags">
+                          {parseInterestTags(formData.favorite_music).map((item, index) => (
+                            <span key={`music-preview-${index}`} className="interest-tag music-tag">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

@@ -8,19 +8,16 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import generics, permissions, status, viewsets
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import api_view, permission_classes, action, throttle_classes
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAdminUser
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.utils import timezone
-from django.http import JsonResponse
-from django.views.decorators.http import require_GET
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework.pagination import PageNumberPagination
 
 from .models import User, UserPhoto, OTP
@@ -31,10 +28,25 @@ from .serializers import (
     RegisterSerializer, LoginSerializer, 
     ChangePasswordSerializer, UserSerializer, MeSerializer, 
     UserProfileSerializer, UserPhotoSerializer, ForgotPasswordSerializer,
-    ResetPasswordConfirmSerializer
+    ResetPasswordConfirmSerializer, validate_uploaded_image
 )
 from .utils import generate_otp, send_otp_email
 from .email_api import send_otp_via_api, send_password_reset_email
+from .auth_cookies import (
+    set_auth_cookies,
+    clear_auth_cookies,
+    get_refresh_token_from_request,
+)
+from .throttles import (
+    AuthLoginThrottle,
+    AuthRegisterThrottle,
+    OTPVerifyThrottle,
+    OTPResendThrottle,
+    PasswordResetThrottle,
+    EmailCheckThrottle,
+    HeartbeatThrottle,
+    PhotoUploadThrottle,
+)
 
 from admin_dashboard.services.ranking import compute_ranking_score
 from datetime import timedelta
@@ -56,6 +68,7 @@ class UserListView(generics.ListAPIView):
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRegisterThrottle]
 
     def create(self, request, *args, **kwargs):
         email = request.data.get('email', '').strip().lower()
@@ -124,8 +137,8 @@ class RegisterView(generics.CreateAPIView):
         thread.daemon = True
         thread.start()
         
-        logging.info(f"🔐 Registration: {user.email} | OTP: {otp_code} (valid for 5 minutes)")
-        logging.info(f"📍 Location: {user.city}, {user.country} | Coordinates: {user.latitude}, {user.longitude}")
+        logging.info("Registration successful for user_id=%s", user.id)
+        
 
         return Response({
             "message": "Registration successful. Please verify your email with the 4-digit code sent.",
@@ -140,6 +153,7 @@ class RegisterView(generics.CreateAPIView):
 
 class CheckCanRegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [EmailCheckThrottle]
     
     def get(self, request):
         email = request.query_params.get('email', '').strip().lower()
@@ -188,6 +202,7 @@ class CheckCanRegisterView(APIView):
 
 class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [OTPVerifyThrottle]
 
     def post(self, request):
         user_id = request.data.get('user_id')
@@ -262,7 +277,7 @@ class VerifyOTPView(APIView):
         # Generate tokens
         refresh = RefreshToken.for_user(user)
 
-        return Response({
+        response = Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
             'user': {
@@ -272,10 +287,13 @@ class VerifyOTPView(APIView):
                 'last_name': user.last_name,
             }
         }, status=status.HTTP_200_OK)
+        set_auth_cookies(response, str(refresh.access_token), str(refresh), admin=False)
+        return response
 
 
 class ResendOTPView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [OTPResendThrottle]
 
     def post(self, request):
         user_id = request.data.get('user_id')
@@ -324,7 +342,7 @@ class ResendOTPView(APIView):
         thread.daemon = True
         thread.start()
         
-        logging.info(f"🔄 Resent OTP for {user.email}: {otp_code} (valid for 5 minutes)")
+        logging.info("OTP resent for user_id=%s", user.id)
 
         return Response(
             {'message': 'New 4-digit verification code sent to your email. Valid for 5 minutes.'}, 
@@ -375,6 +393,7 @@ class CheckOTPStatusView(APIView):
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     permission_classes = [AllowAny] 
+    throttle_classes = [AuthLoginThrottle]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -404,10 +423,12 @@ class LoginView(generics.GenericAPIView):
 
         refresh = RefreshToken.for_user(user)
 
-        return Response({
+        response = Response({
             "access": str(refresh.access_token),
             "refresh": str(refresh),
         })
+        set_auth_cookies(response, str(refresh.access_token), str(refresh), admin=False)
+        return response
  
 
 class MeView(APIView):
@@ -422,13 +443,49 @@ class LogoutView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        response = Response(status=status.HTTP_205_RESET_CONTENT)
+        clear_auth_cookies(response, admin=False)
+        clear_auth_cookies(response, admin=True)
         try:
-            refresh_token = request.data["refresh"]
+            refresh_token = get_refresh_token_from_request(request, admin=False)
+            if not refresh_token:
+                return response
             token = RefreshToken(refresh_token)
             token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
+            return response
         except Exception:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            return response
+
+
+class TokenRefreshCookieView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        refresh_token = get_refresh_token_from_request(request, admin=False)
+        if not refresh_token:
+            response = Response({"detail": "Refresh token not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+            clear_auth_cookies(response, admin=False)
+            return response
+
+        serializer = TokenRefreshSerializer(data={"refresh": refresh_token})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception:
+            response = Response({"detail": "Invalid refresh token."}, status=status.HTTP_401_UNAUTHORIZED)
+            clear_auth_cookies(response, admin=False)
+            return response
+
+        new_access = serializer.validated_data.get("access")
+        rotated_refresh = serializer.validated_data.get("refresh")
+        response = Response(
+            {
+                "access": new_access,
+                "refresh": rotated_refresh or refresh_token,
+            },
+            status=status.HTTP_200_OK,
+        )
+        set_auth_cookies(response, new_access, rotated_refresh or refresh_token, admin=False)
+        return response
 
 
 class ChangePasswordView(generics.UpdateAPIView):
@@ -452,6 +509,7 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetThrottle]
 
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
@@ -486,6 +544,7 @@ class ForgotPasswordView(APIView):
 
 class ResetPasswordConfirmView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [PasswordResetThrottle]
 
     def post(self, request):
         serializer = ResetPasswordConfirmSerializer(data=request.data)
@@ -543,22 +602,16 @@ class UserProfileListView(generics.ListAPIView):
         user = self.request.user
         now = timezone.now()
         
-        logging.info(f"🔍 CURRENT USER: ID={user.id}, Username={user.username}")
-        logging.info(f"🔍 USER GENDER: {user.gender}")
-        logging.info(f"🔍 ACCOUNT TYPE: {user.account_type}")
         
         queryset = User.objects.none()
         
         try:
             if user.gender == 'male':
                 queryset = User.objects.filter(is_active=True, gender='female')
-                logging.info(f"🔍 Man looking for women")
             elif user.gender == 'female':
                 queryset = User.objects.filter(is_active=True, gender='male')
-                logging.info(f"🔍 Woman looking for men")
             else:
                 queryset = User.objects.filter(is_active=True)
-                logging.info(f"🔍 Showing all users")
             
             queryset = queryset.filter(is_superuser=False)
             
@@ -572,13 +625,10 @@ class UserProfileListView(generics.ListAPIView):
             base_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids) | set(active_pass_ids)
             base_exclusions.add(user.id)
             
-            queryset = queryset.exclude(id__in=base_exclusions)
-            logging.info(f"🔍 TOTAL PROFILES BEFORE RANKING: {queryset.count()}")
+            queryset = queryset.exclude(id__in=base_exclusions).select_related('engagement_scorecard')
             
-        except Exception as e:
-            logging.info(f"❌ ERROR in get_queryset: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            logging.exception("Error building profile queryset")
             queryset = User.objects.none()
         
         return queryset
@@ -672,9 +722,7 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         return self.request.user
     
     def put(self, request, *args, **kwargs):
-        logging.info("🔍 Request data:", request.data)
-        logging.info("🔍 Request FILES:", request.FILES)
-        return self.partial_update(request, *args, **kwargs)
+                return self.partial_update(request, *args, **kwargs)
     
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
@@ -687,7 +735,7 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         try:
             serializer.is_valid(raise_exception=True)
         except Exception as e:
-            logging.info("❌ Validation errors:", serializer.errors)
+            logging.info("Profile update validation error for user_id=%s", request.user.id)
             raise e
             
         self.perform_update(serializer)
@@ -697,6 +745,7 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([HeartbeatThrottle])
 def heartbeat(request):
     user = request.user
     user.update_last_activity()
@@ -708,20 +757,22 @@ def heartbeat(request):
     }, status=status.HTTP_200_OK)
 
 
-@require_GET
-@csrf_exempt
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@throttle_classes([EmailCheckThrottle])
 def check_email(request):
     email = request.GET.get('email', '').strip()
     if not email:
-        return JsonResponse({'exists': False, 'error': 'No email'}, status=400)
+        return Response({'exists': False, 'error': 'No email'}, status=400)
     exists = User.objects.filter(email=email).exists()
-    return JsonResponse({'exists': exists})
+    return Response({'exists': exists})
 
 
 class UserPhotoViewSet(viewsets.ModelViewSet):
     serializer_class = UserPhotoSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [PhotoUploadThrottle]
 
     def get_queryset(self):
         user_id = self.kwargs.get('user_id')
@@ -760,6 +811,7 @@ class UserPhotoViewSet(viewsets.ModelViewSet):
         
         for file in files:
             try:
+                validate_uploaded_image(file)
                 photo = UserPhoto.objects.create(
                     user=request.user,
                     image=file
@@ -824,6 +876,7 @@ class UserPhotoUploadView(generics.CreateAPIView):
     serializer_class = UserPhotoSerializer
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_classes = [PhotoUploadThrottle]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -878,3 +931,4 @@ class UserStatsView(APIView):
 
 
         
+
