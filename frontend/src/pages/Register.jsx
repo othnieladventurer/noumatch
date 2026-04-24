@@ -3,8 +3,10 @@ import { useState, useEffect, useRef } from "react";
 import API from '@/api/axios';
 import BrandLogo from "../components/BrandLogo";
 import "../styles/auth-redesign.css";
+import { useI18n } from "../context/I18nContext";
 
 export default function Register() {
+  const { t } = useI18n();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
@@ -98,7 +100,7 @@ export default function Register() {
 
     // If email format is invalid
     if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email)) {
-      setEmailError("Format d'email invalide");
+      setEmailError(t("register.errorInvalidEmail"));
       setCanRegister(false);
       setIsCheckingEmail(false);
       setCheckingEligibility(false);
@@ -119,7 +121,7 @@ export default function Register() {
         const exists = emailCheckResponse.data.exists === true;
         
         if (exists) {
-          setEmailError("Votre email est déjà enregistré. Retournez sur connexion.");
+          setEmailError(t("register.errorEmailExists"));
           setCanRegister(false);
           setShakeEmail(true);
           setTimeout(() => setShakeEmail(false), 400);
@@ -140,24 +142,21 @@ export default function Register() {
           setEmailError("");
           // Show modal with friendly message
           setEligibilityMessage(
-            eligibilityResponse.data.message || 
-            "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."
+            eligibilityResponse.data.message || t("register.waitlistOnly")
           );
           setShowEligibilityModal(true);
         }
       } catch (err) {
         if (err.response?.status === 400) {
           // Bad request - email missing
-          setEmailError("Email requis");
+          setEmailError(t("register.errorEmailRequired"));
         } else if (err.response?.status === 404) {
           // Not in waitlist
           setCanRegister(false);
-          setEligibilityMessage(
-            "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."
-          );
+          setEligibilityMessage(t("register.waitlistOnly"));
           setShowEligibilityModal(true);
         } else {
-          setEmailError("Vérification indisponible. Veuillez réessayer.");
+          setEmailError(t("register.errorCheckUnavailable"));
           setCanRegister(false);
         }
       } finally {
@@ -244,20 +243,18 @@ export default function Register() {
     setErrorMessage("");
     if (step === 1 && !step1Valid) {
       if (!canRegister) {
-        setErrorMessage(
-          "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."
-        );
+        setErrorMessage(t("register.waitlistOnly"));
       } else {
-        setErrorMessage("Veuillez remplir tous les champs correctement");
+        setErrorMessage(t("register.errorFillFields"));
       }
       return;
     }
     if (step === 2 && !step2Valid) {
-      setErrorMessage("Veuillez sélectionner votre genre");
+      setErrorMessage(t("register.errorSelectGender"));
       return;
     }
     if (step === 3 && !step3Valid) {
-      setErrorMessage("La photo de profil est requise");
+      setErrorMessage(t("register.errorPhotoRequired"));
       return;
     }
     setStep(step + 1);
@@ -273,7 +270,7 @@ export default function Register() {
     if (step !== 3) return;
     setErrorMessage("");
     if (!formData.profile_photo) {
-      setErrorMessage("La photo de profil est requise");
+      setErrorMessage(t("register.errorPhotoRequired"));
       return;
     }
 
@@ -300,11 +297,11 @@ export default function Register() {
         state: { userId: response.data.user_id, email: formData.email }
       });
     } catch (error) {
-      let message = "Une erreur est survenue. Veuillez réessayer.";
+      let message = t("register.errorGeneric");
       
       if (error.response) {
         if (error.response.status === 403) {
-          message = "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun.";
+          message = t("register.waitlistOnly");
           setShowEligibilityModal(true);
         } else if (error.response.data.error) {
           message = error.response.data.error;
@@ -314,7 +311,7 @@ export default function Register() {
         } else if (typeof error.response.data === "object") {
           const errors = Object.values(error.response.data).flat();
           if (errors.length > 0 && errors[0].toLowerCase().includes("waitlist")) {
-            message = "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun.";
+            message = t("register.waitlistOnly");
             setShowEligibilityModal(true);
           } else {
             message = errors.join("\n");
@@ -323,7 +320,7 @@ export default function Register() {
           message = error.response.data;
         }
       } else if (error.request) {
-        message = "Erreur réseau. Veuillez réessayer.";
+        message = t("register.errorNetwork");
       }
       setErrorMessage(message);
     } finally {
@@ -358,7 +355,7 @@ export default function Register() {
               <div className="d-flex justify-content-center mb-2">
                 <BrandLogo height={42} />
               </div>
-              <p className="text-muted mb-0">Créez votre compte</p>
+              <p className="text-muted mb-0">{t("register.createAccount")}</p>
             </div>
 
             <div className="progress mb-4" style={{ height: "8px", borderRadius: "20px" }}>
@@ -368,15 +365,15 @@ export default function Register() {
             <div className="d-flex justify-content-between mb-4">
               <div className={`text-center ${step >= 1 ? 'text-danger' : 'text-muted'}`}>
                 <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 1 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>1</div>
-                <small>Informations</small>
+                <small>{t("register.stepInfo")}</small>
               </div>
               <div className={`text-center ${step >= 2 ? 'text-danger' : 'text-muted'}`}>
                 <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 2 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>2</div>
-                <small>Genre</small>
+                <small>{t("register.stepGender")}</small>
               </div>
               <div className={`text-center ${step >= 3 ? 'text-danger' : 'text-muted'}`}>
                 <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 3 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>3</div>
-                <small>Photo</small>
+                <small>{t("register.stepPhoto")}</small>
               </div>
             </div>
 
@@ -390,20 +387,20 @@ export default function Register() {
               {step === 1 && (
                 <div className="row">
                   <div className="col-12 col-md-6 mb-3">
-                    <label className="form-label">Prénom</label>
-                    <input type="text" name="first_name" className="form-control form-control-lg" placeholder="Entrez votre prénom" required value={formData.first_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                    <label className="form-label">{t("register.firstName")}</label>
+                    <input type="text" name="first_name" className="form-control form-control-lg" placeholder={t("register.firstNamePlaceholder")} required value={formData.first_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
                   </div>
                   <div className="col-12 col-md-6 mb-3">
-                    <label className="form-label">Nom</label>
-                    <input type="text" name="last_name" className="form-control form-control-lg" placeholder="Entrez votre nom" required value={formData.last_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                    <label className="form-label">{t("register.lastName")}</label>
+                    <input type="text" name="last_name" className="form-control form-control-lg" placeholder={t("register.lastNamePlaceholder")} required value={formData.last_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
                   </div>
                   <div className="col-12 mb-3">
-                    <label className="form-label">Email</label>
+                    <label className="form-label">{t("register.email")}</label>
                     <input
                       type="email"
                       name="email"
                       className={`form-control form-control-lg ${shakeEmail ? 'shake' : ''}`}
-                      placeholder="Entrez votre adresse email"
+                      placeholder={t("register.emailPlaceholder")}
                       required
                       value={formData.email}
                       onChange={handleChange}
@@ -419,50 +416,50 @@ export default function Register() {
                     )}
                     {!emailError && canRegister && !checkingEligibility && (
                       <div className="text-success small mt-1" style={{ fontSize: "0.75rem" }}>
-                        ✓ Email vérifié - Vous pouvez créer votre compte
+                        {t("register.emailVerified")}
                       </div>
                     )}
                     {(checkingEligibility || isCheckingEmail) && (
                       <div className="text-secondary small mt-1" style={{ fontSize: "0.7rem" }}>
-                        <i className="fas fa-spinner fa-spin me-1"></i> Vérification de votre éligibilité...
+                        <i className="fas fa-spinner fa-spin me-1"></i> {t("register.checkingEligibility")}
                       </div>
                     )}
                   </div>
                   <div className="col-12 mb-3">
-                    <label className="form-label">Pays</label>
+                    <label className="form-label">{t("register.country")}</label>
                     <div className="d-flex align-items-center">
                       {countryCode && !detectingLocation && countryCode !== "" && (
                         <img src={`https://flagcdn.com/w40/${countryCode}.png`} width="30" height="22.5" alt={formData.country} style={{ marginRight: "10px", borderRadius: "4px" }} onError={(e) => e.target.style.display = 'none'} />
                       )}
-                      <input type="text" className="form-control form-control-lg" value={formData.country} readOnly disabled={detectingLocation} placeholder={detectingLocation ? "Détection en cours..." : "Pays détecté"} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#f8f9fa", cursor: detectingLocation ? "wait" : "not-allowed" }} />
+                      <input type="text" className="form-control form-control-lg" value={formData.country} readOnly disabled={detectingLocation} placeholder={detectingLocation ? t("register.detectingCountry") : t("register.detectedCountry")} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#f8f9fa", cursor: detectingLocation ? "wait" : "not-allowed" }} />
                     </div>
                     {detectingLocation && (
                       <div className="mt-1">
-                        <div className="spinner-border spinner-border-sm text-secondary me-2" role="status"><span className="visually-hidden">Chargement...</span></div>
-                        <small className="text-muted">Détection de votre localisation...</small>
+                        <div className="spinner-border spinner-border-sm text-secondary me-2" role="status"><span className="visually-hidden">{t("common.loading")}</span></div>
+                        <small className="text-muted">{t("register.detectingLocation")}</small>
                       </div>
                     )}
                     {!detectingLocation && formData.country && (
-                      <small className="text-muted">Pays automatiquement détecté</small>
+                      <small className="text-muted">{t("register.countryAutoDetected")}</small>
                     )}
                   </div>
                   <div className="col-12 mb-3">
-                    <label className="form-label">Ville</label>
-                    <input type="text" name="city" className="form-control form-control-lg" placeholder={detectingLocation ? "Détection de votre ville..." : "Entrez votre ville"} value={formData.city} onChange={handleChange} disabled={detectingLocation} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#fff" }} />
-                    {!detectingLocation && <small className="text-muted">Vous pouvez modifier votre ville si nécessaire</small>}
+                    <label className="form-label">{t("register.city")}</label>
+                    <input type="text" name="city" className="form-control form-control-lg" placeholder={detectingLocation ? t("register.detectingCity") : t("register.cityPlaceholder")} value={formData.city} onChange={handleChange} disabled={detectingLocation} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#fff" }} />
+                    {!detectingLocation && <small className="text-muted">{t("register.cityEditable")}</small>}
                   </div>
                   <div className="col-12 mb-3">
-                    <label className="form-label">Date de naissance</label>
+                    <label className="form-label">{t("register.birthDate")}</label>
                     <input type="date" name="birth_date" className="form-control form-control-lg" required value={formData.birth_date} onChange={handleChange} style={{ borderRadius: "16px" }} />
-                    <small className="text-muted">Vous devez avoir au moins 18 ans</small>
+                    <small className="text-muted">{t("register.mustBeAdult")}</small>
                   </div>
                   <div className="col-12 col-md-6 mb-3">
-                    <label className="form-label">Mot de passe</label>
-                    <input type="password" name="password" className="form-control form-control-lg" placeholder="Créez un mot de passe" required value={formData.password} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                    <label className="form-label">{t("register.password")}</label>
+                    <input type="password" name="password" className="form-control form-control-lg" placeholder={t("register.passwordPlaceholder")} required value={formData.password} onChange={handleChange} style={{ borderRadius: "16px" }} />
                   </div>
                   <div className="col-12 col-md-6 mb-3">
-                    <label className="form-label">Confirmer</label>
-                    <input type="password" name="password2" className="form-control form-control-lg" placeholder="Confirmez" required value={formData.password2} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                    <label className="form-label">{t("register.confirm")}</label>
+                    <input type="password" name="password2" className="form-control form-control-lg" placeholder={t("register.confirmPlaceholder")} required value={formData.password2} onChange={handleChange} style={{ borderRadius: "16px" }} />
                   </div>
                 </div>
               )}
@@ -470,11 +467,11 @@ export default function Register() {
               {step === 2 && (
                 <div className="row">
                   <div className="col-12 mb-3">
-                    <label className="form-label">Genre</label>
+                    <label className="form-label">{t("register.gender")}</label>
                     <select name="gender" className="form-control form-control-lg" required onChange={handleChange} value={formData.gender} style={{ borderRadius: "16px" }}>
-                      <option value="" disabled>Sélectionnez votre genre</option>
-                      <option value="male">Homme</option>
-                      <option value="female">Femme</option>
+                      <option value="" disabled>{t("register.selectGender")}</option>
+                      <option value="male">{t("register.male")}</option>
+                      <option value="female">{t("register.female")}</option>
                     </select>
                   </div>
                   <input type="hidden" name="country" value={formData.country} />
@@ -487,17 +484,17 @@ export default function Register() {
               {step === 3 && (
                 <div className="row">
                   <div className="col-12 mb-3">
-                    <label className="form-label">Photo de profil <span className="text-danger">*</span></label>
+                    <label className="form-label">{t("register.profilePhoto")} <span className="text-danger">*</span></label>
                     <input type="file" name="profile_photo" className="form-control form-control-lg" accept="image/*" onChange={handleChange} required style={{ borderRadius: "16px", borderColor: formData.profile_photo ? "#28a745" : "#e9ecef" }} />
-                    <small className="text-muted">Téléchargez une photo claire de vous-même (requis)</small>
+                    <small className="text-muted">{t("register.photoHint")}</small>
                     {formData.profile_photo ? (
-                      <div className="mt-2 text-success"><i className="fas fa-check-circle me-1"></i> Photo sélectionnée: {formData.profile_photo.name}</div>
+                      <div className="mt-2 text-success"><i className="fas fa-check-circle me-1"></i> {t("register.photoSelected")}: {formData.profile_photo.name}</div>
                     ) : (
-                      <div className="mt-2 text-danger"><i className="fas fa-exclamation-circle me-1"></i> La photo de profil est requise</div>
+                      <div className="mt-2 text-danger"><i className="fas fa-exclamation-circle me-1"></i> {t("register.errorPhotoRequired")}</div>
                     )}
                     {formData.profile_photo && (
                       <div className="mt-3 text-center">
-                        <img src={URL.createObjectURL(formData.profile_photo)} alt="Aperçu" className="rounded-circle" style={{ width: "100px", height: "100px", objectFit: "cover", border: "3px solid #ff4d6d" }} />
+                        <img src={URL.createObjectURL(formData.profile_photo)} alt={t("register.preview")} className="rounded-circle" style={{ width: "100px", height: "100px", objectFit: "cover", border: "3px solid #ff4d6d" }} />
                       </div>
                     )}
                   </div>
@@ -510,7 +507,7 @@ export default function Register() {
 
               <div className="d-flex gap-2 mt-4">
                 {step > 1 && (
-                  <button type="button" onClick={prevStep} className="btn btn-outline-secondary w-50" disabled={loading} style={{ borderRadius: "16px" }}>Retour</button>
+                  <button type="button" onClick={prevStep} className="btn btn-outline-secondary w-50" disabled={loading} style={{ borderRadius: "16px" }}>{t("register.back")}</button>
                 )}
                 {step < 3 ? (
                   <button
@@ -520,7 +517,7 @@ export default function Register() {
                     disabled={loading || (step === 1 && !step1Valid) || (step === 2 && !step2Valid)}
                     style={{ borderRadius: "16px" }}
                   >
-                    Continuer
+                    {t("register.continue")}
                   </button>
                 ) : (
                   <button
@@ -529,14 +526,14 @@ export default function Register() {
                     disabled={loading || !step3Valid}
                     style={{ borderRadius: "16px" }}
                   >
-                    {loading ? "Création du compte..." : "Créer mon compte"}
+                    {loading ? t("register.submitting") : t("register.submit")}
                   </button>
                 )}
               </div>
             </form>
 
             <div className="text-center mt-3">
-              <small className="text-muted">Vous avez déjà un compte? <Link to="/login" className="text-danger text-decoration-none fw-semibold">Se connecter</Link></small>
+              <small className="text-muted">{t("register.haveAccount")} <Link to="/login" className="text-danger text-decoration-none fw-semibold">{t("register.login")}</Link></small>
             </div>
           </div>
         </div>
@@ -554,31 +551,31 @@ export default function Register() {
                       <i className="fas fa-clock text-warning fs-1"></i>
                     </div>
                   </div>
-                  <h5 className="modal-title fw-bold">Accès anticipé - Liste d'attente</h5>
+                  <h5 className="modal-title fw-bold">{t("register.waitlistModalTitle")}</h5>
                 </div>
               </div>
               <div className="modal-body text-center pt-0">
                 <p className="text-muted mb-3">
-                  {eligibilityMessage || "L’accès est limité aux personnes inscrites sur la liste d’attente, afin de maintenir une communauté active, équilibrée et une meilleure expérience pour chacun."}
+                  {eligibilityMessage || t("register.waitlistOnly")}
                 </p>
                 <div className="alert alert-info bg-light rounded-3 p-3 mb-0">
                   <i className="fas fa-envelope-open-text text-primary me-2"></i>
                   <small className="text-dark">
-                    Vous souhaitez faire partie des premiers utilisateurs de NouMatch en Haïti ?
+                    {t("register.waitlistPrompt")}
                   </small>
                 </div>
               </div>
               <div className="modal-footer border-0 justify-content-center gap-3 pt-0">
                 <Link to="/waitlist" className="btn btn-danger px-4 rounded-pill">
                   <i className="fas fa-list me-2"></i>
-                  Rejoindre la liste d'attente
+                  {t("register.joinWaitlist")}
                 </Link>
                 <button 
                   type="button" 
                   className="btn btn-outline-secondary px-4 rounded-pill" 
                   onClick={() => setShowEligibilityModal(false)}
                 >
-                  Fermer
+                  {t("common.close")}
                 </button>
               </div>
             </div>
@@ -588,5 +585,10 @@ export default function Register() {
     </>
   );
 }
+
+
+
+
+
 
 

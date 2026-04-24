@@ -59,12 +59,19 @@ def send_like_notification(like):
 
 def send_match_notification(match, user1, user2):
     try:
+        conversation_link = None
+        conversation_id = getattr(getattr(match, "conversation", None), "id", None)
+        if conversation_id:
+            conversation_link = f"/messages?conversation={conversation_id}"
+        else:
+            conversation_link = f"/messages?match={match.id}"
+
         n1 = Notification.objects.create(
             recipient=user1,
             type='new_match',
             title="It's a Match!",
             message=f"You matched with {user2.first_name or user2.email}!",
-            link=f"/messages?match={match.id}",
+            link=conversation_link,
             link_text='Say Hi',
             icon='handshake',
         )
@@ -75,7 +82,7 @@ def send_match_notification(match, user1, user2):
             type='new_match',
             title="It's a Match!",
             message=f"You matched with {user1.first_name or user1.email}!",
-            link=f"/messages?match={match.id}",
+            link=conversation_link,
             link_text='Say Hi',
             icon='handshake',
         )
@@ -140,4 +147,3 @@ def send_message_notification(message):
     except Exception as e:
         logging.info(f"Error sending message notification: {e}")
         return None
-

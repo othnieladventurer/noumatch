@@ -25,6 +25,7 @@ export default function AdminUserDetail() {
   const [modalReason, setModalReason] = useState('');
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
+  const [visibilityLoading, setVisibilityLoading] = useState(false);
 
   const getAuthHeader = () => ({
     withCredentials: true
@@ -178,6 +179,24 @@ export default function AdminUserDetail() {
     }
   };
 
+  const handleVisibilityAction = async (action) => {
+    if (!window.confirm(`Apply "${action}" visibility action for this user now?`)) return;
+    try {
+      setVisibilityLoading(true);
+      await adminRequest({
+        method: 'post',
+        url: `${API_BASE}/visibility/action/`,
+        data: { user_id: id, action },
+      });
+      alert(`Visibility action "${action}" applied.`);
+    } catch (err) {
+      console.error(err);
+      alert(`Failed visibility action: ${action}`);
+    } finally {
+      setVisibilityLoading(false);
+    }
+  };
+
   const getRiskBadge = () => {
     const reportsCount = user.stats?.total_reports_received || 0;
     if (reportsCount >= 5) return <span className="badge bg-danger px-3 py-2">High Risk</span>;
@@ -224,6 +243,15 @@ export default function AdminUserDetail() {
               {!user.is_verified && <button className="btn btn-outline-info rounded-pill px-4" onClick={() => handleUserAction('verify')}><i className="fas fa-check-double me-2"></i>Verify</button>}
               <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => setShowBlockModal(true)}><i className="fas fa-user-slash me-2"></i>Block (Admin)</button>
               <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => setShowDeactivateModal(true)}><i className="fas fa-power-off me-2"></i>Deactivate</button>
+              <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleVisibilityAction('boost')} disabled={visibilityLoading}>
+                <i className="fas fa-rocket me-2"></i>Boost Visibility
+              </button>
+              <button className="btn btn-outline-secondary rounded-pill px-4" onClick={() => handleVisibilityAction('reduce')} disabled={visibilityLoading}>
+                <i className="fas fa-gauge-low me-2"></i>Reduce Exposure
+              </button>
+              <button className="btn btn-outline-primary rounded-pill px-4" onClick={() => handleVisibilityAction('inject')} disabled={visibilityLoading}>
+                <i className="fas fa-bolt me-2"></i>Force Inject
+              </button>
             </div>
           </div>
 

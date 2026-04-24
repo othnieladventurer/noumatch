@@ -45,6 +45,9 @@ export default function AdminUsers() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
+  const [launchMonitor, setLaunchMonitor] = useState(null);
+  const [launchMonitorError, setLaunchMonitorError] = useState('');
+  const [visibilityBusyUserId, setVisibilityBusyUserId] = useState(null);
   
   const navigate = useNavigate();
   const adminEmail = localStorage.getItem('admin_email') || 'Admin';
@@ -126,10 +129,44 @@ export default function AdminUsers() {
     }
   }, [currentPage, debouncedSearchTerm, filterStatus, navigate]);
 
+  const fetchLaunchMonitor = useCallback(async () => {
+    const token = localStorage.getItem('admin_access');
+    if (!token) return;
+    try {
+      const res = await axios.get(`${API_BASE}/launch/monitor/`, {
+        withCredentials: true,
+      });
+      setLaunchMonitor(res.data);
+      setLaunchMonitorError('');
+    } catch (err) {
+      setLaunchMonitorError(err.response?.data?.error || 'Failed to load launch monitor');
+    }
+  }, []);
+
+  const runVisibilityAction = useCallback(async (userId, action) => {
+    try {
+      setVisibilityBusyUserId(userId);
+      await axios.post(
+        `${API_BASE}/visibility/action/`,
+        { user_id: userId, action },
+        { withCredentials: true }
+      );
+      await Promise.all([fetchUsers(), fetchLaunchMonitor()]);
+    } catch (err) {
+      alert(err.response?.data?.error || `Failed to ${action} visibility`);
+    } finally {
+      setVisibilityBusyUserId(null);
+    }
+  }, [fetchUsers, fetchLaunchMonitor]);
+
   // Fetch when dependencies change
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  useEffect(() => {
+    fetchLaunchMonitor();
+  }, [fetchLaunchMonitor]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -175,6 +212,102 @@ export default function AdminUsers() {
           <h2>User Management</h2>
           <p>View, search, filter, and manage all registered users</p>
           {error && <div className="alert alert-danger">{error}</div>}
+        </div>
+
+        {/* Filters Section */}
+        <div className="recent-blocks-card" style={{ margin: '0 1rem 1.5rem' }}>
+          <div className="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5><i className="fas fa-rocket text-warning me-2"></i>Launch Monitor</h5>
+            <button className="btn btn-sm btn-outline-secondary" onClick={fetchLaunchMonitor}>
+              <i className="fas fa-rotate-right me-1"></i>Refresh
+            </button>
+          </div>
+          <div className="card-body">
+            {launchMonitorError && <div className="alert alert-danger">{launchMonitorError}</div>}
+            {!launchMonitorError && launchMonitor && (
+              <>
+                <div className="row g-3 mb-3">
+                  <div className="col-md-4">
+                    <div className="p-3 rounded border bg-light">
+                      <div className="small text-uppercase text-muted">Zero Match Users</div>
+                      <div className="fs-4 fw-bold">{launchMonitor.zero_match_users_count || 0}</div>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="p-3 rounded border bg-light">
+                      <div className="small text-uppercase text-muted">Avg Matches / User</div>
+                      <div className="fs-4 fw-bold">{(launchMonitor.avg_matches_per_user || 0).toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="p-3 rounded border bg-light">
+                      <div className="small text-uppercase text-muted">Median Time To First Match</div>
+                      <div className="fs-4 fw-bold">
+                        {launchMonitor.median_time_to_first_match_seconds == null
+                          ? 'n/a'
+                          : `${(launchMonitor.median_time_to_first_match_seconds / 60).toFixed(1)}m`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="table-responsive">
+                  <table className="table admin-table mb-0">
+                    <thead>
+                      <tr>
+                        <th>User</th>
+                        <th>Minutes Since Join</th>
+                        <th>Impressions 24h</th>
+                        <th>Likes 24h</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(launchMonitor.zero_match_users || []).slice(0, 12).map((user) => (
+                        <tr key={user.id}>
+                          <td>
+                            <strong>{user.full_name}</strong><br />
+                            <small className="text-muted">{user.email}</small>
+                          </td>
+                          <td>{user.minutes_since_join ?? 'n/a'}</td>
+                          <td>{user.impressions_24h ?? 0}</td>
+                          <td>{user.likes_given_24h ?? 0}</td>
+                          <td>
+                            <div className="d-flex gap-2 flex-wrap">
+                              <button
+                                className="btn btn-sm btn-outline-success"
+                                disabled={visibilityBusyUserId === user.id}
+                                onClick={() => runVisibilityAction(user.id, 'boost')}
+                              >
+                                Boost
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                disabled={visibilityBusyUserId === user.id}
+                                onClick={() => runVisibilityAction(user.id, 'reduce')}
+                              >
+                                Reduce
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-primary"
+                                disabled={visibilityBusyUserId === user.id}
+                                onClick={() => runVisibilityAction(user.id, 'inject')}
+                              >
+                                Force Inject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {(!launchMonitor.zero_match_users || launchMonitor.zero_match_users.length === 0) && (
+                        <tr><td colSpan="5" className="text-center py-3 text-muted">No zero-match users right now.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Filters Section */}
@@ -278,12 +411,21 @@ export default function AdminUsers() {
                         <td className="align-middle">{user.reports_received_count || 0}</td>
                         <td className="align-middle">{getRiskBadge(user.risk_status)}</td>
                         <td className="align-middle">
-                          <button 
-                            className="btn btn-sm btn-outline-primary" 
-                            onClick={() => navigate(`/admin/users/detail/${user.id}`)}
-                          >
-                            <i className="fas fa-eye me-1"></i> View
-                          </button>
+                          <div className="d-flex gap-2 flex-wrap">
+                            <button 
+                              className="btn btn-sm btn-outline-primary" 
+                              onClick={() => navigate(`/admin/users/detail/${user.id}`)}
+                            >
+                              <i className="fas fa-eye me-1"></i> View
+                            </button>
+                            <button
+                              className="btn btn-sm btn-outline-success"
+                              disabled={visibilityBusyUserId === user.id}
+                              onClick={() => runVisibilityAction(user.id, 'boost')}
+                            >
+                              Boost
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))

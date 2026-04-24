@@ -360,6 +360,45 @@ class UserEngagementScore(models.Model):
         return f"{self.user.email} score={self.overall_score} points={self.total_points}"
 
 
+class FeedVisibilityBoost(models.Model):
+    SOURCE_CHOICES = [
+        ("new_user_injection", "New User Injection"),
+        ("new_user_reciprocal", "New User Reciprocal"),
+        ("underexposed_recovery", "Underexposed Recovery"),
+        ("mutual_like_stack", "Mutual Like Stack"),
+        ("admin_boost", "Admin Boost"),
+        ("admin_reduce", "Admin Reduce"),
+        ("admin_force_inject", "Admin Force Inject"),
+    ]
+
+    viewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="feed_boosts_for_viewer",
+    )
+    target = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="feed_boosts_for_target",
+    )
+    source = models.CharField(max_length=32, choices=SOURCE_CHOICES, default="admin_boost")
+    boost_score = models.IntegerField(default=0)
+    remaining_views = models.PositiveIntegerField(default=5)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("viewer", "target", "source")
+        indexes = [
+            models.Index(fields=["viewer", "expires_at"]),
+            models.Index(fields=["target", "expires_at"]),
+        ]
+
+    def __str__(self):
+        return f"boost viewer={self.viewer_id} -> target={self.target_id} score={self.boost_score} source={self.source}"
+
+
         
 
 

@@ -2,6 +2,7 @@ import logging
 # matches/signals.py
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.apps import apps
 from .models import Match
 from notifications.utils import send_match_notification
 
@@ -10,6 +11,9 @@ def match_created_handler(sender, instance, created, **kwargs):
     """Send notifications to both users when a new match is created"""
     if created:
         logging.info(f"🔔 MATCH CREATED: {instance.id} between {instance.user1_id} and {instance.user2_id}")
+        # Auto-create a conversation so users can message immediately after matching.
+        Conversation = apps.get_model("chat", "Conversation")
+        Conversation.objects.get_or_create(match=instance)
         send_match_notification(instance, instance.user1, instance.user2)
 
 

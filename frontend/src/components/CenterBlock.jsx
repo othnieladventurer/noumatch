@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { formatName } from "../utils/helpers";
+import { useI18n } from "../context/I18nContext";
 
 const RoundActionBtn = ({ onClick, bg, icon, iconColor, label, size = 52, disabled = false }) => (
   <button 
@@ -26,38 +27,26 @@ const RoundActionBtn = ({ onClick, bg, icon, iconColor, label, size = 52, disabl
 );
 
 export default function CenterBlock(props) {
+  const { t } = useI18n();
   const {
     profilesLoading, apiError, profiles, profileIndex, currentProfile, getCurrentPhotoUrl,
     openPhotoModal, getCurrentProfilePhotos, currentPhotoIndex,
     goToPrevPhoto, goToNextPhoto, isMatched, isLiked, goToProfile,
-    handlePass, handleLike, handleUnmatch, isAnimating, goToMessenger,
+    handlePass, handleLike, isAnimating, goToMessenger,
     openReportModal, handleBlock, centerCardStyle, reloadProfiles, swipeLimits, user
   } = props;
 
-  // FORCE CORRECT LIMITS FOR FREE ACCOUNTS
-  // Use the backend's likes_today (count in last 12h) to compute remaining likes.
-  // This ignores whatever broken daily_limit or likes_remaining the backend sends.
-  const forcedLimit = 20;
-  const forcedRemaining = (swipeLimits?.account_type === 'free' && swipeLimits?.likes_today !== undefined)
-    ? Math.max(0, forcedLimit - swipeLimits.likes_today)
-    : swipeLimits?.likes_remaining;
-  const forcedCanLike = (swipeLimits?.account_type === 'free')
-    ? forcedRemaining > 0
-    : swipeLimits?.can_like;
+  const backendLimit = swipeLimits?.daily_limit;
+  const backendRemaining = swipeLimits?.likes_remaining;
+  const backendCanLike = swipeLimits?.can_like;
 
-  const [localLikesRemaining, setLocalLikesRemaining] = useState(forcedRemaining);
-  const [localCanLike, setLocalCanLike] = useState(forcedCanLike);
+  const [localLikesRemaining, setLocalLikesRemaining] = useState(backendRemaining ?? null);
+  const [localCanLike, setLocalCanLike] = useState(backendCanLike ?? true);
 
   // Update local state when swipeLimits changes (e.g., after a like)
   useEffect(() => {
-    if (swipeLimits?.account_type === 'free') {
-      const newRemaining = Math.max(0, forcedLimit - (swipeLimits.likes_today || 0));
-      setLocalLikesRemaining(newRemaining);
-      setLocalCanLike(newRemaining > 0);
-    } else {
-      setLocalLikesRemaining(swipeLimits?.likes_remaining);
-      setLocalCanLike(swipeLimits?.can_like);
-    }
+    setLocalLikesRemaining(backendRemaining ?? null);
+    setLocalCanLike(backendCanLike ?? true);
   }, [swipeLimits]);
 
   const touchStartX = useRef(0);
@@ -109,7 +98,7 @@ export default function CenterBlock(props) {
 
   const handleCopyInviteLink = () => {
     navigator.clipboard.writeText(inviteLink);
-    alert("Lien d'invitation copié ! Partagez-le avec vos amis.");
+    alert(t("center.inviteCopied"));
   };
 
   if (profilesLoading && !currentProfile) return <div className="vh-100 d-flex align-items-center justify-content-center bg-black"><div className="spinner-border text-danger" /></div>;
@@ -118,19 +107,19 @@ export default function CenterBlock(props) {
       <div className="d-flex flex-column align-items-center justify-content-center p-4 text-center" style={{ minHeight: '100%', background: '#000', color: 'white' }}>
         <div className="mb-4">
           <i className="fas fa-users fa-3x mb-3" style={{ color: '#ff4d6d' }}></i>
-          <h4 className="mb-3">More profiles are coming from the waitlist, come back in a while.</h4>
+          <h4 className="mb-3">{t("center.noProfilesTitle")}</h4>
           <p className="small opacity-75 mb-4">
-            De nouveaux profils arrivent bientôt depuis notre liste d'attente.<br />
-            Pour nous aider à grandir et débloquer plus de profils, invitez vos amis à rejoindre NouMatch !
+            {t("center.noProfilesBody")}<br />
+            {t("center.noProfilesInvite")}
           </p>
           <div className="d-flex flex-column gap-3 align-items-center">
             <button onClick={handleCopyInviteLink} className="btn btn-danger rounded-pill px-4 py-2" style={{ background: 'linear-gradient(145deg, #ff4d6d, #ff3355)', border: 'none' }}>
-              <i className="fas fa-share-alt me-2"></i> Inviter un ami
+              <i className="fas fa-share-alt me-2"></i> {t("common.inviteFriend")}
             </button>
             <button onClick={reloadProfiles} className="btn btn-outline-light rounded-pill px-4 py-2">
-              <i className="fas fa-sync-alt me-2"></i> Rafraîchir
+              <i className="fas fa-sync-alt me-2"></i> {t("common.refresh")}
             </button>
-            <small className="text-muted mt-2">(Revenez dans environ 30 minutes)</small>
+            <small className="text-muted mt-2">({t("common.comingBackSoon")})</small>
           </div>
         </div>
       </div>
@@ -142,8 +131,8 @@ export default function CenterBlock(props) {
   const currentImageUrl = getCurrentPhotoUrl();
 
   const containerStyle = isMobile 
-    ? { ...centerCardStyle, background: '#000', boxShadow: 'none', touchAction: 'pan-y', overflow: 'hidden', minHeight: 0 }
-    : { ...centerCardStyle, height: '100%', touchAction: 'pan-y', overflow: 'hidden', minHeight: 0 };
+    ? { ...centerCardStyle, background: '#000', boxShadow: 'none', touchAction: 'pan-y' }
+    : { ...centerCardStyle, height: '100%', touchAction: 'pan-y' };
 
   return (
     <div 
@@ -214,7 +203,7 @@ export default function CenterBlock(props) {
         <div className="d-flex justify-content-center align-items-center gap-4 py-2">
           {isMatched(currentProfile.id) ? (
             <>
-              <RoundActionBtn onClick={() => handleUnmatch?.(currentProfile)} bg="rgba(255,255,255,0.1)" icon="fas fa-heart-broken" iconColor="#fff" size={50} label="Unmatch" />
+              <RoundActionBtn onClick={onPass} bg="rgba(255,255,255,0.1)" icon="fas fa-times" iconColor="#fff" size={50} />
               <RoundActionBtn onClick={() => goToMessenger(currentProfile.id)} bg="linear-gradient(135deg, #ff4d6d, #a158ff)" icon="fas fa-comment-dots" iconColor="#fff" size={62} />
               <RoundActionBtn onClick={() => goToProfile(currentProfile.id)} bg="rgba(255,255,255,0.1)" icon="fas fa-user" iconColor="#fff" size={50} />
             </>
@@ -235,13 +224,14 @@ export default function CenterBlock(props) {
           )}
         </div>
 
-        {/* SWIPE COUNTER forced to show 20 limit for free accounts */}
+        {/* Swipe counter reflects backend policy (including first-day launch boost). */}
         {!isMatched(currentProfile.id) && (
-          swipeLimits?.account_type === 'free' ? (
+          swipeLimits?.account_type === 'free' && backendLimit ? (
             <div className="text-center small mt-1 d-flex align-items-center justify-content-center gap-2" style={{ fontSize: '0.7rem', opacity: 0.7 }}>
               <span>
                 <i className="fas fa-heart me-1" style={{ fontSize: '0.6rem' }} />
-                {localLikesRemaining} / 20 likes restants
+                {localLikesRemaining} / {backendLimit} likes restants
+                {swipeLimits?.is_new_user_boost ? " (boost nouveau compte)" : ""}
               </span>
               <div className="position-relative d-inline-flex" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
                 <i className="fas fa-info-circle" style={{ cursor: 'pointer', fontSize: '0.7rem' }} />

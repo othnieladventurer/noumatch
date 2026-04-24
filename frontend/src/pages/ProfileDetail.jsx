@@ -5,8 +5,10 @@ import ReportModal from "../components/ReportModal";
 import API from '@/api/axios';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
+import { useI18n } from "../context/I18nContext";
 
 export default function ProfileDetail() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { id } = useParams();
   const [user, setUser] = useState(null);
@@ -506,7 +508,7 @@ export default function ProfileDetail() {
           <div className="spinner-border text-danger" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="mt-3 text-secondary">Finding your potential match...</p>
+          <p className="mt-3 text-secondary">{t("profileDetail.loadingMatch")}</p>
         </div>
       </>
     );
@@ -519,11 +521,11 @@ export default function ProfileDetail() {
         <div className="container py-5 text-center">
           <div className="alert alert-danger">
             <i className="fas fa-heart-broken me-2"></i>
-            {error || "Profile not found"}
+            {error || t("profileDetail.notFound")}
           </div>
           <button className="btn btn-outline-danger mt-3 px-5 py-2" onClick={goBack} style={{ borderRadius: "30px" }}>
             <i className="fas fa-arrow-left me-2"></i>
-            Go Back
+            {t("profileDetail.back")}
           </button>
         </div>
       </>
@@ -1148,7 +1150,7 @@ export default function ProfileDetail() {
               onClick={() => openPhotoModal(currentPhoto, activePhotoIndex)}
             />
           ) : (
-            <div className="text-white">No photo available</div>
+            <div className="text-white">{t("profileDetail.noPhoto")}</div>
           )}
           
           {photos.length > 1 && (
@@ -1211,17 +1213,17 @@ export default function ProfileDetail() {
             <div className="d-flex justify-content-end">
               {isMatched && (
                 <span className="relationship-badge matched">
-                  <i className="fas fa-heart me-1"></i> Matched
+                  <i className="fas fa-heart me-1"></i> {t("profileDetail.matched")}
                 </span>
               )}
               {!isMatched && isLiked && (
                 <span className="relationship-badge liked">
-                  <i className="fas fa-check me-1"></i> You Liked Them
+                  <i className="fas fa-check me-1"></i> {t("profileDetail.youLiked")}
                 </span>
               )}
               {isBlocked && (
                 <span className="relationship-badge blocked">
-                  <i className="fas fa-ban me-1"></i> Blocked
+                  <i className="fas fa-ban me-1"></i> {t("profileDetail.blocked")}
                 </span>
               )}
             </div>
@@ -1230,12 +1232,12 @@ export default function ProfileDetail() {
           <div className="profile-section">
             <h3 className="section-title">
               <i className="fas fa-heart"></i>
-              About {profile.first_name || 'them'}
+              {t("profileDetail.about")} {profile.first_name || "them"}
             </h3>
             
             <div className="about-text">
               <i className="fas fa-quote-left me-2"></i>
-              {profile.bio || "This user hasn't added a bio yet"}
+              {profile.bio || t("profileDetail.noBio")}
               <i className="fas fa-quote-right ms-2"></i>
             </div>
 
@@ -1243,7 +1245,7 @@ export default function ProfileDetail() {
               {profile.gender && (
                 <span className="info-chip">
                   <i className="fas fa-venus-mars"></i>
-                  {profile.gender === 'male' ? 'Man' : profile.gender === 'female' ? 'Woman' : profile.gender}
+                  {profile.gender === 'male' ? t("profileDetail.man") : profile.gender === 'female' ? t("profileDetail.woman") : profile.gender}
                 </span>
               )}
               
@@ -1257,7 +1259,7 @@ export default function ProfileDetail() {
               {calculateAge(profile.birth_date) && (
                 <span className="info-chip">
                   <i className="fas fa-cake-candles"></i>
-                  {calculateAge(profile.birth_date)} years
+                  {calculateAge(profile.birth_date)} {t("profileDetail.years")}
                 </span>
               )}
             </div>
@@ -1265,11 +1267,11 @@ export default function ProfileDetail() {
             <div className="mt-3">
               {profile.is_verified ? (
                 <span className="verification-badge verified-badge">
-                  <i className="fas fa-check-circle"></i> Verified Account
+                  <i className="fas fa-check-circle"></i> {t("profileDetail.verified")}
                 </span>
               ) : (
                 <span className="verification-badge unverified-badge">
-                  <i className="fas fa-clock"></i> Not Verified
+                  <i className="fas fa-clock"></i> {t("profileDetail.notVerified")}
                 </span>
               )}
             </div>
@@ -1279,13 +1281,13 @@ export default function ProfileDetail() {
             <div className="profile-section">
               <h3 className="section-title">
                 <i className="fas fa-briefcase"></i>
-                Work & Education
+                {t("profileDetail.workEducation")}
               </h3>
               
               <div className="professional-grid">
                 {profile.career && (
                   <div className="professional-card">
-                    <div className="professional-label">Career</div>
+                    <div className="professional-label">{t("profileDetail.career")}</div>
                     <div className="professional-value">
                       <i className="fas fa-briefcase"></i>
                       {profile.career}
@@ -1295,7 +1297,7 @@ export default function ProfileDetail() {
                 
                 {profile.education && (
                   <div className="professional-card">
-                    <div className="professional-label">Education</div>
+                    <div className="professional-label">{t("profileDetail.education")}</div>
                     <div className="professional-value">
                       <i className="fas fa-graduation-cap"></i>
                       {profile.education}
@@ -1310,14 +1312,14 @@ export default function ProfileDetail() {
             <div className="profile-section">
               <h3 className="section-title">
                 <i className="fas fa-star"></i>
-                Interests & Vibes
+                {t("profileDetail.interests")}
               </h3>
               
               {profile.passions && (
                 <div className="mb-3">
                   <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
                     <i className="fas fa-fire me-1" style={{ color: '#ff4d6d' }}></i>
-                    Passions
+                    {t("profileDetail.passions")}
                   </h6>
                   <div className="interest-tags">
                     {profile.passions.split(',').map((item, index) => (
@@ -1333,7 +1335,7 @@ export default function ProfileDetail() {
                 <div className="mb-3">
                   <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
                     <i className="fas fa-pencil me-1" style={{ color: '#ff4d6d' }}></i>
-                    Hobbies
+                    {t("profileDetail.hobbies")}
                   </h6>
                   <div className="interest-tags">
                     {profile.hobbies.split(',').map((item, index) => (
@@ -1349,7 +1351,7 @@ export default function ProfileDetail() {
                 <div className="mb-2">
                   <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
                     <i className="fas fa-music me-1" style={{ color: '#ff4d6d' }}></i>
-                    Music Vibes
+                    {t("profileDetail.musicVibes")}
                   </h6>
                   <div className="interest-tags">
                     {profile.favorite_music.split(',').map((item, index) => (
@@ -1370,7 +1372,7 @@ export default function ProfileDetail() {
                 className="action-btn success"
               >
                 <i className="fas fa-check me-2"></i>
-                Unblock
+                {t("profileDetail.unblock")}
               </button>
             ) : (
               <>
@@ -1381,21 +1383,21 @@ export default function ProfileDetail() {
                       className="action-btn primary"
                     >
                       <i className="fas fa-comment-dots me-2"></i>
-                      Message
+                      {t("profileDetail.message")}
                     </button>
                     <button
                       onClick={handleUnmatch}
                       className="action-btn danger"
                     >
                       <i className="fas fa-heart-broken me-2"></i>
-                      Unmatch
+                      {t("profileDetail.unmatch")}
                     </button>
                     <button
                       onClick={openReportModal}
                       className="action-btn warning"
                     >
                       <i className="fas fa-flag me-2"></i>
-                      Report
+                      {t("profileDetail.report")}
                     </button>
                   </>
                 ) : isLiked ? (
@@ -1405,7 +1407,7 @@ export default function ProfileDetail() {
                       className="action-btn secondary"
                     >
                       <i className="fas fa-times me-2"></i>
-                      Unlike
+                      {t("profileDetail.unlike")}
                     </button>
                     <button
                       onClick={() => navigate(`/messages/${profile.id}`)}
@@ -1413,14 +1415,14 @@ export default function ProfileDetail() {
                       disabled={!isMatched}
                     >
                       <i className="fas fa-comment-dots me-2"></i>
-                      Message
+                      {t("profileDetail.message")}
                     </button>
                     <button
                       onClick={openReportModal}
                       className="action-btn warning"
                     >
                       <i className="fas fa-flag me-2"></i>
-                      Report
+                      {t("profileDetail.report")}
                     </button>
                   </>
                 ) : (
@@ -1430,14 +1432,14 @@ export default function ProfileDetail() {
                       className="action-btn primary"
                     >
                       <i className="fas fa-heart me-2"></i>
-                      Like
+                      {t("profileDetail.like")}
                     </button>
                     <button
                       onClick={openReportModal}
                       className="action-btn warning"
                     >
                       <i className="fas fa-flag me-2"></i>
-                      Report
+                      {t("profileDetail.report")}
                     </button>
                   </>
                 )}
@@ -1447,7 +1449,7 @@ export default function ProfileDetail() {
                   className="action-btn secondary"
                 >
                   <i className="fas fa-ban me-2"></i>
-                  Block
+                  {t("profileDetail.block")}
                 </button>
               </>
             )}
@@ -1456,7 +1458,7 @@ export default function ProfileDetail() {
           <div className="text-center pb-4">
             <p className="small text-secondary" style={{ fontSize: '0.8rem' }}>
               <i className="fas fa-heart me-1" style={{ color: '#ff4d6d' }}></i>
-              Take a chance on love
+              {t("profileDetail.footer")}
             </p>
           </div>
         </div>
