@@ -32,6 +32,16 @@ export default defineConfig(({ mode }) => {
       port: isStaging ? 5174 : 5173,
       open: true,
       proxy: {
+        '/admin': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
+        '/static/admin': {
+          target: 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false,
+        },
         '/api': {
           target: isStaging ? 'https://api-staging.noumatch.com' : 'http://localhost:8000',
           changeOrigin: true,
