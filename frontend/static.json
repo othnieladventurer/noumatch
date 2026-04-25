@@ -32,7 +32,7 @@
     }
   ],
   "routes": [
-    { "src": "/admin/(.*)", "dest": "https://api.noumatch.com/admin/$1" },
+    { "src": "/admin/$", "dest": "https://api.noumatch.com/admin/" },
     { "src": "/static/admin/(.*)", "dest": "https://api.noumatch.com/static/admin/$1" },
     { "src": "/*", "dest": "/index.html" }
   ]
