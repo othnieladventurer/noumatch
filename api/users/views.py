@@ -1,6 +1,7 @@
 import logging
 import threading
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -20,7 +21,7 @@ from rest_framework.views import APIView
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
 
-from .models import User, UserPhoto, OTP
+from .models import User, UserPhoto, OTP, FeedVisibilityBoost
 from interactions.models import Like, Pass
 from matches.models import Match
 from block.models import Block
@@ -49,7 +50,9 @@ from .throttles import (
 )
 
 from admin_dashboard.services.ranking import compute_ranking_score
+from users.visibility import trigger_activity_injection, inject_new_user_visibility
 from datetime import timedelta
+from django.db.models import F
 
 
 
@@ -109,6 +112,10 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        try:
+            inject_new_user_visibility(user, limit=20)
+        except Exception:
+            logging.exception("new-user visibility injection failed for user_id=%s", user.id)
 
         # Mark waitlist entry as used (optional - to prevent re-registration)
         if waitlist_entry:
@@ -634,16 +641,45 @@ class UserProfileListView(generics.ListAPIView):
         return queryset
 
     def list(self, request, *args, **kwargs):
+        # Visibility recovery runs on a short cooldown so underexposed users don't stay invisible.
+        cache_key = f"nm_visibility_injection_feed:{request.user.id}"
+        if cache.add(cache_key, "1", timeout=300):
+            try:
+                trigger_activity_injection(request.user)
+            except Exception:
+                logging.exception("feed activity injection failed for user_id=%s", request.user.id)
+
         queryset = self.get_queryset()
         debug = request.GET.get('debug') == 'true'
+        now = timezone.now()
+
+        boosts = FeedVisibilityBoost.objects.filter(
+            viewer=request.user,
+            expires_at__gt=now,
+            remaining_views__gt=0,
+        ).values('target_id', 'boost_score')
+        boost_map = {}
+        for item in boosts:
+            target_id = item['target_id']
+            boost_score = item['boost_score']
+            if target_id in boost_map:
+                if boost_score >= 0:
+                    boost_map[target_id] = max(boost_map[target_id], boost_score)
+                else:
+                    boost_map[target_id] = min(boost_map[target_id], boost_score)
+            else:
+                boost_map[target_id] = boost_score
         
         # Build list with ranking scores
         profile_list = []
         for profile in queryset:
             score = compute_ranking_score(request.user, profile)
+            score += boost_map.get(profile.id, 0)
             reasons = []
             if debug:
                 reasons = self._get_ranking_reasons(request.user, profile)
+                if profile.id in boost_map:
+                    reasons.append(f"Manual/system boost ({boost_map.get(profile.id)})")
             
             # Get serializer data
             serializer = self.get_serializer(profile)
@@ -660,6 +696,18 @@ class UserProfileListView(generics.ListAPIView):
         page = self.paginate_queryset(profile_list)
         
         if page is not None:
+            served_ids = [item.get('id') for item in page if item.get('id')]
+            if served_ids:
+                FeedVisibilityBoost.objects.filter(
+                    viewer=request.user,
+                    target_id__in=served_ids,
+                    expires_at__gt=now,
+                    remaining_views__gt=0,
+                ).update(remaining_views=F('remaining_views') - 1)
+                FeedVisibilityBoost.objects.filter(
+                    viewer=request.user,
+                    remaining_views__lte=0,
+                ).delete()
             response_data = {
                 "profiles": page,
                 "user_account_type": request.user.account_type,
@@ -749,6 +797,12 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
 def heartbeat(request):
     user = request.user
     user.update_last_activity()
+    cache_key = f"nm_visibility_injection_hb:{user.id}"
+    if cache.add(cache_key, "1", timeout=300):
+        try:
+            trigger_activity_injection(user)
+        except Exception:
+            logging.exception("heartbeat activity injection failed for user_id=%s", user.id)
     return Response({
         "status": "ok",
         "user_id": user.id,

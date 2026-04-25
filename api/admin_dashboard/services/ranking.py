@@ -1,6 +1,4 @@
 # services/ranking.py
-from django.db.models import Q, Count, FloatField
-from django.db.models.functions import Coalesce
 from datetime import timedelta
 from django.utils import timezone
 from admin_dashboard.models import ProfileImpression
@@ -26,11 +24,13 @@ def compute_ranking_score(viewer, profile):
     if profile.career: completeness += 2
     score += completeness
 
-    # 2. Recent activity (0-15)
+    # 2. Recent activity (0-22)
+    if getattr(profile, "is_online", False):
+        score += 12
     if profile.last_activity and profile.last_activity > timezone.now() - timedelta(hours=24):
-        score += 15
+        score += 10
     elif profile.last_activity and profile.last_activity > timezone.now() - timedelta(days=7):
-        score += 8
+        score += 5
 
     # 3. Mutual interest probability (based on shared interests)
     mutual = 0
@@ -49,9 +49,27 @@ def compute_ranking_score(viewer, profile):
     ).count()
     score -= min(recent_passes * 5, 20)
 
-    # 5. Boost fresh profiles (registered in last 3 days)
-    if profile.date_joined > timezone.now() - timedelta(days=3):
-        score += 10
+    # 5. Momentum boosts: new users and under-exposed users should be surfaced quickly.
+    now = timezone.now()
+    if profile.date_joined > now - timedelta(hours=24):
+        score += 22
+    elif profile.date_joined > now - timedelta(days=3):
+        score += 12
+
+    # Reciprocal launch boost: when a user is new, prioritize active profiles to increase first outcomes.
+    if viewer.date_joined > now - timedelta(hours=24):
+        if profile.last_activity and profile.last_activity > now - timedelta(hours=48):
+            score += 10
+
+    # Exposure balancing: boost profiles that have not been seen much recently.
+    recent_impressions = ProfileImpression.objects.filter(
+        viewed=profile,
+        timestamp__gt=now - timedelta(hours=24),
+    ).count()
+    if recent_impressions < 10:
+        score += 15
+    elif recent_impressions < 30:
+        score += 8
 
     # 6. Behavior score boost (active + healthy users shown more)
     scorecard = getattr(profile, "engagement_scorecard", None)

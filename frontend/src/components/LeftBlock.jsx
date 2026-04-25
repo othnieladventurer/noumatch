@@ -1,13 +1,14 @@
 import React from "react";
 import { getProfilePhotoUrl, formatName } from "../utils/helpers";
+import { useI18n } from "../context/I18nContext";
 
 const AvatarRow = ({ items, onClickAvatar }) => (
   <div className="avatar-row">
     {items.slice(0, 8).map((p) => {
       const displayName = p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : p.first_name || p.last_name || "";
       return (
-        <button key={p.id} type="button" className="p-0 border-0 bg-transparent" onClick={() => onClickAvatar?.(p)} aria-label={displayName || "Ouvrir le profil"}>
-          <img src={p.photo || "https://via.placeholder.com/52"} alt={displayName || "Utilisateur"} className="avatar-circle" />
+        <button key={p.id} type="button" className="p-0 border-0 bg-transparent" onClick={() => onClickAvatar?.(p)} aria-label={displayName || "Open profile"}>
+          <img src={p.photo || "https://via.placeholder.com/52"} alt={displayName || "User"} className="avatar-circle" />
         </button>
       );
     })}
@@ -26,10 +27,11 @@ const SectionCard = ({ title, count, children }) => (
 );
 
 export default function LeftBlock({ user, likesList, matchesList, blockedList, openLikeModal, openMatchModalFor, openUnblockModal, goToMyProfile }) {
+  const { t } = useI18n();
   const userPhoto = user?.profile_photo_url || user?.profile_photo;
+
   return (
     <div className="scrollable-card p-3">
-      {/* Profile header */}
       <div className="d-flex align-items-center gap-3 clickable-profile" onClick={goToMyProfile}>
         <div className="position-relative flex-shrink-0">
           <img src={getProfilePhotoUrl(userPhoto) || "https://via.placeholder.com/70"} alt="profil" className="rounded-circle shadow-sm" width="70" height="70" style={{ objectFit: "cover", border: "3px solid #fff" }} />
@@ -42,19 +44,18 @@ export default function LeftBlock({ user, likesList, matchesList, blockedList, o
       </div>
       <div className="mt-3" style={{ height: 1, background: "linear-gradient(90deg, transparent, #e9ecef, transparent)" }} />
 
-      {/* Only Premium/God see likes */}
       {(user?.account_type === "premium" || user?.account_type === "god_mode") && (
-        <SectionCard title="Qui vous aiment" count={likesList.length}>
-          {likesList.length ? <AvatarRow items={likesList} onClickAvatar={openLikeModal} /> : <div className="text-center py-3 text-secondary small"><i className="far fa-heart me-2"></i>Aucun like</div>}
+        <SectionCard title={t("dashboard.likesWhoLikeYou")} count={likesList.length}>
+          {likesList.length ? <AvatarRow items={likesList} onClickAvatar={openLikeModal} /> : <div className="text-center py-3 text-secondary small"><i className="far fa-heart me-2"></i>{t("dashboard.noLikesYet")}</div>}
         </SectionCard>
       )}
 
       <SectionCard title="Matches" count={matchesList.length}>
-        {matchesList.length ? <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} /> : <div className="text-center py-3 text-secondary small"><i className="fas fa-heart me-2"></i>Pas encore de matches</div>}
+        {matchesList.length ? <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} /> : <div className="text-center py-3 text-secondary small"><i className="fas fa-heart me-2"></i>{t("dashboard.noMatchesYet")}</div>}
       </SectionCard>
 
-      <SectionCard title="Bloqués" count={blockedList.length}>
-        {blockedList.length ? <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} /> : <div className="text-center py-3 text-secondary small"><i className="fas fa-ban me-2"></i>Aucun utilisateur bloqué</div>}
+      <SectionCard title={t("dashboard.nav.blocked")} count={blockedList.length}>
+        {blockedList.length ? <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} /> : <div className="text-center py-3 text-secondary small"><i className="fas fa-ban me-2"></i>{t("dashboard.noBlockedYet")}</div>}
       </SectionCard>
     </div>
   );

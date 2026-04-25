@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import API from "@/api/axios";
+import { useI18n } from "../context/I18nContext";
 
 const getWsBase = () => {
   const configured = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
@@ -13,11 +14,13 @@ const getWsBase = () => {
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 export default function Messages() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
   const messagesEndRef = useRef(null);
   const wsRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messageInputRef = useRef(null);
 
   const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -31,6 +34,18 @@ export default function Messages() {
   const [error, setError] = useState("");
 
   const activeConversationId = activeConversation?.id;
+
+  const getRecentMatchNudge = () => {
+    if (!activeConversation || messages.length > 0) return null;
+    const createdAt = activeConversation.created_at ? new Date(activeConversation.created_at) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) return null;
+    const diffMs = Date.now() - createdAt.getTime();
+    if (diffMs > 60 * 60 * 1000) return null;
+    const minutes = Math.max(1, Math.floor(diffMs / 60000));
+    return t("messages.matchNudge")
+      .replace("{{minutes}}", String(minutes))
+      .replace("{{suffix}}", minutes > 1 ? "s" : "");
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -146,11 +161,22 @@ export default function Messages() {
       setUser(me.data);
       const convs = await fetchConversations();
       const params = new URLSearchParams(location.search);
+      const matchId = Number(params.get("match"));
       const selectedId = Number(params.get("conversation"));
-      const selected = convs.find((c) => c.id === selectedId) || convs[0];
+      let selected = convs.find((c) => c.id === selectedId) || convs[0];
+
+      if (!selected && matchId) {
+        try {
+          const createdConv = await API.post(`/chat/conversations/create/`, { match_id: matchId });
+          const newList = await fetchConversations();
+          selected = newList.find((c) => c.id === createdConv.data?.id) || newList[0];
+        } catch (_) {
+          // keep graceful fallback if conversation already exists or cannot be created
+        }
+      }
       if (selected) await openConversation(selected);
     } catch (e) {
-      setError(e.response?.data?.error || e.message || "Unable to load messages");
+      setError(e.response?.data?.error || e.message || t("messages.unableToLoad"));
       if (e.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -173,17 +199,23 @@ export default function Messages() {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    if (activeConversationId && (!messages || messages.length === 0)) {
+      messageInputRef.current?.focus();
+    }
+  }, [activeConversationId, messages]);
+
   const onSelectFile = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const isImage = file.type.startsWith("image/");
     const isVideo = file.type.startsWith("video/");
     if (!isImage && !isVideo) {
-      setError("Only image and video files are allowed.");
+      setError(t("messages.onlyMediaAllowed"));
       return;
     }
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      setError("Attachment is too large. Max size is 20MB.");
+      setError(t("messages.fileTooLarge"));
       return;
     }
     setError("");
@@ -231,7 +263,7 @@ export default function Messages() {
       setIcebreakers([]);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      setError(e.response?.data?.error || "Message failed to send");
+      setError(e.response?.data?.error || t("messages.failedToSend"));
     } finally {
       setSending(false);
     }
@@ -260,10 +292,10 @@ export default function Messages() {
           <div className="col-lg-4">
             <div className="card border-0 shadow-sm rounded-4 h-100">
               <div className="card-header bg-white border-0 pt-3">
-                <h5 className="mb-0">Messages</h5>
+                <h5 className="mb-0">{t("messages.title")}</h5>
               </div>
               <div className="card-body pt-2" style={{ maxHeight: "74vh", overflowY: "auto" }}>
-                {conversations.length === 0 && <p className="text-secondary small mb-0">No conversations yet.</p>}
+                {conversations.length === 0 && <p className="text-secondary small mb-0">{t("messages.noConversations")}</p>}
                 {conversations.map((conv) => (
                   <button
                     key={conv.id}
@@ -283,7 +315,7 @@ export default function Messages() {
                           <small className="text-muted">{formatTime(conv.last_message?.created_at || conv.updated_at)}</small>
                         </div>
                         <small className="text-muted text-truncate d-block">
-                          {conv.last_message?.content || (conv.last_message?.message_type === "image" ? "Photo" : conv.last_message?.message_type === "video" ? "Video" : "Start chatting")}
+                          {conv.last_message?.content || (conv.last_message?.message_type === "image" ? t("messages.photo") : conv.last_message?.message_type === "video" ? t("messages.video") : t("messages.startChat"))}
                         </small>
                       </div>
                       {!!conv.unread_count && <span className="badge rounded-pill bg-danger">{conv.unread_count}</span>}
@@ -302,16 +334,28 @@ export default function Messages() {
                     <img src={getPhotoUrl(otherUser.profile_photo_url)} alt={otherUser.full_name} style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover" }} />
                     <div>
                       <div className="fw-semibold">{otherUser.full_name}</div>
-                      <small className="text-muted">{otherUser.online_status || "offline"}</small>
+                      <small className="text-muted">{otherUser.online_status || t("messages.offline")}</small>
                     </div>
                   </>
                 ) : (
-                  <span className="text-muted">Select a conversation</span>
+                  <span className="text-muted">{t("messages.selectConversation")}</span>
                 )}
               </div>
 
               <div className="card-body" style={{ height: "56vh", overflowY: "auto", background: "#fafbff" }}>
                 {error && <div className="alert alert-danger py-2">{error}</div>}
+                {getRecentMatchNudge() && (
+                  <div className="alert alert-warning py-2 d-flex justify-content-between align-items-center">
+                    <span>{getRecentMatchNudge()}</span>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-dark rounded-pill"
+                      onClick={() => messageInputRef.current?.focus()}
+                    >
+                      {t("messages.sayHi")}
+                    </button>
+                  </div>
+                )}
                 {messages.map((msg) => {
                   const mine = !!msg.is_from_me;
                   return (
@@ -328,7 +372,7 @@ export default function Messages() {
                             <img src={msg.attachment_url} alt="attachment" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10 }} />
                           )
                         ) : null}
-                        <div className={`small mt-1 ${mine ? "text-white-50" : "text-muted"}`}>{formatTime(msg.created_at)}{mine && msg.read ? " - read" : ""}</div>
+                        <div className={`small mt-1 ${mine ? "text-white-50" : "text-muted"}`}>{formatTime(msg.created_at)}{mine && msg.read ? ` - ${t("messages.read")}` : ""}</div>
                       </div>
                     </div>
                   );
@@ -338,7 +382,7 @@ export default function Messages() {
 
               {activeConversationId && !messages.length && icebreakers.length > 0 && (
                 <div className="px-3 pt-2">
-                  <small className="text-muted d-block mb-2">Icebreakers</small>
+                  <small className="text-muted d-block mb-2">{t("messages.icebreakers")}</small>
                   <div className="d-flex flex-wrap gap-2">
                     {icebreakers.map((line) => (
                       <button key={line} type="button" className="btn btn-sm btn-outline-danger rounded-pill" onClick={() => applyIcebreaker(line)}>
@@ -360,7 +404,7 @@ export default function Messages() {
                   </div>
                 )}
                 <form onSubmit={sendMessage} className="d-flex gap-2 align-items-center">
-                  <button type="button" className="btn btn-light rounded-circle" onClick={() => fileInputRef.current?.click()} title="Attach image/video">
+                  <button type="button" className="btn btn-light rounded-circle" onClick={() => fileInputRef.current?.click()} title={t("messages.attachTitle")}>
                     <i className="fas fa-paperclip" />
                   </button>
                   <input
@@ -371,15 +415,16 @@ export default function Messages() {
                     style={{ display: "none" }}
                   />
                   <input
+                    ref={messageInputRef}
                     type="text"
                     className="form-control rounded-pill"
-                    placeholder="Type your message..."
+                    placeholder={t("messages.typePlaceholder")}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     disabled={!activeConversationId || sending}
                   />
                   <button className="btn btn-danger rounded-pill px-3" disabled={sending || (!text.trim() && !attachmentFile) || !activeConversationId}>
-                    {sending ? "..." : "Send"}
+                    {sending ? "..." : t("messages.send")}
                   </button>
                 </form>
               </div>

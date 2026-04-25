@@ -89,9 +89,12 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + parse_csv_env("EXTRA_CSRF_TRUSTED_ORIGINS")
 
+# Detect if we're actually deployed on Railway (has HTTPS termination)
+IS_RAILWAY_DEPLOYMENT = bool(config('RAILWAY_SERVICE_NAME', default=''))
+
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=True)
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=IS_RAILWAY_DEPLOYMENT)
     SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=31536000, cast=int)
     SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
     SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", default=True)

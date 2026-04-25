@@ -12,6 +12,41 @@ from datetime import timedelta
 from django.db import models
 from django.contrib.auth import get_user_model
 from users.models import User
+from users.visibility import inject_like_reciprocal_visibility
+
+
+def _get_like_limit_context(user):
+    """
+    Free plan policy:
+    - Default: 20 likes / rolling 12h.
+    - New users in first 24h with no matches yet: boosted to 100 / 12h
+      to maximize time-to-first-match.
+    - Premium/god_mode: unlimited.
+    """
+    account_type = (user.account_type or 'free').lower()
+    if account_type in ['premium', 'god_mode']:
+        return {
+            "daily_limit": None,
+            "is_unlimited": True,
+            "is_new_user_boost": False,
+        }
+
+    first_day = user.date_joined and user.date_joined >= timezone.now() - timedelta(hours=24)
+    has_any_match = (
+        user.matches_as_user1.exists() or user.matches_as_user2.exists()
+    )
+    if first_day and not has_any_match:
+        return {
+            "daily_limit": 100,
+            "is_unlimited": False,
+            "is_new_user_boost": True,
+        }
+
+    return {
+        "daily_limit": 20,
+        "is_unlimited": False,
+        "is_new_user_boost": False,
+    }
 
 
 class LikeCreateView(APIView):
@@ -27,15 +62,21 @@ class LikeCreateView(APIView):
             created_at__gte=twelve_hours_ago
         ).count()
 
-        if user.account_type == 'free' and likes_last_12h >= 20:
+        limit_ctx = _get_like_limit_context(user)
+        daily_limit = limit_ctx["daily_limit"]
+        if daily_limit is not None and likes_last_12h >= daily_limit:
             return Response(
-                {"error": "You have reached 20 likes in the last 12 hours. Please wait."},
+                {"error": f"You have reached {daily_limit} likes in the last 12 hours. Please wait."},
                 status=status.HTTP_403_FORBIDDEN
             )
 
         serializer = LikeSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             like = serializer.save()
+            try:
+                inject_like_reciprocal_visibility(like.from_user, like.to_user)
+            except Exception:
+                logging.exception("like reciprocal visibility injection failed")
             # Increment DailySwipe for analytics
             DailySwipe.increment_swipe(user, 'like')
             response_serializer = LikeSerializer(like, context={'request': request})
@@ -336,13 +377,12 @@ class GetSwipeLimitsView(APIView):
 
         logging.debug("swipe-limits user_id=%s account_type=%s likes_last_12h=%s", user.id, account_type, likes_last_12h)
 
-        # For any account that is NOT premium or god_mode, use 20 likes limit
-        if account_type in ['premium', 'god_mode']:
-            daily_limit = None
+        limit_ctx = _get_like_limit_context(user)
+        daily_limit = limit_ctx["daily_limit"]
+        if limit_ctx["is_unlimited"]:
             likes_remaining = None
             can_like = True
         else:
-            daily_limit = 20
             likes_remaining = max(0, daily_limit - likes_last_12h)
             can_like = likes_remaining > 0
 
@@ -352,6 +392,7 @@ class GetSwipeLimitsView(APIView):
             'likes_today': likes_last_12h,
             'daily_limit': daily_limit,
             'account_type': account_type,
+            'is_new_user_boost': limit_ctx["is_new_user_boost"],
         })
 
 
@@ -380,9 +421,11 @@ class IncrementLikeView(APIView):
             created_at__gte=twelve_hours_ago
         ).count()
 
-        if user.account_type == 'free' and likes_last_12h >= 20:
+        limit_ctx = _get_like_limit_context(user)
+        daily_limit = limit_ctx["daily_limit"]
+        if daily_limit is not None and likes_last_12h >= daily_limit:
             return Response(
-                {"error": "You have reached 20 likes in the last 12 hours. Please wait."},
+                {"error": f"You have reached {daily_limit} likes in the last 12 hours. Please wait."},
                 status=status.HTTP_403_FORBIDDEN   # changed from 429 to 403
             )
 
@@ -395,6 +438,10 @@ class IncrementLikeView(APIView):
             if created:
                 # Increment DailySwipe for analytics only
                 DailySwipe.increment_swipe(user, 'like')
+                try:
+                    inject_like_reciprocal_visibility(user, like.to_user)
+                except Exception:
+                    logging.exception("increment-like reciprocal visibility injection failed")
 
                 # Send notification
                 from notifications.utils import send_like_notification
@@ -407,13 +454,10 @@ class IncrementLikeView(APIView):
                 ).first()
                 if reverse_like:
                     from matches.models import Match
-                    match, _ = Match.objects.get_or_create(
+                    Match.objects.get_or_create(
                         user1_id=min(user.id, to_user_id),
                         user2_id=max(user.id, to_user_id)
                     )
-                    if _:
-                        from notifications.utils import send_match_notification
-                        send_match_notification(match, user, reverse_like.from_user)
 
                 return Response({"success": True, "message": "Like recorded"}, status=201)
             else:

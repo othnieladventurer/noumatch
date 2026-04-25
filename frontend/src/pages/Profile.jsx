@@ -4,8 +4,10 @@ import DashboardNavbar from "../components/DashboardNavbar";
 import API from '@/api/axios';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
+import { useI18n } from "../context/I18nContext";
 
 export default function Profile() {
+  const { language, setLanguage, t } = useI18n();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1819,6 +1821,27 @@ export default function Profile() {
               )}
             </div>
           )}
+
+          <div className="profile-section">
+            <h3 className="section-title">
+              <i className="fas fa-sliders-h"></i>
+              {t("profile.settingsTitle")}
+            </h3>
+            <div className="row g-3">
+              <div className="col-12">
+                <label className="edit-form-label">{t("common.language")}</label>
+                <select
+                  className="edit-form-control"
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value)}
+                >
+                  <option value="fr">{t("common.french")}</option>
+                  <option value="en">{t("common.english")}</option>
+                </select>
+                <div className="small text-secondary mt-2">{t("profile.settingsLanguageHelp")}</div>
+              </div>
+            </div>
+          </div>
 
           <div className="action-buttons">
             {editing ? (

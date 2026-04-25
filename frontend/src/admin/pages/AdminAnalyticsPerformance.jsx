@@ -199,9 +199,19 @@ export default function AdminAnalyticsPerformance() {
   };
 
   const safeMetrics = metrics || {};
+  const behavior = safeMetrics.behavior || {};
   const dauDelta = safeMetrics.dau_delta || 0;
   const trendUp = dauDelta >= 0;
   const series = safeMetrics.series || [];
+
+  const formatDuration = (seconds) => {
+    if (seconds === null || seconds === undefined) return 'n/a';
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const minutes = seconds / 60;
+    if (minutes < 60) return `${minutes.toFixed(1)}m`;
+    const hours = minutes / 60;
+    return `${hours.toFixed(1)}h`;
+  };
 
   const csvRows = useMemo(() => {
     return series.map((row) => ({
@@ -362,6 +372,44 @@ export default function AdminAnalyticsPerformance() {
             <div className="metric-card">
               <div className="metric-icon bg-info-light"><i className="fas fa-percent text-info"></i></div>
               <div className="metric-info"><h6>DAU/MAU</h6><p className="metric-value">{((safeMetrics.stickiness || 0) * 100).toFixed(1)}%</p></div>
+            </div>
+          </div>
+
+          <div className="recent-blocks-card mt-4" style={{ margin: '1.5rem 0 0 0' }}>
+            <div className="card-header">
+              <h5><i className="fas fa-bolt me-2 text-warning"></i>Behavior Critical Metrics</h5>
+            </div>
+            <div className="card-body">
+              <div className="row g-3">
+                <div className="col-md-3">
+                  <div className="p-3 rounded border bg-light">
+                    <div className="small text-uppercase text-muted">Time To First Like (Median)</div>
+                    <div className="fs-4 fw-bold">{formatDuration(behavior?.time_to_first_like?.median_seconds)}</div>
+                    <div className="small text-muted">Target: &lt; 60s</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="p-3 rounded border bg-light">
+                    <div className="small text-uppercase text-muted">Time To First Match (Median)</div>
+                    <div className="fs-4 fw-bold">{formatDuration(behavior?.time_to_first_match?.median_seconds)}</div>
+                    <div className="small text-muted">Target: &lt; 5m</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="p-3 rounded border bg-light">
+                    <div className="small text-uppercase text-muted">Match To Message</div>
+                    <div className="fs-4 fw-bold">{(behavior?.match_to_message_rate_percent ?? 0).toFixed(1)}%</div>
+                    <div className="small text-muted">Target: &gt; 60%</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="p-3 rounded border bg-light">
+                    <div className="small text-uppercase text-muted">Conversation Depth</div>
+                    <div className="fs-4 fw-bold">{(behavior?.avg_messages_per_started_conversation ?? 0).toFixed(2)}</div>
+                    <div className="small text-muted">Messages per started conversation</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

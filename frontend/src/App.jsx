@@ -16,7 +16,6 @@ import Register from "./pages/Register.jsx";
 import Waitlist from "./pages/Waitlist.jsx";
 import WaitlistWomen from "./pages/WaitlistWomen.jsx";
 import WaitlistMen from "./pages/WaitlistMen.jsx";
-import WaitlistStats from "./pages/WaitlistStats.jsx";
 
 import EmailVerify from "./pages/VerifyEmail.jsx";
 import EmailVerified from "./pages/VerifyEmailSuccess.jsx";
@@ -106,7 +105,6 @@ export default function App() {
             <Route path="/waitlist" element={<Waitlist />} />
             <Route path="/waitlist/women" element={<WaitlistWomen />} />
             <Route path="/waitlist/men" element={<WaitlistMen />} />
-            <Route path="/waitlist/stats" element={<WaitlistStats />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
 

@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Q, Count, Avg, Sum
+from django.db.models import Q, Count, Avg, Sum, OuterRef, Subquery
 from django.utils import timezone
 from datetime import timedelta, datetime
 from math import ceil
@@ -19,6 +19,7 @@ from django.conf import settings
 
 from users.models import User, UserEngagementScore
 from users.scoring import refresh_user_score
+from users.visibility import admin_boost_visibility, admin_reduce_visibility, admin_force_inject
 from interactions.models import Like, Pass, DailySwipe
 from matches.models import Match
 from block.models import Block
@@ -342,6 +343,17 @@ class AdminDashboardView(APIView):
             for item in score_qs.order_by('-overall_score', '-total_points')[:10]
         ]
 
+        product_users = _product_users_queryset()
+        zero_match_users_count = product_users.filter(
+            matches_as_user1__isnull=True,
+            matches_as_user2__isnull=True,
+        ).count()
+        avg_matches_per_user = (
+            round((Match.objects.count() * 2) / max(1, product_users.count()), 2)
+            if product_users.exists()
+            else 0.0
+        )
+
         return Response({
             'total_users': total_users,
             'active_today': active_today,
@@ -369,6 +381,8 @@ class AdminDashboardView(APIView):
             'avg_points': round(score_aggregates['avg_points'] or 0, 1),
             'high_scoring_users': high_scoring_users,
             'top_scored_users': top_scored_users,
+            'zero_match_users_count': zero_match_users_count,
+            'avg_matches_per_user': avg_matches_per_user,
         })
 
 
@@ -540,6 +554,91 @@ class AdminActiveUsersMetricsView(APIView):
             },
         ]
 
+        # --- Behavioral launch metrics (critical dating-product truth metrics) ---
+        cohort_users = product_users.filter(
+            date_joined__gte=range_start,
+            date_joined__lt=range_end,
+        )
+        first_like_subquery = Like.objects.filter(
+            from_user=OuterRef('pk')
+        ).order_by('created_at').values('created_at')[:1]
+        first_match_subquery = Match.objects.filter(
+            Q(user1=OuterRef('pk')) | Q(user2=OuterRef('pk'))
+        ).order_by('created_at').values('created_at')[:1]
+
+        cohort_with_firsts = cohort_users.annotate(
+            first_like_at=Subquery(first_like_subquery),
+            first_match_at=Subquery(first_match_subquery),
+        ).values('date_joined', 'first_like_at', 'first_match_at')
+
+        like_latencies = []
+        match_latencies = []
+        for row in cohort_with_firsts:
+            joined_at = row.get('date_joined')
+            first_like_at = row.get('first_like_at')
+            first_match_at = row.get('first_match_at')
+            if joined_at and first_like_at and first_like_at >= joined_at:
+                like_latencies.append((first_like_at - joined_at).total_seconds())
+            if joined_at and first_match_at and first_match_at >= joined_at:
+                match_latencies.append((first_match_at - joined_at).total_seconds())
+
+        def _summary(values):
+            if not values:
+                return {'avg_seconds': None, 'median_seconds': None, 'samples': 0}
+            ordered = sorted(values)
+            n = len(ordered)
+            if n % 2 == 1:
+                median = ordered[n // 2]
+            else:
+                median = (ordered[(n // 2) - 1] + ordered[n // 2]) / 2
+            avg = sum(ordered) / n
+            return {
+                'avg_seconds': round(avg, 1),
+                'median_seconds': round(median, 1),
+                'samples': n,
+            }
+
+        matches_in_range = Match.objects.filter(
+            created_at__gte=range_start,
+            created_at__lt=range_end,
+            user1_id__in=product_user_ids,
+            user2_id__in=product_user_ids,
+        )
+
+        total_matches_in_range = matches_in_range.count()
+        matched_with_message = 0
+        match_to_first_message_latencies = []
+        for m in matches_in_range:
+            try:
+                conv = m.conversation
+            except Conversation.DoesNotExist:
+                conv = None
+            first_message_at = getattr(conv, 'first_message_at', None) if conv else None
+            if first_message_at:
+                matched_with_message += 1
+                if first_message_at >= m.created_at:
+                    match_to_first_message_latencies.append((first_message_at - m.created_at).total_seconds())
+
+        match_to_message_rate = (
+            round((matched_with_message / total_matches_in_range) * 100, 1)
+            if total_matches_in_range else 0.0
+        )
+
+        started_conversations = Conversation.objects.filter(
+            match__created_at__gte=range_start,
+            match__created_at__lt=range_end,
+            first_message_at__isnull=False,
+        )
+        conversation_depth_values = []
+        for conv in started_conversations:
+            count = conv.messages.filter(sender_type='user').count()
+            if count > 0:
+                conversation_depth_values.append(count)
+        avg_messages_per_started_conversation = (
+            round(sum(conversation_depth_values) / len(conversation_depth_values), 2)
+            if conversation_depth_values else 0.0
+        )
+
         return Response({
             'dau': dau,
             'wau': wau,
@@ -557,6 +656,16 @@ class AdminActiveUsersMetricsView(APIView):
                 'steps': funnel_steps,
                 'date_from': date_from.isoformat(),
                 'date_to': date_to.isoformat(),
+            },
+            'behavior': {
+                'time_to_first_like': _summary(like_latencies),
+                'time_to_first_match': _summary(match_latencies),
+                'match_to_message_rate_percent': match_to_message_rate,
+                'time_match_to_first_message': _summary(match_to_first_message_latencies),
+                'avg_messages_per_started_conversation': avg_messages_per_started_conversation,
+                'cohort_users_count': cohort_users.count(),
+                'matches_in_range_count': total_matches_in_range,
+                'matches_with_message_count': matched_with_message,
             },
             'date_from': date_from.isoformat(),
             'date_to': date_to.isoformat(),
@@ -935,6 +1044,103 @@ class AdminUserActionView(APIView):
             target.save()
             return Response({'message': f'User {target.email} verified'})
         return Response({'error': 'Invalid action'}, status=400)
+
+
+class AdminVisibilityActionView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        action = (request.data.get('action') or '').strip().lower()
+        if not user_id or not action:
+            return Response({'error': 'user_id and action required'}, status=400)
+
+        target = get_object_or_404(User, id=user_id)
+        if action not in {'boost', 'reduce', 'inject'}:
+            return Response({'error': 'Invalid visibility action'}, status=400)
+
+        if action == 'boost':
+            affected = admin_boost_visibility(target, limit=20)
+        elif action == 'reduce':
+            affected = admin_reduce_visibility(target, limit=30)
+        else:
+            affected = admin_force_inject(target, limit=20)
+
+        return Response({
+            'message': f'Visibility action {action} applied',
+            'user_id': target.id,
+            'action': action,
+            'affected_boost_records': affected,
+        })
+
+
+class AdminLaunchMonitorView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        now = timezone.now()
+        product_users = _product_users_queryset()
+        total_product_users = product_users.count()
+
+        zero_match_qs = product_users.filter(
+            matches_as_user1__isnull=True,
+            matches_as_user2__isnull=True,
+        ).order_by('-last_activity', '-date_joined')[:50]
+
+        zero_match_users = []
+        for user in zero_match_qs:
+            impressions_24h = ProfileImpression.objects.filter(
+                viewed=user,
+                timestamp__gte=now - timedelta(hours=24),
+            ).count()
+            likes_given_24h = Like.objects.filter(
+                from_user=user,
+                created_at__gte=now - timedelta(hours=24),
+            ).count()
+            zero_match_users.append({
+                'id': user.id,
+                'email': user.email,
+                'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
+                'date_joined': user.date_joined,
+                'last_activity': user.last_activity,
+                'impressions_24h': impressions_24h,
+                'likes_given_24h': likes_given_24h,
+                'minutes_since_join': int((now - user.date_joined).total_seconds() // 60) if user.date_joined else None,
+            })
+
+        match_counts = []
+        for user in product_users:
+            match_count = Match.objects.filter(Q(user1=user) | Q(user2=user)).count()
+            match_counts.append(match_count)
+        avg_matches_per_user = round(sum(match_counts) / len(match_counts), 2) if match_counts else 0.0
+
+        # live time-to-first-match from onboarding cohort in the last 7 days
+        cohort_start = now - timedelta(days=7)
+        cohort = product_users.filter(date_joined__gte=cohort_start)
+        first_match_latencies = []
+        for user in cohort:
+            first_match = Match.objects.filter(
+                Q(user1=user) | Q(user2=user),
+                created_at__gte=user.date_joined,
+            ).order_by('created_at').first()
+            if first_match:
+                first_match_latencies.append((first_match.created_at - user.date_joined).total_seconds())
+        if first_match_latencies:
+            ordered = sorted(first_match_latencies)
+            n = len(ordered)
+            median = ordered[n // 2] if n % 2 == 1 else (ordered[(n // 2) - 1] + ordered[n // 2]) / 2
+            median_first_match_seconds = round(median, 1)
+        else:
+            median_first_match_seconds = None
+
+        return Response({
+            'total_product_users': total_product_users,
+            'zero_match_users_count': len(zero_match_users),
+            'avg_matches_per_user': avg_matches_per_user,
+            'median_time_to_first_match_seconds': median_first_match_seconds,
+            'zero_match_users': zero_match_users,
+            'generated_at': now,
+        })
 
 
 class AdminBlockUserView(APIView):

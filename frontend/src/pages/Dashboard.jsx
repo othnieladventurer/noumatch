@@ -12,12 +12,14 @@ import { useNotifications } from '../context/NotificationContext';
 import API from '@/api/axios';
 import "../styles/Dashboard.css";
 import { v4 as uuidv4 } from 'uuid';
+import { useI18n } from "../context/I18nContext";
 
 const MOBILE_BOTTOM_NAV_HEIGHT = 88;
 const PROFILES_PER_PAGE = 15;
 const PRELOAD_THRESHOLD = 5;
 
 export default function Dashboard() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1039,8 +1041,8 @@ export default function Dashboard() {
       case 'likes':
         return (
           <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
-            <SectionCard title="Qui vous aiment" count={likesList.length}>
-              {likesList.length > 0 ? <AvatarRow items={likesList} onClickAvatar={openLikeModal} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="far fa-heart me-2"></i><div>Aucun like pour le moment</div></div></div>}
+            <SectionCard title={t("dashboard.likesWhoLikeYou")} count={likesList.length}>
+              {likesList.length > 0 ? <AvatarRow items={likesList} onClickAvatar={openLikeModal} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="far fa-heart me-2"></i><div>{t("dashboard.noLikesYet")}</div></div></div>}
             </SectionCard>
           </div>
         );
@@ -1048,7 +1050,7 @@ export default function Dashboard() {
         return (
           <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
             <SectionCard title="Matches" count={matchesList.length}>
-              {matchesList.length > 0 ? <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="fas fa-heart me-2"></i><div>Pas encore de matches</div></div></div>}
+              {matchesList.length > 0 ? <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="fas fa-heart me-2"></i><div>{t("dashboard.noMatchesYet")}</div></div></div>}
             </SectionCard>
           </div>
         );
@@ -1056,7 +1058,7 @@ export default function Dashboard() {
         return (
           <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
             <SectionCard title="Bloqués" count={blockedList.length}>
-              {blockedList.length > 0 ? <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="fas fa-ban me-2"></i><div>Aucun utilisateur bloqué</div></div></div>}
+              {blockedList.length > 0 ? <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="fas fa-ban me-2"></i><div>{t("dashboard.noBlockedYet")}</div></div></div>}
             </SectionCard>
           </div>
         );
@@ -1197,7 +1199,7 @@ export default function Dashboard() {
                 {renderMobileContent()}
               </div>
             </div>
-            {windowWidth < 992 && <MobileBottomNav user={user} activeMobileTab={activeMobileTab} setActiveMobileTab={setActiveMobileTab} likesList={likesList} matchesList={matchesList} getProfilePhotoUrl={getProfilePhotoUrl} />}
+            {windowWidth < 992 && <MobileBottomNav user={user} activeMobileTab={activeMobileTab} setActiveMobileTab={setActiveMobileTab} likesList={likesList} matchesList={matchesList} getProfilePhotoUrl={getProfilePhotoUrl} t={t} />}
             
             <Modals
               user={user}
@@ -1442,33 +1444,33 @@ export default function Dashboard() {
 }
 
 // Internal components for mobile bottom nav
-const MobileBottomNav = ({ user, activeMobileTab, setActiveMobileTab, likesList, matchesList, getProfilePhotoUrl }) => {
+const MobileBottomNav = ({ user, activeMobileTab, setActiveMobileTab, likesList, matchesList, getProfilePhotoUrl, t }) => {
   const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
   return (
     <div className="mobile-bottom-nav">
       <button onClick={() => setActiveMobileTab('center')} className={`nav-item ${activeMobileTab === 'center' ? 'active' : ''}`}>
         <i className="fas fa-compass nav-icon"></i>
-        <span>Discover</span>
+        <span>{t("dashboard.nav.discover")}</span>
       </button>
       {isPremiumOrGod && (
         <button onClick={() => setActiveMobileTab('likes')} className={`nav-item ${activeMobileTab === 'likes' ? 'active' : ''}`} style={{ position: 'relative' }}>
           <i className="fas fa-heart nav-icon"></i>
           {likesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%', fontSize: '10px', padding: '2px 5px' }}>{likesList.length}</span>}
-          <span>Likes</span>
+          <span>{t("dashboard.nav.likes")}</span>
         </button>
       )}
       <button onClick={() => setActiveMobileTab('matches')} className={`nav-item ${activeMobileTab === 'matches' ? 'active' : ''}`} style={{ position: 'relative' }}>
         <i className="fas fa-comments nav-icon"></i>
         {matchesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%', fontSize: '10px', padding: '2px 5px' }}>{matchesList.length}</span>}
-        <span>Matches</span>
+        <span>{t("dashboard.nav.matches")}</span>
       </button>
       <button onClick={() => setActiveMobileTab('blocks')} className={`nav-item ${activeMobileTab === 'blocks' ? 'active' : ''}`}>
         <i className="fas fa-ban nav-icon"></i>
-        <span>Blocked</span>
+        <span>{t("dashboard.nav.blocked")}</span>
       </button>
       <button onClick={() => setActiveMobileTab('profile')} className={`nav-item ${activeMobileTab === 'profile' ? 'active' : ''}`}>
         <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '24px', height: '24px', objectFit: 'cover' }} />
-        <span>Profile</span>
+        <span>{t("dashboard.nav.profile")}</span>
       </button>
     </div>
   );
