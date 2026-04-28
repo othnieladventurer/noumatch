@@ -129,6 +129,7 @@ export default function AdminDashboard() {
             date_from: activeUserFilters.dateFrom,
             date_to: activeUserFilters.dateTo,
           },
+          timeout: 60000,
         });
         setActiveUsersMetrics(res.data);
         setActiveUsersError('');

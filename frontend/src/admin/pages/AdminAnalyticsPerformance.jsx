@@ -88,12 +88,22 @@ export default function AdminAnalyticsPerformance() {
       let response;
       let payload;
       try {
-        response = await adminRequest({ method: 'get', url: `${API_BASE}/admin/metrics/active-users/`, params });
+        response = await adminRequest({
+          method: 'get',
+          url: `${API_BASE}/admin/metrics/active-users/`,
+          params,
+          timeout: 60000,
+        });
         payload = response.data;
       } catch (primaryErr) {
         if (primaryErr.response?.status === 404) {
           try {
-            response = await adminRequest({ method: 'get', url: `${API_BASE}/metrics/active-users/`, params });
+            response = await adminRequest({
+              method: 'get',
+              url: `${API_BASE}/metrics/active-users/`,
+              params,
+              timeout: 60000,
+            });
             payload = response.data;
           } catch (compatErr) {
             if (compatErr.response?.status === 404) {

@@ -54,7 +54,7 @@ export const refreshAdminAccessToken = async () => {
 };
 
 export const adminRequest = async (config) => {
-  const timeout = typeof config.timeout === "number" ? config.timeout : 15000;
+  const timeout = typeof config.timeout === "number" ? config.timeout : 30000;
   const withToken = {
     timeout,
     withCredentials: true,
