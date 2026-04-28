@@ -1,9 +1,9 @@
 // src/pages/AdminWaitlist.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 import {
   Chart as ChartJS,
   ArcElement,
@@ -18,22 +18,7 @@ import { Pie, Bar } from 'react-chartjs-2';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
-const getApiBase = () => {
-  const env = import.meta.env.VITE_APP_ENVIRONMENT;
-  let baseDomain = '';
-  if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_API_URL;
-  } else if (import.meta.env.PROD) {
-    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : import.meta.env.VITE_API_URL;
-  } else {
-    return '/api/noumatch-admin';
-  }
-  return `${baseDomain}/api/noumatch-admin`;
-};
-
-const API_BASE = getApiBase();
+const API_BASE = getAdminApiBase();
 
 export default function AdminWaitlist() {
   const navigate = useNavigate();
@@ -76,21 +61,20 @@ export default function AdminWaitlist() {
   }, [darkMode]);
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) navigate('/admin/login');
   }, [navigate]);
 
   const fetchAllData = async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) return;
     setLoading(true);
     try {
-      const requestConfig = { withCredentials: true };
       const [statsRes, pendingRes, acceptedRes, archivedRes] = await Promise.all([
-        axios.get(`${API_BASE}/waitlist/stats/`, requestConfig),
-        axios.get(`${API_BASE}/waitlist/waiting/`, requestConfig),
-        axios.get(`${API_BASE}/waitlist/accepted/`, requestConfig),
-        axios.get(`${API_BASE}/waitlist/archived/`, requestConfig),
+        adminRequest({ method: 'get', url: `${API_BASE}/waitlist/stats/` }),
+        adminRequest({ method: 'get', url: `${API_BASE}/waitlist/waiting/` }),
+        adminRequest({ method: 'get', url: `${API_BASE}/waitlist/accepted/` }),
+        adminRequest({ method: 'get', url: `${API_BASE}/waitlist/archived/` }),
       ]);
       setStats(statsRes.data);
       setPending(pendingRes.data);
@@ -131,12 +115,12 @@ export default function AdminWaitlist() {
   };
 
   const processContact = async (user) => {
-    const token = localStorage.getItem('admin_access');
     try {
-      await axios.post(`${API_BASE}/waitlist/${user.id}/contact/`, 
-        { notes: `Contacted via campaign on ${new Date().toISOString()}` }, 
-        { withCredentials: true }
-      );
+      await adminRequest({
+        method: 'post',
+        url: `${API_BASE}/waitlist/${user.id}/contact/`,
+        data: { notes: `Contacted via campaign on ${new Date().toISOString()}` },
+      });
       return true;
     } catch (err) {
       console.error(`Failed to contact ${user.email}:`, err);
@@ -145,15 +129,15 @@ export default function AdminWaitlist() {
   };
 
   const archiveAllAccepted = async () => {
-    const token = localStorage.getItem('admin_access');
     setActionLoading(true);
     let successCount = 0;
     for (const user of accepted) {
       try {
-        await axios.post(`${API_BASE}/waitlist/${user.id}/contact/`, 
-          { notes: `Bulk archived on ${new Date().toISOString()} - Moved to archive to free waitlist` }, 
-          { withCredentials: true }
-        );
+        await adminRequest({
+          method: 'post',
+          url: `${API_BASE}/waitlist/${user.id}/contact/`,
+          data: { notes: `Bulk archived on ${new Date().toISOString()} - Moved to archive to free waitlist` },
+        });
         successCount++;
       } catch (err) {
         console.error(`Failed to archive ${user.email}:`, err);
@@ -184,10 +168,7 @@ export default function AdminWaitlist() {
   const handleAccept = async (entry) => {
     setActionLoading(true);
     try {
-      const token = localStorage.getItem('admin_access');
-      await axios.post(`${API_BASE}/waitlist/${entry.id}/accept/`, {}, {
-        withCredentials: true
-      });
+      await adminRequest({ method: 'post', url: `${API_BASE}/waitlist/${entry.id}/accept/`, data: {} });
       await fetchAllData();
     } catch (err) {
       alert('Failed to accept entry');
@@ -212,17 +193,12 @@ export default function AdminWaitlist() {
 
   const executeDelete = async () => {
     if (!deleteTarget) return;
-    const token = localStorage.getItem('admin_access');
     setActionLoading(true);
     try {
       if (deleteIsArchived) {
-        await axios.delete(`${API_BASE}/waitlist/archive/${deleteTarget.id}/delete/`, {
-          withCredentials: true
-        });
+        await adminRequest({ method: 'delete', url: `${API_BASE}/waitlist/archive/${deleteTarget.id}/delete/` });
       } else {
-        await axios.delete(`${API_BASE}/waitlist/${deleteTarget.id}/delete/`, {
-          withCredentials: true
-        });
+        await adminRequest({ method: 'delete', url: `${API_BASE}/waitlist/${deleteTarget.id}/delete/` });
       }
       await fetchAllData();
       setShowDeleteModal(false);
@@ -242,11 +218,12 @@ export default function AdminWaitlist() {
 
   const executeContact = async () => {
     if (!contactTarget) return;
-    const token = localStorage.getItem('admin_access');
     setActionLoading(true);
     try {
-      await axios.post(`${API_BASE}/waitlist/${contactTarget.id}/contact/`, { notes: contactNotes }, {
-        withCredentials: true
+      await adminRequest({
+        method: 'post',
+        url: `${API_BASE}/waitlist/${contactTarget.id}/contact/`,
+        data: { notes: contactNotes },
       });
       await fetchAllData();
       setShowContactModal(false);

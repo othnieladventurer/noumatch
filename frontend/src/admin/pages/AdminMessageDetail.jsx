@@ -1,34 +1,12 @@
 // src/pages/AdminMessageDetail.jsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
-// Build the correct API base URL from environment variables (consistent with other admin pages)
-const getApiBase = () => {
-  const env = import.meta.env.VITE_APP_ENVIRONMENT;
-  let baseDomain = '';
-
-  if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_API_URL;
-  } else if (import.meta.env.PROD) {
-    // Production - use production API domain
-    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : import.meta.env.VITE_API_URL;
-  } else {
-    // Development - use relative path (proxy)
-    return '/api/noumatch-admin';
-  }
-
-  const adminPath = '/api/noumatch-admin';
-  const fullUrl = `${baseDomain}${adminPath}`;
-  return fullUrl;
-};
-
-const API_BASE = getApiBase();
+const API_BASE = getAdminApiBase();
 
 export default function AdminMessageDetail() {
   const { id } = useParams();
@@ -54,7 +32,7 @@ export default function AdminMessageDetail() {
   }, [darkMode]);
 
   const fetchConversation = async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
@@ -62,15 +40,11 @@ export default function AdminMessageDetail() {
     setError('');
     try {
       const convUrl = `${API_BASE}/support-conversations/${id}/`;
-      const convRes = await axios.get(convUrl, {
-        withCredentials: true
-      });
+      const convRes = await adminRequest({ method: 'get', url: convUrl });
       setConversation(convRes.data);
 
       const msgUrl = `${API_BASE}/support-conversations/${id}/messages/`;
-      const msgRes = await axios.get(msgUrl, {
-        withCredentials: true
-      });
+      const msgRes = await adminRequest({ method: 'get', url: msgUrl });
       setMessages(msgRes.data);
     } catch (err) {
       console.error('❌ Fetch error:', err);
@@ -91,13 +65,10 @@ export default function AdminMessageDetail() {
 
   const handleReply = async () => {
     if (!replyText.trim()) return;
-    const token = localStorage.getItem('admin_access');
     setSending(true);
     try {
       const replyUrl = `${API_BASE}/support-conversations/${id}/reply/`;
-      await axios.post(replyUrl, { content: replyText }, {
-        withCredentials: true
-      });
+      await adminRequest({ method: 'post', url: replyUrl, data: { content: replyText } });
       setReplyText('');
       fetchConversation(); // refresh
     } catch (err) {

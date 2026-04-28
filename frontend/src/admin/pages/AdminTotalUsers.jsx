@@ -1,11 +1,11 @@
 // src/pages/AdminTotalUsers.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import BrandLogo from '../../components/BrandLogo';
 import './AdminDashboard.css';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
-const API_BASE = '/api/noumatch-admin';
+const API_BASE = getAdminApiBase();
 
 export default function AdminTotalUsers() {
   const [users, setUsers] = useState([]);
@@ -28,7 +28,7 @@ export default function AdminTotalUsers() {
   }, [darkMode]);
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
@@ -36,9 +36,7 @@ export default function AdminTotalUsers() {
 
     const fetchUsers = async () => {
       try {
-        const res = await axios.get(`${API_BASE}/users/`, {
-          withCredentials: true
-        });
+        const res = await adminRequest({ method: 'get', url: `${API_BASE}/users/` });
         setUsers(res.data);
       } catch (err) {
         console.error('Failed to fetch users', err);

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
 import App from './App.jsx';
+import { setupAdminAxiosInterceptor } from './admin/utils/adminApi';
 import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { BrowserRouter } from 'react-router-dom';
@@ -46,6 +47,7 @@ window.addEventListener('unhandledrejection', (event) => {
 
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+setupAdminAxiosInterceptor();
 
 const normalizeLegacyHashRoute = () => {
   const hash = window.location.hash || '';

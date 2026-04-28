@@ -15,7 +15,9 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.db import DatabaseError
 from django.conf import settings
+import logging
 
 from users.models import User, UserEngagementScore
 from users.scoring import refresh_user_score
@@ -34,6 +36,8 @@ from users.auth_cookies import set_auth_cookies, clear_auth_cookies, get_refresh
 
 # Waitlist models only (no serializers import – we define them inline)
 from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
+
+logger = logging.getLogger(__name__)
 
 
 def _product_users_queryset():
@@ -390,101 +394,102 @@ class AdminActiveUsersMetricsView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        now = timezone.now()
-        start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        start_yesterday = start_today - timedelta(days=1)
-
-        actions_raw = request.GET.get('actions', '').strip().lower()
-        allowed_actions = {'login', 'view', 'like', 'message'}
-        selected_actions = (
-            {item.strip() for item in actions_raw.split(',') if item.strip() in allowed_actions}
-            if actions_raw and actions_raw != 'all'
-            else set(allowed_actions)
-        )
-        if not selected_actions:
-            selected_actions = set(allowed_actions)
-
-        def count_active(start_dt, end_dt):
-            filters = _build_activity_filters(start_dt, end_dt, selected_actions)
-            return product_users.filter(filters).distinct().count()
-
-        product_users = _product_users_queryset()
-
-        dau = count_active(start_today, now)
-        yesterday_dau = count_active(start_yesterday, start_today)
-        wau = count_active(now - timedelta(days=7), now)
-        mau = count_active(now - timedelta(days=30), now)
-        stickiness = (dau / mau) if mau else 0
-
-        date_from_raw = request.GET.get('date_from')
-        date_to_raw = request.GET.get('date_to')
-        default_start_date = (start_today - timedelta(days=13)).date()
-        default_end_date = start_today.date()
-
         try:
-            date_from = datetime.strptime(date_from_raw, '%Y-%m-%d').date() if date_from_raw else default_start_date
-        except ValueError:
-            date_from = default_start_date
-        try:
-            date_to = datetime.strptime(date_to_raw, '%Y-%m-%d').date() if date_to_raw else default_end_date
-        except ValueError:
-            date_to = default_end_date
+            now = timezone.now()
+            start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            start_yesterday = start_today - timedelta(days=1)
 
-        if date_from > date_to:
-            date_from, date_to = date_to, date_from
+            actions_raw = request.GET.get('actions', '').strip().lower()
+            allowed_actions = {'login', 'view', 'like', 'message'}
+            selected_actions = (
+                {item.strip() for item in actions_raw.split(',') if item.strip() in allowed_actions}
+                if actions_raw and actions_raw != 'all'
+                else set(allowed_actions)
+            )
+            if not selected_actions:
+                selected_actions = set(allowed_actions)
 
-        max_days = 90
-        if (date_to - date_from).days + 1 > max_days:
-            date_from = date_to - timedelta(days=max_days - 1)
+            def count_active(start_dt, end_dt):
+                filters = _build_activity_filters(start_dt, end_dt, selected_actions)
+                return product_users.filter(filters).distinct().count()
 
-        series = []
-        daily_activity_mix = []
-        current_date = date_from
-        tz = timezone.get_current_timezone()
-        while current_date <= date_to:
-            day_start = timezone.make_aware(datetime.combine(current_date, datetime.min.time()), timezone=tz)
-            day_end = day_start + timedelta(days=1)
-            day_dau = count_active(day_start, day_end)
-            day_wau = count_active(day_end - timedelta(days=7), day_end)
-            day_mau = count_active(day_end - timedelta(days=30), day_end)
-            day_stickiness = (day_dau / day_mau) if day_mau else 0
+            product_users = _product_users_queryset()
 
-            series.append({
-                'date': current_date.isoformat(),
-                'dau': day_dau,
-                'wau': day_wau,
-                'mau': day_mau,
-                'stickiness': round(day_stickiness, 4),
-            })
+            dau = count_active(start_today, now)
+            yesterday_dau = count_active(start_yesterday, start_today)
+            wau = count_active(now - timedelta(days=7), now)
+            mau = count_active(now - timedelta(days=30), now)
+            stickiness = (dau / mau) if mau else 0
 
-            daily_activity_mix.append({
-                'date': current_date.isoformat(),
-                'login': product_users.filter(
-                    last_login__gte=day_start,
-                    last_login__lt=day_end,
-                ).distinct().count(),
-                'view': product_users.filter(
-                    impressions_made__timestamp__gte=day_start,
-                    impressions_made__timestamp__lt=day_end,
-                ).distinct().count(),
-                'like': product_users.filter(
-                    likes_sent__created_at__gte=day_start,
-                    likes_sent__created_at__lt=day_end,
-                ).distinct().count(),
-                'message': product_users.filter(
-                    sent_messages__created_at__gte=day_start,
-                    sent_messages__created_at__lt=day_end,
-                    sent_messages__sender_type='user',
-                    sent_messages__conversation__isnull=False,
-                ).distinct().count(),
-            })
-            current_date += timedelta(days=1)
+            date_from_raw = request.GET.get('date_from')
+            date_to_raw = request.GET.get('date_to')
+            default_start_date = (start_today - timedelta(days=13)).date()
+            default_end_date = start_today.date()
 
-        tz = timezone.get_current_timezone()
-        range_start = timezone.make_aware(datetime.combine(date_from, datetime.min.time()), timezone=tz)
-        range_end = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time()), timezone=tz)
+            try:
+                date_from = datetime.strptime(date_from_raw, '%Y-%m-%d').date() if date_from_raw else default_start_date
+            except ValueError:
+                date_from = default_start_date
+            try:
+                date_to = datetime.strptime(date_to_raw, '%Y-%m-%d').date() if date_to_raw else default_end_date
+            except ValueError:
+                date_to = default_end_date
 
-        range_activity_mix = {
+            if date_from > date_to:
+                date_from, date_to = date_to, date_from
+
+            max_days = 90
+            if (date_to - date_from).days + 1 > max_days:
+                date_from = date_to - timedelta(days=max_days - 1)
+
+            series = []
+            daily_activity_mix = []
+            current_date = date_from
+            tz = timezone.get_current_timezone()
+            while current_date <= date_to:
+                day_start = timezone.make_aware(datetime.combine(current_date, datetime.min.time()), timezone=tz)
+                day_end = day_start + timedelta(days=1)
+                day_dau = count_active(day_start, day_end)
+                day_wau = count_active(day_end - timedelta(days=7), day_end)
+                day_mau = count_active(day_end - timedelta(days=30), day_end)
+                day_stickiness = (day_dau / day_mau) if day_mau else 0
+
+                series.append({
+                    'date': current_date.isoformat(),
+                    'dau': day_dau,
+                    'wau': day_wau,
+                    'mau': day_mau,
+                    'stickiness': round(day_stickiness, 4),
+                })
+
+                daily_activity_mix.append({
+                    'date': current_date.isoformat(),
+                    'login': product_users.filter(
+                        last_login__gte=day_start,
+                        last_login__lt=day_end,
+                    ).distinct().count(),
+                    'view': product_users.filter(
+                        impressions_made__timestamp__gte=day_start,
+                        impressions_made__timestamp__lt=day_end,
+                    ).distinct().count(),
+                    'like': product_users.filter(
+                        likes_sent__created_at__gte=day_start,
+                        likes_sent__created_at__lt=day_end,
+                    ).distinct().count(),
+                    'message': product_users.filter(
+                        sent_messages__created_at__gte=day_start,
+                        sent_messages__created_at__lt=day_end,
+                        sent_messages__sender_type='user',
+                        sent_messages__conversation__isnull=False,
+                    ).distinct().count(),
+                })
+                current_date += timedelta(days=1)
+
+            tz = timezone.get_current_timezone()
+            range_start = timezone.make_aware(datetime.combine(date_from, datetime.min.time()), timezone=tz)
+            range_end = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time()), timezone=tz)
+
+            range_activity_mix = {
             'login': product_users.filter(
                 last_login__gte=range_start,
                 last_login__lt=range_end,
@@ -503,24 +508,24 @@ class AdminActiveUsersMetricsView(APIView):
                 sent_messages__sender_type='user',
                 sent_messages__conversation__isnull=False,
             ).distinct().count(),
-        }
+            }
 
-        product_user_ids = product_users.values_list('id', flat=True)
-        funnel_views = ProfileImpression.objects.filter(
+            product_user_ids = product_users.values_list('id', flat=True)
+            funnel_views = ProfileImpression.objects.filter(
             viewer_id__in=product_user_ids,
             timestamp__gte=range_start,
             timestamp__lt=range_end,
         ).values('viewer_id').distinct().count()
-        funnel_likes = Like.objects.filter(
+            funnel_likes = Like.objects.filter(
             from_user_id__in=product_user_ids,
             created_at__gte=range_start,
             created_at__lt=range_end,
         ).values('from_user_id').distinct().count()
-        funnel_matches = product_users.filter(
+            funnel_matches = product_users.filter(
             Q(matches_as_user1__created_at__gte=range_start, matches_as_user1__created_at__lt=range_end)
             | Q(matches_as_user2__created_at__gte=range_start, matches_as_user2__created_at__lt=range_end)
         ).distinct().count()
-        funnel_messages = Message.objects.filter(
+            funnel_messages = Message.objects.filter(
             sender_id__in=product_user_ids,
             sender_type='user',
             conversation__isnull=False,
@@ -528,10 +533,10 @@ class AdminActiveUsersMetricsView(APIView):
             created_at__lt=range_end,
         ).values('sender_id').distinct().count()
 
-        def _conv(current, previous):
-            return round((current / previous) * 100, 1) if previous else 0.0
+            def _conv(current, previous):
+                return round((current / previous) * 100, 1) if previous else 0.0
 
-        funnel_steps = [
+            funnel_steps = [
             {
                 'step': 'Views',
                 'users': funnel_views,
@@ -552,94 +557,94 @@ class AdminActiveUsersMetricsView(APIView):
                 'users': funnel_messages,
                 'conversion_from_previous': _conv(funnel_messages, funnel_matches),
             },
-        ]
+            ]
 
         # --- Behavioral launch metrics (critical dating-product truth metrics) ---
-        cohort_users = product_users.filter(
+            cohort_users = product_users.filter(
             date_joined__gte=range_start,
             date_joined__lt=range_end,
         )
-        first_like_subquery = Like.objects.filter(
+            first_like_subquery = Like.objects.filter(
             from_user=OuterRef('pk')
         ).order_by('created_at').values('created_at')[:1]
-        first_match_subquery = Match.objects.filter(
+            first_match_subquery = Match.objects.filter(
             Q(user1=OuterRef('pk')) | Q(user2=OuterRef('pk'))
         ).order_by('created_at').values('created_at')[:1]
 
-        cohort_with_firsts = cohort_users.annotate(
+            cohort_with_firsts = cohort_users.annotate(
             first_like_at=Subquery(first_like_subquery),
             first_match_at=Subquery(first_match_subquery),
         ).values('date_joined', 'first_like_at', 'first_match_at')
 
-        like_latencies = []
-        match_latencies = []
-        for row in cohort_with_firsts:
-            joined_at = row.get('date_joined')
-            first_like_at = row.get('first_like_at')
-            first_match_at = row.get('first_match_at')
-            if joined_at and first_like_at and first_like_at >= joined_at:
-                like_latencies.append((first_like_at - joined_at).total_seconds())
-            if joined_at and first_match_at and first_match_at >= joined_at:
-                match_latencies.append((first_match_at - joined_at).total_seconds())
+            like_latencies = []
+            match_latencies = []
+            for row in cohort_with_firsts:
+                joined_at = row.get('date_joined')
+                first_like_at = row.get('first_like_at')
+                first_match_at = row.get('first_match_at')
+                if joined_at and first_like_at and first_like_at >= joined_at:
+                    like_latencies.append((first_like_at - joined_at).total_seconds())
+                if joined_at and first_match_at and first_match_at >= joined_at:
+                    match_latencies.append((first_match_at - joined_at).total_seconds())
 
-        def _summary(values):
-            if not values:
-                return {'avg_seconds': None, 'median_seconds': None, 'samples': 0}
-            ordered = sorted(values)
-            n = len(ordered)
-            if n % 2 == 1:
-                median = ordered[n // 2]
-            else:
-                median = (ordered[(n // 2) - 1] + ordered[n // 2]) / 2
-            avg = sum(ordered) / n
-            return {
-                'avg_seconds': round(avg, 1),
-                'median_seconds': round(median, 1),
-                'samples': n,
-            }
+            def _summary(values):
+                if not values:
+                    return {'avg_seconds': None, 'median_seconds': None, 'samples': 0}
+                ordered = sorted(values)
+                n = len(ordered)
+                if n % 2 == 1:
+                    median = ordered[n // 2]
+                else:
+                    median = (ordered[(n // 2) - 1] + ordered[n // 2]) / 2
+                avg = sum(ordered) / n
+                return {
+                    'avg_seconds': round(avg, 1),
+                    'median_seconds': round(median, 1),
+                    'samples': n,
+                }
 
-        matches_in_range = Match.objects.filter(
+            matches_in_range = Match.objects.filter(
             created_at__gte=range_start,
             created_at__lt=range_end,
             user1_id__in=product_user_ids,
             user2_id__in=product_user_ids,
         )
 
-        total_matches_in_range = matches_in_range.count()
-        matched_with_message = 0
-        match_to_first_message_latencies = []
-        for m in matches_in_range:
-            try:
-                conv = m.conversation
-            except Conversation.DoesNotExist:
-                conv = None
-            first_message_at = getattr(conv, 'first_message_at', None) if conv else None
-            if first_message_at:
-                matched_with_message += 1
-                if first_message_at >= m.created_at:
-                    match_to_first_message_latencies.append((first_message_at - m.created_at).total_seconds())
+            total_matches_in_range = matches_in_range.count()
+            matched_with_message = 0
+            match_to_first_message_latencies = []
+            for m in matches_in_range:
+                try:
+                    conv = m.conversation
+                except Conversation.DoesNotExist:
+                    conv = None
+                first_message_at = getattr(conv, 'first_message_at', None) if conv else None
+                if first_message_at:
+                    matched_with_message += 1
+                    if first_message_at >= m.created_at:
+                        match_to_first_message_latencies.append((first_message_at - m.created_at).total_seconds())
 
-        match_to_message_rate = (
-            round((matched_with_message / total_matches_in_range) * 100, 1)
-            if total_matches_in_range else 0.0
-        )
+            match_to_message_rate = (
+                round((matched_with_message / total_matches_in_range) * 100, 1)
+                if total_matches_in_range else 0.0
+            )
 
-        started_conversations = Conversation.objects.filter(
+            started_conversations = Conversation.objects.filter(
             match__created_at__gte=range_start,
             match__created_at__lt=range_end,
             first_message_at__isnull=False,
         )
-        conversation_depth_values = []
-        for conv in started_conversations:
-            count = conv.messages.filter(sender_type='user').count()
-            if count > 0:
-                conversation_depth_values.append(count)
-        avg_messages_per_started_conversation = (
-            round(sum(conversation_depth_values) / len(conversation_depth_values), 2)
-            if conversation_depth_values else 0.0
-        )
+            conversation_depth_values = []
+            for conv in started_conversations:
+                count = conv.messages.filter(sender_type='user').count()
+                if count > 0:
+                    conversation_depth_values.append(count)
+            avg_messages_per_started_conversation = (
+                round(sum(conversation_depth_values) / len(conversation_depth_values), 2)
+                if conversation_depth_values else 0.0
+            )
 
-        return Response({
+            return Response({
             'dau': dau,
             'wau': wau,
             'mau': mau,
@@ -669,7 +674,40 @@ class AdminActiveUsersMetricsView(APIView):
             },
             'date_from': date_from.isoformat(),
             'date_to': date_to.isoformat(),
-        })
+            })
+        except Exception as exc:
+            logger.exception("AdminActiveUsersMetricsView failed; returning fallback payload: %s", exc)
+            today = timezone.now().date().isoformat()
+            fallback_actions = ['login', 'like', 'message', 'view']
+            return Response({
+                'dau': 0,
+                'wau': 0,
+                'mau': 0,
+                'stickiness': 0.0,
+                'yesterday_dau': 0,
+                'dau_delta': 0,
+                'actions': fallback_actions,
+                'series': [],
+                'activity_mix': {
+                    'range_unique_users': {'login': 0, 'view': 0, 'like': 0, 'message': 0},
+                    'daily_unique_users': [],
+                },
+                'funnel': {'steps': [], 'date_from': today, 'date_to': today},
+                'behavior': {
+                    'time_to_first_like': {'avg_seconds': None, 'median_seconds': None, 'samples': 0},
+                    'time_to_first_match': {'avg_seconds': None, 'median_seconds': None, 'samples': 0},
+                    'match_to_message_rate_percent': 0.0,
+                    'time_match_to_first_message': {'avg_seconds': None, 'median_seconds': None, 'samples': 0},
+                    'avg_messages_per_started_conversation': 0.0,
+                    'cohort_users_count': 0,
+                    'matches_in_range_count': 0,
+                    'matches_with_message_count': 0,
+                },
+                'date_from': today,
+                'date_to': today,
+                'degraded': True,
+                'warning': 'Temporary database issue while loading active-user metrics.',
+            }, status=status.HTTP_200_OK)
 
 
 class AdminUserScoringRefreshView(APIView):
@@ -1438,57 +1476,61 @@ class AdminAnalyticsImpressionsView(APIView):
     permission_classes = [IsAdminUser]
     
     def get(self, request):
-        queryset = ProfileImpression.objects.select_related('viewer', 'viewed').all().order_by('-timestamp')
+        try:
+            queryset = ProfileImpression.objects.select_related('viewer', 'viewed').all().order_by('-timestamp')
         
-        viewer_search = request.GET.get('viewer_email')
-        if viewer_search:
-            queryset = queryset.filter(Q(viewer__email__icontains=viewer_search) | Q(viewer__first_name__icontains=viewer_search) | Q(viewer__last_name__icontains=viewer_search))
+            viewer_search = request.GET.get('viewer_email')
+            if viewer_search:
+                queryset = queryset.filter(Q(viewer__email__icontains=viewer_search) | Q(viewer__first_name__icontains=viewer_search) | Q(viewer__last_name__icontains=viewer_search))
         
-        viewed_search = request.GET.get('viewed_email')
-        if viewed_search:
-            queryset = queryset.filter(Q(viewed__email__icontains=viewed_search) | Q(viewed__first_name__icontains=viewed_search) | Q(viewed__last_name__icontains=viewed_search))
+            viewed_search = request.GET.get('viewed_email')
+            if viewed_search:
+                queryset = queryset.filter(Q(viewed__email__icontains=viewed_search) | Q(viewed__first_name__icontains=viewed_search) | Q(viewed__last_name__icontains=viewed_search))
         
-        swipe_action = request.GET.get('swipe_action')
-        if swipe_action and swipe_action != '':
-            queryset = queryset.filter(swipe_action=swipe_action)
+            swipe_action = request.GET.get('swipe_action')
+            if swipe_action and swipe_action != '':
+                queryset = queryset.filter(swipe_action=swipe_action)
         
-        date_from = request.GET.get('date_from')
-        if date_from:
-            queryset = queryset.filter(timestamp__date__gte=date_from)
+            date_from = request.GET.get('date_from')
+            if date_from:
+                queryset = queryset.filter(timestamp__date__gte=date_from)
         
-        date_to = request.GET.get('date_to')
-        if date_to:
-            queryset = queryset.filter(timestamp__date__lte=date_to)
+            date_to = request.GET.get('date_to')
+            if date_to:
+                queryset = queryset.filter(timestamp__date__lte=date_to)
         
-        queryset = queryset[:500]
+            queryset = queryset[:500]
         
-        data = []
-        for imp in queryset:
-            viewer = imp.viewer
-            viewer_name = f"{viewer.first_name} {viewer.last_name}".strip() or viewer.email.split('@')[0]
-            viewer_location = f"{viewer.city}, {viewer.country}" if viewer.city and viewer.country else viewer.city or viewer.country or ""
+            data = []
+            for imp in queryset:
+                viewer = imp.viewer
+                viewer_name = f"{viewer.first_name} {viewer.last_name}".strip() or viewer.email.split('@')[0]
+                viewer_location = f"{viewer.city}, {viewer.country}" if viewer.city and viewer.country else viewer.city or viewer.country or ""
             
-            viewed = imp.viewed
-            viewed_name = f"{viewed.first_name} {viewed.last_name}".strip() or viewed.email.split('@')[0]
-            viewed_location = f"{viewed.city}, {viewed.country}" if viewed.city and viewed.country else viewed.city or viewed.country or ""
+                viewed = imp.viewed
+                viewed_name = f"{viewed.first_name} {viewed.last_name}".strip() or viewed.email.split('@')[0]
+                viewed_location = f"{viewed.city}, {viewed.country}" if viewed.city and viewed.country else viewed.city or viewed.country or ""
             
-            data.append({
-                'id': imp.id,
-                'viewer_email': viewer.email,
-                'viewer_name': viewer_name,
-                'viewer_location': viewer_location,
-                'viewed_email': viewed.email,
-                'viewed_name': viewed_name,
-                'viewed_location': viewed_location,
-                'timestamp': imp.timestamp,
-                'feed_position': imp.feed_position,
-                'ranking_score': imp.ranking_score,
-                'swipe_action': imp.swipe_action or 'none',
-                'device_type': imp.device_type or 'unknown',
-                'session_id': imp.session_id[:8] if imp.session_id else '',
-            })
+                data.append({
+                    'id': imp.id,
+                    'viewer_email': viewer.email,
+                    'viewer_name': viewer_name,
+                    'viewer_location': viewer_location,
+                    'viewed_email': viewed.email,
+                    'viewed_name': viewed_name,
+                    'viewed_location': viewed_location,
+                    'timestamp': imp.timestamp,
+                    'feed_position': imp.feed_position,
+                    'ranking_score': imp.ranking_score,
+                    'swipe_action': imp.swipe_action or 'none',
+                    'device_type': imp.device_type or 'unknown',
+                    'session_id': imp.session_id[:8] if imp.session_id else '',
+                })
         
-        return Response(data)
+            return Response(data)
+        except Exception as exc:
+            logger.exception("AdminAnalyticsImpressionsView failed; returning empty list: %s", exc)
+            return Response([], status=status.HTTP_200_OK)
 
 
 # ==================== WAITLIST ADMIN VIEWS (with inline serializers) ====================

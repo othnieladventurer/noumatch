@@ -1,12 +1,12 @@
 // src/pages/AdminFlaggedMessages.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
-const API_BASE = '/api/noumatch-admin';
+const API_BASE = getAdminApiBase();
 
 export default function AdminFlaggedMessages() {
   const [flags, setFlags] = useState([]);
@@ -28,15 +28,13 @@ export default function AdminFlaggedMessages() {
   }, [darkMode]);
 
   const fetchFlags = async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
     }
     try {
-      const res = await axios.get(`${API_BASE}/flagged-messages/`, {
-        withCredentials: true
-      });
+      const res = await adminRequest({ method: 'get', url: `${API_BASE}/flagged-messages/` });
       setFlags(res.data);
     } catch (err) {
       setError('Failed to load flagged messages');
@@ -50,11 +48,8 @@ export default function AdminFlaggedMessages() {
   }, []);
 
   const handleAction = async (flagId, action) => {
-    const token = localStorage.getItem('admin_access');
     try {
-      await axios.post(`${API_BASE}/flagged-messages/${flagId}/action/`, { action }, {
-        withCredentials: true
-      });
+      await adminRequest({ method: 'post', url: `${API_BASE}/flagged-messages/${flagId}/action/`, data: { action } });
       alert(`Action "${action}" taken. Flag removed.`);
       fetchFlags(); // refresh
     } catch (err) {

@@ -1,12 +1,12 @@
 // src/pages/AdminUserConversations.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
-const API_BASE = '/api/noumatch-admin';
+const API_BASE = getAdminApiBase();
 
 export default function AdminUserConversations() {
   const [conversations, setConversations] = useState([]);
@@ -28,16 +28,14 @@ export default function AdminUserConversations() {
   }, [darkMode]);
 
   const fetchConversations = async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
     }
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/user-conversations/`, {
-        withCredentials: true
-      });
+      const res = await adminRequest({ method: 'get', url: `${API_BASE}/user-conversations/` });
       setConversations(res.data);
     } catch (err) {
       console.error(err);

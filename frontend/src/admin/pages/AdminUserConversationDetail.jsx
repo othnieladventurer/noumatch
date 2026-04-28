@@ -1,12 +1,12 @@
 // src/pages/AdminUserConversationDetail.jsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
-const API_BASE = '/api/noumatch-admin';
+const API_BASE = getAdminApiBase();
 
 export default function AdminUserConversationDetail() {
   const { id } = useParams();
@@ -30,19 +30,15 @@ export default function AdminUserConversationDetail() {
   }, [darkMode]);
 
   const fetchConversation = async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
     }
     try {
-      const convRes = await axios.get(`${API_BASE}/user-conversations/${id}/`, {
-        withCredentials: true
-      });
+      const convRes = await adminRequest({ method: 'get', url: `${API_BASE}/user-conversations/${id}/` });
       setConversation(convRes.data);
-      const msgRes = await axios.get(`${API_BASE}/user-conversations/${id}/messages/`, {
-        withCredentials: true
-      });
+      const msgRes = await adminRequest({ method: 'get', url: `${API_BASE}/user-conversations/${id}/messages/` });
       setMessages(msgRes.data);
     } catch (err) {
       setError('Failed to load conversation');

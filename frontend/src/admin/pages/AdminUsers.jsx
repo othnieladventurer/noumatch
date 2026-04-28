@@ -1,34 +1,12 @@
 // src/pages/AdminUsers.jsx
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
-// Build the correct API base URL from environment variables (same as AdminDashboard)
-const getApiBase = () => {
-  const env = import.meta.env.VITE_APP_ENVIRONMENT;
-  let baseDomain = '';
-  
-  if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_API_URL;
-  } else if (import.meta.env.PROD) {
-    // Production - use production API domain
-    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http') 
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : import.meta.env.VITE_API_URL;
-  } else {
-    // Development - use relative path (proxy)
-    return '/api/noumatch-admin';
-  }
-  
-  const adminPath = '/api/noumatch-admin';
-  const fullUrl = `${baseDomain}${adminPath}`;
-  return fullUrl;
-};
-
-const API_BASE = getApiBase();
+const API_BASE = getAdminApiBase();
 const USERS_PER_PAGE = 10;
 const DEBOUNCE_DELAY = 300;
 
@@ -74,7 +52,7 @@ export default function AdminUsers() {
 
   // Fetch users with pagination and search
   const fetchUsers = useCallback(async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
@@ -93,10 +71,7 @@ export default function AdminUsers() {
       });
       
       const url = `${API_BASE}/users/list/`;
-      const res = await axios.get(url, {
-        params,
-        withCredentials: true
-      });
+      const res = await adminRequest({ method: 'get', url, params });
       
       // Handle both paginated and non-paginated responses
       if (res.data.data && Array.isArray(res.data.data)) {
@@ -130,12 +105,10 @@ export default function AdminUsers() {
   }, [currentPage, debouncedSearchTerm, filterStatus, navigate]);
 
   const fetchLaunchMonitor = useCallback(async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) return;
     try {
-      const res = await axios.get(`${API_BASE}/launch/monitor/`, {
-        withCredentials: true,
-      });
+      const res = await adminRequest({ method: 'get', url: `${API_BASE}/launch/monitor/` });
       setLaunchMonitor(res.data);
       setLaunchMonitorError('');
     } catch (err) {
@@ -146,11 +119,11 @@ export default function AdminUsers() {
   const runVisibilityAction = useCallback(async (userId, action) => {
     try {
       setVisibilityBusyUserId(userId);
-      await axios.post(
-        `${API_BASE}/visibility/action/`,
-        { user_id: userId, action },
-        { withCredentials: true }
-      );
+      await adminRequest({
+        method: 'post',
+        url: `${API_BASE}/visibility/action/`,
+        data: { user_id: userId, action },
+      });
       await Promise.all([fetchUsers(), fetchLaunchMonitor()]);
     } catch (err) {
       alert(err.response?.data?.error || `Failed to ${action} visibility`);
