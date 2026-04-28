@@ -18,7 +18,7 @@ from django.db import transaction
 from django.db import DatabaseError
 from django.conf import settings
 import logging
-from django.core.mail import send_mail
+import requests
 
 from users.models import User, UserEngagementScore
 from users.scoring import refresh_user_score
@@ -39,6 +39,55 @@ from users.auth_cookies import set_auth_cookies, clear_auth_cookies, get_refresh
 from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
 
 logger = logging.getLogger(__name__)
+
+
+def _paginate_queryset(request, queryset, serializer_class):
+    page = max(1, int(request.GET.get('page', 1) or 1))
+    page_size = int(request.GET.get('page_size', 10) or 10)
+    if page_size not in {10, 25, 50, 100}:
+        page_size = 10
+    total = queryset.count()
+    pages = max(1, ceil(total / page_size)) if total else 1
+    if page > pages:
+        page = pages
+    start = (page - 1) * page_size
+    end = start + page_size
+    rows = queryset[start:end]
+    serializer = serializer_class(rows, many=True)
+    return {
+        'results': serializer.data,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'pages': pages,
+    }
+
+
+def _send_waitlist_invite_via_brevo(entry, subject, body):
+    api_key = getattr(settings, "BREVO_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("BREVO_API_KEY is not configured")
+
+    payload = {
+        "sender": {"name": "NouMatch", "email": "no-reply@noumatch.com"},
+        "to": [{"email": entry.email, "name": f"{entry.first_name} {entry.last_name}".strip()}],
+        "subject": subject,
+        "textContent": body,
+        "htmlContent": body.replace("\n", "<br/>"),
+    }
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json",
+    }
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        json=payload,
+        headers=headers,
+        timeout=15,
+    )
+    if response.status_code != 201:
+        raise RuntimeError(f"Brevo send failed ({response.status_code})")
 
 
 def _product_users_queryset():
@@ -1579,17 +1628,15 @@ class AdminWaitlistWaitingView(APIView):
     def get(self, request):
         # Only show entries that have not already been contacted/invited.
         entries = WaitlistEntry.objects.filter(is_accepted=False, contacted=False).order_by('joined_at')
-        serializer = InlineWaitlistEntrySerializer(entries, many=True)
-        return Response(serializer.data)
+        return Response(_paginate_queryset(request, entries, InlineWaitlistEntrySerializer))
 
 
 class AdminWaitlistAcceptedView(APIView):
     permission_classes = [IsAdminUser]
     
     def get(self, request):
-        entries = WaitlistEntry.objects.filter(is_accepted=True).order_by('-accepted_at')
-        serializer = InlineWaitlistEntrySerializer(entries, many=True)
-        return Response(serializer.data)
+        entries = WaitlistEntry.objects.filter(is_accepted=True, contacted=False).order_by('-accepted_at')
+        return Response(_paginate_queryset(request, entries, InlineWaitlistEntrySerializer))
 
 
 class AdminWaitlistArchivedView(APIView):
@@ -1597,8 +1644,7 @@ class AdminWaitlistArchivedView(APIView):
     
     def get(self, request):
         archives = ContactedArchive.objects.all().order_by('-removed_at')
-        serializer = InlineContactedArchiveSerializer(archives, many=True)
-        return Response(serializer.data)
+        return Response(_paginate_queryset(request, archives, InlineContactedArchiveSerializer))
 
 
 class AdminWaitlistAcceptView(APIView):
@@ -1623,10 +1669,9 @@ class AdminWaitlistContactView(APIView):
     
     def post(self, request, entry_id):
         try:
-            # REMOVE the is_accepted=False condition
-            entry = WaitlistEntry.objects.get(id=entry_id)
+            entry = WaitlistEntry.objects.get(id=entry_id, is_accepted=True, contacted=False)
         except WaitlistEntry.DoesNotExist:
-            return Response({'error': 'Entry not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Accepted entry not found'}, status=status.HTTP_404_NOT_FOUND)
         
         notes = request.data.get('notes', '')
         with transaction.atomic():
@@ -1635,7 +1680,7 @@ class AdminWaitlistContactView(APIView):
                 last_name=entry.last_name,
                 email=entry.email,
                 gender=entry.gender,
-                reason='contacted' if not entry.is_accepted else 'accepted',
+                reason='accepted',
                 notes=notes
             )
             entry.delete()
@@ -1695,7 +1740,7 @@ class AdminWaitlistUpdateView(APIView):
 
 
 def _select_waitlist_campaign_entries(batch_size=20, women_ratio=55):
-    batch_size = max(1, min(int(batch_size or 20), 200))
+    batch_size = max(20, min(int(batch_size or 20), 500))
     women_ratio = max(0, min(int(women_ratio or 55), 100))
     men_ratio = 100 - women_ratio
 
@@ -1703,15 +1748,15 @@ def _select_waitlist_campaign_entries(batch_size=20, women_ratio=55):
     men_target = batch_size - women_target
 
     women_qs = WaitlistEntry.objects.filter(
-        is_accepted=False,
+        is_accepted=True,
         contacted=False,
         gender='female',
-    ).order_by('joined_at')
+    ).order_by('accepted_at', 'joined_at')
     men_qs = WaitlistEntry.objects.filter(
-        is_accepted=False,
+        is_accepted=True,
         contacted=False,
         gender='male',
-    ).order_by('joined_at')
+    ).order_by('accepted_at', 'joined_at')
 
     selected_women = list(women_qs[:women_target])
     selected_men = list(men_qs[:men_target])
@@ -1722,9 +1767,9 @@ def _select_waitlist_campaign_entries(batch_size=20, women_ratio=55):
     if remaining > 0:
         selected_ids = {entry.id for entry in selected}
         fallback_pool = WaitlistEntry.objects.filter(
-            is_accepted=False,
+            is_accepted=True,
             contacted=False,
-        ).exclude(id__in=selected_ids).order_by('joined_at')[:remaining]
+        ).exclude(id__in=selected_ids).order_by('accepted_at', 'joined_at')[:remaining]
         selected.extend(list(fallback_pool))
 
     women_count = sum(1 for entry in selected if entry.gender == 'female')
@@ -1831,20 +1876,14 @@ class AdminWaitlistCampaignSendInvitesView(APIView):
                 body_template=body_template,
             )
             try:
-                send_mail(
-                    subject=subject,
-                    message=body,
-                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-                    recipient_list=[entry.email],
-                    fail_silently=False,
-                )
+                _send_waitlist_invite_via_brevo(entry, subject, body)
                 with transaction.atomic():
                     ContactedArchive.objects.create(
                         first_name=entry.first_name,
                         last_name=entry.last_name,
                         email=entry.email,
                         gender=entry.gender,
-                        reason='contacted',
+                        reason='accepted',
                         notes='Invited via waitlist campaign',
                     )
                     entry.delete()

@@ -34,6 +34,11 @@ export default function AdminWaitlist() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [paging, setPaging] = useState({
+    pending: { page: 1, pageSize: 10, total: 0, pages: 1 },
+    accepted: { page: 1, pageSize: 10, total: 0, pages: 1 },
+    archived: { page: 1, pageSize: 10, total: 0, pages: 1 },
+  });
 
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [campaignUsers, setCampaignUsers] = useState([]);
@@ -68,21 +73,53 @@ export default function AdminWaitlist() {
     if (!token) navigate('/admin/login');
   }, [navigate]);
 
-  const fetchAllData = async () => {
+  const fetchAllData = async (nextPaging = paging) => {
     const token = getAdminAuthToken();
     if (!token) return;
     setLoading(true);
     try {
       const [statsRes, pendingRes, acceptedRes, archivedRes] = await Promise.all([
         adminRequest({ method: 'get', url: `${API_BASE}/waitlist/stats/` }),
-        adminRequest({ method: 'get', url: `${API_BASE}/waitlist/waiting/` }),
-        adminRequest({ method: 'get', url: `${API_BASE}/waitlist/accepted/` }),
-        adminRequest({ method: 'get', url: `${API_BASE}/waitlist/archived/` }),
+        adminRequest({
+          method: 'get',
+          url: `${API_BASE}/waitlist/waiting/`,
+          params: { page: nextPaging.pending.page, page_size: nextPaging.pending.pageSize },
+        }),
+        adminRequest({
+          method: 'get',
+          url: `${API_BASE}/waitlist/accepted/`,
+          params: { page: nextPaging.accepted.page, page_size: nextPaging.accepted.pageSize },
+        }),
+        adminRequest({
+          method: 'get',
+          url: `${API_BASE}/waitlist/archived/`,
+          params: { page: nextPaging.archived.page, page_size: nextPaging.archived.pageSize },
+        }),
       ]);
       setStats(statsRes.data);
-      setPending(pendingRes.data);
-      setAccepted(acceptedRes.data);
-      setArchived(archivedRes.data);
+      setPending(pendingRes.data?.results || []);
+      setAccepted(acceptedRes.data?.results || []);
+      setArchived(archivedRes.data?.results || []);
+      setPaging({
+        pending: {
+          page: pendingRes.data?.page || 1,
+          pageSize: pendingRes.data?.page_size || nextPaging.pending.pageSize,
+          total: pendingRes.data?.total || 0,
+          pages: pendingRes.data?.pages || 1,
+        },
+        accepted: {
+          page: acceptedRes.data?.page || 1,
+          pageSize: acceptedRes.data?.page_size || nextPaging.accepted.pageSize,
+          total: acceptedRes.data?.total || 0,
+          pages: acceptedRes.data?.pages || 1,
+        },
+        archived: {
+          page: archivedRes.data?.page || 1,
+          pageSize: archivedRes.data?.page_size || nextPaging.archived.pageSize,
+          total: archivedRes.data?.total || 0,
+          pages: archivedRes.data?.pages || 1,
+        },
+      });
     } catch (error) {
       console.error('Error fetching waitlist data', error);
       if (error.response?.status === 401) {
@@ -99,6 +136,22 @@ export default function AdminWaitlist() {
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  const updatePage = async (tab, page) => {
+    const next = {
+      ...paging,
+      [tab]: { ...paging[tab], page },
+    };
+    await fetchAllData(next);
+  };
+
+  const updatePageSize = async (tab, pageSize) => {
+    const next = {
+      ...paging,
+      [tab]: { ...paging[tab], pageSize, page: 1 },
+    };
+    await fetchAllData(next);
+  };
 
   const generateCampaignList = async () => {
     try {
@@ -150,7 +203,7 @@ export default function AdminWaitlist() {
       }
     }
     await fetchAllData();
-    alert(`Archived ${successCount} out of ${accepted.length} users. New users can now join the waitlist!`);
+    alert(`Archived ${successCount} accepted users. New users can now join the waitlist!`);
     setActionLoading(false);
   };
 
@@ -198,7 +251,7 @@ export default function AdminWaitlist() {
   };
 
   const confirmBulkArchive = () => {
-    if (accepted.length === 0) {
+    if (paging.accepted.total === 0) {
       alert('No accepted entries to archive');
       return;
     }
@@ -264,6 +317,27 @@ export default function AdminWaitlist() {
         .includes(searchTerm.toLowerCase())
     );
 
+  const renderPagination = (tab) => (
+    <div className="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+      <div className="d-flex align-items-center gap-2">
+        <small>Per page</small>
+        <select
+          className="form-select form-select-sm"
+          style={{ width: 90 }}
+          value={paging[tab].pageSize}
+          onChange={(e) => updatePageSize(tab, parseInt(e.target.value, 10))}
+        >
+          {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+      <small>Page {paging[tab].page} / {paging[tab].pages} ({paging[tab].total} total)</small>
+      <div className="d-flex gap-2">
+        <button className="btn btn-sm btn-outline-secondary" disabled={paging[tab].page <= 1} onClick={() => updatePage(tab, paging[tab].page - 1)}>Prev</button>
+        <button className="btn btn-sm btn-outline-secondary" disabled={paging[tab].page >= paging[tab].pages} onClick={() => updatePage(tab, paging[tab].page + 1)}>Next</button>
+      </div>
+    </div>
+  );
+
   const waitingMen = stats?.men_waiting || 0;
   const waitingWomen = stats?.women_waiting || 0;
   const acceptedMen = stats?.men_accepted || 0;
@@ -317,9 +391,9 @@ export default function AdminWaitlist() {
             <button className="btn btn-success btn-sm" onClick={startCampaign}>
               <i className="fas fa-envelope-open-text me-1"></i> Start Contact Campaign
             </button>
-            {accepted.length > 0 && (
+            {paging.accepted.total > 0 && (
               <button className="btn btn-warning btn-sm" onClick={confirmBulkArchive}>
-                <i className="fas fa-archive me-1"></i> Archive All Accepted ({accepted.length})
+                <i className="fas fa-archive me-1"></i> Archive All Accepted
               </button>
             )}
           </div>
@@ -370,17 +444,17 @@ export default function AdminWaitlist() {
             <ul className="nav nav-tabs card-header-tabs">
               <li className="nav-item">
                 <button className={`nav-link ${activeTab === 'pending' ? 'active' : ''}`} onClick={() => setActiveTab('pending')}>
-                  Pending ({pending.length})
+                  Pending ({paging.pending.total})
                 </button>
               </li>
               <li className="nav-item">
                 <button className={`nav-link ${activeTab === 'accepted' ? 'active' : ''}`} onClick={() => setActiveTab('accepted')}>
-                  Accepted ({accepted.length})
+                  Accepted ({paging.accepted.total})
                 </button>
               </li>
               <li className="nav-item">
                 <button className={`nav-link ${activeTab === 'archived' ? 'active' : ''}`} onClick={() => setActiveTab('archived')}>
-                  Contacted Archive ({archived.length})
+                  Contacted Archive ({paging.archived.total})
                 </button>
               </li>
             </ul>
@@ -418,9 +492,6 @@ export default function AdminWaitlist() {
                             <button className="btn btn-sm btn-success me-1" onClick={() => handleAccept(entry)} disabled={actionLoading}>
                               <i className="fas fa-check"></i> Accept
                             </button>
-                            <button className="btn btn-sm btn-info me-1 text-white" onClick={() => confirmContact(entry)} disabled={actionLoading}>
-                              <i className="fas fa-envelope"></i> Contact
-                            </button>
                             <button className="btn btn-sm btn-danger" onClick={() => confirmDelete(entry)} disabled={actionLoading}>
                               <i className="fas fa-trash"></i> Delete
                             </button>
@@ -430,6 +501,7 @@ export default function AdminWaitlist() {
                     )}
                   </tbody>
                 </table>
+                {renderPagination('pending')}
               </div>
             )}
 
@@ -464,6 +536,7 @@ export default function AdminWaitlist() {
                     )}
                   </tbody>
                 </table>
+                {renderPagination('accepted')}
               </div>
             )}
 
@@ -497,6 +570,7 @@ export default function AdminWaitlist() {
                     )}
                   </tbody>
                 </table>
+                {renderPagination('archived')}
               </div>
             )}
           </div>
@@ -527,8 +601,8 @@ export default function AdminWaitlist() {
                           className="form-control"
                           value={campaignBatchSize}
                           onChange={(e) => setCampaignBatchSize(parseInt(e.target.value))}
-                          min="1"
-                          max="200"
+                          min="20"
+                          max="500"
                         />
                       </div>
                       <div className="col-md-6">
@@ -643,7 +717,7 @@ export default function AdminWaitlist() {
                 <button type="button" className="btn-close" onClick={() => setShowBulkArchiveModal(false)}></button>
               </div>
               <div className="modal-body">
-                <p>Are you sure you want to move all <strong>{accepted.length}</strong> accepted users to the archive?</p>
+                <p>Are you sure you want to move all accepted users shown on this page to the archive?</p>
                 <p className="text-warning">This will free up the waitlist for new users to join.</p>
                 <p><strong>Breakdown:</strong></p>
                 <ul>
@@ -720,6 +794,7 @@ export default function AdminWaitlist() {
     </div>
   );
 }
+
 
 
 
