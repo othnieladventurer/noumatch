@@ -29,6 +29,17 @@ export default defineConfig({
     port: 5174,
     open: true,
     proxy: {
+      '/django-admin': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/django-admin/, '/admin'),
+      },
+      '/static/admin': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api': {
         target: 'https://api-staging.noumatch.com',
         changeOrigin: true,

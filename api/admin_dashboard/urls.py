@@ -44,6 +44,8 @@ from .views import (
     AdminWaitlistDeleteView,
     AdminWaitlistArchiveDeleteView,
     AdminWaitlistUpdateView,
+    AdminWaitlistCampaignPreviewView,
+    AdminWaitlistCampaignSendInvitesView,
 )
 
 # Import waitlist views directly (only if needed for other patterns; but we will not use them to avoid duplication)
@@ -95,6 +97,8 @@ urlpatterns = [
     path('waitlist/<int:entry_id>/delete/', AdminWaitlistDeleteView.as_view(), name='admin-waitlist-delete'),
     path('waitlist/archive/<int:archive_id>/delete/', AdminWaitlistArchiveDeleteView.as_view(), name='admin-waitlist-archive-delete'),
     path('waitlist/<int:entry_id>/update/', AdminWaitlistUpdateView.as_view(), name='admin-waitlist-update'),
+    path('waitlist/campaign/preview/', AdminWaitlistCampaignPreviewView.as_view(), name='admin-waitlist-campaign-preview'),
+    path('waitlist/campaign/send-invites/', AdminWaitlistCampaignSendInvitesView.as_view(), name='admin-waitlist-campaign-send-invites'),
 ]
 
 
