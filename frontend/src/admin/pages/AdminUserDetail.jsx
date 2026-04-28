@@ -1,13 +1,12 @@
 // src/pages/AdminUserDetail.jsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
-import { adminRequest } from '../utils/adminApi';
+import { adminRequest, getAdminApiBase } from '../utils/adminApi';
 
-const API_BASE = '/api/noumatch-admin';
+const API_BASE = getAdminApiBase();
 
 export default function AdminUserDetail() {
   const { id } = useParams();

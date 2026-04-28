@@ -1,34 +1,11 @@
 // src/pages/AdminMessages.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
-
-// Build the correct API base URL from environment variables (consistent with other admin pages)
-const getApiBase = () => {
-  const env = import.meta.env.VITE_APP_ENVIRONMENT;
-  let baseDomain = '';
-
-  if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_API_URL;
-  } else if (import.meta.env.PROD) {
-    // Production - use production API domain
-    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : import.meta.env.VITE_API_URL;
-  } else {
-    // Development - use relative path (proxy)
-    return '/api/noumatch-admin';
-  }
-
-  const adminPath = '/api/noumatch-admin';
-  const fullUrl = `${baseDomain}${adminPath}`;
-  return fullUrl;
-};
-
-const API_BASE = getApiBase();
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
+const API_BASE = getAdminApiBase();
 
 export default function AdminMessages() {
   const [activeTab, setActiveTab] = useState('support');
@@ -52,7 +29,7 @@ export default function AdminMessages() {
   }, [darkMode]);
 
   const fetchData = async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
@@ -61,15 +38,11 @@ export default function AdminMessages() {
     setError('');
     try {
       const supportUrl = `${API_BASE}/support-conversations/`;
-      const supportRes = await axios.get(supportUrl, {
-        withCredentials: true
-      });
+      const supportRes = await adminRequest({ method: 'get', url: supportUrl });
       setSupportConvs(supportRes.data);
 
       const userUrl = `${API_BASE}/user-conversations/`;
-      const userRes = await axios.get(userUrl, {
-        withCredentials: true
-      });
+      const userRes = await adminRequest({ method: 'get', url: userUrl });
       setUserConvs(userRes.data);
     } catch (err) {
       console.error('❌ Fetch error:', err);

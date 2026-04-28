@@ -1,13 +1,15 @@
 import axios from "axios";
 
+const host = window.location.hostname;
+const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
 const rawBaseUrl = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-const BASE_URL = rawBaseUrl || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
+const BASE_URL = isLocalHost ? window.location.origin : (rawBaseUrl || (import.meta.env.DEV ? "http://127.0.0.1:8000" : ""));
 
 if (!BASE_URL) {
   throw new Error("VITE_API_URL must be set for non-development builds.");
 }
 
-const API_ORIGIN = new URL(BASE_URL).origin;
+const API_ORIGIN = new URL(BASE_URL, window.location.origin).origin;
 
 const getFrontendUrl = () => {
   const configuredUrl = (import.meta.env.VITE_FRONTEND_URL || "").replace(/\/+$/, "");

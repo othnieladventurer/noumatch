@@ -1,11 +1,10 @@
 // src/pages/AdminAnalyticsImpressions.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
-import { getAdminApiBase, getAdminAuthHeaders, getAdminAuthToken } from '../utils/adminApi';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
@@ -71,10 +70,7 @@ export default function AdminAnalyticsImpressions() {
       if (filters.date_to) params.append('date_to', filters.date_to);
       
       const url = `${API_BASE}/analytics/impressions/`;
-      const response = await axios.get(url, {
-        params,
-        headers: getAdminAuthHeaders(),
-      });
+      const response = await adminRequest({ method: 'get', url, params });
       setImpressions(response.data);
       writeCache(IMPRESSIONS_CACHE_KEY, response.data);
       setCurrentPage(1); // Reset to first page when new data loads

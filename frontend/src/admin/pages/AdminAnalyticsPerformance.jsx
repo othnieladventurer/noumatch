@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
-import { getAdminApiBase, getAdminAuthHeaders, getAdminAuthToken } from '../utils/adminApi';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
@@ -89,25 +88,17 @@ export default function AdminAnalyticsPerformance() {
       let response;
       let payload;
       try {
-        response = await axios.get(`${API_BASE}/admin/metrics/active-users/`, {
-          params,
-          headers: getAdminAuthHeaders(),
-        });
+        response = await adminRequest({ method: 'get', url: `${API_BASE}/admin/metrics/active-users/`, params });
         payload = response.data;
       } catch (primaryErr) {
         if (primaryErr.response?.status === 404) {
           try {
-            response = await axios.get(`${API_BASE}/metrics/active-users/`, {
-              params,
-              headers: getAdminAuthHeaders(),
-            });
+            response = await adminRequest({ method: 'get', url: `${API_BASE}/metrics/active-users/`, params });
             payload = response.data;
           } catch (compatErr) {
             if (compatErr.response?.status === 404) {
               // Final fallback for older backend builds: use dashboard summary metrics.
-              const dash = await axios.get(`${API_BASE}/dashboard/`, {
-                headers: getAdminAuthHeaders(),
-              });
+              const dash = await adminRequest({ method: 'get', url: `${API_BASE}/dashboard/` });
               const previousSeries = cachedMetrics?.series || metrics?.series || [];
               const fallback = {
                 dau: dash.data?.dau || 0,
@@ -166,9 +157,7 @@ export default function AdminAnalyticsPerformance() {
 
     try {
       setSeoLoading(true);
-      const response = await axios.get(`${API_BASE}/seo/metrics/`, {
-        headers: getAdminAuthHeaders(),
-      });
+      const response = await adminRequest({ method: 'get', url: `${API_BASE}/seo/metrics/` });
       setSeoMetrics(response.data);
       setSeoError('');
     } catch (err) {

@@ -1,6 +1,13 @@
 import axios from "axios";
+let adminAxiosInterceptorInitialized = false;
 
 export const getAdminApiBase = () => {
+  const host = window.location.hostname;
+  const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
+  if (isLocalHost) {
+    return "/api/noumatch-admin";
+  }
+
   const env = import.meta.env.VITE_APP_ENVIRONMENT;
   let baseDomain = "";
 
@@ -59,9 +66,12 @@ export const adminRequest = async (config) => {
     try {
       const newAccess = await refreshAdminAccessToken();
       return await axios({
+        timeout,
+        withCredentials: true,
         ...config,
         headers: {
           ...(config.headers || {}),
+          "X-Requested-With": "XMLHttpRequest",
           Authorization: `Bearer ${newAccess}`,
         },
       });
@@ -72,4 +82,42 @@ export const adminRequest = async (config) => {
       throw refreshErr;
     }
   }
+};
+
+export const setupAdminAxiosInterceptor = () => {
+  if (adminAxiosInterceptorInitialized) return;
+  adminAxiosInterceptorInitialized = true;
+
+  axios.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error?.config || {};
+      const status = error?.response?.status;
+      const requestUrl = originalRequest?.url || "";
+      const isAdminRequest = requestUrl.includes("/api/noumatch-admin/");
+      const isRefreshRequest = requestUrl.includes("/api/noumatch-admin/token/refresh/");
+
+      if (!isAdminRequest || isRefreshRequest || status !== 401 || originalRequest._retry) {
+        return Promise.reject(error);
+      }
+
+      originalRequest._retry = true;
+
+      try {
+        const nextAccess = await refreshAdminAccessToken();
+        originalRequest.withCredentials = true;
+        originalRequest.headers = {
+          ...(originalRequest.headers || {}),
+          "X-Requested-With": "XMLHttpRequest",
+          Authorization: `Bearer ${nextAccess}`,
+        };
+        return axios(originalRequest);
+      } catch (refreshErr) {
+        localStorage.removeItem("admin_access");
+        localStorage.removeItem("admin_refresh");
+        localStorage.removeItem("admin_email");
+        return Promise.reject(refreshErr);
+      }
+    }
+  );
 };

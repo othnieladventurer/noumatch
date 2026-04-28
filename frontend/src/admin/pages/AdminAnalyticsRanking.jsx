@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
-import { getAdminApiBase, getAdminAuthHeaders, getAdminAuthToken } from '../utils/adminApi';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
@@ -43,9 +42,7 @@ export default function AdminAnalyticsRanking() {
         if (!silent) {
           setLoading(true);
         }
-        const response = await axios.get(`${API_BASE}/dashboard/`, {
-          headers: getAdminAuthHeaders(),
-        });
+        const response = await adminRequest({ method: 'get', url: `${API_BASE}/dashboard/` });
         setData(response.data);
         writeCache(RANKING_CACHE_KEY, response.data);
         setError('');

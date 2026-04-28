@@ -1,11 +1,11 @@
 // src/pages/AdminMatchesToday.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import BrandLogo from '../../components/BrandLogo';
 import './AdminDashboard.css';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
-const API_BASE = '/api/noumatch-admin';
+const API_BASE = getAdminApiBase();
 
 export default function AdminMatchesToday() {
   const [matches, setMatches] = useState([]);
@@ -28,7 +28,7 @@ export default function AdminMatchesToday() {
   }, [darkMode]);
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_access');
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
@@ -36,9 +36,7 @@ export default function AdminMatchesToday() {
 
     const fetchMatches = async () => {
       try {
-        const res = await axios.get(`${API_BASE}/matches-today/`, {
-          withCredentials: true
-        });
+        const res = await adminRequest({ method: 'get', url: `${API_BASE}/matches-today/` });
         setMatches(res.data);
       } catch (err) {
         console.error('Failed to fetch matches', err);
