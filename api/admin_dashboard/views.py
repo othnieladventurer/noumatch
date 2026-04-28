@@ -18,6 +18,7 @@ from django.db import transaction
 from django.db import DatabaseError
 from django.conf import settings
 import logging
+from django.core.mail import send_mail
 
 from users.models import User, UserEngagementScore
 from users.scoring import refresh_user_score
@@ -1576,7 +1577,8 @@ class AdminWaitlistWaitingView(APIView):
     permission_classes = [IsAdminUser]
     
     def get(self, request):
-        entries = WaitlistEntry.objects.filter(is_accepted=False).order_by('joined_at')
+        # Only show entries that have not already been contacted/invited.
+        entries = WaitlistEntry.objects.filter(is_accepted=False, contacted=False).order_by('joined_at')
         serializer = InlineWaitlistEntrySerializer(entries, many=True)
         return Response(serializer.data)
 
@@ -1690,5 +1692,178 @@ class AdminWaitlistUpdateView(APIView):
             return Response({'success': True})
         except WaitlistEntry.DoesNotExist:
             return Response({'error': 'Not found'}, status=404)
+
+
+def _select_waitlist_campaign_entries(batch_size=20, women_ratio=55):
+    batch_size = max(1, min(int(batch_size or 20), 200))
+    women_ratio = max(0, min(int(women_ratio or 55), 100))
+    men_ratio = 100 - women_ratio
+
+    women_target = round((women_ratio / 100) * batch_size)
+    men_target = batch_size - women_target
+
+    women_qs = WaitlistEntry.objects.filter(
+        is_accepted=False,
+        contacted=False,
+        gender='female',
+    ).order_by('joined_at')
+    men_qs = WaitlistEntry.objects.filter(
+        is_accepted=False,
+        contacted=False,
+        gender='male',
+    ).order_by('joined_at')
+
+    selected_women = list(women_qs[:women_target])
+    selected_men = list(men_qs[:men_target])
+
+    selected = selected_women + selected_men
+    remaining = batch_size - len(selected)
+
+    if remaining > 0:
+        selected_ids = {entry.id for entry in selected}
+        fallback_pool = WaitlistEntry.objects.filter(
+            is_accepted=False,
+            contacted=False,
+        ).exclude(id__in=selected_ids).order_by('joined_at')[:remaining]
+        selected.extend(list(fallback_pool))
+
+    women_count = sum(1 for entry in selected if entry.gender == 'female')
+    men_count = sum(1 for entry in selected if entry.gender == 'male')
+
+    return selected, {
+        'requested_total': batch_size,
+        'selected_total': len(selected),
+        'women': women_count,
+        'men': men_count,
+        'women_ratio_target': women_ratio,
+        'men_ratio_target': men_ratio,
+        'women_ratio_actual': round((women_count / len(selected)) * 100, 1) if selected else 0.0,
+        'men_ratio_actual': round((men_count / len(selected)) * 100, 1) if selected else 0.0,
+    }
+
+
+DEFAULT_WAITLIST_INVITE_SUBJECT = "Invitation officielle NouMatch : votre acces est ouvert"
+DEFAULT_WAITLIST_INVITE_BODY = (
+    "Bonjour {{first_name}},\n\n"
+    "Excellente nouvelle : votre acces NouMatch est maintenant ouvert.\n\n"
+    "Vous pouvez creer votre profil ici :\n"
+    "{{register_url}}\n\n"
+    "NouMatch est en lancement progressif depuis la liste d'attente. "
+    "Si vous voyez peu de profils au depart, c'est normal : de nouveaux membres sont ajoutes en continu.\n"
+    "Vous pouvez actualiser la page ou revenir un peu plus tard pour decouvrir de nouveaux profils.\n\n"
+    "Merci de faire partie des premiers membres de la communaute NouMatch.\n\n"
+    "A tres bientot,\n"
+    "L'equipe NouMatch"
+)
+
+
+def _render_waitlist_template(template, context):
+    rendered = str(template or "")
+    for key, value in context.items():
+        rendered = rendered.replace(f"{{{{{key}}}}}", str(value))
+    return rendered
+
+
+def _build_waitlist_invite_message(entry, subject_template=None, body_template=None):
+    register_url = f"{getattr(settings, 'FRONTEND_URL', 'https://noumatch.com').rstrip('/')}/register"
+    context = {
+        'first_name': entry.first_name or '',
+        'last_name': entry.last_name or '',
+        'full_name': f"{entry.first_name or ''} {entry.last_name or ''}".strip(),
+        'email': entry.email or '',
+        'register_url': register_url,
+    }
+    subject = _render_waitlist_template(subject_template or DEFAULT_WAITLIST_INVITE_SUBJECT, context).strip()
+    body = _render_waitlist_template(body_template or DEFAULT_WAITLIST_INVITE_BODY, context).strip()
+    return subject, body
+
+
+class AdminWaitlistCampaignPreviewView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        batch_size = request.GET.get('batch_size', 20)
+        women_ratio = request.GET.get('women_ratio', 55)
+        subject_template = request.GET.get('subject_template')
+        body_template = request.GET.get('body_template')
+        selected, summary = _select_waitlist_campaign_entries(batch_size=batch_size, women_ratio=women_ratio)
+        serializer = InlineWaitlistEntrySerializer(selected, many=True)
+        preview_email = None
+        if selected:
+            first_entry = selected[0]
+            subject, body = _build_waitlist_invite_message(
+                first_entry,
+                subject_template=subject_template,
+                body_template=body_template,
+            )
+            preview_email = {
+                'to': first_entry.email,
+                'subject': subject,
+                'body': body,
+            }
+        return Response({
+            'users': serializer.data,
+            'summary': summary,
+            'default_templates': {
+                'subject': DEFAULT_WAITLIST_INVITE_SUBJECT,
+                'body': DEFAULT_WAITLIST_INVITE_BODY,
+            },
+            'preview_email': preview_email,
+        })
+
+
+class AdminWaitlistCampaignSendInvitesView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        batch_size = request.data.get('batch_size', 20)
+        women_ratio = request.data.get('women_ratio', 55)
+        subject_template = request.data.get('subject_template')
+        body_template = request.data.get('body_template')
+        selected, summary = _select_waitlist_campaign_entries(batch_size=batch_size, women_ratio=women_ratio)
+
+        sent = []
+        failed = []
+        for entry in selected:
+            subject, body = _build_waitlist_invite_message(
+                entry,
+                subject_template=subject_template,
+                body_template=body_template,
+            )
+            try:
+                send_mail(
+                    subject=subject,
+                    message=body,
+                    from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                    recipient_list=[entry.email],
+                    fail_silently=False,
+                )
+                with transaction.atomic():
+                    ContactedArchive.objects.create(
+                        first_name=entry.first_name,
+                        last_name=entry.last_name,
+                        email=entry.email,
+                        gender=entry.gender,
+                        reason='contacted',
+                        notes='Invited via waitlist campaign',
+                    )
+                    entry.delete()
+                sent.append(entry.email)
+            except Exception as exc:
+                logger.exception("Failed waitlist campaign invite for %s: %s", entry.email, exc)
+                failed.append({'email': entry.email, 'error': str(exc)})
+
+        stats = WaitlistStats.get_current_stats()
+        stats.update_counts()
+
+        return Response({
+            'success': True,
+            'summary': summary,
+            'sent_count': len(sent),
+            'failed_count': len(failed),
+            'sent_emails': sent,
+            'failed': failed,
+        })
+
 
 

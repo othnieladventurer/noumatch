@@ -3,7 +3,15 @@ import axios from "axios";
 const host = window.location.hostname;
 const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
 const rawBaseUrl = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-const BASE_URL = isLocalHost ? window.location.origin : (rawBaseUrl || (import.meta.env.DEV ? "http://127.0.0.1:8000" : ""));
+let BASE_URL = isLocalHost ? window.location.origin : (rawBaseUrl || (import.meta.env.DEV ? "http://127.0.0.1:8000" : ""));
+
+if (!isLocalHost) {
+  if (host === "staging.noumatch.com" || host === "www.staging.noumatch.com") {
+    BASE_URL = "https://api-staging.noumatch.com";
+  } else if (host === "noumatch.com" || host === "www.noumatch.com") {
+    BASE_URL = "https://api.noumatch.com";
+  }
+}
 
 if (!BASE_URL) {
   throw new Error("VITE_API_URL must be set for non-development builds.");

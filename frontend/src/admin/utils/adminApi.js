@@ -8,6 +8,14 @@ export const getAdminApiBase = () => {
     return "/api/noumatch-admin";
   }
 
+  if (host === "staging.noumatch.com" || host === "www.staging.noumatch.com") {
+    return "https://api-staging.noumatch.com/api/noumatch-admin";
+  }
+
+  if (host === "noumatch.com" || host === "www.noumatch.com") {
+    return "https://api.noumatch.com/api/noumatch-admin";
+  }
+
   const env = import.meta.env.VITE_APP_ENVIRONMENT;
   let baseDomain = "";
 
@@ -46,7 +54,7 @@ export const refreshAdminAccessToken = async () => {
 };
 
 export const adminRequest = async (config) => {
-  const timeout = typeof config.timeout === "number" ? config.timeout : 15000;
+  const timeout = typeof config.timeout === "number" ? config.timeout : 30000;
   const withToken = {
     timeout,
     withCredentials: true,

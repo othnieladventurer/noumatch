@@ -37,10 +37,13 @@ export default function AdminWaitlist() {
 
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [campaignUsers, setCampaignUsers] = useState([]);
-  const [campaignBatchSize, setCampaignBatchSize] = useState(10);
+  const [campaignBatchSize, setCampaignBatchSize] = useState(20);
   const [campaignTargetRatio, setCampaignTargetRatio] = useState({ women: 55, men: 45 });
   const [campaignProgress, setCampaignProgress] = useState({ current: 0, total: 0 });
   const [campaignRunning, setCampaignRunning] = useState(false);
+  const [inviteSubjectTemplate, setInviteSubjectTemplate] = useState('');
+  const [inviteBodyTemplate, setInviteBodyTemplate] = useState('');
+  const [campaignPreviewEmail, setCampaignPreviewEmail] = useState(null);
   const [showBulkArchiveModal, setShowBulkArchiveModal] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -97,35 +100,38 @@ export default function AdminWaitlist() {
     fetchAllData();
   }, []);
 
-  const generateCampaignList = () => {
-    const womenNeeded = Math.round((campaignTargetRatio.women / 100) * campaignBatchSize);
-    const menNeeded = campaignBatchSize - womenNeeded;
-    const availableWomen = pending.filter(entry => entry.gender === 'female');
-    const availableMen = pending.filter(entry => entry.gender === 'male');
-    const selectedWomen = availableWomen.slice(0, womenNeeded);
-    const selectedMen = availableMen.slice(0, menNeeded);
-    const campaignList = [...selectedWomen, ...selectedMen];
-    setCampaignUsers(campaignList);
-    setCampaignProgress({ current: 0, total: campaignList.length });
+  const generateCampaignList = async () => {
+    try {
+      setActionLoading(true);
+      const res = await adminRequest({
+        method: 'get',
+        url: `${API_BASE}/waitlist/campaign/preview/`,
+        params: {
+          batch_size: campaignBatchSize,
+          women_ratio: campaignTargetRatio.women,
+          subject_template: inviteSubjectTemplate || undefined,
+          body_template: inviteBodyTemplate || undefined,
+        },
+      });
+      const users = res.data?.users || [];
+      const defaultTemplates = res.data?.default_templates || {};
+      if (!inviteSubjectTemplate && defaultTemplates.subject) setInviteSubjectTemplate(defaultTemplates.subject);
+      if (!inviteBodyTemplate && defaultTemplates.body) setInviteBodyTemplate(defaultTemplates.body);
+      setCampaignPreviewEmail(res.data?.preview_email || null);
+      setCampaignUsers(users);
+      setCampaignProgress({ current: 0, total: users.length });
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to generate campaign preview');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const startCampaign = () => {
-    generateCampaignList();
+    setCampaignUsers([]);
+    setCampaignProgress({ current: 0, total: 0 });
+    setCampaignPreviewEmail(null);
     setShowCampaignModal(true);
-  };
-
-  const processContact = async (user) => {
-    try {
-      await adminRequest({
-        method: 'post',
-        url: `${API_BASE}/waitlist/${user.id}/contact/`,
-        data: { notes: `Contacted via campaign on ${new Date().toISOString()}` },
-      });
-      return true;
-    } catch (err) {
-      console.error(`Failed to contact ${user.email}:`, err);
-      return false;
-    }
   };
 
   const archiveAllAccepted = async () => {
@@ -150,19 +156,33 @@ export default function AdminWaitlist() {
 
   const runCampaign = async () => {
     setCampaignRunning(true);
-    let successCount = 0;
-    for (let i = 0; i < campaignUsers.length; i++) {
-      const user = campaignUsers[i];
-      const success = await processContact(user);
-      if (success) successCount++;
-      setCampaignProgress({ current: i + 1, total: campaignUsers.length });
+    try {
+      const res = await adminRequest({
+        method: 'post',
+        url: `${API_BASE}/waitlist/campaign/send-invites/`,
+        data: {
+          batch_size: campaignBatchSize,
+          women_ratio: campaignTargetRatio.women,
+          subject_template: inviteSubjectTemplate,
+          body_template: inviteBodyTemplate,
+        },
+      });
+      const sentCount = res.data?.sent_count || 0;
+      const failedCount = res.data?.failed_count || 0;
+      setCampaignProgress({
+        current: sentCount + failedCount,
+        total: (res.data?.summary?.selected_total || 0),
+      });
+      await fetchAllData();
+      alert(`Campaign completed! Sent: ${sentCount}, Failed: ${failedCount}.`);
+      setShowCampaignModal(false);
+      setCampaignUsers([]);
+      setActiveTab('archived');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Campaign failed');
+    } finally {
+      setCampaignRunning(false);
     }
-    await fetchAllData();
-    alert(`Campaign completed! Contacted ${successCount} out of ${campaignUsers.length} users.`);
-    setCampaignRunning(false);
-    setShowCampaignModal(false);
-    setCampaignUsers([]);
-    setActiveTab('archived');
   };
 
   const handleAccept = async (entry) => {
@@ -508,7 +528,7 @@ export default function AdminWaitlist() {
                           value={campaignBatchSize}
                           onChange={(e) => setCampaignBatchSize(parseInt(e.target.value))}
                           min="1"
-                          max={pending.length}
+                          max="200"
                         />
                       </div>
                       <div className="col-md-6">
@@ -527,7 +547,27 @@ export default function AdminWaitlist() {
                       </div>
                     </div>
                     <div className="mb-3">
-                      <button className="btn btn-primary" onClick={generateCampaignList}>
+                      <label className="form-label">Email Subject (editable)</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={inviteSubjectTemplate}
+                        onChange={(e) => setInviteSubjectTemplate(e.target.value)}
+                        placeholder="Use {{first_name}}, {{full_name}}, {{register_url}}"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Email Body (editable)</label>
+                      <textarea
+                        className="form-control"
+                        rows="8"
+                        value={inviteBodyTemplate}
+                        onChange={(e) => setInviteBodyTemplate(e.target.value)}
+                        placeholder="Use placeholders: {{first_name}}, {{last_name}}, {{full_name}}, {{email}}, {{register_url}}"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <button className="btn btn-primary" onClick={generateCampaignList} disabled={actionLoading}>
                         Generate Campaign List ({campaignUsers.length} users)
                       </button>
                     </div>
@@ -553,6 +593,14 @@ export default function AdminWaitlist() {
                         <div className="mt-3">
                           <strong>Summary:</strong> {campaignUsers.filter(u => u.gender === 'female').length} Women, {campaignUsers.filter(u => u.gender === 'male').length} Men
                         </div>
+                        {campaignPreviewEmail && (
+                          <div className="mt-3 p-3 border rounded bg-light">
+                            <h6 className="mb-2">Rendered Email Preview</h6>
+                            <div className="small mb-1"><strong>To:</strong> {campaignPreviewEmail.to}</div>
+                            <div className="small mb-2"><strong>Subject:</strong> {campaignPreviewEmail.subject}</div>
+                            <pre className="mb-0" style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{campaignPreviewEmail.body}</pre>
+                          </div>
+                        )}
                       </>
                     )}
                   </>
