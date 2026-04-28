@@ -295,14 +295,20 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = config("FILE_UPLOAD_MAX_MEMORY_SIZE", default=12 *
 
 
 # ========== DATABASE CONFIGURATION ==========
+STRICT_ENV_SEPARATION = True if ENVIRONMENT in {"production", "staging"} else env_bool("STRICT_ENV_SEPARATION", default=True)
+production_db_url = config('DATABASE_URL', default=None)
+staging_db_url = config('STAGING_DATABASE_URL', default=None)
+
 if ENVIRONMENT == "production":
-    if config('DATABASE_URL', default=None):
+    if production_db_url:
         DATABASES = {
-            "default": dj_database_url.parse(config("DATABASE_URL"))
+            "default": dj_database_url.parse(production_db_url)
         }
         logging.info("✅ Database: PRODUCTION mode - PostgreSQL configured")
         logging.info(f"   📊 Database: {DATABASES['default']['NAME'].split('@')[-1] if '@' in DATABASES['default']['NAME'] else 'PostgreSQL'}")
     else:
+        if STRICT_ENV_SEPARATION:
+            raise RuntimeError("Production requires DATABASE_URL to avoid environment cross-contamination.")
         DATABASES = {
             "default": {
                 "ENGINE": "django.db.backends.sqlite3",
@@ -312,13 +318,22 @@ if ENVIRONMENT == "production":
         logging.info("⚠️  Database: PRODUCTION mode - No DATABASE_URL, using SQLite fallback")
         
 elif ENVIRONMENT == "staging":
-    if config('STAGING_DATABASE_URL', default=None):
+    # Never allow staging to read DATABASE_URL by accident.
+    # If STAGING_DATABASE_URL is missing, do NOT crash the app; fall back to isolated sqlite
+    # so staging remains available without touching production data.
+    if staging_db_url:
+        if STRICT_ENV_SEPARATION and production_db_url and staging_db_url == production_db_url:
+            raise RuntimeError("STAGING_DATABASE_URL must be different from DATABASE_URL.")
         DATABASES = {
-            "default": dj_database_url.parse(config("STAGING_DATABASE_URL"))
+            "default": dj_database_url.parse(staging_db_url)
         }
         logging.info("✅ Database: STAGING mode - PostgreSQL configured")
         logging.info(f"   📊 Database: {DATABASES['default']['NAME'].split('/')[-1] if '/' in DATABASES['default']['NAME'] else 'PostgreSQL'}")
     else:
+        if STRICT_ENV_SEPARATION:
+            logging.error(
+                "STAGING_DATABASE_URL is missing in staging. Using isolated sqlite fallback to prevent cross-environment data access."
+            )
         DATABASES = {
             "default": {
                 "ENGINE": "django.db.backends.sqlite3",
