@@ -40,6 +40,7 @@ import AdminDashboard from "./admin/pages/AdminDashboard.jsx";
 import AdminUsers from "./admin/pages/AdminUsers.jsx";
 import AdminUserDetail from "./admin/pages/AdminUserDetail.jsx";
 import AdminReports from "./admin/pages/AdminReports.jsx";
+import AdminReportCases from "./admin/pages/AdminReportCases.jsx";
 import AdminSwipeStats from "./admin/pages/AdminSwipeStats.jsx";
 import AdminMessages from "./admin/pages/AdminMessages.jsx";
 import AdminSupportConversationDetail from "./admin/pages/AdminSupportConversationDetail.jsx";
@@ -77,6 +78,7 @@ export default function App() {
     "/admin/users",
     "/admin/users/detail/",
     "/admin/reports",
+    "/admin/reports/cases",
     "/admin/swipe-stats",
     "/admin/messages",
     "/admin/messages/",
@@ -136,6 +138,7 @@ export default function App() {
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/users/detail/:id" element={<AdminUserDetail />} />
             <Route path="/admin/reports" element={<AdminReports />} />
+            <Route path="/admin/reports/cases" element={<AdminReportCases />} />
             <Route path="/admin/swipe-stats" element={<AdminSwipeStats />} />
             <Route path="/admin/messages" element={<AdminMessages />} />
             <Route path="/admin/messages/support/:id" element={<AdminSupportConversationDetail />} />

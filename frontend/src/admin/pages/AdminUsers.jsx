@@ -17,6 +17,7 @@ export default function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [userType, setUserType] = useState('app');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('users');
@@ -26,6 +27,17 @@ export default function AdminUsers() {
   const [launchMonitor, setLaunchMonitor] = useState(null);
   const [launchMonitorError, setLaunchMonitorError] = useState('');
   const [visibilityBusyUserId, setVisibilityBusyUserId] = useState(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userForm, setUserForm] = useState({
+    first_name: '',
+    last_name: '',
+    username: '',
+    email: '',
+    password: '',
+    role: 'app_user',
+    is_active: true,
+  });
   
   const navigate = useNavigate();
   const adminEmail = localStorage.getItem('admin_email') || 'Admin';
@@ -63,12 +75,13 @@ export default function AdminUsers() {
     
     try {
       // Build query parameters
-      const params = new URLSearchParams({
+      const params = {
         page: currentPage,
         limit: USERS_PER_PAGE,
         search: debouncedSearchTerm,
-        status: filterStatus
-      });
+        status: filterStatus,
+        user_type: userType,
+      };
       
       const url = `${API_BASE}/users/list/`;
       const res = await adminRequest({ method: 'get', url, params });
@@ -77,6 +90,9 @@ export default function AdminUsers() {
       if (res.data.data && Array.isArray(res.data.data)) {
         setUsers(res.data.data);
         setTotalUsers(res.data.total || 0);
+        if (res.data.user_type && res.data.user_type !== userType) {
+          setUserType(res.data.user_type);
+        }
       } else if (Array.isArray(res.data)) {
         setUsers(res.data);
         setTotalUsers(res.data.length);
@@ -102,7 +118,7 @@ export default function AdminUsers() {
       setLoading(false);
       setIsFetching(false);
     }
-  }, [currentPage, debouncedSearchTerm, filterStatus, navigate]);
+  }, [currentPage, debouncedSearchTerm, filterStatus, userType, navigate]);
 
   const fetchLaunchMonitor = useCallback(async () => {
     const token = getAdminAuthToken();
@@ -144,7 +160,76 @@ export default function AdminUsers() {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearchTerm, filterStatus]);
+  }, [debouncedSearchTerm, filterStatus, userType]);
+
+  const openCreateModal = () => {
+    setEditingUser(null);
+    setUserForm({
+      first_name: '',
+      last_name: '',
+      username: '',
+      email: '',
+      password: '',
+      role: userType === 'admin' ? 'staff' : 'app_user',
+      is_active: true,
+    });
+    setShowUserModal(true);
+  };
+
+  const openEditModal = (user) => {
+    setEditingUser(user);
+    setUserForm({
+      first_name: user.full_name?.split(' ')[0] || '',
+      last_name: user.full_name?.split(' ').slice(1).join(' ') || '',
+      username: user.username || '',
+      email: user.email || '',
+      password: '',
+      role: user.role || 'app_user',
+      is_active: user.is_active,
+    });
+    setShowUserModal(true);
+  };
+
+  const saveUser = async () => {
+    try {
+      if (editingUser) {
+        await adminRequest({
+          method: 'patch',
+          url: `${API_BASE}/users/manage/${editingUser.id}/`,
+          data: {
+            first_name: userForm.first_name,
+            last_name: userForm.last_name,
+            username: userForm.username,
+            role: userForm.role,
+            is_active: userForm.is_active,
+          },
+        });
+      } else {
+        await adminRequest({
+          method: 'post',
+          url: `${API_BASE}/users/manage/`,
+          data: userForm,
+        });
+      }
+      setShowUserModal(false);
+      await fetchUsers();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save user');
+    }
+  };
+
+  const deleteUser = async (user) => {
+    if (!window.confirm(`Delete ${user.email}?`)) return;
+    try {
+      await adminRequest({
+        method: 'delete',
+        url: `${API_BASE}/users/manage/${user.id}/`,
+      });
+      await fetchUsers();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete user');
+    }
+  };
 
   const handleMenuClick = useCallback((menu, path) => {
     setActiveMenu(menu);
@@ -185,6 +270,11 @@ export default function AdminUsers() {
           <h2>User Management</h2>
           <p>View, search, filter, and manage all registered users</p>
           {error && <div className="alert alert-danger">{error}</div>}
+          <div className="mt-2 d-flex gap-2">
+            <button className={`btn btn-sm ${userType === 'app' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setUserType('app')}>Main App Users</button>
+            <button className={`btn btn-sm ${userType === 'admin' ? 'btn-warning' : 'btn-outline-warning'}`} onClick={() => setUserType('admin')}>Admin & Staff</button>
+            <button className="btn btn-sm btn-success" onClick={openCreateModal}><i className="fas fa-plus me-1"></i>Add User</button>
+          </div>
         </div>
 
         {/* Filters Section */}
@@ -391,6 +481,12 @@ export default function AdminUsers() {
                             >
                               <i className="fas fa-eye me-1"></i> View
                             </button>
+                            <button className="btn btn-sm btn-outline-secondary" onClick={() => openEditModal(user)}>
+                              <i className="fas fa-pen me-1"></i> Edit
+                            </button>
+                            <button className="btn btn-sm btn-outline-danger" onClick={() => deleteUser(user)}>
+                              <i className="fas fa-trash me-1"></i> Delete
+                            </button>
                             <button
                               className="btn btn-sm btn-outline-success"
                               disabled={visibilityBusyUserId === user.id}
@@ -419,6 +515,38 @@ export default function AdminUsers() {
           <small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small>
         </footer>
       </main>
+      {showUserModal && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">{editingUser ? 'Edit User' : 'Create User'}</h5>
+                <button type="button" className="btn-close" onClick={() => setShowUserModal(false)}></button>
+              </div>
+              <div className="modal-body d-flex flex-column gap-2">
+                <input className="form-control" placeholder="First name" value={userForm.first_name} onChange={(e) => setUserForm({ ...userForm, first_name: e.target.value })} />
+                <input className="form-control" placeholder="Last name" value={userForm.last_name} onChange={(e) => setUserForm({ ...userForm, last_name: e.target.value })} />
+                <input className="form-control" placeholder="Username" value={userForm.username} onChange={(e) => setUserForm({ ...userForm, username: e.target.value })} />
+                <input className="form-control" placeholder="Email" type="email" value={userForm.email} onChange={(e) => setUserForm({ ...userForm, email: e.target.value })} disabled={Boolean(editingUser)} />
+                {!editingUser && <input className="form-control" placeholder="Password" type="password" value={userForm.password} onChange={(e) => setUserForm({ ...userForm, password: e.target.value })} />}
+                <select className="form-select" value={userForm.role} onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}>
+                  <option value="app_user">App User</option>
+                  <option value="staff">Staff</option>
+                  <option value="superadmin">Super Admin</option>
+                </select>
+                <label className="d-flex align-items-center gap-2">
+                  <input type="checkbox" checked={userForm.is_active} onChange={(e) => setUserForm({ ...userForm, is_active: e.target.checked })} />
+                  Active
+                </label>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowUserModal(false)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveUser}>{editingUser ? 'Save' : 'Create'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

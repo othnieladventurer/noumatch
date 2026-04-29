@@ -30,7 +30,7 @@ from report.models import Report
 from chat.models import Conversation, Message, SupportConversation, MessageFlag
 from chat.serializers import SupportConversationSerializer, MessageSerializer, MessageFlagSerializer
 from notifications.models import Notification
-from admin_dashboard.models import ProfileImpression
+from admin_dashboard.models import ProfileImpression, ReportCase, CaseAssignment
 from admin_dashboard.services.ranking import compute_ranking_score
 from users.throttles import AdminLoginThrottle
 from users.auth_cookies import set_auth_cookies, clear_auth_cookies, get_refresh_token_from_request
@@ -225,67 +225,171 @@ class AdminUsersListView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        page = int(request.GET.get('page', 1))
-        limit = int(request.GET.get('limit', 10))
-        search = request.GET.get('search', '').strip()
-        status_filter = request.GET.get('status', 'all')
+        try:
+            page = int(request.GET.get('page', 1))
+            limit = int(request.GET.get('limit', 10))
+            search = request.GET.get('search', '').strip()
+            status_filter = request.GET.get('status', 'all')
+            user_type = (request.GET.get('user_type', 'app') or 'app').strip().lower()
+            if user_type not in {'app', 'admin'}:
+                user_type = 'app'
 
-        queryset = User.objects.all().order_by('-date_joined')
-        
-        if search:
-            queryset = queryset.filter(
-                Q(first_name__icontains=search) | 
-                Q(last_name__icontains=search) | 
-                Q(email__icontains=search)
+            queryset = User.objects.all().order_by('-date_joined')
+            if user_type == 'admin':
+                queryset = queryset.filter(is_staff=True)
+            elif user_type == 'app':
+                queryset = queryset.filter(is_staff=False, is_superuser=False)
+
+            if search:
+                queryset = queryset.filter(
+                    Q(first_name__icontains=search) |
+                    Q(last_name__icontains=search) |
+                    Q(email__icontains=search)
+                )
+
+            if status_filter == 'active':
+                queryset = queryset.filter(is_active=True)
+            elif status_filter == 'inactive':
+                queryset = queryset.filter(is_active=False)
+            elif status_filter == 'verified':
+                queryset = queryset.filter(is_verified=True)
+
+            total = queryset.count()
+            start = (page - 1) * limit
+            end = start + limit
+            paginated_users = list(
+                queryset.annotate(
+                    matches_count_agg=Count('matches_as_user1', distinct=True) + Count('matches_as_user2', distinct=True),
+                    reports_received_count_agg=Count('reports_received', distinct=True),
+                )[start:end]
             )
-        
-        if status_filter == 'active':
-            queryset = queryset.filter(is_active=True)
-        elif status_filter == 'inactive':
-            queryset = queryset.filter(is_active=False)
-        elif status_filter == 'verified':
-            queryset = queryset.filter(is_verified=True)
+            scorecards = {
+                card.user_id: card
+                for card in UserEngagementScore.objects.filter(user__in=paginated_users)
+            }
 
-        total = queryset.count()
-        start = (page - 1) * limit
-        end = start + limit
-        paginated_users = queryset[start:end]
-        scorecards = {
-            card.user_id: card
-            for card in UserEngagementScore.objects.filter(user__in=paginated_users)
-        }
+            data = []
+            for user in paginated_users:
+                matches_count = getattr(user, 'matches_count_agg', 0) or 0
+                reports_received_count = getattr(user, 'reports_received_count_agg', 0) or 0
+                risk = 'risky' if reports_received_count >= 5 else 'watch' if reports_received_count >= 2 else 'safe'
+                scorecard = scorecards.get(user.id)
 
-        data = []
-        for user in paginated_users:
-            matches_count = Match.objects.filter(Q(user1=user) | Q(user2=user)).count()
-            reports_received_count = Report.objects.filter(reported_user=user).count()
-            risk = 'risky' if reports_received_count >= 5 else 'watch' if reports_received_count >= 2 else 'safe'
-            scorecard = scorecards.get(user.id)
-            if scorecard is None:
-                scorecard = refresh_user_score(user)
-            
-            data.append({
-                'id': user.id,
-                'email': user.email,
-                'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
-                'profile_photo_url': user.profile_photo.url if user.profile_photo else None,
-                'is_active': user.is_active,
-                'is_verified': user.is_verified,
-                'profile_score': user.profile_score,
-                'user_score': scorecard.overall_score if scorecard else 0,
-                'total_points': scorecard.total_points if scorecard else 0,
-                'matches_count': matches_count,
-                'reports_received_count': reports_received_count,
-                'risk_status': risk,
-                'date_joined': user.date_joined,
+                data.append({
+                    'id': user.id,
+                    'email': user.email,
+                    'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
+                    'username': user.username,
+                    'profile_photo_url': user.profile_photo.url if user.profile_photo else None,
+                    'is_active': user.is_active,
+                    'is_staff': user.is_staff,
+                    'is_superuser': user.is_superuser,
+                    'role': 'superadmin' if user.is_superuser else ('staff' if user.is_staff else 'app_user'),
+                    'is_verified': user.is_verified,
+                    'profile_score': user.profile_score,
+                    'user_score': scorecard.overall_score if scorecard else 0,
+                    'total_points': scorecard.total_points if scorecard else 0,
+                    'matches_count': matches_count,
+                    'reports_received_count': reports_received_count,
+                    'risk_status': risk,
+                    'date_joined': user.date_joined,
+                })
+
+            return Response({
+                'data': data,
+                'total': total,
+                'page': page,
+                'pages': ceil(total / limit) if limit > 0 else 1,
+                'user_type': user_type,
             })
+        except DatabaseError as exc:
+            logger.exception("AdminUsersListView database error; returning empty payload: %s", exc)
+            return Response({
+                'data': [],
+                'total': 0,
+                'page': 1,
+                'pages': 1,
+                'user_type': (request.GET.get('user_type') or 'app'),
+                'degraded': True,
+                'warning': 'Temporary database connectivity issue while loading users.',
+            }, status=status.HTTP_200_OK)
 
-        return Response({
-            'data': data,
-            'total': total,
-            'page': page,
-            'pages': ceil(total / limit) if limit > 0 else 1
-        })
+
+class AdminUsersManagementView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        payload = request.data
+        email = (payload.get('email') or '').strip().lower()
+        username = (payload.get('username') or '').strip() or email.split('@')[0]
+        password = payload.get('password') or ''
+        role = (payload.get('role') or 'app_user').strip().lower()
+        first_name = (payload.get('first_name') or '').strip()
+        last_name = (payload.get('last_name') or '').strip()
+
+        if not email or not password:
+            return Response({'error': 'Email and password are required'}, status=400)
+        if User.objects.filter(email=email).exists():
+            return Response({'error': 'User with this email already exists'}, status=400)
+
+        user = User.objects.create_user(
+            email=email,
+            username=username,
+            password=password,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True,
+        )
+        if role == 'superadmin':
+            user.is_staff = True
+            user.is_superuser = True
+        elif role == 'staff':
+            user.is_staff = True
+            user.is_superuser = False
+        else:
+            user.is_staff = False
+            user.is_superuser = False
+        user.save(update_fields=['is_staff', 'is_superuser'])
+        return Response({'success': True, 'id': user.id}, status=201)
+
+    def patch(self, request, user_id):
+        user = get_object_or_404(User, id=user_id)
+        payload = request.data
+        role = payload.get('role')
+        is_active = payload.get('is_active')
+        first_name = payload.get('first_name')
+        last_name = payload.get('last_name')
+        username = payload.get('username')
+
+        if role is not None:
+            role = str(role).strip().lower()
+            if role == 'superadmin':
+                user.is_staff = True
+                user.is_superuser = True
+            elif role == 'staff':
+                user.is_staff = True
+                user.is_superuser = False
+            else:
+                user.is_staff = False
+                user.is_superuser = False
+        if is_active is not None:
+            user.is_active = bool(is_active)
+        if first_name is not None:
+            user.first_name = str(first_name).strip()
+        if last_name is not None:
+            user.last_name = str(last_name).strip()
+        if username is not None and str(username).strip():
+            user.username = str(username).strip()
+
+        user.save()
+        return Response({'success': True})
+
+    def delete(self, request, user_id):
+        user = get_object_or_404(User, id=user_id)
+        if user.id == request.user.id:
+            return Response({'error': 'You cannot delete your own account'}, status=400)
+        user.delete()
+        return Response({'success': True})
 
 
 # ---------- Dashboard ----------
@@ -1170,56 +1274,45 @@ class AdminLaunchMonitorView(APIView):
         product_users = _product_users_queryset()
         total_product_users = product_users.count()
 
-        zero_match_qs = product_users.filter(
-            matches_as_user1__isnull=True,
-            matches_as_user2__isnull=True,
-        ).order_by('-last_activity', '-date_joined')[:50]
+        monitored_users = product_users.annotate(
+            matches_count_agg=Count('matches_as_user1', distinct=True) + Count('matches_as_user2', distinct=True),
+            impressions_24h_agg=Count(
+                'impressions_received',
+                filter=Q(impressions_received__timestamp__gte=now - timedelta(hours=24)),
+                distinct=True,
+            ),
+            likes_given_24h_agg=Count(
+                'likes_sent',
+                filter=Q(likes_sent__created_at__gte=now - timedelta(hours=24)),
+                distinct=True,
+            ),
+        )
 
-        zero_match_users = []
-        for user in zero_match_qs:
-            impressions_24h = ProfileImpression.objects.filter(
-                viewed=user,
-                timestamp__gte=now - timedelta(hours=24),
-            ).count()
-            likes_given_24h = Like.objects.filter(
-                from_user=user,
-                created_at__gte=now - timedelta(hours=24),
-            ).count()
-            zero_match_users.append({
+        zero_match_qs = monitored_users.filter(matches_count_agg=0).order_by('-last_activity', '-date_joined')[:50]
+
+        zero_match_users = [
+            {
                 'id': user.id,
                 'email': user.email,
                 'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
                 'date_joined': user.date_joined,
                 'last_activity': user.last_activity,
-                'impressions_24h': impressions_24h,
-                'likes_given_24h': likes_given_24h,
+                'impressions_24h': getattr(user, 'impressions_24h_agg', 0) or 0,
+                'likes_given_24h': getattr(user, 'likes_given_24h_agg', 0) or 0,
                 'minutes_since_join': int((now - user.date_joined).total_seconds() // 60) if user.date_joined else None,
-            })
+            }
+            for user in zero_match_qs
+        ]
 
-        match_counts = []
-        for user in product_users:
-            match_count = Match.objects.filter(Q(user1=user) | Q(user2=user)).count()
-            match_counts.append(match_count)
-        avg_matches_per_user = round(sum(match_counts) / len(match_counts), 2) if match_counts else 0.0
+        aggregate_matches = monitored_users.aggregate(
+            total_m1=Count('matches_as_user1', distinct=True),
+            total_m2=Count('matches_as_user2', distinct=True),
+        )
+        total_matches_links = (aggregate_matches.get('total_m1') or 0) + (aggregate_matches.get('total_m2') or 0)
+        avg_matches_per_user = round(total_matches_links / max(1, total_product_users), 2)
 
-        # live time-to-first-match from onboarding cohort in the last 7 days
-        cohort_start = now - timedelta(days=7)
-        cohort = product_users.filter(date_joined__gte=cohort_start)
-        first_match_latencies = []
-        for user in cohort:
-            first_match = Match.objects.filter(
-                Q(user1=user) | Q(user2=user),
-                created_at__gte=user.date_joined,
-            ).order_by('created_at').first()
-            if first_match:
-                first_match_latencies.append((first_match.created_at - user.date_joined).total_seconds())
-        if first_match_latencies:
-            ordered = sorted(first_match_latencies)
-            n = len(ordered)
-            median = ordered[n // 2] if n % 2 == 1 else (ordered[(n // 2) - 1] + ordered[n // 2]) / 2
-            median_first_match_seconds = round(median, 1)
-        else:
-            median_first_match_seconds = None
+        # Keep this lightweight for dashboard speed.
+        median_first_match_seconds = None
 
         return Response({
             'total_product_users': total_product_users,
@@ -1285,57 +1378,92 @@ class AdminReportResolveView(APIView):
 class AdminReportsListView(APIView):
     permission_classes = [IsAdminUser]
     def get(self, request):
-        status_filter = request.GET.get('status')
-        page = int(request.GET.get('page', 1))
-        limit = int(request.GET.get('limit', 20))
+        try:
+            status_filter = (request.GET.get('status') or '').strip().lower()
+            try:
+                page = max(1, int(request.GET.get('page', 1)))
+            except (TypeError, ValueError):
+                page = 1
+            try:
+                limit = int(request.GET.get('limit', 20))
+            except (TypeError, ValueError):
+                limit = 20
+            limit = min(max(limit, 1), 100)
 
-        queryset = Report.objects.all().order_by('-created_at')
-        if status_filter and status_filter != 'all':
-            queryset = queryset.filter(status=status_filter)
+            queryset = Report.objects.select_related('reporter', 'reported_user').order_by('-created_at')
+            if not request.user.is_superuser:
+                queryset = queryset.filter(
+                    cases__assignments__staff_user=request.user,
+                    cases__assignments__active=True,
+                ).distinct()
+            if status_filter and status_filter != 'all':
+                queryset = queryset.filter(status=status_filter)
 
-        total = queryset.count()
-        start = (page - 1) * limit
-        end = start + limit
-        reports = queryset[start:end]
+            total = queryset.count()
+            start = (page - 1) * limit
+            end = start + limit
+            reports = queryset[start:end]
 
-        data = []
-        for r in reports:
-            data.append({
-                'id': r.id,
-                'reporter_email': r.reporter.email,
-                'reporter_name': f"{r.reporter.first_name} {r.reporter.last_name}".strip() or r.reporter.email,
-                'reported_user_email': r.reported_user.email,
-                'reported_user_name': f"{r.reported_user.first_name} {r.reported_user.last_name}".strip() or r.reported_user.email,
-                'reason': r.get_reason_display(),
-                'status': r.status,
-                'created_at': r.created_at,
-                'description': r.description,
-                'admin_notes': r.admin_notes,
-                'action_taken': r.action_taken,
-            })
+            data = []
+            for r in reports:
+                data.append({
+                    'id': r.id,
+                    'reporter_email': r.reporter.email,
+                    'reporter_name': f"{r.reporter.first_name} {r.reporter.last_name}".strip() or r.reporter.email,
+                    'reported_user_email': r.reported_user.email,
+                    'reported_user_name': f"{r.reported_user.first_name} {r.reported_user.last_name}".strip() or r.reported_user.email,
+                    'reason': r.get_reason_display(),
+                    'status': r.status,
+                    'created_at': r.created_at,
+                    'description': r.description,
+                    'admin_notes': r.admin_notes,
+                    'action_taken': r.action_taken,
+                })
 
-        return Response({'data': data, 'total': total, 'page': page, 'pages': (total + limit - 1) // limit})
+            return Response({'data': data, 'total': total, 'page': page, 'pages': (total + limit - 1) // limit})
+        except DatabaseError as exc:
+            logger.exception("AdminReportsListView database error; returning empty payload: %s", exc)
+            return Response({
+                'data': [],
+                'total': 0,
+                'page': 1,
+                'pages': 1,
+                'degraded': True,
+                'warning': 'Temporary database connectivity issue while loading reports.',
+            }, status=status.HTTP_200_OK)
 
 
 class AdminReportDetailView(APIView):
     permission_classes = [IsAdminUser]
     def get(self, request, pk):
-        report = get_object_or_404(Report, pk=pk)
-        return Response({
-            'id': report.id,
-            'reporter_email': report.reporter.email,
-            'reporter_name': f"{report.reporter.first_name} {report.reporter.last_name}".strip() or report.reporter.email,
-            'reported_user_email': report.reported_user.email,
-            'reported_user_name': f"{report.reported_user.first_name} {report.reported_user.last_name}".strip() or report.reported_user.email,
-            'reason': report.get_reason_display(),
-            'status': report.status,
-            'created_at': report.created_at,
-            'description': report.description,
-            'admin_notes': report.admin_notes,
-            'action_taken': report.action_taken,
-            'screenshot': report.screenshot.url if report.screenshot else None,
-            'match_id': report.match_id,
-        })
+        try:
+            report = get_object_or_404(Report.objects.select_related('reporter', 'reported_user'), pk=pk)
+            if not request.user.is_superuser:
+                has_access = CaseAssignment.objects.filter(
+                    case__report=report,
+                    staff_user=request.user,
+                    active=True,
+                ).exists()
+                if not has_access:
+                    return Response({'error': 'Not allowed for this report'}, status=403)
+            return Response({
+                'id': report.id,
+                'reporter_email': report.reporter.email,
+                'reporter_name': f"{report.reporter.first_name} {report.reporter.last_name}".strip() or report.reporter.email,
+                'reported_user_email': report.reported_user.email,
+                'reported_user_name': f"{report.reported_user.first_name} {report.reported_user.last_name}".strip() or report.reported_user.email,
+                'reason': report.get_reason_display(),
+                'status': report.status,
+                'created_at': report.created_at,
+                'description': report.description,
+                'admin_notes': report.admin_notes,
+                'action_taken': report.action_taken,
+                'screenshot': report.screenshot.url if report.screenshot else None,
+                'match_id': report.match_id,
+            })
+        except DatabaseError as exc:
+            logger.exception("AdminReportDetailView database error: %s", exc)
+            return Response({'error': 'Temporary database issue while loading report detail.'}, status=503)
 
 
 class AdminUpdateReportStatusView(APIView):
@@ -1368,6 +1496,211 @@ class AdminBanUserFromReportView(APIView):
         report.status = 'resolved'
         report.save()
         return Response({'message': f'User {user_to_ban.email} banned successfully'})
+
+
+def _report_case_queryset_for_user(user):
+    qs = ReportCase.objects.select_related(
+        'report', 'report__reporter', 'report__reported_user', 'created_by'
+    ).prefetch_related('assignments__staff_user', 'assignments__assigned_by')
+    if user.is_superuser:
+        return qs
+    return qs.filter(assignments__staff_user=user, assignments__active=True).distinct()
+
+
+def _serialize_report_case(case):
+    active_assignments = [
+        assignment for assignment in list(case.assignments.all())
+        if assignment.active
+    ]
+    return {
+        'id': case.id,
+        'report_id': case.report_id,
+        'report_reason': case.report.get_reason_display() if case.report_id else None,
+        'reported_user_email': case.report.reported_user.email if case.report_id else None,
+        'reported_user_name': (
+            f"{case.report.reported_user.first_name} {case.report.reported_user.last_name}".strip()
+            or case.report.reported_user.email
+        ) if case.report_id else None,
+        'reporter_email': case.report.reporter.email if case.report_id else None,
+        'title': case.title,
+        'description': case.description,
+        'status': case.status,
+        'priority': case.priority,
+        'department': case.department,
+        'final_note': case.final_note,
+        'action_taken': case.action_taken,
+        'close_summary': case.close_summary,
+        'closed_at': case.closed_at,
+        'created_by_id': case.created_by_id,
+        'created_by_email': case.created_by.email if case.created_by else None,
+        'due_at': case.due_at,
+        'created_at': case.created_at,
+        'updated_at': case.updated_at,
+        'assignments_count': len(active_assignments),
+        'assigned_staff': [
+            {
+                'id': assignment.staff_user_id,
+                'email': assignment.staff_user.email,
+                'name': f"{assignment.staff_user.first_name} {assignment.staff_user.last_name}".strip() or assignment.staff_user.email,
+            }
+            for assignment in active_assignments
+        ],
+    }
+
+
+class AdminReportCasesView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        try:
+            report_id = request.GET.get('report_id')
+            qs = _report_case_queryset_for_user(request.user)
+            if report_id:
+                qs = qs.filter(report_id=report_id)
+            data = [_serialize_report_case(case) for case in qs[:200]]
+            return Response({'data': data})
+        except DatabaseError as exc:
+            logger.exception("AdminReportCasesView database error: %s", exc)
+            return Response({
+                'data': [],
+                'degraded': True,
+                'warning': 'Temporary database issue while loading report cases.',
+            }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({'error': 'Only superuser can create cases'}, status=403)
+        try:
+            report_id = request.data.get('report_id')
+            title = (request.data.get('title') or '').strip()
+            if not report_id or not title:
+                return Response({'error': 'report_id and title are required'}, status=400)
+            report = get_object_or_404(Report, id=report_id)
+            case = ReportCase.objects.create(
+                report=report,
+                title=title,
+                description=(request.data.get('description') or '').strip(),
+                status=(request.data.get('status') or 'open').strip(),
+                priority=(request.data.get('priority') or 'medium').strip(),
+                department=(request.data.get('department') or 'safety').strip(),
+                final_note=(request.data.get('final_note') or '').strip(),
+                action_taken=(request.data.get('action_taken') or '').strip(),
+                close_summary=(request.data.get('close_summary') or '').strip(),
+                created_by=request.user,
+                due_at=request.data.get('due_at') or None,
+            )
+            return Response({'success': True, 'id': case.id, 'case': _serialize_report_case(case)}, status=201)
+        except DatabaseError as exc:
+            logger.exception("AdminReportCasesView create database error: %s", exc)
+            return Response({'error': 'Temporary database issue while creating case.'}, status=503)
+
+
+class AdminReportCaseDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, case_id):
+        try:
+            case = get_object_or_404(ReportCase, id=case_id)
+            if not request.user.is_superuser and not CaseAssignment.objects.filter(case=case, staff_user=request.user, active=True).exists():
+                return Response({'error': 'Not allowed for this case'}, status=403)
+            payload = request.data
+            for field in ['title', 'description', 'status', 'priority', 'department']:
+                if field in payload:
+                    setattr(case, field, (payload.get(field) or '').strip())
+            for field in ['final_note', 'action_taken', 'close_summary']:
+                if field in payload:
+                    setattr(case, field, (payload.get(field) or '').strip())
+            if 'due_at' in payload:
+                case.due_at = payload.get('due_at') or None
+            if case.status in {'resolved', 'closed'} and case.closed_at is None:
+                case.closed_at = timezone.now()
+            if case.status not in {'resolved', 'closed'}:
+                case.closed_at = None
+            case.save()
+            return Response({'success': True, 'case': _serialize_report_case(case)})
+        except DatabaseError as exc:
+            logger.exception("AdminReportCaseDetailView update database error: %s", exc)
+            return Response({'error': 'Temporary database issue while updating case.'}, status=503)
+
+    def delete(self, request, case_id):
+        if not request.user.is_superuser:
+            return Response({'error': 'Only superuser can delete cases'}, status=403)
+        case = get_object_or_404(ReportCase, id=case_id)
+        case.delete()
+        return Response({'success': True})
+
+
+class AdminCaseAssignmentsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, case_id):
+        try:
+            case = get_object_or_404(ReportCase, id=case_id)
+            if not request.user.is_superuser and not CaseAssignment.objects.filter(case=case, staff_user=request.user, active=True).exists():
+                return Response({'error': 'Not allowed for this case'}, status=403)
+            assignments = CaseAssignment.objects.filter(case=case).select_related('staff_user', 'assigned_by')
+            data = [{
+                'id': a.id,
+                'case_id': a.case_id,
+                'staff_user_id': a.staff_user_id,
+                'staff_email': a.staff_user.email,
+                'staff_name': f"{a.staff_user.first_name} {a.staff_user.last_name}".strip() or a.staff_user.email,
+                'assigned_by_id': a.assigned_by_id,
+                'assigned_by_email': a.assigned_by.email if a.assigned_by else None,
+                'notes': a.notes,
+                'active': a.active,
+                'assigned_at': a.assigned_at,
+                'updated_at': a.updated_at,
+            } for a in assignments]
+            return Response({'data': data})
+        except DatabaseError as exc:
+            logger.exception("AdminCaseAssignmentsView database error: %s", exc)
+            return Response({'data': [], 'warning': 'Temporary database issue while loading assignments.'}, status=status.HTTP_200_OK)
+
+    def post(self, request, case_id):
+        if not request.user.is_superuser:
+            return Response({'error': 'Only superuser can assign cases'}, status=403)
+        case = get_object_or_404(ReportCase, id=case_id)
+        staff_user_id = request.data.get('staff_user_id')
+        if not staff_user_id:
+            return Response({'error': 'staff_user_id is required'}, status=400)
+        staff_user = get_object_or_404(User, id=staff_user_id, is_staff=True)
+        assignment = CaseAssignment.objects.create(
+            case=case,
+            staff_user=staff_user,
+            assigned_by=request.user,
+            notes=(request.data.get('notes') or '').strip(),
+            active=bool(request.data.get('active', True)),
+        )
+        return Response({'success': True, 'id': assignment.id}, status=201)
+
+
+class AdminCaseAssignmentDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, assignment_id):
+        assignment = get_object_or_404(CaseAssignment, id=assignment_id)
+        if not request.user.is_superuser and assignment.staff_user_id != request.user.id:
+            return Response({'error': 'Not allowed for this assignment'}, status=403)
+        payload = request.data
+        if 'notes' in payload:
+            assignment.notes = (payload.get('notes') or '').strip()
+        if 'active' in payload:
+            assignment.active = bool(payload.get('active'))
+        if 'staff_user_id' in payload:
+            if not request.user.is_superuser:
+                return Response({'error': 'Only superuser can reassign'}, status=403)
+            reassigned = get_object_or_404(User, id=payload.get('staff_user_id'), is_staff=True)
+            assignment.staff_user = reassigned
+        assignment.save()
+        return Response({'success': True})
+
+    def delete(self, request, assignment_id):
+        if not request.user.is_superuser:
+            return Response({'error': 'Only superuser can delete assignments'}, status=403)
+        assignment = get_object_or_404(CaseAssignment, id=assignment_id)
+        assignment.delete()
+        return Response({'success': True})
 
 
 # ---------- Support & Messaging ----------
@@ -1643,8 +1976,20 @@ class AdminWaitlistArchivedView(APIView):
     permission_classes = [IsAdminUser]
     
     def get(self, request):
-        archives = ContactedArchive.objects.all().order_by('-removed_at')
-        return Response(_paginate_queryset(request, archives, InlineContactedArchiveSerializer))
+        try:
+            archives = ContactedArchive.objects.all().order_by('-removed_at')
+            return Response(_paginate_queryset(request, archives, InlineContactedArchiveSerializer))
+        except DatabaseError as exc:
+            logger.exception("AdminWaitlistArchivedView database error; returning empty payload: %s", exc)
+            return Response({
+                'results': [],
+                'total': 0,
+                'page': 1,
+                'page_size': 10,
+                'pages': 1,
+                'degraded': True,
+                'warning': 'Temporary database connectivity issue while loading archive.',
+            }, status=status.HTTP_200_OK)
 
 
 class AdminWaitlistAcceptView(APIView):
