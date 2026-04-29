@@ -19,12 +19,8 @@ const EVENT_OPTIONS = [
 ];
 
 const buildSeriesFromCache = (existingSeries, fallbackMetrics) => {
-  if (Array.isArray(existingSeries) && existingSeries.length) {
-    return existingSeries;
-  }
-  if (!fallbackMetrics) {
-    return [];
-  }
+  if (Array.isArray(existingSeries) && existingSeries.length) return existingSeries;
+  if (!fallbackMetrics) return [];
   return [
     {
       date: new Date().toISOString().slice(0, 10),
@@ -35,6 +31,99 @@ const buildSeriesFromCache = (existingSeries, fallbackMetrics) => {
     },
   ];
 };
+
+const formatNumber = (value) => new Intl.NumberFormat('en-US').format(Number(value || 0));
+
+const formatPercent = (value, decimals = 1) => `${((Number(value) || 0) * 100).toFixed(decimals)}%`;
+
+const formatDuration = (seconds) => {
+  if (seconds === null || seconds === undefined) return 'n/a';
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = seconds / 60;
+  if (minutes < 60) return `${minutes.toFixed(1)}m`;
+  return `${(minutes / 60).toFixed(1)}h`;
+};
+
+const getTargetState = (type, value) => {
+  if (value === null || value === undefined) return 'unknown';
+  if (type === 'firstLike') return value <= 60 ? 'good' : 'watch';
+  if (type === 'firstMatch') return value <= 300 ? 'good' : 'watch';
+  if (type === 'messageRate') return value >= 60 ? 'good' : 'watch';
+  if (type === 'conversationDepth') return value >= 2 ? 'good' : 'watch';
+  return 'unknown';
+};
+
+function MetricCard({ label, value, sublabel, icon, tone }) {
+  return (
+    <div className="performance-metric-card">
+      <div className={`performance-metric-icon ${tone}`}>
+        <i className={icon}></i>
+      </div>
+      <div className="performance-metric-copy">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{sublabel}</small>
+      </div>
+    </div>
+  );
+}
+
+function BehaviorCard({ label, value, target, state, icon }) {
+  return (
+    <div className="behavior-card">
+      <div className="behavior-card-top">
+        <i className={icon}></i>
+        <span className={`behavior-status ${state}`}>{state === 'good' ? 'On Target' : state === 'watch' ? 'Watch' : 'No Data'}</span>
+      </div>
+      <strong>{value}</strong>
+      <span>{label}</span>
+      <small>{target}</small>
+    </div>
+  );
+}
+
+function TrendChart({ series }) {
+  const rows = useMemo(() => (series || []).slice(-30), [series]);
+  const width = 720;
+  const height = 260;
+  const padding = 34;
+  const innerWidth = width - padding * 2;
+  const innerHeight = height - padding * 2;
+  const maxValue = Math.max(1, ...rows.flatMap((row) => [row.dau || 0, row.wau || 0, row.mau || 0]));
+
+  const point = (row, index, key) => {
+    const x = padding + (rows.length <= 1 ? innerWidth : (index / (rows.length - 1)) * innerWidth);
+    const y = padding + innerHeight - ((row[key] || 0) / maxValue) * innerHeight;
+    return `${x},${y}`;
+  };
+
+  if (!rows.length) {
+    return <div className="performance-empty-chart">No trend data for this filter range.</div>;
+  }
+
+  return (
+    <div className="performance-chart-wrap">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Active user trend chart">
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+          const y = padding + innerHeight - ratio * innerHeight;
+          return <line key={ratio} x1={padding} y1={y} x2={width - padding} y2={y} className="chart-grid-line" />;
+        })}
+        <polyline className="trend-line dau" points={rows.map((row, index) => point(row, index, 'dau')).join(' ')} />
+        <polyline className="trend-line wau" points={rows.map((row, index) => point(row, index, 'wau')).join(' ')} />
+        <polyline className="trend-line mau" points={rows.map((row, index) => point(row, index, 'mau')).join(' ')} />
+        {rows.map((row, index) => {
+          const [x, y] = point(row, index, 'dau').split(',').map(Number);
+          return <circle key={`${row.date}-dau`} cx={x} cy={y} r="3.5" className="trend-dot dau" />;
+        })}
+      </svg>
+      <div className="chart-legend">
+        <span><i className="legend-dot dau"></i>DAU</span>
+        <span><i className="legend-dot wau"></i>WAU</span>
+        <span><i className="legend-dot mau"></i>MAU</span>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminAnalyticsPerformance() {
   const navigate = useNavigate();
@@ -48,7 +137,7 @@ export default function AdminAnalyticsPerformance() {
   const [error, setError] = useState('');
   const [dateFrom, setDateFrom] = useState(cachedMetrics?.date_from || DEFAULT_FROM);
   const [dateTo, setDateTo] = useState(cachedMetrics?.date_to || TODAY);
-  const [actions, setActions] = useState(cachedMetrics?.actions || EVENT_OPTIONS.map((e) => e.key));
+  const [actions, setActions] = useState(cachedMetrics?.actions || EVENT_OPTIONS.map((event) => event.key));
   const [seoMetrics, setSeoMetrics] = useState(null);
   const [seoLoading, setSeoLoading] = useState(false);
   const [seoError, setSeoError] = useState('');
@@ -81,14 +170,11 @@ export default function AdminAnalyticsPerformance() {
     };
 
     try {
-      if (!silent) {
-        setLoading(true);
-      }
+      if (!silent) setLoading(true);
 
-      let response;
       let payload;
       try {
-        response = await adminRequest({
+        const response = await adminRequest({
           method: 'get',
           url: `${API_BASE}/admin/metrics/active-users/`,
           params,
@@ -96,40 +182,32 @@ export default function AdminAnalyticsPerformance() {
         });
         payload = response.data;
       } catch (primaryErr) {
-        if (primaryErr.response?.status === 404) {
-          try {
-            response = await adminRequest({
-              method: 'get',
-              url: `${API_BASE}/metrics/active-users/`,
-              params,
-              timeout: 60000,
-            });
-            payload = response.data;
-          } catch (compatErr) {
-            if (compatErr.response?.status === 404) {
-              // Final fallback for older backend builds: use dashboard summary metrics.
-              const dash = await adminRequest({ method: 'get', url: `${API_BASE}/dashboard/` });
-              const previousSeries = cachedMetrics?.series || metrics?.series || [];
-              const fallback = {
-                dau: dash.data?.dau || 0,
-                wau: dash.data?.wau || 0,
-                mau: dash.data?.mau || 0,
-                stickiness: dash.data?.stickiness || 0,
-                yesterday_dau: 0,
-                dau_delta: 0,
-                actions: selectedActions,
-                date_from: selectedDateFrom,
-                date_to: selectedDateTo,
-                series: buildSeriesFromCache(previousSeries, dash.data),
-              };
-              payload = fallback;
-              setError('Active-users endpoint not found on backend yet. Showing dashboard fallback and cached history.');
-            } else {
-              throw compatErr;
-            }
-          }
-        } else {
-          throw primaryErr;
+        if (primaryErr.response?.status !== 404) throw primaryErr;
+        try {
+          const response = await adminRequest({
+            method: 'get',
+            url: `${API_BASE}/metrics/active-users/`,
+            params,
+            timeout: 60000,
+          });
+          payload = response.data;
+        } catch (compatErr) {
+          if (compatErr.response?.status !== 404) throw compatErr;
+          const dash = await adminRequest({ method: 'get', url: `${API_BASE}/dashboard/` });
+          const previousSeries = cachedMetrics?.series || metrics?.series || [];
+          payload = {
+            dau: dash.data?.dau || 0,
+            wau: dash.data?.wau || 0,
+            mau: dash.data?.mau || 0,
+            stickiness: dash.data?.stickiness || 0,
+            yesterday_dau: 0,
+            dau_delta: 0,
+            actions: selectedActions,
+            date_from: selectedDateFrom,
+            date_to: selectedDateTo,
+            series: buildSeriesFromCache(previousSeries, dash.data),
+          };
+          setError('Active-users endpoint not found on backend yet. Showing dashboard fallback and cached history.');
         }
       }
 
@@ -161,9 +239,7 @@ export default function AdminAnalyticsPerformance() {
 
   const fetchSeoMetrics = async () => {
     const token = getAdminAuthToken();
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     try {
       setSeoLoading(true);
@@ -171,8 +247,7 @@ export default function AdminAnalyticsPerformance() {
       setSeoMetrics(response.data);
       setSeoError('');
     } catch (err) {
-      const serverError = err.response?.data?.error || err.message || 'Failed to load SEO metrics';
-      setSeoError(serverError);
+      setSeoError(err.response?.data?.error || err.message || 'Failed to load SEO metrics');
     } finally {
       setSeoLoading(false);
     }
@@ -203,31 +278,19 @@ export default function AdminAnalyticsPerformance() {
   const trendUp = dauDelta >= 0;
   const series = safeMetrics.series || [];
 
-  const formatDuration = (seconds) => {
-    if (seconds === null || seconds === undefined) return 'n/a';
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    const minutes = seconds / 60;
-    if (minutes < 60) return `${minutes.toFixed(1)}m`;
-    const hours = minutes / 60;
-    return `${hours.toFixed(1)}h`;
-  };
-
-  const csvRows = useMemo(() => {
-    return series.map((row) => ({
-      date: row.date,
-      dau: row.dau,
-      wau: row.wau,
-      mau: row.mau,
-      stickiness_percent: ((row.stickiness || 0) * 100).toFixed(2),
-    }));
-  }, [series]);
+  const csvRows = useMemo(() => series.map((row) => ({
+    date: row.date,
+    dau: row.dau,
+    wau: row.wau,
+    mau: row.mau,
+    stickiness_percent: ((row.stickiness || 0) * 100).toFixed(2),
+  })), [series]);
 
   const downloadCSV = () => {
     if (!csvRows.length) return;
     const headers = ['Date', 'DAU', 'WAU', 'MAU', 'DAU/MAU %'];
-    const rows = csvRows.map((r) => [r.date, r.dau, r.wau, r.mau, r.stickiness_percent]);
+    const rows = csvRows.map((row) => [row.date, row.dau, row.wau, row.mau, row.stickiness_percent]);
     const csvContent = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -248,11 +311,7 @@ export default function AdminAnalyticsPerformance() {
         mau: safeMetrics.mau || 0,
         stickiness: safeMetrics.stickiness || 0,
       },
-      filters: {
-        date_from: dateFrom,
-        date_to: dateTo,
-        actions,
-      },
+      filters: { date_from: dateFrom, date_to: dateTo, actions },
       series,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -271,277 +330,229 @@ export default function AdminAnalyticsPerformance() {
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
-        <div className="container-fluid px-4 py-4">
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h2 className="mb-0"><i className="fas fa-trophy me-2 text-danger"></i>Performance Metrics</h2>
-            <div className="d-flex align-items-center gap-2">
-              {loading && (
-                <div className="small text-secondary">
-                  Refreshing...
-                </div>
-              )}
-              <button className="btn btn-success btn-sm" onClick={downloadCSV} disabled={!series.length}>
+
+        <div className="performance-page">
+          <section className="performance-hero">
+            <div className="performance-hero-copy">
+              <span className="performance-eyebrow">Product Analytics</span>
+              <h2>Performance Metrics</h2>
+              <p>Track active users, behavior quality, SEO health, and historical trend data in one workspace.</p>
+            </div>
+            <div className="performance-actions">
+              {loading && <span className="performance-refreshing">Refreshing...</span>}
+              <button className="btn btn-outline-secondary btn-sm" onClick={downloadCSV} disabled={!series.length}>
                 <i className="fas fa-download me-1"></i>CSV
               </button>
-              <button className="btn btn-info btn-sm" onClick={downloadJSON} disabled={!series.length}>
+              <button className="btn btn-outline-secondary btn-sm" onClick={downloadJSON} disabled={!series.length}>
                 <i className="fas fa-file-code me-1"></i>JSON
               </button>
             </div>
-          </div>
+          </section>
 
-          {error && <div className="alert alert-danger">{error}</div>}
+          {error && <div className="alert alert-danger performance-alert">{error}</div>}
 
-          <div className="card shadow-sm mb-4">
-            <div className="card-body">
-              <div className="row g-3 align-items-end">
-                <div className="col-md-3">
-                  <label className="form-label small">Date From</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    max={dateTo}
-                  />
-                </div>
-                <div className="col-md-3">
-                  <label className="form-label small">Date To</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    min={dateFrom}
-                    max={TODAY}
-                  />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label small d-block">Meaningful Actions</label>
-                  <div className="d-flex flex-wrap gap-2">
-                    {EVENT_OPTIONS.map((option) => (
-                      <button
-                        key={option.key}
-                        type="button"
-                        className={`btn btn-sm ${actions.includes(option.key) ? 'btn-danger' : 'btn-outline-secondary'}`}
-                        onClick={() => toggleAction(option.key)}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 d-flex gap-2">
-                <button className="btn btn-danger btn-sm" onClick={() => fetchMetrics()}>
-                  <i className="fas fa-search me-1"></i>Apply Filters
-                </button>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => {
-                    const resetActions = EVENT_OPTIONS.map((e) => e.key);
-                    setDateFrom(DEFAULT_FROM);
-                    setDateTo(TODAY);
-                    setActions(resetActions);
-                    fetchMetrics({
-                      forceActions: resetActions,
-                      forceDateFrom: DEFAULT_FROM,
-                      forceDateTo: TODAY,
-                    });
-                  }}
-                >
-                  <i className="fas fa-rotate-left me-1"></i>Reset
-                </button>
+          <section className="performance-filter-panel">
+            <div className="performance-date-filters">
+              <label>
+                <span>From</span>
+                <input type="date" className="form-control" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} max={dateTo} />
+              </label>
+              <label>
+                <span>To</span>
+                <input type="date" className="form-control" value={dateTo} onChange={(event) => setDateTo(event.target.value)} min={dateFrom} max={TODAY} />
+              </label>
+            </div>
+
+            <div className="performance-action-filters">
+              <span>Actions</span>
+              <div>
+                {EVENT_OPTIONS.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className={`action-chip ${actions.includes(option.key) ? 'active' : ''}`}
+                    onClick={() => toggleAction(option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
 
-          <div className="metrics-grid" style={{ padding: 0 }}>
-            <div className="metric-card">
-              <div className="metric-icon bg-primary-light"><i className="fas fa-calendar-day text-primary"></i></div>
-              <div className="metric-info"><h6>DAU</h6><p className="metric-value">{safeMetrics.dau || 0}</p></div>
+            <div className="performance-filter-actions">
+              <button className="btn btn-danger" onClick={() => fetchMetrics()} disabled={loading}>
+                <i className="fas fa-search me-2"></i>Apply
+              </button>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={() => {
+                  const resetActions = EVENT_OPTIONS.map((event) => event.key);
+                  setDateFrom(DEFAULT_FROM);
+                  setDateTo(TODAY);
+                  setActions(resetActions);
+                  fetchMetrics({ forceActions: resetActions, forceDateFrom: DEFAULT_FROM, forceDateTo: TODAY });
+                }}
+              >
+                <i className="fas fa-rotate-left me-2"></i>Reset
+              </button>
             </div>
-            <div className="metric-card">
-              <div className="metric-icon bg-success-light"><i className="fas fa-calendar-week text-success"></i></div>
-              <div className="metric-info"><h6>WAU</h6><p className="metric-value">{safeMetrics.wau || 0}</p></div>
-            </div>
-            <div className="metric-card">
-              <div className="metric-icon bg-warning-light"><i className="fas fa-calendar-alt text-warning"></i></div>
-              <div className="metric-info"><h6>MAU</h6><p className="metric-value">{safeMetrics.mau || 0}</p></div>
-            </div>
-            <div className="metric-card">
-              <div className="metric-icon bg-info-light"><i className="fas fa-percent text-info"></i></div>
-              <div className="metric-info"><h6>DAU/MAU</h6><p className="metric-value">{((safeMetrics.stickiness || 0) * 100).toFixed(1)}%</p></div>
-            </div>
-          </div>
+          </section>
 
-          <div className="recent-blocks-card mt-4" style={{ margin: '1.5rem 0 0 0' }}>
-            <div className="card-header">
-              <h5><i className="fas fa-bolt me-2 text-warning"></i>Behavior Critical Metrics</h5>
-            </div>
-            <div className="card-body">
-              <div className="row g-3">
-                <div className="col-md-3">
-                  <div className="p-3 rounded border bg-light">
-                    <div className="small text-uppercase text-muted">Time To First Like (Median)</div>
-                    <div className="fs-4 fw-bold">{formatDuration(behavior?.time_to_first_like?.median_seconds)}</div>
-                    <div className="small text-muted">Target: &lt; 60s</div>
-                  </div>
+          <section className="performance-metric-grid">
+            <MetricCard label="DAU" value={formatNumber(safeMetrics.dau)} sublabel="Daily active users" icon="fas fa-calendar-day" tone="blue" />
+            <MetricCard label="WAU" value={formatNumber(safeMetrics.wau)} sublabel="Last 7 days" icon="fas fa-calendar-week" tone="green" />
+            <MetricCard label="MAU" value={formatNumber(safeMetrics.mau)} sublabel="Last 30 days" icon="fas fa-calendar-alt" tone="amber" />
+            <MetricCard label="DAU/MAU" value={formatPercent(safeMetrics.stickiness)} sublabel="Stickiness" icon="fas fa-percent" tone="cyan" />
+          </section>
+
+          <section className="performance-grid">
+            <div className="performance-panel trend-panel">
+              <div className="performance-panel-header">
+                <div>
+                  <h5>Active User Trend</h5>
+                  <small>DAU, WAU, and MAU over the selected range</small>
                 </div>
-                <div className="col-md-3">
-                  <div className="p-3 rounded border bg-light">
-                    <div className="small text-uppercase text-muted">Time To First Match (Median)</div>
-                    <div className="fs-4 fw-bold">{formatDuration(behavior?.time_to_first_match?.median_seconds)}</div>
-                    <div className="small text-muted">Target: &lt; 5m</div>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="p-3 rounded border bg-light">
-                    <div className="small text-uppercase text-muted">Match To Message</div>
-                    <div className="fs-4 fw-bold">{(behavior?.match_to_message_rate_percent ?? 0).toFixed(1)}%</div>
-                    <div className="small text-muted">Target: &gt; 60%</div>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="p-3 rounded border bg-light">
-                    <div className="small text-uppercase text-muted">Conversation Depth</div>
-                    <div className="fs-4 fw-bold">{(behavior?.avg_messages_per_started_conversation ?? 0).toFixed(2)}</div>
-                    <div className="small text-muted">Messages per started conversation</div>
-                  </div>
+                <div className={`trend-delta ${trendUp ? 'up' : 'down'}`}>
+                  <i className={`fas ${trendUp ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`}></i>
+                  <span>{trendUp ? '+' : ''}{dauDelta} DAU</span>
                 </div>
               </div>
+              <TrendChart series={series} />
             </div>
-          </div>
 
-          <div className="recent-blocks-card mt-4" style={{ margin: '1.5rem 0 0 0' }}>
-            <div className="card-header">
-              <h5><i className={`fas ${trendUp ? 'fa-arrow-trend-up text-success' : 'fa-arrow-trend-down text-danger'} me-2`}></i>Daily Trend</h5>
+            <div className="performance-panel">
+              <div className="performance-panel-header">
+                <div>
+                  <h5>Daily Snapshot</h5>
+                  <small>Today compared with yesterday</small>
+                </div>
+              </div>
+              <div className="snapshot-card">
+                <span>Today DAU</span>
+                <strong>{formatNumber(safeMetrics.dau)}</strong>
+                <p>Yesterday: {formatNumber(safeMetrics.yesterday_dau)}</p>
+                <div className={`snapshot-delta ${trendUp ? 'up' : 'down'}`}>{trendUp ? '+' : ''}{dauDelta} users</div>
+              </div>
             </div>
-            <div className="card-body">
-              <p className="mb-0">
-                Today&apos;s DAU is <strong>{safeMetrics.dau || 0}</strong>, compared to <strong>{safeMetrics.yesterday_dau || 0}</strong> yesterday.
-                {' '}
-                <span className={trendUp ? 'text-success' : 'text-danger'}>
-                  {trendUp ? '+' : ''}{dauDelta}
-                </span>
-                {' '}users day over day.
-              </p>
-            </div>
-          </div>
+          </section>
 
-          <div className="recent-blocks-card mt-4" style={{ margin: '1.5rem 0 0 0' }}>
-            <div className="card-header d-flex justify-content-between align-items-center">
-              <h5 className="mb-0"><i className="fas fa-globe me-2 text-success"></i>SEO Health</h5>
+          <section className="performance-panel">
+            <div className="performance-panel-header">
+              <div>
+                <h5>Behavior Critical Metrics</h5>
+                <small>Dating-app launch indicators that decide whether users get momentum</small>
+              </div>
+            </div>
+            <div className="behavior-grid">
+              <BehaviorCard
+                label="Time To First Like"
+                value={formatDuration(behavior?.time_to_first_like?.median_seconds)}
+                target="Target: under 60s"
+                state={getTargetState('firstLike', behavior?.time_to_first_like?.median_seconds)}
+                icon="fas fa-heart"
+              />
+              <BehaviorCard
+                label="Time To First Match"
+                value={formatDuration(behavior?.time_to_first_match?.median_seconds)}
+                target="Target: under 5m"
+                state={getTargetState('firstMatch', behavior?.time_to_first_match?.median_seconds)}
+                icon="fas fa-bolt"
+              />
+              <BehaviorCard
+                label="Match To Message"
+                value={`${(behavior?.match_to_message_rate_percent ?? 0).toFixed(1)}%`}
+                target="Target: above 60%"
+                state={getTargetState('messageRate', behavior?.match_to_message_rate_percent)}
+                icon="fas fa-comment-dots"
+              />
+              <BehaviorCard
+                label="Conversation Depth"
+                value={(behavior?.avg_messages_per_started_conversation ?? 0).toFixed(2)}
+                target="Messages per started conversation"
+                state={getTargetState('conversationDepth', behavior?.avg_messages_per_started_conversation)}
+                icon="fas fa-comments"
+              />
+            </div>
+          </section>
+
+          <section className="performance-panel seo-panel">
+            <div className="performance-panel-header">
+              <div>
+                <h5>SEO Health</h5>
+                <small>Indexable route and sitemap checks</small>
+              </div>
               <button className="btn btn-outline-success btn-sm" onClick={fetchSeoMetrics} disabled={seoLoading}>
                 {seoLoading ? 'Refreshing...' : 'Refresh SEO'}
               </button>
             </div>
-            <div className="card-body">
-              {seoError && <div className="alert alert-danger mb-3">{seoError}</div>}
-              {!seoError && !seoMetrics && <p className="text-secondary mb-0">No SEO metrics loaded yet.</p>}
-              {seoMetrics && (
-                <>
-                  <div className="row g-3 mb-3">
-                    <div className="col-md-3">
-                      <div className="p-3 rounded border bg-light">
-                        <div className="small text-uppercase text-muted">SEO Score</div>
-                        <div className="fs-3 fw-bold">{seoMetrics.score}/100</div>
-                      </div>
-                    </div>
-                    <div className="col-md-3">
-                      <div className="p-3 rounded border bg-light">
-                        <div className="small text-uppercase text-muted">Indexable Routes</div>
-                        <div className="fs-3 fw-bold">{seoMetrics.indexable_routes?.length || 0}</div>
-                      </div>
-                    </div>
-                    <div className="col-md-3">
-                      <div className="p-3 rounded border bg-light">
-                        <div className="small text-uppercase text-muted">Route Health</div>
-                        <div className="fs-3 fw-bold">{((seoMetrics.checks?.route_health_ratio || 0) * 100).toFixed(0)}%</div>
-                      </div>
-                    </div>
-                    <div className="col-md-3">
-                      <div className="p-3 rounded border bg-light">
-                        <div className="small text-uppercase text-muted">Sitemap</div>
-                        <div className="fs-6 fw-semibold">{seoMetrics.checks?.sitemap_reachable ? 'Reachable' : 'Missing'}</div>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="table-responsive mb-3">
-                    <table className="table admin-table mb-0">
-                      <thead>
-                        <tr>
-                          <th>Route</th>
-                          <th>Status</th>
-                          <th>HTTP</th>
+            {seoError && <div className="alert alert-danger">{seoError}</div>}
+            {!seoError && !seoMetrics && <div className="performance-empty-chart">No SEO metrics loaded yet.</div>}
+
+            {seoMetrics && (
+              <>
+                <div className="seo-summary-grid">
+                  <MetricCard label="SEO Score" value={`${seoMetrics.score}/100`} sublabel="Overall health" icon="fas fa-gauge-high" tone="green" />
+                  <MetricCard label="Indexable Routes" value={formatNumber(seoMetrics.indexable_routes?.length)} sublabel="Public routes" icon="fas fa-route" tone="blue" />
+                  <MetricCard label="Route Health" value={`${((seoMetrics.checks?.route_health_ratio || 0) * 100).toFixed(0)}%`} sublabel="Passing routes" icon="fas fa-check-circle" tone="cyan" />
+                  <MetricCard label="Sitemap" value={seoMetrics.checks?.sitemap_reachable ? 'Reachable' : 'Missing'} sublabel="Search discovery" icon="fas fa-sitemap" tone="amber" />
+                </div>
+
+                <div className="performance-table-wrap">
+                  <table className="table admin-table performance-table mb-0">
+                    <thead><tr><th>Route</th><th>Status</th><th>HTTP</th></tr></thead>
+                    <tbody>
+                      {(seoMetrics.route_checks || []).map((row) => (
+                        <tr key={row.route}>
+                          <td className="breakable-cell">{row.route}</td>
+                          <td><span className={`status-pill ${row.ok ? 'good' : 'bad'}`}>{row.ok ? 'OK' : 'Fail'}</span></td>
+                          <td>{row.status}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {(seoMetrics.route_checks || []).map((row) => (
-                          <tr key={row.route}>
-                            <td>{row.route}</td>
-                            <td>{row.ok ? <span className="text-success">OK</span> : <span className="text-danger">Fail</span>}</td>
-                            <td>{row.status}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {!!(seoMetrics.recommendations || []).length && (
+                  <div className="recommendation-box">
+                    <h6>Recommendations</h6>
+                    {(seoMetrics.recommendations || []).map((item) => <p key={item}>{item}</p>)}
                   </div>
+                )}
+              </>
+            )}
+          </section>
 
-                  {!!(seoMetrics.recommendations || []).length && (
-                    <div>
-                      <h6 className="mb-2">Recommendations</h6>
-                      <ul className="mb-0">
-                        {seoMetrics.recommendations.map((item) => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="recent-blocks-card mt-4" style={{ margin: '1.5rem 0 0 0' }}>
-            <div className="card-header">
-              <h5><i className="fas fa-table me-2 text-primary"></i>Historical Active Users</h5>
-            </div>
-            <div className="card-body p-0">
-              <div className="table-responsive">
-                <table className="table admin-table mb-0">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>DAU</th>
-                      <th>WAU</th>
-                      <th>MAU</th>
-                      <th>DAU/MAU %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {series.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="text-center py-4 text-secondary">
-                          No metrics available for this filter range.
-                        </td>
-                      </tr>
-                    ) : (
-                      [...series].reverse().map((row) => (
-                        <tr key={row.date}>
-                          <td>{row.date}</td>
-                          <td>{row.dau}</td>
-                          <td>{row.wau}</td>
-                          <td>{row.mau}</td>
-                          <td>{((row.stickiness || 0) * 100).toFixed(1)}%</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+          <section className="performance-panel">
+            <div className="performance-panel-header">
+              <div>
+                <h5>Historical Active Users</h5>
+                <small>Stored data for the current filter selection</small>
               </div>
             </div>
-          </div>
+            <div className="performance-table-wrap">
+              <table className="table admin-table performance-table mb-0">
+                <thead>
+                  <tr><th>Date</th><th>DAU</th><th>WAU</th><th>MAU</th><th>DAU/MAU</th></tr>
+                </thead>
+                <tbody>
+                  {series.length === 0 ? (
+                    <tr><td colSpan="5" className="text-center py-4 text-secondary">No metrics available for this filter range.</td></tr>
+                  ) : (
+                    [...series].reverse().map((row) => (
+                      <tr key={row.date}>
+                        <td>{row.date}</td>
+                        <td>{formatNumber(row.dau)}</td>
+                        <td>{formatNumber(row.wau)}</td>
+                        <td>{formatNumber(row.mau)}</td>
+                        <td>{formatPercent(row.stickiness)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       </main>
     </div>

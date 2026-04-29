@@ -351,6 +351,16 @@ else:  # development
     }
     logging.info("✅ Database: DEVELOPMENT mode - SQLite configured")
 
+# Database connection hardening (helps with intermittent upstream/Postgres disconnects)
+default_db = DATABASES.get("default", {})
+if default_db.get("ENGINE") == "django.db.backends.postgresql":
+    default_db["CONN_MAX_AGE"] = config("DB_CONN_MAX_AGE", default=60, cast=int)
+    default_db["CONN_HEALTH_CHECKS"] = True
+    db_options = dict(default_db.get("OPTIONS") or {})
+    db_options.setdefault("connect_timeout", config("DB_CONNECT_TIMEOUT", default=8, cast=int))
+    default_db["OPTIONS"] = db_options
+    DATABASES["default"] = default_db
+
 # Test connection without exposing credentials
 try:
     from django.db import connections

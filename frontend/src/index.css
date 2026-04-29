@@ -40,7 +40,15 @@ html, body {
 }
 
 /* Remove any default animations that might cause issues */
-.logo, .logo:hover, .logo.react:hover, .read-the-docs,
-@media (prefers-reduced-motion: no-preference) a:nth-of-type(2) .logo {
+.logo,
+.logo:hover,
+.logo.react:hover,
+.read-the-docs {
   animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: none;
+  }
 }

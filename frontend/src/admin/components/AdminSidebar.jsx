@@ -11,6 +11,7 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
   useEffect(() => {
     const path = location.pathname;
     if (path.includes('/admin/users')) setInternalActiveMenu('users');
+    else if (path.includes('/admin/reports/cases')) setInternalActiveMenu('report-cases');
     else if (path.includes('/admin/reports')) setInternalActiveMenu('reports');
     else if (path.includes('/admin/swipe-stats')) setInternalActiveMenu('swipe-stats');
     else if (path.includes('/admin/messages')) setInternalActiveMenu('messages');
@@ -41,6 +42,7 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     { key: 'users', label: 'User Management', icon: 'fas fa-users', path: '/admin/users' },
     { key: 'waitlist', label: 'Waitlist', icon: 'fas fa-clipboard-list', path: '/admin/waitlist' }, // NEW
     { key: 'reports', label: 'Reports', icon: 'fas fa-flag', path: '/admin/reports' },
+    { key: 'report-cases', label: 'Cases', icon: 'fas fa-briefcase', path: '/admin/reports/cases' },
     { key: 'swipe-stats', label: 'Swipe Stats', icon: 'fas fa-chart-line', path: '/admin/swipe-stats' },
     { key: 'messages', label: 'Messages', icon: 'fas fa-comment-dots', path: '/admin/messages' },
     { key: 'analytics-impressions', label: 'Profile Impressions', icon: 'fas fa-eye', path: '/admin/analytics/impressions' },
