@@ -132,18 +132,28 @@ export default function Register() {
 
     emailTimeoutRef.current = setTimeout(async () => {
       try {
-        const eligibilityResponse = await API.get(`/waitlist/check-can-register/?email=${encodeURIComponent(email)}`);
+        const checkResponse = await API.get(`/users/check-email/?email=${encodeURIComponent(email)}`);
+        const { exists, can_register, message } = checkResponse.data || {};
 
-        if (eligibilityResponse.data.can_register) {
+        if (exists) {
+          setEmailError(t("register.errorEmailExists"));
+          setCanRegister(false);
+          setShakeEmail(true);
+          setTimeout(() => setShakeEmail(false), 400);
+          return;
+        }
+
+        if (can_register) {
           setCanRegister(true);
           setEmailError("");
           setEligibilityMessage("");
-        } else {
-          setCanRegister(false);
-          setEmailError("");
-          setEligibilityMessage(eligibilityResponse.data.message || t("register.waitlistOnly"));
-          setShowEligibilityModal(true);
+          return;
         }
+
+        setCanRegister(false);
+        setEmailError("");
+        setEligibilityMessage(message || t("register.waitlistOnly"));
+        setShowEligibilityModal(true);
       } catch (err) {
         if (err.response?.status === 400) {
           // Bad request - email missing
