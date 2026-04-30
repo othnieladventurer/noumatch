@@ -20,20 +20,32 @@ def parse_csv_env(key):
 def env_bool(key, default=False):
     return config(key, default=default, cast=bool)
 
-# SECURITY WARNING: keep the secret key used in production secret!
+DEFAULT_DEV_SECRET_KEY = "django-insecure-dev-only-change-me"
+
+
+# SECURITY WARNING: keep the secret key used in production secret.
+# Accept the names commonly used by Django/hosting providers before falling back.
 SECRET_KEY = config(
     "DJANGO_SECRET_KEY",
     default=config(
         "SECRET_KEY",
-        default="django-insecure-dev-only-change-me",
+        default=config(
+            "DJANGO_SECRET",
+            default=config("APP_SECRET_KEY", default=DEFAULT_DEV_SECRET_KEY),
+        ),
     ),
 )
+
 if ENVIRONMENT in {"production", "staging"} and SECRET_KEY.startswith("django-insecure"):
     if ENVIRONMENT == "production" or env_bool("STRICT_SECURITY_CHECKS", default=False):
         raise RuntimeError(
-            "DJANGO_SECRET_KEY must be set to a non-default secret in staging/production."
+            "Set DJANGO_SECRET_KEY, SECRET_KEY, DJANGO_SECRET, or APP_SECRET_KEY "
+            "to a non-default secret in the hosting environment."
         )
-    logging.warning("Using weak/default SECRET_KEY in %s. Set DJANGO_SECRET_KEY before launch.", ENVIRONMENT)
+    logging.warning(
+        "Using weak/default SECRET_KEY in %s. Set DJANGO_SECRET_KEY before launch.",
+        ENVIRONMENT,
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = ENVIRONMENT == "development"
