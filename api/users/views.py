@@ -777,9 +777,15 @@ class UserProfileListView(generics.ListAPIView):
 
 
 class UserDetailView(generics.RetrieveAPIView):
-    queryset = User.objects.filter(is_active=True)
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return User.objects.filter(
+            is_active=True,
+            is_staff=False,
+            is_superuser=False,
+        )
 
 
 class ProfileUpdateView(generics.RetrieveUpdateAPIView):
@@ -938,7 +944,12 @@ class UserPhotoListView(generics.ListAPIView):
 
     def get_queryset(self):
         user_id = self.kwargs.get('user_id')
-        return UserPhoto.objects.filter(user_id=user_id)
+        return UserPhoto.objects.filter(
+            user_id=user_id,
+            user__is_active=True,
+            user__is_staff=False,
+            user__is_superuser=False,
+        )
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

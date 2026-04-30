@@ -29,8 +29,10 @@ SECRET_KEY = config(
     ),
 )
 if ENVIRONMENT in {"production", "staging"} and SECRET_KEY.startswith("django-insecure"):
-    if env_bool("STRICT_SECURITY_CHECKS", default=False):
-        raise RuntimeError("Set a non-default DJANGO_SECRET_KEY before launch.")
+    if ENVIRONMENT == "production" or env_bool("STRICT_SECURITY_CHECKS", default=False):
+        raise RuntimeError(
+            "DJANGO_SECRET_KEY must be set to a non-default secret in staging/production."
+        )
     logging.warning("Using weak/default SECRET_KEY in %s. Set DJANGO_SECRET_KEY before launch.", ENVIRONMENT)
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -110,6 +112,11 @@ else:
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
 
+SECURE_BROWSER_XSS_FILTER = True
+USE_X_FORWARDED_HOST = True
+if ENVIRONMENT in {"production", "staging"}:
+    SECURE_REDIRECT_EXEMPT = []
+
 VERBOSE_NOTIFICATION_LOGS = env_bool("VERBOSE_NOTIFICATION_LOGS", default=False)
 VERBOSE_WEBSOCKET_LOGS = env_bool("VERBOSE_WEBSOCKET_LOGS", default=False)
 
@@ -144,6 +151,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'users.middleware.APIRateLimitMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'users.middleware.UserActivityMiddleware',
