@@ -51,7 +51,10 @@ class APIRateLimitMiddleware(MiddlewareMixin):
         if not path.startswith("/api/"):
             return None
 
-        if request.method in {"GET", "HEAD", "OPTIONS"} and path.startswith("/api/static/"):
+        if request.method == "OPTIONS":
+            return None
+
+        if request.method in {"GET", "HEAD"} and path.startswith("/api/static/"):
             return None
 
         limit, window_seconds = self._resolve_limit(path, bool(getattr(request, "user", None) and request.user.is_authenticated))
