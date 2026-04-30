@@ -24,23 +24,12 @@ DEFAULT_DEV_SECRET_KEY = "django-insecure-dev-only-change-me"
 
 
 # SECURITY WARNING: keep the secret key used in production secret.
-# Accept the names commonly used by Django/hosting providers before falling back.
-SECRET_KEY = config(
-    "DJANGO_SECRET_KEY",
-    default=config(
-        "SECRET_KEY",
-        default=config(
-            "DJANGO_SECRET",
-            default=config("APP_SECRET_KEY", default=DEFAULT_DEV_SECRET_KEY),
-        ),
-    ),
-)
+SECRET_KEY = config("DJANGO_SECRET_KEY", default=DEFAULT_DEV_SECRET_KEY)
 
 if ENVIRONMENT in {"production", "staging"} and SECRET_KEY.startswith("django-insecure"):
     if ENVIRONMENT == "production" or env_bool("STRICT_SECURITY_CHECKS", default=False):
         raise RuntimeError(
-            "Set DJANGO_SECRET_KEY, SECRET_KEY, DJANGO_SECRET, or APP_SECRET_KEY "
-            "to a non-default secret in the hosting environment."
+            "Set DJANGO_SECRET_KEY to a non-default secret in the hosting environment."
         )
     logging.warning(
         "Using weak/default SECRET_KEY in %s. Set DJANGO_SECRET_KEY before launch.",
