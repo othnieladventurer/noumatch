@@ -49,6 +49,7 @@ LOCAL_CORS_ORIGINS = [
     "http://127.0.0.1:3000",
 ]
 
+# ========== ALLOWED HOSTS & CORS ==========
 if ENVIRONMENT == "production":
     ALLOWED_HOSTS = [
         "api.noumatch.com",
@@ -81,10 +82,14 @@ else:
     ]
     CORS_ALLOWED_ORIGINS = [*LOCAL_CORS_ORIGINS]
 
+# Extra origins from environment
 ALLOWED_HOSTS += parse_csv_env("EXTRA_ALLOWED_HOSTS")
 CORS_ALLOWED_ORIGINS += parse_csv_env("EXTRA_CORS_ALLOWED_ORIGINS")
+
+# Regex patterns for subdomains (important for admin and subdomains)
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://([a-z0-9-]+\.)?noumatch\.com$",
+    r"^https://([a-z0-9-]+\.)?staging\.noumatch\.com$",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -93,6 +98,19 @@ from corsheaders.defaults import default_headers
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
+    "content-type",
+    "accept",
+    "origin",
+    "x-csrftoken",
+]
+
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
 ]
 
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS + parse_csv_env("EXTRA_CSRF_TRUSTED_ORIGINS")
@@ -297,17 +315,6 @@ MAX_CHAT_ATTACHMENT_BYTES = MAX_CHAT_ATTACHMENT_MB * 1024 * 1024
 DATA_UPLOAD_MAX_MEMORY_SIZE = config("DATA_UPLOAD_MAX_MEMORY_SIZE", default=12 * 1024 * 1024, cast=int)
 FILE_UPLOAD_MAX_MEMORY_SIZE = config("FILE_UPLOAD_MAX_MEMORY_SIZE", default=12 * 1024 * 1024, cast=int)
 
-
-
-
-
-
-
-
-
-
-
-
 # ========== DATABASE CONFIGURATION ==========
 STRICT_ENV_SEPARATION = True if ENVIRONMENT in {"production", "staging"} else env_bool("STRICT_ENV_SEPARATION", default=True)
 production_db_url = config('DATABASE_URL', default=None)
@@ -319,7 +326,6 @@ if ENVIRONMENT == "production":
             "default": dj_database_url.parse(production_db_url)
         }
         logging.info("✅ Database: PRODUCTION mode - PostgreSQL configured")
-        logging.info(f"   📊 Database: {DATABASES['default']['NAME'].split('@')[-1] if '@' in DATABASES['default']['NAME'] else 'PostgreSQL'}")
     else:
         if STRICT_ENV_SEPARATION:
             raise RuntimeError("Production requires DATABASE_URL to avoid environment cross-contamination.")
@@ -329,34 +335,26 @@ if ENVIRONMENT == "production":
                 "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
             }
         }
-        logging.info("⚠️  Database: PRODUCTION mode - No DATABASE_URL, using SQLite fallback")
+        logging.info("⚠️  Database: PRODUCTION mode - Using SQLite fallback")
         
 elif ENVIRONMENT == "staging":
-    # Never allow staging to read DATABASE_URL by accident.
-    # If STAGING_DATABASE_URL is missing, do NOT crash the app; fall back to isolated sqlite
-    # so staging remains available without touching production data.
     if staging_db_url:
-        if STRICT_ENV_SEPARATION and production_db_url and staging_db_url == production_db_url:
-            raise RuntimeError("STAGING_DATABASE_URL must be different from DATABASE_URL.")
         DATABASES = {
             "default": dj_database_url.parse(staging_db_url)
         }
         logging.info("✅ Database: STAGING mode - PostgreSQL configured")
-        logging.info(f"   📊 Database: {DATABASES['default']['NAME'].split('/')[-1] if '/' in DATABASES['default']['NAME'] else 'PostgreSQL'}")
     else:
         if STRICT_ENV_SEPARATION:
-            logging.error(
-                "STAGING_DATABASE_URL is missing in staging. Using isolated sqlite fallback to prevent cross-environment data access."
-            )
+            logging.error("STAGING_DATABASE_URL missing. Using isolated SQLite fallback.")
         DATABASES = {
             "default": {
                 "ENGINE": "django.db.backends.sqlite3",
                 "NAME": os.path.join(BASE_DIR, "staging_db.sqlite3"),
             }
         }
-        logging.info("⚠️  Database: STAGING mode - No STAGING_DATABASE_URL, using SQLite fallback")
+        logging.info("⚠️  Database: STAGING mode - Using SQLite fallback")
         
-else:  # development
+else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -365,7 +363,7 @@ else:  # development
     }
     logging.info("✅ Database: DEVELOPMENT mode - SQLite configured")
 
-# Database connection hardening (helps with intermittent upstream/Postgres disconnects)
+# Database connection pooling
 default_db = DATABASES.get("default", {})
 if default_db.get("ENGINE") == "django.db.backends.postgresql":
     default_db["CONN_MAX_AGE"] = config("DB_CONN_MAX_AGE", default=60, cast=int)
@@ -375,7 +373,7 @@ if default_db.get("ENGINE") == "django.db.backends.postgresql":
     default_db["OPTIONS"] = db_options
     DATABASES["default"] = default_db
 
-# Test connection without exposing credentials
+# Test connection
 try:
     from django.db import connections
     connections['default'].cursor()
@@ -390,6 +388,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 8},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -409,31 +408,24 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # ========== CLOUDFLARE R2 STORAGE ==========
-# Separate configuration for production and staging environments
 if ENVIRONMENT == "production":
-    # Production R2 credentials
     r2_bucket = config('CLOUDFLARE_R2_BUCKET', default=None)
     r2_account_id = config('CLOUDFLARE_R2_ACCOUNT_ID', default=None)
     r2_access_key = config('CLOUDFLARE_R2_ACCESS_KEY_ID', default=None)
     r2_secret_key = config('CLOUDFLARE_R2_SECRET_KEY', default=None)
     r2_public_url = config('CLOUDFLARE_R2_PUBLIC_URL', default=None)
     r2_config_name = "PRODUCTION"
-
 elif ENVIRONMENT == "staging":
-    # Staging R2 credentials – using your naming: CLOUDFLARE_R2_STAGING_*
     r2_bucket = config('CLOUDFLARE_R2_STAGING_BUCKET', default=None)
     r2_account_id = config('CLOUDFLARE_R2_STAGING_ACCOUNT_ID', default=None)
     r2_access_key = config('CLOUDFLARE_R2_STAGING_ACCESS_KEY_ID', default=None)
     r2_secret_key = config('CLOUDFLARE_R2_STAGING_SECRET_KEY', default=None)
     r2_public_url = config('CLOUDFLARE_R2_STAGING_PUBLIC_URL', default=None)
     r2_config_name = "STAGING"
-
-else:  # development
+else:
     r2_bucket = None
 
-# Configure R2 only if we have the required credentials
 if ENVIRONMENT in ["production", "staging"] and all([r2_bucket, r2_account_id, r2_access_key, r2_secret_key]):
-    # Set storage backend to R2
     AWS_ACCESS_KEY_ID = r2_access_key
     AWS_SECRET_ACCESS_KEY = r2_secret_key
     AWS_STORAGE_BUCKET_NAME = r2_bucket
@@ -443,76 +435,23 @@ if ENVIRONMENT in ["production", "staging"] and all([r2_bucket, r2_account_id, r
     AWS_DEFAULT_ACL = "public-read"
     AWS_QUERYSTRING_AUTH = False
     AWS_S3_FILE_OVERWRITE = False
-    AWS_S3_OBJECT_PARAMETERS = {
-        "CacheControl": "max-age=86400",
-    }
-
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
     if r2_public_url:
         AWS_S3_CUSTOM_DOMAIN = r2_public_url.replace('https://', '')
-
     STORAGES = {
-        "default": {
-            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-        },
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-        },
+        "default": {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     }
-
     STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
-
     if r2_public_url:
         MEDIA_URL = f"{r2_public_url}/media/"
     else:
         MEDIA_URL = f"https://{r2_bucket}.{r2_account_id}.r2.cloudflarestorage.com/media/"
-
-    # Debug output – clearly shows which R2 is active
-    logging.info(f"\n{'='*50}")
     logging.info(f"☁️  Cloudflare R2: {r2_config_name} mode ACTIVE")
-    logging.info(f"   📦 Bucket: {r2_bucket}")
-    logging.info(f"   🆔 Account ID: {r2_account_id[:6]}...{r2_account_id[-4:] if len(r2_account_id) > 10 else ''}")
-    logging.info(f"   🌐 Public URL: {r2_public_url if r2_public_url else 'Using default endpoint'}")
-    logging.info(f"{'='*50}\n")
-
 else:
-    # Fallback to local media storage
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-    if ENVIRONMENT in ["production", "staging"]:
-        missing = []
-        if not r2_bucket: missing.append("BUCKET")
-        if not r2_account_id: missing.append("ACCOUNT_ID")
-        if not r2_access_key: missing.append("ACCESS_KEY")
-        if not r2_secret_key: missing.append("SECRET_KEY")
-        logging.info(f"\n⚠️  Cloudflare R2: {ENVIRONMENT.upper()} mode - Missing {', '.join(missing)} → Using LOCAL storage")
-    else:
-        logging.info("✅ Cloud Storage: DEVELOPMENT mode - Using local storage")
-
-
-
-
-
-
-
-
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {
-            'min_length': 8,
-        }
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
+    logging.info("✅ Cloud Storage: Using local storage")
 
 # ========== EMAIL SETTINGS ==========
 if DEBUG:
@@ -524,33 +463,25 @@ else:
     EMAIL_HOST = config('EMAIL_HOST', default='smtp-relay.brevo.com')
     EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
     EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-    
     if ENVIRONMENT == "staging":
         EMAIL_HOST_USER = config('STAGING_EMAIL_HOST_USER', default=config('EMAIL_HOST_USER', default=''))
         EMAIL_HOST_PASSWORD = config('STAGING_EMAIL_HOST_PASSWORD', default=config('EMAIL_HOST_PASSWORD', default=''))
-        logging.info("📧 Email: STAGING mode - SMTP configured")
     else:
         EMAIL_HOST_USER = config('EMAIL_HOST_USER')
         EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
-        logging.info("📧 Email: PRODUCTION mode - SMTP configured")
-    
     DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='NouMatch <no-reply@noumatch.com>')
-    logging.info(f"   📧 Host: {EMAIL_HOST}")
+    logging.info(f"📧 Email: {ENVIRONMENT.upper()} mode - SMTP configured")
 
 # ========== BREVO API ==========
 if ENVIRONMENT == "staging":
     BREVO_API_KEY = config('STAGING_BREVO_API_KEY', default='')
-    if BREVO_API_KEY:
-        logging.info("✅ Brevo API: STAGING mode - Key configured")
-    else:
-        logging.info("⚠️  Brevo API: STAGING mode - No key found")
 else:
     BREVO_API_KEY = config('BREVO_API_KEY', default='')
-    if BREVO_API_KEY:
-        logging.info(f"✅ Brevo API: {ENVIRONMENT.upper()} mode - Key configured")
-    else:
-        logging.info(f"⚠️  Brevo API: {ENVIRONMENT.upper()} mode - No key found")
-    
+if BREVO_API_KEY:
+    logging.info(f"✅ Brevo API: {ENVIRONMENT.upper()} mode - Key configured")
+else:
+    logging.info(f"⚠️  Brevo API: {ENVIRONMENT.upper()} mode - No key found")
+
 # ========== FRONTEND URL ==========
 if ENVIRONMENT == "production":
     FRONTEND_URL = config('FRONTEND_URL', default='https://noumatch.com')
@@ -558,7 +489,6 @@ elif ENVIRONMENT == "staging":
     FRONTEND_URL = config('FRONTEND_URL', default='https://staging.noumatch.com')
 else:
     FRONTEND_URL = 'http://localhost:5173'
-
 logging.info(f"🌐 Frontend URL: {FRONTEND_URL}")
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -566,3 +496,5 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 logging.info(f"\n{'='*50}")
 logging.info(f"✅ Settings loaded successfully in {ENVIRONMENT.upper()} mode")
 logging.info(f"{'='*50}\n")
+
+
