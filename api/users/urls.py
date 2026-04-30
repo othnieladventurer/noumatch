@@ -53,7 +53,8 @@ urlpatterns = [
      path('verify-otp/', VerifyOTPView.as_view(), name='verify_otp'),
      path('resend-otp/', ResendOTPView.as_view(), name='resend_otp'),
      
-     path('check-email/', check_email, name='check_email'),
+    path('check-email/', check_email, name='check_email'),
+    path('check-can-register/', views.CheckCanRegisterView.as_view(), name='check_can_register'),
 
 ]
 
