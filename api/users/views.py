@@ -844,47 +844,51 @@ def check_email(request):
     email = request.query_params.get('email', '').strip().lower()
     if not email:
         return Response({'exists': False, 'can_register': False, 'error': 'No email'}, status=400)
+    try:
+        from waitlist.models import WaitlistEntry, ContactedArchive
 
-    cache_key = f"nm_email_check:{email}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return Response(cached)
+        exists = User.objects.filter(email=email).exists()
+        waitlist_entry = None
+        archived_entry = None
+        can_register = False
+        message = ""
 
-    from waitlist.models import WaitlistEntry, ContactedArchive
-
-    exists = User.objects.filter(email=email).exists()
-    waitlist_entry = None
-    archived_entry = None
-    can_register = False
-    message = ""
-
-    if exists:
-        message = "Cet email est déjà utilisé. Veuillez vous connecter."
-    else:
-        waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).only("id").first()
-        if waitlist_entry:
-            can_register = True
-            message = "Vous pouvez créer votre compte"
+        if exists:
+            message = "Cet email est déjà utilisé. Veuillez vous connecter."
         else:
-            archived_entry = ContactedArchive.objects.filter(email=email).only("id").first()
-            if archived_entry:
+            waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).only("id").first()
+            if waitlist_entry:
                 can_register = True
                 message = "Vous pouvez créer votre compte"
             else:
-                message = "Vous devez rejoindre la liste d'attente et être contacté par notre équipe avant de pouvoir vous inscrire."
+                archived_entry = ContactedArchive.objects.filter(email=email).only("id").first()
+                if archived_entry:
+                    can_register = True
+                    message = "Vous pouvez créer votre compte"
+                else:
+                    message = "Vous devez rejoindre la liste d'attente et être contacté par notre équipe avant de pouvoir vous inscrire."
 
-    payload = {
-        'exists': exists,
-        'can_register': can_register,
-        'message': message,
-    }
-    if waitlist_entry:
-        payload['from_waitlist'] = True
-    if archived_entry:
-        payload['from_archive'] = True
+        payload = {
+            'exists': exists,
+            'can_register': can_register,
+            'message': message,
+        }
+        if waitlist_entry:
+            payload['from_waitlist'] = True
+        if archived_entry:
+            payload['from_archive'] = True
 
-    cache.set(cache_key, payload, timeout=60)
-    return Response(payload)
+        return Response(payload)
+    except Exception:
+        logging.exception("check_email failed for email=%s", email)
+        return Response(
+            {
+                "exists": False,
+                "can_register": False,
+                "message": "Verification indisponible. Veuillez reessayer.",
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class UserPhotoViewSet(viewsets.ModelViewSet):
