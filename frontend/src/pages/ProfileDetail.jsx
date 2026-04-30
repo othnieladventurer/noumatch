@@ -6,6 +6,7 @@ import API from '@/api/axios';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useI18n } from "../context/I18nContext";
+import { resolveMediaUrl } from "../utils/apiBase";
 
 export default function ProfileDetail() {
   const { t } = useI18n();
@@ -35,11 +36,7 @@ export default function ProfileDetail() {
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
   const getProfilePhotoUrl = (path) => {
-    if (!path) return null;
-    if (path.startsWith('http')) return path;
-    const baseUrl = import.meta.env.VITE_API_URL;
-    const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
-    return `${baseUrl}${normalizedPath}`;
+    return resolveMediaUrl(path);
   };
 
   // Fetch user photos

@@ -6,6 +6,7 @@ import NotificationBell from "./NotificationBell";
 import BrandLogo from "./BrandLogo";
 import { useNotifications } from '../context/NotificationContext';
 import API from '../api/axios.js';
+import { getRuntimeApiBase, resolveMediaUrl } from '../utils/apiBase';
 
 export default function DashboardNavbar({ user }) {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export default function DashboardNavbar({ user }) {
 
   const { notifications } = useNotifications();
 
-  const BASE_URL = import.meta.env.VITE_API_URL;
+  const BASE_URL = getRuntimeApiBase();
 
   // --- NEW: Check if in admin mode ---
   const isAdminMode = () => {
@@ -197,10 +198,7 @@ export default function DashboardNavbar({ user }) {
 
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/40";
-    if (path.startsWith("http")) return path;
-    const baseUrl = import.meta.env.VITE_API_URL;
-    const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
-    return `${baseUrl}${normalizedPath}`;
+    return resolveMediaUrl(path, "https://via.placeholder.com/40");
   };
 
   const formatMessageTime = (timeString) => {

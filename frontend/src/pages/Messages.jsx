@@ -3,13 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import API from "@/api/axios";
 import { useI18n } from "../context/I18nContext";
-
-const getWsBase = () => {
-  const configured = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-  if (configured) return configured.replace(/^http/, "ws");
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${protocol}://${window.location.host}`;
-};
+import { getRuntimeWsBase, resolveMediaUrl } from "../utils/apiBase";
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
@@ -66,8 +60,7 @@ export default function Messages() {
 
   const getPhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/40";
-    if (path.startsWith("http")) return path;
-    return `${import.meta.env.VITE_API_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+    return resolveMediaUrl(path, "https://via.placeholder.com/40");
   };
 
   const formatTime = (value) => {
@@ -97,8 +90,8 @@ export default function Messages() {
     }
 
     const wsPath = token
-      ? `${getWsBase()}/ws/chat/${conversationId}/?token=${encodeURIComponent(token)}`
-      : `${getWsBase()}/ws/chat/${conversationId}/`;
+      ? `${getRuntimeWsBase()}/ws/chat/${conversationId}/?token=${encodeURIComponent(token)}`
+      : `${getRuntimeWsBase()}/ws/chat/${conversationId}/`;
     const ws = new WebSocket(wsPath);
     wsRef.current = ws;
 
