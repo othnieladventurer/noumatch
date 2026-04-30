@@ -10,8 +10,8 @@ export default function Register() {
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
-  const [detectingLocation, setDetectingLocation] = useState(true);
-  const [countryCode, setCountryCode] = useState("");
+  const [detectingLocation, setDetectingLocation] = useState(false);
+  const [countryCode, setCountryCode] = useState("ht");
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -21,7 +21,7 @@ export default function Register() {
     password2: "",
     gender: "",
     profile_photo: null,
-    country: "",
+    country: "Haiti",
     city: "",
     latitude: "",
     longitude: "",
@@ -45,26 +45,6 @@ export default function Register() {
   const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [showEligibilityModal, setShowEligibilityModal] = useState(false);
   const [eligibilityMessage, setEligibilityMessage] = useState("");
-
-  useEffect(() => {
-    detectUserLocation();
-  }, []);
-
-  const normalizeLocationPayload = (payload = {}) => ({
-    country: payload.country_name || payload.country || "",
-    city: payload.city || "",
-    latitude: payload.latitude !== undefined && payload.latitude !== null ? String(payload.latitude) : "",
-    longitude: payload.longitude !== undefined && payload.longitude !== null ? String(payload.longitude) : "",
-    countryCode: (payload.country_code || payload.countryCode || (String(payload.country_name || payload.country || "").toLowerCase() === "haiti" ? "ht" : "")).toLowerCase(),
-  });
-
-  const getLocationFallback = () => ({
-    country: "Haiti",
-    city: "",
-    latitude: "",
-    longitude: "",
-    countryCode: "ht",
-  });
 
   useEffect(() => {
     const {
@@ -173,36 +153,6 @@ export default function Register() {
       }
     }, 300);
   }, [formData.email]);
-
-  const detectUserLocation = async () => {
-    try {
-      setDetectingLocation(true);
-      const response = await API.get("/users/location-detect/");
-      const normalized = normalizeLocationPayload(response.data);
-
-      const resolvedLocation = normalized?.country ? normalized : getLocationFallback();
-      setFormData(prev => ({
-        ...prev,
-        country: resolvedLocation.country,
-        city: resolvedLocation.city,
-        latitude: resolvedLocation.latitude,
-        longitude: resolvedLocation.longitude,
-      }));
-      setCountryCode(resolvedLocation.countryCode);
-    } catch (error) {
-      const fallbackLocation = getLocationFallback();
-      setFormData(prev => ({
-        ...prev,
-        country: fallbackLocation.country,
-        city: fallbackLocation.city,
-        latitude: fallbackLocation.latitude,
-        longitude: fallbackLocation.longitude,
-      }));
-      setCountryCode(fallbackLocation.countryCode);
-    } finally {
-      setDetectingLocation(false);
-    }
-  };
 
   const calculateAge = (birthDate) => {
     if (!birthDate) return null;
@@ -425,11 +375,11 @@ export default function Register() {
                       style={{
                         borderRadius: "16px",
                         border: "1px solid #dee2e6",
-                        backgroundColor: detectingLocation ? "#f8f9fa" : "#fff",
+                        backgroundColor: "#fff",
                         minHeight: "58px",
                       }}
                     >
-                      {countryCode && !detectingLocation && countryCode !== "" ? (
+                      {countryCode ? (
                         <img
                           src={`https://flagcdn.com/w40/${countryCode}.png`}
                           width="30"
@@ -438,24 +388,12 @@ export default function Register() {
                           style={{ borderRadius: "4px", objectFit: "cover", flexShrink: 0 }}
                           onError={(e) => (e.target.style.display = "none")}
                         />
-                      ) : (
-                        <div
-                          className="rounded bg-light d-flex align-items-center justify-content-center"
-                          style={{ width: "30px", height: "22.5px", flexShrink: 0 }}
-                        >
-                          <i className="fas fa-globe-americas text-secondary" style={{ fontSize: "0.8rem" }} />
-                        </div>
-                      )}
+                      ) : null}
                       <div className="flex-grow-1">
                         <div className="fw-semibold">
                           {formData.country || ""}
                         </div>
                       </div>
-                      {detectingLocation && (
-                        <div className="spinner-border spinner-border-sm text-secondary flex-shrink-0" role="status">
-                          <span className="visually-hidden">{t("common.loading")}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                   <div className="col-12 mb-3">
