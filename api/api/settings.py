@@ -9,7 +9,7 @@ from decouple import config
 from urllib.parse import urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-ENVIRONMENT = config("ENVIRONMENT", default="development").lower()
+ENVIRONMENT = config("ENVIRONMENT", default=config("DJANGO_ENV", default="development")).lower()
 
 
 def parse_csv_env(key):
@@ -42,8 +42,10 @@ DEBUG = ENVIRONMENT == "development"
 LOCAL_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 LOCAL_CORS_ORIGINS = [
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://localhost:3000",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
     "http://127.0.0.1:3000",
 ]
 
@@ -81,6 +83,9 @@ else:
 
 ALLOWED_HOSTS += parse_csv_env("EXTRA_ALLOWED_HOSTS")
 CORS_ALLOWED_ORIGINS += parse_csv_env("EXTRA_CORS_ALLOWED_ORIGINS")
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://([a-z0-9-]+\.)?noumatch\.com$",
+]
 
 CORS_ALLOW_CREDENTIALS = True
 
