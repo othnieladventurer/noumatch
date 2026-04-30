@@ -132,23 +132,8 @@ export default function Register() {
 
     emailTimeoutRef.current = setTimeout(async () => {
       try {
-        // First check if email is already registered
-        const emailCheckResponse = await API.get(`/users/check-email/?email=${encodeURIComponent(email)}`);
-        const exists = emailCheckResponse.data.exists === true;
-        
-        if (exists) {
-          setEmailError(t("register.errorEmailExists"));
-          setCanRegister(false);
-          setShakeEmail(true);
-          setTimeout(() => setShakeEmail(false), 400);
-          setCheckingEligibility(false);
-          setIsCheckingEmail(false);
-          return;
-        }
-        
-        // Check if email is eligible to register (in contacted waitlist)
         const eligibilityResponse = await API.get(`/waitlist/check-can-register/?email=${encodeURIComponent(email)}`);
-        
+
         if (eligibilityResponse.data.can_register) {
           setCanRegister(true);
           setEmailError("");
@@ -156,10 +141,7 @@ export default function Register() {
         } else {
           setCanRegister(false);
           setEmailError("");
-          // Show modal with friendly message
-          setEligibilityMessage(
-            eligibilityResponse.data.message || t("register.waitlistOnly")
-          );
+          setEligibilityMessage(eligibilityResponse.data.message || t("register.waitlistOnly"));
           setShowEligibilityModal(true);
         }
       } catch (err) {
@@ -179,7 +161,7 @@ export default function Register() {
         setCheckingEligibility(false);
         setIsCheckingEmail(false);
       }
-    }, 800);
+    }, 300);
   }, [formData.email]);
 
   const detectUserLocation = async () => {
