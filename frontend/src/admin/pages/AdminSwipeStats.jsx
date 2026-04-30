@@ -4,31 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
-import { adminRequest } from '../utils/adminApi';
+import { adminRequest, getAdminApiBase } from '../utils/adminApi';
 
-// Build the correct API base URL from environment variables (consistent with other admin pages)
-const getApiBase = () => {
-  const env = import.meta.env.VITE_APP_ENVIRONMENT;
-  let baseDomain = '';
-
-  if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_API_URL;
-  } else if (import.meta.env.PROD) {
-    // Production - use production API domain
-    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : import.meta.env.VITE_API_URL;
-  } else {
-    // Development - use relative path (proxy)
-    return '/api/noumatch-admin';
-  }
-
-  const adminPath = '/api/noumatch-admin';
-  const fullUrl = `${baseDomain}${adminPath}`;
-  return fullUrl;
-};
-
-const API_BASE = getApiBase();
+const API_BASE = getAdminApiBase();
 const DAYS_PER_PAGE = 10;
 
 export default function AdminSwipeStats() {
