@@ -29,7 +29,7 @@ from .serializers import (
     RegisterSerializer, LoginSerializer, 
     ChangePasswordSerializer, UserSerializer, MeSerializer, 
     UserProfileSerializer, UserPhotoSerializer, ForgotPasswordSerializer,
-    ResetPasswordConfirmSerializer, validate_uploaded_image
+    ResetPasswordConfirmSerializer, validate_uploaded_image, detect_location_from_ip
 )
 from .utils import generate_otp, send_otp_email
 from .email_api import send_otp_via_api, send_password_reset_email
@@ -156,6 +156,26 @@ class RegisterView(generics.CreateAPIView):
 
 
 
+
+
+class DetectLocationView(APIView):
+    permission_classes = [AllowAny]
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR")
+
+    def get(self, request):
+        location = detect_location_from_ip(self.get_client_ip(request))
+        return Response({
+            "country_name": location.get("country", ""),
+            "city": location.get("city", ""),
+            "latitude": location.get("latitude"),
+            "longitude": location.get("longitude"),
+            "country_code": location.get("country_code", ""),
+        })
 
 
 class CheckCanRegisterView(APIView):

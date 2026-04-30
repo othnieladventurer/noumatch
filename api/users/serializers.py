@@ -20,6 +20,53 @@ from report.models import Report
 from block.models import Block
 from interactions.models import Like, Pass
 
+
+def detect_location_from_ip(ip_address=None):
+    """Resolve country, city, and coordinates from IP with HTTPS-safe fallbacks."""
+    providers = []
+    if ip_address:
+        providers.append(f"https://ipapi.co/{ip_address}/json/")
+        providers.append(f"https://ipwho.is/{ip_address}")
+    else:
+        providers.append("https://ipapi.co/json/")
+        providers.append("https://ipwho.is/")
+
+    for url in providers:
+        try:
+            response = requests.get(url, timeout=5)
+            data = response.json()
+        except Exception:
+            continue
+
+        if "ipapi.co" in url:
+            if response.status_code == 200 and data.get("country_name"):
+                return {
+                    "latitude": data.get("latitude"),
+                    "longitude": data.get("longitude"),
+                    "country": data.get("country_name", ""),
+                    "city": data.get("city", ""),
+                    "country_code": (data.get("country_code") or "").lower(),
+                }
+
+        if "ipwho.is" in url:
+            if response.status_code == 200 and data.get("success", True) and data.get("country"):
+                return {
+                    "latitude": data.get("latitude"),
+                    "longitude": data.get("longitude"),
+                    "country": data.get("country", ""),
+                    "city": data.get("city", ""),
+                    "country_code": (data.get("country_code") or "").lower(),
+                }
+
+    return {
+        "latitude": None,
+        "longitude": None,
+        "country": "",
+        "city": "",
+        "country_code": "",
+    }
+
+
 def get_absolute_image_url(file_field):
     """Get absolute URL for image file (works with Cloudflare R2)"""
     if file_field:
@@ -150,30 +197,16 @@ class RegisterSerializer(serializers.ModelSerializer):
     def get_coordinates_from_ip(self, ip_address=None):
         """Get latitude and longitude from IP address using ipapi.co"""
         try:
-            if ip_address:
-                url = f'https://ipapi.co/{ip_address}/json/'
-            else:
-                url = 'https://ipapi.co/json/'
-            
-            response = requests.get(url, timeout=5)
-            data = response.json()
-            
-            if response.status_code == 200 and data.get('latitude') and data.get('longitude'):
-                return {
-                    'latitude': data.get('latitude'),
-                    'longitude': data.get('longitude'),
-                    'country': data.get('country_name', ''),
-                    'city': data.get('city', '')
-                }
-        except Exception as e:
+            return detect_location_from_ip(ip_address)
+        except Exception:
             logging.info("Error getting coordinates from IP provider")
-        
-        return {
-            'latitude': None,
-            'longitude': None,
-            'country': '',
-            'city': ''
-        }
+            return {
+                'latitude': None,
+                'longitude': None,
+                'country': '',
+                'city': '',
+                'country_code': '',
+            }
 
     def create(self, validated_data):
         from waitlist.models import WaitlistEntry, ContactedArchive

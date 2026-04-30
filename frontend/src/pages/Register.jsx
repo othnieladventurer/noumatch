@@ -50,6 +50,22 @@ export default function Register() {
     detectUserLocation();
   }, []);
 
+  const normalizeLocationPayload = (payload = {}) => ({
+    country: payload.country_name || payload.country || "",
+    city: payload.city || "",
+    latitude: payload.latitude !== undefined && payload.latitude !== null ? String(payload.latitude) : "",
+    longitude: payload.longitude !== undefined && payload.longitude !== null ? String(payload.longitude) : "",
+    countryCode: (payload.country_code || payload.countryCode || (String(payload.country_name || payload.country || "").toLowerCase() === "haiti" ? "ht" : "")).toLowerCase(),
+  });
+
+  const getLocationFallback = () => ({
+    country: "Haiti",
+    city: "",
+    latitude: "",
+    longitude: "",
+    countryCode: "ht",
+  });
+
   useEffect(() => {
     const {
       first_name,
@@ -169,43 +185,44 @@ export default function Register() {
   const detectUserLocation = async () => {
     try {
       setDetectingLocation(true);
-      let data = null;
+      let normalized = null;
+
       try {
-        const response = await fetch('https://ipapi.co/json/', { timeout: 5000 });
-        if (response.ok) data = await response.json();
+        const response = await API.get("/users/location-detect/");
+        normalized = normalizeLocationPayload(response.data);
       } catch (e) {
       }
-      if (!data || !data.country_name) {
-        const response = await fetch('http://ip-api.com/json/');
-        if (response.ok) {
-          const fallbackData = await response.json();
-          if (fallbackData.status === 'success') {
-            data = {
-              country_name: fallbackData.country,
-              city: fallbackData.city,
-              latitude: fallbackData.lat,
-              longitude: fallbackData.lon,
-              country_code: fallbackData.countryCode.toLowerCase()
-            };
+
+      if (!normalized?.country) {
+        try {
+          const response = await fetch("https://ipapi.co/json/");
+          if (response.ok) {
+            const fallbackData = await response.json();
+            normalized = normalizeLocationPayload(fallbackData);
           }
+        } catch (e) {
         }
       }
-      if (data && data.country_name) {
-        setFormData(prev => ({
-          ...prev,
-          country: data.country_name,
-          city: data.city || "",
-          latitude: data.latitude ? String(data.latitude) : "",
-          longitude: data.longitude ? String(data.longitude) : ""
-        }));
-        setCountryCode(data.country_code?.toLowerCase() || "");
-      } else {
-        setFormData(prev => ({ ...prev, country: "", city: "", latitude: "", longitude: "" }));
-        setCountryCode("");
-      }
+
+      const resolvedLocation = normalized?.country ? normalized : getLocationFallback();
+      setFormData(prev => ({
+        ...prev,
+        country: resolvedLocation.country,
+        city: resolvedLocation.city,
+        latitude: resolvedLocation.latitude,
+        longitude: resolvedLocation.longitude,
+      }));
+      setCountryCode(resolvedLocation.countryCode);
     } catch (error) {
-      setFormData(prev => ({ ...prev, country: "", city: "", latitude: "", longitude: "" }));
-      setCountryCode("");
+      const fallbackLocation = getLocationFallback();
+      setFormData(prev => ({
+        ...prev,
+        country: fallbackLocation.country,
+        city: fallbackLocation.city,
+        latitude: fallbackLocation.latitude,
+        longitude: fallbackLocation.longitude,
+      }));
+      setCountryCode(fallbackLocation.countryCode);
     } finally {
       setDetectingLocation(false);
     }
@@ -427,32 +444,52 @@ export default function Register() {
                   </div>
                   <div className="col-12 mb-3">
                     <label className="form-label">{t("register.country")}</label>
-                    <div className="d-flex align-items-center">
-                      {countryCode && !detectingLocation && countryCode !== "" && (
-                        <img src={`https://flagcdn.com/w40/${countryCode}.png`} width="30" height="22.5" alt={formData.country} style={{ marginRight: "10px", borderRadius: "4px" }} onError={(e) => e.target.style.display = 'none'} />
+                    <div
+                      className="d-flex align-items-center gap-3 px-3 py-2"
+                      style={{
+                        borderRadius: "16px",
+                        border: "1px solid #dee2e6",
+                        backgroundColor: detectingLocation ? "#f8f9fa" : "#fff",
+                        minHeight: "58px",
+                      }}
+                    >
+                      {countryCode && !detectingLocation && countryCode !== "" ? (
+                        <img
+                          src={`https://flagcdn.com/w40/${countryCode}.png`}
+                          width="30"
+                          height="22.5"
+                          alt={formData.country}
+                          style={{ borderRadius: "4px", objectFit: "cover", flexShrink: 0 }}
+                          onError={(e) => (e.target.style.display = "none")}
+                        />
+                      ) : (
+                        <div
+                          className="rounded bg-light d-flex align-items-center justify-content-center"
+                          style={{ width: "30px", height: "22.5px", flexShrink: 0 }}
+                        >
+                          <i className="fas fa-globe-americas text-secondary" style={{ fontSize: "0.8rem" }} />
+                        </div>
                       )}
-                      <input type="text" className="form-control form-control-lg" value={formData.country} readOnly disabled={detectingLocation} placeholder={detectingLocation ? t("register.detectingCountry") : t("register.detectedCountry")} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#f8f9fa", cursor: detectingLocation ? "wait" : "not-allowed" }} />
-                    </div>
-                    {detectingLocation && (
-                      <div className="mt-1">
-                        <div className="spinner-border spinner-border-sm text-secondary me-2" role="status"><span className="visually-hidden">{t("common.loading")}</span></div>
-                        <small className="text-muted">{t("register.detectingLocation")}</small>
+                      <div className="flex-grow-1">
+                        <div className="fw-semibold">
+                          {formData.country || ""}
+                        </div>
                       </div>
-                    )}
-                    {!detectingLocation && formData.country && (
-                      <small className="text-muted">{t("register.countryAutoDetected")}</small>
-                    )}
-                  </div>
-                  <div className="col-12 mb-3">
-                    <label className="form-label">{t("register.city")}</label>
-                    <input type="text" name="city" className="form-control form-control-lg" placeholder={detectingLocation ? t("register.detectingCity") : t("register.cityPlaceholder")} value={formData.city} onChange={handleChange} disabled={detectingLocation} style={{ borderRadius: "16px", backgroundColor: detectingLocation ? "#e9ecef" : "#fff" }} />
-                    {!detectingLocation && <small className="text-muted">{t("register.cityEditable")}</small>}
+                      {detectingLocation && (
+                        <div className="spinner-border spinner-border-sm text-secondary flex-shrink-0" role="status">
+                          <span className="visually-hidden">{t("common.loading")}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div className="col-12 mb-3">
                     <label className="form-label">{t("register.birthDate")}</label>
                     <input type="date" name="birth_date" className="form-control form-control-lg" required value={formData.birth_date} onChange={handleChange} style={{ borderRadius: "16px" }} />
                     <small className="text-muted">{t("register.mustBeAdult")}</small>
                   </div>
+                  <input type="hidden" name="city" value={formData.city} />
+                  <input type="hidden" name="latitude" value={formData.latitude} />
+                  <input type="hidden" name="longitude" value={formData.longitude} />
                   <div className="col-12 col-md-6 mb-3">
                     <label className="form-label">{t("register.password")}</label>
                     <input type="password" name="password" className="form-control form-control-lg" placeholder={t("register.passwordPlaceholder")} required value={formData.password} onChange={handleChange} style={{ borderRadius: "16px" }} />
