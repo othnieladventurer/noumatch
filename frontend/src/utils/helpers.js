@@ -1,3 +1,5 @@
+import { resolveMediaUrl } from "./apiBase";
+
 // Helper function to format name
 export const formatName = (profile) => {
   if (!profile) return "";
@@ -34,14 +36,5 @@ export const shuffleArray = (array) => {
 
 // Photo URL helper - handles Cloudflare R2 URLs and local development
 export const getProfilePhotoUrl = (path) => {
-  if (!path) return null;
-  
-  // If it's already a full URL (from Cloudflare R2 or other CDN), return it directly
-  if (path.startsWith('http')) return path;
-
-  // For local development or relative paths (fallback)
-  const baseUrl = import.meta.env.VITE_API_URL;
-  const normalizedPath = path.startsWith('/media') ? path : `/media/${path}`;
-  
-  return `${baseUrl}${normalizedPath}`;
+  return resolveMediaUrl(path);
 };

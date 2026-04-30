@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { getRuntimeApiBase } from '../utils/apiBase';
 
 const ReportModal = ({ isOpen, onClose, reportedUser }) => {
+  const API_BASE = getRuntimeApiBase();
   const [reportReason, setReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -34,7 +36,7 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
       formData.append('reason', reportReason);
       formData.append('description', reportDescription);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/reports/create/`, {
+      const response = await fetch(`${API_BASE}/api/reports/create/`, {
         method: 'POST',
         credentials: 'include',
         body: formData,

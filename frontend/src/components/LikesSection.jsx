@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { getRuntimeApiBase, resolveMediaUrl } from "../utils/apiBase";
 
 export default function LikesSection({ user }) {
   const navigate = useNavigate();
+  const API_BASE = getRuntimeApiBase();
   const [likesList, setLikesList] = useState([]);
   const [likeModalOpen, setLikeModalOpen] = useState(false);
   const [selectedLike, setSelectedLike] = useState(null);
@@ -10,9 +12,7 @@ export default function LikesSection({ user }) {
   // Helper: get profile photo URL (copied from Dashboard)
   const getProfilePhotoUrl = (path) => {
     if (!path) return "https://via.placeholder.com/150";
-    if (path.startsWith('http')) return path;
-    if (path.startsWith('/media')) return `${import.meta.env.VITE_API_URL}${path}`;
-    return `${import.meta.env.VITE_API_URL}${path}`;
+    return resolveMediaUrl(path, "https://via.placeholder.com/150");
   };
 
   // Helper: calculate age (copied from Dashboard)
@@ -34,7 +34,7 @@ export default function LikesSection({ user }) {
 
     const fetchReceivedLikes = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/interactions/likes/received/`, {
+        const response = await fetch(`${API_BASE}/api/interactions/likes/received/`, {
           credentials: "include",
         });
 
@@ -88,7 +88,7 @@ export default function LikesSection({ user }) {
     if (!selectedLike) return;
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/interactions/like/`, {
+      const response = await fetch(`${API_BASE}/api/interactions/like/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,5 +1,6 @@
 // context/NotificationContext.jsx
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { getRuntimeApiBase, getRuntimeWsBase } from '../utils/apiBase';
 
 const NotificationContext = createContext();
 
@@ -26,16 +27,8 @@ export const NotificationProvider = ({ children }) => {
     return hasAdminToken || isAdminPath;
   }, []);
 
-  const getBaseUrl = () => {
-    const configured = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
-    if (configured) return configured;
-    if (import.meta.env.DEV) return "http://127.0.0.1:8000";
-    return `${window.location.protocol}//${window.location.host}`;
-  };
-
-  const BASE_URL = getBaseUrl();
-  // For WebSocket, replace http(s) with ws(s)
-  const WS_BASE_URL = BASE_URL.replace(/^http/, 'ws');
+  const BASE_URL = getRuntimeApiBase();
+  const WS_BASE_URL = getRuntimeWsBase();
 
   const isAuthenticated = () => {
     // Don't use user authentication in admin mode
