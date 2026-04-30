@@ -30,13 +30,13 @@ export default defineConfig({
     open: true,
     proxy: {
       '/django-admin': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/django-admin/, '/admin'),
       },
       '/static/admin': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
         secure: false,
       },
