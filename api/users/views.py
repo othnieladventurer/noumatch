@@ -180,45 +180,9 @@ class DetectLocationView(APIView):
 
 class CheckCanRegisterView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [EmailCheckThrottle]
     
     def get(self, request):
-        email = request.query_params.get('email', '').strip().lower()
-        
-        if not email:
-            return Response({"can_register": False, "message": "Email requis"}, status=400)
-        
-        from waitlist.models import WaitlistEntry, ContactedArchive
-        
-        # Check if already registered
-        if User.objects.filter(email=email).exists():
-            return Response({
-                "can_register": False, 
-                "message": "Cet email est déjà utilisé. Connectez-vous."
-            })
-        
-        # Check if in waitlist and contacted
-        waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).first()
-        
-        if waitlist_entry:
-            return Response({
-                "can_register": True,
-                "message": "Vous pouvez créer votre compte"
-            })
-        
-        # Check archive
-        archived_entry = ContactedArchive.objects.filter(email=email).first()
-        
-        if archived_entry:
-            return Response({
-                "can_register": True,
-                "message": "Vous pouvez créer votre compte"
-            })
-        
-        return Response({
-            "can_register": False,
-            "message": "Vous devez rejoindre la liste d'attente et être contacté par notre équipe avant de pouvoir vous inscrire."
-        })
+        return _build_registration_check_response(request.query_params.get("email", ""))
 
 
 
@@ -837,11 +801,8 @@ def heartbeat(request):
     }, status=status.HTTP_200_OK)
 
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-@throttle_classes([EmailCheckThrottle])
-def check_email(request):
-    email = request.query_params.get('email', '').strip().lower()
+def _build_registration_check_response(raw_email):
+    email = (raw_email or "").strip().lower()
     if not email:
         return Response({'exists': False, 'can_register': False, 'error': 'No email'}, status=400)
     try:
@@ -889,6 +850,12 @@ def check_email(request):
             },
             status=status.HTTP_200_OK,
         )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def check_email(request):
+    return _build_registration_check_response(request.query_params.get('email', ''))
 
 
 class UserPhotoViewSet(viewsets.ModelViewSet):

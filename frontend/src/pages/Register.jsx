@@ -112,7 +112,7 @@ export default function Register() {
 
     emailTimeoutRef.current = setTimeout(async () => {
       try {
-        const checkResponse = await API.get(`/users/check-email/?email=${encodeURIComponent(email)}`);
+        const checkResponse = await API.get(`/users/check-can-register/?email=${encodeURIComponent(email)}`);
         const { exists, can_register, message } = checkResponse.data || {};
 
         if (exists) {
@@ -144,8 +144,9 @@ export default function Register() {
           setEligibilityMessage(t("register.waitlistOnly"));
           setShowEligibilityModal(true);
         } else {
-          setEmailError(t("register.errorCheckUnavailable"));
           setCanRegister(false);
+          setEligibilityMessage(t("register.waitlistOnly"));
+          setShowEligibilityModal(true);
         }
       } finally {
         setCheckingEligibility(false);

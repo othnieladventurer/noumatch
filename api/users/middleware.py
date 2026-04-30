@@ -25,6 +25,7 @@ class APIRateLimitMiddleware(MiddlewareMixin):
         ("/api/users/forgot-password/", (5, 3600)),
         ("/api/users/reset-password/", (5, 3600)),
         ("/api/users/check-email/", (30, 60)),
+        ("/api/users/check-can-register/", (30, 60)),
         ("/api/waitlist/join/", (10, 3600)),
         ("/api/noumatch-admin/admin_login/", (10, 60)),
         ("/api/noumatch-admin/login/", (10, 60)),
