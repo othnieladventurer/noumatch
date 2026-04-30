@@ -5,6 +5,8 @@ import path from 'path'
 export default defineConfig(({ mode }) => {
   const isStaging = mode === 'staging';
   const isDevelopment = mode === 'development';
+  const localApiTarget = 'http://127.0.0.1:8001';
+  const localWsTarget = 'ws://127.0.0.1:8001';
 
   return {
     plugins: [react()],
@@ -33,23 +35,23 @@ export default defineConfig(({ mode }) => {
       open: true,
       proxy: {
         '/django-admin': {
-          target: 'http://localhost:8000',
+          target: localApiTarget,
           changeOrigin: true,
           secure: false,
           rewrite: (path) => path.replace(/^\/django-admin/, '/admin'),
         },
         '/static/admin': {
-          target: 'http://localhost:8000',
+          target: localApiTarget,
           changeOrigin: true,
           secure: false,
         },
         '/api': {
-          target: isStaging ? 'https://api-staging.noumatch.com' : 'http://localhost:8000',
+          target: isStaging ? 'https://api-staging.noumatch.com' : localApiTarget,
           changeOrigin: true,
           secure: false,
         },
         '/ws': {
-          target: isStaging ? 'wss://api-staging.noumatch.com' : 'ws://localhost:8000',
+          target: isStaging ? 'wss://api-staging.noumatch.com' : localWsTarget,
           ws: true,
           changeOrigin: true,
         }

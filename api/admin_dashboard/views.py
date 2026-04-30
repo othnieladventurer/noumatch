@@ -5,6 +5,7 @@ from datetime import timedelta, datetime
 from math import ceil
 from urllib import error as urlerror
 from urllib import request as urlrequest
+from types import SimpleNamespace
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
@@ -2085,7 +2086,7 @@ class AdminWaitlistUpdateView(APIView):
 
 
 def _select_waitlist_campaign_entries(batch_size=20, women_ratio=55):
-    batch_size = max(20, min(int(batch_size or 20), 500))
+    batch_size = max(1, min(int(batch_size or 20), 500))
     women_ratio = max(0, min(int(women_ratio or 55), 100))
     men_ratio = 100 - women_ratio
 
@@ -2168,14 +2169,87 @@ def _build_waitlist_invite_message(entry, subject_template=None, body_template=N
     return subject, body
 
 
+def _build_waitlist_invite_target(email, first_name='', last_name=''):
+    cleaned_email = (email or '').strip().lower()
+    if not cleaned_email:
+        raise ValueError('recipient_email is required')
+
+    entry = WaitlistEntry.objects.filter(
+        email__iexact=cleaned_email,
+        is_accepted=True,
+        contacted=False,
+    ).order_by('-accepted_at', 'joined_at').first()
+    if entry:
+        return entry, 'accepted_waitlist'
+
+    derived_first_name = (first_name or '').strip()
+    if not derived_first_name:
+        local_part = cleaned_email.split('@')[0]
+        derived_first_name = local_part.replace('.', ' ').replace('_', ' ').strip().title() or 'Membre'
+
+    return SimpleNamespace(
+        email=cleaned_email,
+        first_name=derived_first_name,
+        last_name=(last_name or '').strip(),
+        gender='female',
+    ), 'manual_email'
+
+
 class AdminWaitlistCampaignPreviewView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
+        invite_mode = (request.GET.get('invite_mode') or 'batch').strip().lower()
         batch_size = request.GET.get('batch_size', 20)
         women_ratio = request.GET.get('women_ratio', 55)
         subject_template = request.GET.get('subject_template')
         body_template = request.GET.get('body_template')
+
+        if invite_mode == 'single':
+            try:
+                target, source = _build_waitlist_invite_target(
+                    request.GET.get('recipient_email'),
+                    request.GET.get('recipient_first_name'),
+                    request.GET.get('recipient_last_name'),
+                )
+            except ValueError as exc:
+                return Response({'error': str(exc)}, status=400)
+            subject, body = _build_waitlist_invite_message(
+                target,
+                subject_template=subject_template,
+                body_template=body_template,
+            )
+            summary = {
+                'requested_total': 1,
+                'selected_total': 1,
+                'women': 1 if getattr(target, 'gender', '') == 'female' else 0,
+                'men': 1 if getattr(target, 'gender', '') == 'male' else 0,
+                'women_ratio_target': women_ratio,
+                'men_ratio_target': 100 - max(0, min(int(women_ratio or 55), 100)),
+                'women_ratio_actual': 100.0 if getattr(target, 'gender', '') == 'female' else 0.0,
+                'men_ratio_actual': 100.0 if getattr(target, 'gender', '') == 'male' else 0.0,
+            }
+            return Response({
+                'mode': 'single',
+                'users': [],
+                'summary': summary,
+                'default_templates': {
+                    'subject': DEFAULT_WAITLIST_INVITE_SUBJECT,
+                    'body': DEFAULT_WAITLIST_INVITE_BODY,
+                },
+                'preview_email': {
+                    'to': target.email,
+                    'subject': subject,
+                    'body': body,
+                },
+                'single_target': {
+                    'email': target.email,
+                    'first_name': target.first_name,
+                    'last_name': target.last_name,
+                    'source': source,
+                },
+            })
+
         selected, summary = _select_waitlist_campaign_entries(batch_size=batch_size, women_ratio=women_ratio)
         serializer = InlineWaitlistEntrySerializer(selected, many=True)
         preview_email = None
@@ -2192,6 +2266,7 @@ class AdminWaitlistCampaignPreviewView(APIView):
                 'body': body,
             }
         return Response({
+            'mode': 'batch',
             'users': serializer.data,
             'summary': summary,
             'default_templates': {
@@ -2206,10 +2281,56 @@ class AdminWaitlistCampaignSendInvitesView(APIView):
     permission_classes = [IsAdminUser]
 
     def post(self, request):
+        invite_mode = (request.data.get('invite_mode') or 'batch').strip().lower()
         batch_size = request.data.get('batch_size', 20)
         women_ratio = request.data.get('women_ratio', 55)
         subject_template = request.data.get('subject_template')
         body_template = request.data.get('body_template')
+
+        if invite_mode == 'single':
+            try:
+                target, source = _build_waitlist_invite_target(
+                    request.data.get('recipient_email'),
+                    request.data.get('recipient_first_name'),
+                    request.data.get('recipient_last_name'),
+                )
+            except ValueError as exc:
+                return Response({'error': str(exc)}, status=400)
+            subject, body = _build_waitlist_invite_message(
+                target,
+                subject_template=subject_template,
+                body_template=body_template,
+            )
+            _send_waitlist_invite_via_brevo(target, subject, body)
+
+            if isinstance(target, WaitlistEntry):
+                with transaction.atomic():
+                    ContactedArchive.objects.create(
+                        first_name=target.first_name,
+                        last_name=target.last_name,
+                        email=target.email,
+                        gender=target.gender,
+                        reason='accepted',
+                        notes='Invited via single-recipient waitlist send',
+                    )
+                    target.delete()
+                stats = WaitlistStats.get_current_stats()
+                stats.update_counts()
+
+            return Response({
+                'success': True,
+                'mode': 'single',
+                'summary': {
+                    'requested_total': 1,
+                    'selected_total': 1,
+                },
+                'sent_count': 1,
+                'failed_count': 0,
+                'sent_emails': [target.email],
+                'failed': [],
+                'source': source,
+            })
+
         selected, summary = _select_waitlist_campaign_entries(batch_size=batch_size, women_ratio=women_ratio)
 
         sent = []

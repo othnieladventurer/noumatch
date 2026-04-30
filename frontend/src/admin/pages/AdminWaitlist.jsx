@@ -42,6 +42,7 @@ export default function AdminWaitlist() {
 
   const [showCampaignModal, setShowCampaignModal] = useState(false);
   const [campaignUsers, setCampaignUsers] = useState([]);
+  const [campaignMode, setCampaignMode] = useState('batch');
   const [campaignBatchSize, setCampaignBatchSize] = useState(20);
   const [campaignTargetRatio, setCampaignTargetRatio] = useState({ women: 55, men: 45 });
   const [campaignProgress, setCampaignProgress] = useState({ current: 0, total: 0 });
@@ -49,6 +50,12 @@ export default function AdminWaitlist() {
   const [inviteSubjectTemplate, setInviteSubjectTemplate] = useState('');
   const [inviteBodyTemplate, setInviteBodyTemplate] = useState('');
   const [campaignPreviewEmail, setCampaignPreviewEmail] = useState(null);
+  const [singleInvite, setSingleInvite] = useState({
+    email: '',
+    first_name: '',
+    last_name: '',
+  });
+  const [singlePreviewTarget, setSinglePreviewTarget] = useState(null);
   const [showBulkArchiveModal, setShowBulkArchiveModal] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -156,15 +163,26 @@ export default function AdminWaitlist() {
   const generateCampaignList = async () => {
     try {
       setActionLoading(true);
+      const params = campaignMode === 'single'
+        ? {
+            invite_mode: 'single',
+            recipient_email: singleInvite.email,
+            recipient_first_name: singleInvite.first_name || undefined,
+            recipient_last_name: singleInvite.last_name || undefined,
+            subject_template: inviteSubjectTemplate || undefined,
+            body_template: inviteBodyTemplate || undefined,
+          }
+        : {
+            invite_mode: 'batch',
+            batch_size: campaignBatchSize,
+            women_ratio: campaignTargetRatio.women,
+            subject_template: inviteSubjectTemplate || undefined,
+            body_template: inviteBodyTemplate || undefined,
+          };
       const res = await adminRequest({
         method: 'get',
         url: `${API_BASE}/waitlist/campaign/preview/`,
-        params: {
-          batch_size: campaignBatchSize,
-          women_ratio: campaignTargetRatio.women,
-          subject_template: inviteSubjectTemplate || undefined,
-          body_template: inviteBodyTemplate || undefined,
-        },
+        params,
       });
       const users = res.data?.users || [];
       const defaultTemplates = res.data?.default_templates || {};
@@ -172,7 +190,8 @@ export default function AdminWaitlist() {
       if (!inviteBodyTemplate && defaultTemplates.body) setInviteBodyTemplate(defaultTemplates.body);
       setCampaignPreviewEmail(res.data?.preview_email || null);
       setCampaignUsers(users);
-      setCampaignProgress({ current: 0, total: users.length });
+      setSinglePreviewTarget(res.data?.single_target || null);
+      setCampaignProgress({ current: 0, total: res.data?.summary?.selected_total || users.length });
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to generate campaign preview');
     } finally {
@@ -184,6 +203,7 @@ export default function AdminWaitlist() {
     setCampaignUsers([]);
     setCampaignProgress({ current: 0, total: 0 });
     setCampaignPreviewEmail(null);
+    setSinglePreviewTarget(null);
     setShowCampaignModal(true);
   };
 
@@ -210,15 +230,26 @@ export default function AdminWaitlist() {
   const runCampaign = async () => {
     setCampaignRunning(true);
     try {
+      const payload = campaignMode === 'single'
+        ? {
+            invite_mode: 'single',
+            recipient_email: singleInvite.email,
+            recipient_first_name: singleInvite.first_name || undefined,
+            recipient_last_name: singleInvite.last_name || undefined,
+            subject_template: inviteSubjectTemplate,
+            body_template: inviteBodyTemplate,
+          }
+        : {
+            invite_mode: 'batch',
+            batch_size: campaignBatchSize,
+            women_ratio: campaignTargetRatio.women,
+            subject_template: inviteSubjectTemplate,
+            body_template: inviteBodyTemplate,
+          };
       const res = await adminRequest({
         method: 'post',
         url: `${API_BASE}/waitlist/campaign/send-invites/`,
-        data: {
-          batch_size: campaignBatchSize,
-          women_ratio: campaignTargetRatio.women,
-          subject_template: inviteSubjectTemplate,
-          body_template: inviteBodyTemplate,
-        },
+        data: payload,
       });
       const sentCount = res.data?.sent_count || 0;
       const failedCount = res.data?.failed_count || 0;
@@ -230,6 +261,7 @@ export default function AdminWaitlist() {
       alert(`Campaign completed! Sent: ${sentCount}, Failed: ${failedCount}.`);
       setShowCampaignModal(false);
       setCampaignUsers([]);
+      setSinglePreviewTarget(null);
       setActiveTab('archived');
     } catch (err) {
       alert(err.response?.data?.error || 'Campaign failed');
@@ -593,33 +625,99 @@ export default function AdminWaitlist() {
               <div className="modal-body">
                 {!campaignRunning ? (
                   <>
-                    <div className="row mb-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Batch Size</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          value={campaignBatchSize}
-                          onChange={(e) => setCampaignBatchSize(parseInt(e.target.value))}
-                          min="20"
-                          max="500"
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Target Women Ratio (%)</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          value={campaignTargetRatio.women}
-                          onChange={(e) => setCampaignTargetRatio({ 
-                            women: parseInt(e.target.value), 
-                            men: 100 - parseInt(e.target.value) 
-                          })}
-                          min="0"
-                          max="100"
-                        />
+                    <div className="mb-3">
+                      <label className="form-label d-block">Invite Mode</label>
+                      <div className="d-flex gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${campaignMode === 'batch' ? 'btn-danger' : 'btn-outline-secondary'}`}
+                          onClick={() => {
+                            setCampaignMode('batch');
+                            setCampaignUsers([]);
+                            setCampaignPreviewEmail(null);
+                            setSinglePreviewTarget(null);
+                          }}
+                        >
+                          Balanced Batch
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${campaignMode === 'single' ? 'btn-danger' : 'btn-outline-secondary'}`}
+                          onClick={() => {
+                            setCampaignMode('single');
+                            setCampaignUsers([]);
+                            setCampaignPreviewEmail(null);
+                            setSinglePreviewTarget(null);
+                          }}
+                        >
+                          Single Invite
+                        </button>
                       </div>
                     </div>
+
+                    {campaignMode === 'batch' ? (
+                      <div className="row mb-3">
+                        <div className="col-md-6">
+                          <label className="form-label">How Many Users To Contact</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            value={campaignBatchSize}
+                            onChange={(e) => setCampaignBatchSize(parseInt(e.target.value || '1', 10))}
+                            min="1"
+                            max="500"
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label">Target Women Ratio (%)</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            value={campaignTargetRatio.women}
+                            onChange={(e) => setCampaignTargetRatio({
+                              women: parseInt(e.target.value || '55', 10),
+                              men: 100 - parseInt(e.target.value || '55', 10),
+                            })}
+                            min="0"
+                            max="100"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="row mb-3">
+                        <div className="col-md-6">
+                          <label className="form-label">Recipient Email</label>
+                          <input
+                            type="email"
+                            className="form-control"
+                            value={singleInvite.email}
+                            onChange={(e) => setSingleInvite({ ...singleInvite, email: e.target.value })}
+                            placeholder="person@example.com"
+                          />
+                        </div>
+                        <div className="col-md-3">
+                          <label className="form-label">First Name</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={singleInvite.first_name}
+                            onChange={(e) => setSingleInvite({ ...singleInvite, first_name: e.target.value })}
+                            placeholder="Optional"
+                          />
+                        </div>
+                        <div className="col-md-3">
+                          <label className="form-label">Last Name</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={singleInvite.last_name}
+                            onChange={(e) => setSingleInvite({ ...singleInvite, last_name: e.target.value })}
+                            placeholder="Optional"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="mb-3">
                       <label className="form-label">Email Subject (editable)</label>
                       <input
@@ -642,10 +740,10 @@ export default function AdminWaitlist() {
                     </div>
                     <div className="mb-3">
                       <button className="btn btn-primary" onClick={generateCampaignList} disabled={actionLoading}>
-                        Generate Campaign List ({campaignUsers.length} users)
+                        {campaignMode === 'single' ? 'Preview Invite' : `Generate Campaign List (${campaignUsers.length} users)`}
                       </button>
                     </div>
-                    {campaignUsers.length > 0 && (
+                    {campaignMode === 'batch' && campaignUsers.length > 0 && (
                       <>
                         <h6>Campaign Preview (Respecting {campaignTargetRatio.women}% Women / {campaignTargetRatio.men}% Men)</h6>
                         <div className="table-responsive" style={{ maxHeight: '300px', overflowY: 'auto' }}>
@@ -677,6 +775,22 @@ export default function AdminWaitlist() {
                         )}
                       </>
                     )}
+                    {campaignMode === 'single' && singlePreviewTarget && campaignPreviewEmail && (
+                      <div className="mt-3">
+                        <div className="p-3 border rounded bg-light mb-3">
+                          <h6 className="mb-2">Recipient</h6>
+                          <div><strong>Email:</strong> {singlePreviewTarget.email}</div>
+                          <div><strong>Name:</strong> {singlePreviewTarget.first_name} {singlePreviewTarget.last_name}</div>
+                          <div><strong>Source:</strong> {singlePreviewTarget.source === 'accepted_waitlist' ? 'Accepted waitlist entry' : 'Direct email'}</div>
+                        </div>
+                        <div className="p-3 border rounded bg-light">
+                          <h6 className="mb-2">Rendered Email Preview</h6>
+                          <div className="small mb-1"><strong>To:</strong> {campaignPreviewEmail.to}</div>
+                          <div className="small mb-2"><strong>Subject:</strong> {campaignPreviewEmail.subject}</div>
+                          <pre className="mb-0" style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{campaignPreviewEmail.body}</pre>
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-4">
@@ -696,9 +810,9 @@ export default function AdminWaitlist() {
                 <button className="btn btn-secondary" onClick={() => setShowCampaignModal(false)} disabled={campaignRunning}>
                   Cancel
                 </button>
-                {!campaignRunning && campaignUsers.length > 0 && (
+                {!campaignRunning && ((campaignMode === 'batch' && campaignUsers.length > 0) || (campaignMode === 'single' && singlePreviewTarget)) && (
                   <button className="btn btn-success" onClick={runCampaign}>
-                    <i className="fas fa-play me-1"></i> Start Campaign
+                    <i className="fas fa-play me-1"></i> {campaignMode === 'single' ? 'Send Invite' : 'Start Campaign'}
                   </button>
                 )}
               </div>

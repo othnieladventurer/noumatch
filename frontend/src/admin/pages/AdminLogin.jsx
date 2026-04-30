@@ -5,26 +5,21 @@ import axios from 'axios';
 import BrandLogo from '../../components/BrandLogo';
 import './AdminLogin.css';
 
-// Build the correct API base URL from environment variables (same as AdminDashboard)
 const getApiBase = () => {
   const env = import.meta.env.VITE_APP_ENVIRONMENT;
   let baseDomain = '';
-  
+
   if (env === 'staging') {
     baseDomain = import.meta.env.VITE_API_URL;
   } else if (import.meta.env.PROD) {
-    // Production - use production API domain
-    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http') 
+    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
       ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
       : import.meta.env.VITE_API_URL;
   } else {
-    // Development - use relative path (proxy)
     return '/api/noumatch-admin';
   }
-  
-  const adminPath = '/api/noumatch-admin';
-  const fullUrl = `${baseDomain}${adminPath}`;
-  return fullUrl;
+
+  return `${baseDomain}/api/noumatch-admin`;
 };
 
 const API_BASE = getApiBase();
@@ -40,7 +35,6 @@ export default function AdminLogin() {
   });
   const navigate = useNavigate();
 
-  // Apply dark mode class to body
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add('dark-mode');
@@ -60,8 +54,12 @@ export default function AdminLogin() {
       localStorage.setItem('admin_email', res.data.staff_email);
       navigate('/admin/dashboard');
     } catch (err) {
-      console.error('❌ Login error:', err.response?.status, err.response?.data);
-      setError(err.response?.data?.error || err.response?.data?.message || 'Login failed. Check credentials.');
+      console.error('Admin login error:', err.response?.status, err.response?.data);
+      if (!err.response) {
+        setError('Admin API is unreachable on localhost. Make sure Django is running on 127.0.0.1:8001 and restart Vite if needed.');
+      } else {
+        setError(err.response?.data?.error || err.response?.data?.message || 'Login failed. Check credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -69,7 +67,6 @@ export default function AdminLogin() {
 
   return (
     <div className="admin-login">
-      {/* Theme Toggle */}
       <button
         className="login-theme-toggle"
         onClick={() => setDarkMode(!darkMode)}
@@ -78,7 +75,6 @@ export default function AdminLogin() {
         <i className={`fas ${darkMode ? 'fa-sun' : 'fa-moon'}`}></i>
       </button>
 
-      {/* Left Side - Branding */}
       <div className="login-left">
         <div className="brand-content">
           <div className="brand-icon">
@@ -106,7 +102,6 @@ export default function AdminLogin() {
         </div>
       </div>
 
-      {/* Right Side - Login Form */}
       <div className="login-right">
         <div className="login-card">
           <div className="login-header">
@@ -176,5 +171,3 @@ export default function AdminLogin() {
     </div>
   );
 }
-
-
