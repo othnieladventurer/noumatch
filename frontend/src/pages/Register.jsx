@@ -185,24 +185,8 @@ export default function Register() {
   const detectUserLocation = async () => {
     try {
       setDetectingLocation(true);
-      let normalized = null;
-
-      try {
-        const response = await API.get("/users/location-detect/");
-        normalized = normalizeLocationPayload(response.data);
-      } catch (e) {
-      }
-
-      if (!normalized?.country) {
-        try {
-          const response = await fetch("https://ipapi.co/json/");
-          if (response.ok) {
-            const fallbackData = await response.json();
-            normalized = normalizeLocationPayload(fallbackData);
-          }
-        } catch (e) {
-        }
-      }
+      const response = await API.get("/users/location-detect/");
+      const normalized = normalizeLocationPayload(response.data);
 
       const resolvedLocation = normalized?.country ? normalized : getLocationFallback();
       setFormData(prev => ({
