@@ -3,26 +3,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BrandLogo from '../../components/BrandLogo';
+import { getAdminApiBase } from '../../admin/utils/adminApi';
 import './AdminLogin.css';
 
-const getApiBase = () => {
-  const env = import.meta.env.VITE_APP_ENVIRONMENT;
-  let baseDomain = '';
-
-  if (env === 'staging') {
-    baseDomain = import.meta.env.VITE_API_URL;
-  } else if (import.meta.env.PROD) {
-    baseDomain = import.meta.env.VITE_API_URL?.startsWith('http')
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/noumatch-admin.*$/, '')
-      : import.meta.env.VITE_API_URL;
-  } else {
-    return '/api/noumatch-admin';
-  }
-
-  return `${baseDomain}/api/noumatch-admin`;
-};
-
-const API_BASE = getApiBase();
+const API_BASE = getAdminApiBase();
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -56,7 +40,7 @@ export default function AdminLogin() {
     } catch (err) {
       console.error('Admin login error:', err.response?.status, err.response?.data);
       if (!err.response) {
-        setError('Admin API is unreachable on localhost. Make sure Django is running on 127.0.0.1:8001 and restart Vite if needed.');
+        setError('Impossible de joindre l’API admin. Vérifiez que le backend Django est en cours d’exécution puis réessayez.');
       } else {
         setError(err.response?.data?.error || err.response?.data?.message || 'Login failed. Check credentials.');
       }
