@@ -42,6 +42,41 @@ from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
 logger = logging.getLogger(__name__)
 
 
+def _admin_dashboard_fallback_payload():
+    return {
+        'total_users': 0,
+        'active_today': 0,
+        'likes_today': 0,
+        'passes_today': 0,
+        'matches_today': 0,
+        'match_rate': 0.0,
+        'recent_blocks': [],
+        'total_impressions': 0,
+        'total_likes_from_impressions': 0,
+        'total_passes_from_impressions': 0,
+        'impression_conversion_rate': 0,
+        'avg_ranking_score': 0.0,
+        'position1_like_rate': 0,
+        'top_performing_profiles': [],
+        'position_performance': [],
+        'dau': 0,
+        'wau': 0,
+        'mau': 0,
+        'stickiness': 0.0,
+        'avg_user_score': 0.0,
+        'avg_engagement_score': 0.0,
+        'avg_quality_score': 0.0,
+        'avg_trust_score': 0.0,
+        'avg_points': 0.0,
+        'high_scoring_users': 0,
+        'top_scored_users': [],
+        'zero_match_users_count': 0,
+        'avg_matches_per_user': 0.0,
+        'degraded': True,
+        'warning': 'Temporary issue while loading dashboard analytics.',
+    }
+
+
 def _paginate_queryset(request, queryset, serializer_class):
     page = max(1, int(request.GET.get('page', 1) or 1))
     page_size = int(request.GET.get('page_size', 10) or 10)
@@ -398,151 +433,151 @@ class AdminDashboardView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        now = timezone.now()
-        last_24_hours = now - timedelta(hours=24)
-        start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        dau = _active_users_count_since(start_today, now)
-        wau = _active_users_count_since(now - timedelta(days=7), now)
-        mau = _active_users_count_since(now - timedelta(days=30), now)
-        stickiness = (dau / mau) if mau else 0
-        
-        total_users = User.objects.filter(is_active=True).count()
-        active_today = User.objects.filter(last_activity__gte=last_24_hours).count()
-        likes_today = Like.objects.filter(created_at__gte=last_24_hours).count()
-        passes_today = Pass.objects.filter(created_at__gte=last_24_hours).count()
-        matches_today = Match.objects.filter(created_at__gte=last_24_hours).count()
-        
-        total_swipes = likes_today + passes_today
-        match_rate = round((matches_today / total_swipes) * 100, 1) if total_swipes > 0 else 0.0
+        try:
+            now = timezone.now()
+            last_24_hours = now - timedelta(hours=24)
+            start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            dau = _active_users_count_since(start_today, now)
+            wau = _active_users_count_since(now - timedelta(days=7), now)
+            mau = _active_users_count_since(now - timedelta(days=30), now)
+            stickiness = (dau / mau) if mau else 0
 
-        # Recent blocks
-        recent_blocks = Block.objects.filter(created_at__gte=last_24_hours).select_related('blocker', 'blocked').order_by('-created_at')[:10]
-        blocks_data = []
-        for block in recent_blocks:
-            blocker = block.blocker
-            blocked = block.blocked
-            blocks_data.append({
-                'id': block.id,
-                'blocker_id': blocker.id,
-                'blocker_name': f"{blocker.first_name} {blocker.last_name}".strip() or blocker.email,
-                'blocked_id': blocked.id,
-                'blocked_name': f"{blocked.first_name} {blocked.last_name}".strip() or blocked.email,
-                'created_at': block.created_at,
-            })
+            total_users = User.objects.filter(is_active=True).count()
+            active_today = User.objects.filter(last_activity__gte=last_24_hours).count()
+            likes_today = Like.objects.filter(created_at__gte=last_24_hours).count()
+            passes_today = Pass.objects.filter(created_at__gte=last_24_hours).count()
+            matches_today = Match.objects.filter(created_at__gte=last_24_hours).count()
 
-        # Analytics metrics
-        total_impressions = ProfileImpression.objects.count()
-        total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
-        total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
-        
-        impression_conversion_rate = round((total_likes_from_impressions / total_impressions) * 100, 1) if total_impressions > 0 else 0
-        avg_ranking_score = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
-        
-        pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
-        pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
-        position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
-        
-        # Top performing profiles
-        seven_days_ago = timezone.now() - timedelta(days=7)
-        top_profiles = []
-        profile_stats = ProfileImpression.objects.filter(
-            timestamp__gte=seven_days_ago,
-            was_swiped=True
-        ).values('viewed__email', 'viewed__id').annotate(
-            total_impressions=Count('id'),
-            likes=Count('id', filter=Q(swipe_action='like')),
-            avg_position=Avg('feed_position')
-        ).filter(total_impressions__gte=5).order_by('-likes')[:10]
-        
-        for stat in profile_stats:
-            like_rate = round((stat['likes'] / stat['total_impressions']) * 100, 1)
-            top_profiles.append({
-                'user_id': stat['viewed__id'],
-                'user_email': stat['viewed__email'],
-                'impressions': stat['total_impressions'],
-                'likes': stat['likes'],
-                'like_rate': like_rate,
-                'avg_position': stat['avg_position'],
-            })
-        
-        # Position performance
-        position_performance = []
-        for pos in range(15):
-            pos_imp = ProfileImpression.objects.filter(feed_position=pos)
-            pos_total = pos_imp.count()
-            if pos_total > 0:
-                pos_likes = pos_imp.filter(swipe_action='like').count()
-                pos_passes = pos_imp.filter(swipe_action='pass').count()
-                position_performance.append({
-                    'position': pos,
-                    'impressions': pos_total,
-                    'likes': pos_likes,
-                    'passes': pos_passes,
-                    'like_rate': round((pos_likes / pos_total) * 100, 1),
-                    'pass_rate': round((pos_passes / pos_total) * 100, 1),
+            total_swipes = likes_today + passes_today
+            match_rate = round((matches_today / total_swipes) * 100, 1) if total_swipes > 0 else 0.0
+
+            recent_blocks = Block.objects.filter(created_at__gte=last_24_hours).select_related('blocker', 'blocked').order_by('-created_at')[:10]
+            blocks_data = []
+            for block in recent_blocks:
+                blocker = block.blocker
+                blocked = block.blocked
+                blocks_data.append({
+                    'id': block.id,
+                    'blocker_id': blocker.id,
+                    'blocker_name': f"{blocker.first_name} {blocker.last_name}".strip() or blocker.email,
+                    'blocked_id': blocked.id,
+                    'blocked_name': f"{blocked.first_name} {blocked.last_name}".strip() or blocked.email,
+                    'created_at': block.created_at,
                 })
 
-        score_qs = UserEngagementScore.objects.select_related('user')
-        score_aggregates = score_qs.aggregate(
-            avg_user_score=Avg('overall_score'),
-            avg_engagement_score=Avg('engagement_score'),
-            avg_quality_score=Avg('quality_score'),
-            avg_trust_score=Avg('trust_score'),
-            avg_points=Avg('total_points'),
-        )
-        high_scoring_users = score_qs.filter(overall_score__gte=80).count()
-        top_scored_users = [
-            {
-                'user_id': item.user_id,
-                'user_email': item.user.email,
-                'full_name': f"{item.user.first_name} {item.user.last_name}".strip() or item.user.email,
-                'overall_score': item.overall_score,
-                'total_points': item.total_points,
-            }
-            for item in score_qs.order_by('-overall_score', '-total_points')[:10]
-        ]
+            total_impressions = ProfileImpression.objects.count()
+            total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
+            total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
 
-        product_users = _product_users_queryset()
-        zero_match_users_count = product_users.filter(
-            matches_as_user1__isnull=True,
-            matches_as_user2__isnull=True,
-        ).count()
-        avg_matches_per_user = (
-            round((Match.objects.count() * 2) / max(1, product_users.count()), 2)
-            if product_users.exists()
-            else 0.0
-        )
+            impression_conversion_rate = round((total_likes_from_impressions / total_impressions) * 100, 1) if total_impressions > 0 else 0
+            avg_ranking_score = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
 
-        return Response({
-            'total_users': total_users,
-            'active_today': active_today,
-            'likes_today': likes_today,
-            'passes_today': passes_today,
-            'matches_today': matches_today,
-            'match_rate': match_rate,
-            'recent_blocks': blocks_data,
-            'total_impressions': total_impressions,
-            'total_likes_from_impressions': total_likes_from_impressions,
-            'total_passes_from_impressions': total_passes_from_impressions,
-            'impression_conversion_rate': impression_conversion_rate,
-            'avg_ranking_score': round(avg_ranking_score, 1),
-            'position1_like_rate': position1_like_rate,
-            'top_performing_profiles': top_profiles,
-            'position_performance': position_performance,
-            'dau': dau,
-            'wau': wau,
-            'mau': mau,
-            'stickiness': round(stickiness, 4),
-            'avg_user_score': round(score_aggregates['avg_user_score'] or 0, 1),
-            'avg_engagement_score': round(score_aggregates['avg_engagement_score'] or 0, 1),
-            'avg_quality_score': round(score_aggregates['avg_quality_score'] or 0, 1),
-            'avg_trust_score': round(score_aggregates['avg_trust_score'] or 0, 1),
-            'avg_points': round(score_aggregates['avg_points'] or 0, 1),
-            'high_scoring_users': high_scoring_users,
-            'top_scored_users': top_scored_users,
-            'zero_match_users_count': zero_match_users_count,
-            'avg_matches_per_user': avg_matches_per_user,
-        })
+            pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
+            pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
+            position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
+
+            seven_days_ago = timezone.now() - timedelta(days=7)
+            top_profiles = []
+            profile_stats = ProfileImpression.objects.filter(
+                timestamp__gte=seven_days_ago,
+                was_swiped=True
+            ).values('viewed__email', 'viewed__id').annotate(
+                total_impressions=Count('id'),
+                likes=Count('id', filter=Q(swipe_action='like')),
+                avg_position=Avg('feed_position')
+            ).filter(total_impressions__gte=5).order_by('-likes')[:10]
+
+            for stat in profile_stats:
+                like_rate = round((stat['likes'] / stat['total_impressions']) * 100, 1)
+                top_profiles.append({
+                    'user_id': stat['viewed__id'],
+                    'user_email': stat['viewed__email'],
+                    'impressions': stat['total_impressions'],
+                    'likes': stat['likes'],
+                    'like_rate': like_rate,
+                    'avg_position': stat['avg_position'],
+                })
+
+            position_performance = []
+            for pos in range(15):
+                pos_imp = ProfileImpression.objects.filter(feed_position=pos)
+                pos_total = pos_imp.count()
+                if pos_total > 0:
+                    pos_likes = pos_imp.filter(swipe_action='like').count()
+                    pos_passes = pos_imp.filter(swipe_action='pass').count()
+                    position_performance.append({
+                        'position': pos,
+                        'impressions': pos_total,
+                        'likes': pos_likes,
+                        'passes': pos_passes,
+                        'like_rate': round((pos_likes / pos_total) * 100, 1),
+                        'pass_rate': round((pos_passes / pos_total) * 100, 1),
+                    })
+
+            score_qs = UserEngagementScore.objects.select_related('user')
+            score_aggregates = score_qs.aggregate(
+                avg_user_score=Avg('overall_score'),
+                avg_engagement_score=Avg('engagement_score'),
+                avg_quality_score=Avg('quality_score'),
+                avg_trust_score=Avg('trust_score'),
+                avg_points=Avg('total_points'),
+            )
+            high_scoring_users = score_qs.filter(overall_score__gte=80).count()
+            top_scored_users = [
+                {
+                    'user_id': item.user_id,
+                    'user_email': item.user.email,
+                    'full_name': f"{item.user.first_name} {item.user.last_name}".strip() or item.user.email,
+                    'overall_score': item.overall_score,
+                    'total_points': item.total_points,
+                }
+                for item in score_qs.order_by('-overall_score', '-total_points')[:10]
+            ]
+
+            product_users = _product_users_queryset()
+            zero_match_users_count = product_users.filter(
+                matches_as_user1__isnull=True,
+                matches_as_user2__isnull=True,
+            ).count()
+            avg_matches_per_user = (
+                round((Match.objects.count() * 2) / max(1, product_users.count()), 2)
+                if product_users.exists()
+                else 0.0
+            )
+
+            return Response({
+                'total_users': total_users,
+                'active_today': active_today,
+                'likes_today': likes_today,
+                'passes_today': passes_today,
+                'matches_today': matches_today,
+                'match_rate': match_rate,
+                'recent_blocks': blocks_data,
+                'total_impressions': total_impressions,
+                'total_likes_from_impressions': total_likes_from_impressions,
+                'total_passes_from_impressions': total_passes_from_impressions,
+                'impression_conversion_rate': impression_conversion_rate,
+                'avg_ranking_score': round(avg_ranking_score, 1),
+                'position1_like_rate': position1_like_rate,
+                'top_performing_profiles': top_profiles,
+                'position_performance': position_performance,
+                'dau': dau,
+                'wau': wau,
+                'mau': mau,
+                'stickiness': round(stickiness, 4),
+                'avg_user_score': round(score_aggregates['avg_user_score'] or 0, 1),
+                'avg_engagement_score': round(score_aggregates['avg_engagement_score'] or 0, 1),
+                'avg_quality_score': round(score_aggregates['avg_quality_score'] or 0, 1),
+                'avg_trust_score': round(score_aggregates['avg_trust_score'] or 0, 1),
+                'avg_points': round(score_aggregates['avg_points'] or 0, 1),
+                'high_scoring_users': high_scoring_users,
+                'top_scored_users': top_scored_users,
+                'zero_match_users_count': zero_match_users_count,
+                'avg_matches_per_user': avg_matches_per_user,
+            })
+        except Exception as exc:
+            logger.exception("AdminDashboardView failed; returning fallback payload: %s", exc)
+            return Response(_admin_dashboard_fallback_payload(), status=status.HTTP_200_OK)
 
 
 class AdminActiveUsersMetricsView(APIView):

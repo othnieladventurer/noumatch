@@ -64,6 +64,16 @@ const clearAdminAuthTokens = () => {
   localStorage.removeItem("admin_email");
 };
 
+const persistAdminAccessToken = (token) => {
+  if (looksLikeJwt(token)) {
+    localStorage.setItem("admin_access", token);
+    return token;
+  }
+
+  localStorage.removeItem("admin_access");
+  return null;
+};
+
 const isAuthRefreshEndpoint = (url = "") =>
   /users\/token\/refresh\/|noumatch-admin\/token\/refresh\//.test(url);
 
@@ -133,11 +143,11 @@ API.interceptors.response.use(
           const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {}, {
             withCredentials: true,
           });
-          localStorage.setItem("admin_access", "1");
-          if (res.data?.access) {
+          const nextAccess = persistAdminAccessToken(res.data?.access);
+          if (nextAccess) {
             originalRequest.headers = {
               ...(originalRequest.headers || {}),
-              Authorization: `Bearer ${res.data.access}`,
+              Authorization: `Bearer ${nextAccess}`,
             };
           }
           return API(originalRequest);
@@ -200,11 +210,11 @@ adminAPI.interceptors.response.use(
         const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {}, {
           withCredentials: true,
         });
-        localStorage.setItem("admin_access", "1");
-        if (res.data?.access) {
+        const nextAccess = persistAdminAccessToken(res.data?.access);
+        if (nextAccess) {
           originalRequest.headers = {
             ...(originalRequest.headers || {}),
-            Authorization: `Bearer ${res.data.access}`,
+            Authorization: `Bearer ${nextAccess}`,
           };
         }
         return adminAPI(originalRequest);
