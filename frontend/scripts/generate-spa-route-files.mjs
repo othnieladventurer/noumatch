@@ -27,10 +27,12 @@ const staticRoutes = [
   '/admin/dashboard',
   '/admin/users',
   '/admin/reports',
+  '/admin/reports/cases',
   '/admin/swipe-stats',
   '/admin/messages',
   '/admin/flagged-messages',
   '/admin/waitlist',
+  '/admin/notifications/email',
   '/admin/analytics/impressions',
   '/admin/analytics/ranking',
   '/admin/analytics/performance',
@@ -52,4 +54,3 @@ for (const route of staticRoutes) {
   fs.mkdirSync(routeDir, { recursive: true });
   fs.writeFileSync(routeIndexPath, indexHtml, 'utf8');
 }
-
