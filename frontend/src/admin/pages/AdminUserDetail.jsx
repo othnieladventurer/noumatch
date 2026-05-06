@@ -203,6 +203,31 @@ export default function AdminUserDetail() {
     return <span className="badge bg-success px-3 py-2">Low Risk</span>;
   };
 
+  const maskEmail = (email) => {
+    if (!email || !email.includes('@')) return email || 'N/A';
+    const [local, domain] = email.split('@');
+    if (local.length <= 2) return `${local[0] || ''}***@${domain}`;
+    return `${local.slice(0, 2)}***${local.slice(-1)}@${domain}`;
+  };
+
+  const formatGender = (value) => {
+    if (!value) return 'Not specified';
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  };
+
+  const accountStateLabel = user.is_active ? 'Active' : 'Restricted';
+  const joinedLabel = user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A';
+  const lastActiveLabel = user.last_activity ? new Date(user.last_activity).toLocaleString() : 'Never';
+  const profileLocation = user.city && user.country ? `${user.city}, ${user.country}` : (user.city || user.country || 'Not specified');
+  const overviewStats = [
+    { icon: 'fas fa-ranking-star', tone: 'text-warning', label: 'User Score', value: user.score?.overall_score || 0 },
+    { icon: 'fas fa-coins', tone: 'text-secondary', label: 'Total Points', value: user.score?.total_points || 0 },
+    { icon: 'fas fa-heart', tone: 'text-danger', label: 'Likes Given', value: user.stats?.total_likes_given || 0 },
+    { icon: 'fas fa-handshake', tone: 'text-warning', label: 'Matches', value: user.stats?.total_matches || 0 },
+    { icon: 'fas fa-comment-dots', tone: 'text-primary', label: 'Messages Sent', value: user.stats?.total_messages_sent || 0 },
+    { icon: 'fas fa-flag', tone: 'text-danger', label: 'Reports Received', value: user.stats?.total_reports_received || 0 },
+  ];
+
   if (error) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="alert alert-danger">{error}</div></div>;
   if (!user) return null;
 
@@ -216,54 +241,46 @@ export default function AdminUserDetail() {
             <i className="fas fa-arrow-left me-2"></i> Back to Users
           </button>
 
-          {/* Hero section */}
-          <div className="d-flex flex-wrap justify-content-between align-items-center gap-4 mb-5 p-4 bg-white bg-opacity-10 rounded-4 shadow-sm">
-            <div className="d-flex align-items-center gap-4">
-              <div className="position-relative">
-                <img src={user.profile_photo_url || '/default-avatar.png'} alt="Profile" className="rounded-circle border border-3 border-danger" style={{ width: 96, height: 96, objectFit: 'cover' }} />
-                <span className={`position-absolute bottom-0 end-0 rounded-circle border border-2 border-white ${user.is_online ? 'bg-success' : 'bg-secondary'}`} style={{ width: 20, height: 20 }}></span>
-              </div>
-              <div>
-                <h1 className="display-6 fw-bold mb-1">{user.full_name}</h1>
-                <p className="text-muted mb-2">{user.email}</p>
-                <div className="d-flex gap-2 flex-wrap">
-                  {getRiskBadge()}
-                  {user.is_verified ? <span className="badge bg-info px-3 py-2">Verified</span> : <span className="badge bg-warning text-dark px-3 py-2">Unverified</span>}
-                  <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>{user.is_active ? 'Active' : 'Banned'}</span>
+          <div className="recent-blocks-card mb-4" style={{ overflow: 'hidden' }}>
+            <div className="card-body p-4" style={{ background: darkMode ? 'linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,41,59,0.94))' : 'linear-gradient(135deg, rgba(248,250,252,0.98), rgba(241,245,249,0.98))' }}>
+              <div className="d-flex flex-wrap justify-content-between align-items-start gap-4">
+                <div className="d-flex align-items-center gap-4">
+                  <div className="position-relative">
+                    <img src={user.profile_photo_url || '/default-avatar.png'} alt="Profile" className="rounded-circle border border-3 border-danger" style={{ width: 96, height: 96, objectFit: 'cover' }} />
+                    <span className={`position-absolute bottom-0 end-0 rounded-circle border border-2 border-white ${user.is_online ? 'bg-success' : 'bg-secondary'}`} style={{ width: 20, height: 20 }}></span>
+                  </div>
+                  <div>
+                    <div className="small text-uppercase text-danger fw-semibold mb-2">Sensitive account view</div>
+                    <h1 className="display-6 fw-bold mb-1">{user.full_name}</h1>
+                    <p className="text-muted mb-2">{maskEmail(user.email)}</p>
+                    <div className="d-flex gap-2 flex-wrap">
+                      {getRiskBadge()}
+                      {user.is_verified ? <span className="badge bg-info px-3 py-2">Verified</span> : <span className="badge bg-warning text-dark px-3 py-2">Unverified</span>}
+                      <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>{accountStateLabel}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-4 p-3" style={{ minWidth: '280px', background: darkMode ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.78)', border: darkMode ? '1px solid rgba(148,163,184,0.18)' : '1px solid rgba(148,163,184,0.18)' }}>
+                  <div className="small text-uppercase text-muted mb-2">Privacy handling</div>
+                  <div className="fw-semibold mb-2">Internal review only</div>
+                  <div className="text-muted small">
+                    Use this page for moderation, trust, and account support only. Sensitive details should be handled with care and only when operationally necessary.
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="d-flex gap-3">
-              {user.is_active ? (
-                <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => handleUserAction('ban')}><i className="fas fa-ban me-2"></i>Ban User</button>
-              ) : (
-                <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleUserAction('unban')}><i className="fas fa-check-circle me-2"></i>Unban</button>
-              )}
-              {!user.is_verified && <button className="btn btn-outline-info rounded-pill px-4" onClick={() => handleUserAction('verify')}><i className="fas fa-check-double me-2"></i>Verify</button>}
-              <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => setShowBlockModal(true)}><i className="fas fa-user-slash me-2"></i>Block (Admin)</button>
-              <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => setShowDeactivateModal(true)}><i className="fas fa-power-off me-2"></i>Deactivate</button>
-              <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleVisibilityAction('boost')} disabled={visibilityLoading}>
-                <i className="fas fa-rocket me-2"></i>Boost Visibility
-              </button>
-              <button className="btn btn-outline-secondary rounded-pill px-4" onClick={() => handleVisibilityAction('reduce')} disabled={visibilityLoading}>
-                <i className="fas fa-gauge-low me-2"></i>Reduce Exposure
-              </button>
-              <button className="btn btn-outline-primary rounded-pill px-4" onClick={() => handleVisibilityAction('inject')} disabled={visibilityLoading}>
-                <i className="fas fa-bolt me-2"></i>Force Inject
-              </button>
-            </div>
           </div>
 
-          {/* Quick stats */}
           <div className="row g-4 mb-5">
-            <div className="col-md-6 col-lg-3"><div className="metric-card p-3 text-center"><i className="fas fa-ranking-star fa-2x text-warning mb-2"></i><h6 className="text-muted mb-1">User Score</h6><p className="display-6 fw-bold mb-0">{user.score?.overall_score || 0}</p></div></div>
-            <div className="col-md-6 col-lg-3"><div className="metric-card p-3 text-center"><i className="fas fa-coins fa-2x text-secondary mb-2"></i><h6 className="text-muted mb-1">Total Points</h6><p className="display-6 fw-bold mb-0">{user.score?.total_points || 0}</p></div></div>
-            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart fa-2x text-danger mb-2"></i><h6 className="text-muted mb-1">Likes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_likes_given || 0}</p></div></div>
-            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-heart-broken fa-2x text-secondary mb-2"></i><h6 className="text-muted mb-1">Passes Given</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_passes_given || 0}</p></div></div>
-            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-handshake fa-2x text-warning mb-2"></i><h6 className="text-muted mb-1">Total Matches</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_matches || 0}</p></div></div>
-            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-comment-dots fa-2x text-primary mb-2"></i><h6 className="text-muted mb-1">Messages Sent</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_messages_sent || 0}</p></div></div>
-            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-flag fa-2x text-danger mb-2"></i><h6 className="text-muted mb-1">Reports Received</h6><p className="display-6 fw-bold mb-0">{user.stats?.total_reports_received || 0}</p></div></div>
-            <div className="col-md-6 col-lg-2"><div className="metric-card p-3 text-center"><i className="fas fa-calendar-alt fa-2x text-info mb-2"></i><h6 className="text-muted mb-1">Streak Days</h6><p className="display-6 fw-bold mb-0">{user.stats?.streak_days || 0}</p></div></div>
+            {overviewStats.map((item) => (
+              <div key={item.label} className="col-md-6 col-lg-2">
+                <div className="metric-card p-3 text-center">
+                  <i className={`${item.icon} fa-2x ${item.tone} mb-2`}></i>
+                  <h6 className="text-muted mb-1">{item.label}</h6>
+                  <p className="display-6 fw-bold mb-0">{item.value}</p>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="recent-blocks-card mb-5">
@@ -290,18 +307,19 @@ export default function AdminUserDetail() {
                 <div className="card-body pt-0 pb-4 px-4">
                   <div className="row g-3">
                     <div className="col-6"><div className="text-muted small">Full Name</div><div className="fw-semibold">{user.full_name}</div></div>
-                    <div className="col-6"><div className="text-muted small">Email</div><div className="fw-semibold">{user.email}</div></div>
-                    <div className="col-6"><div className="text-muted small">Gender</div><div className="fw-semibold">{user.gender || 'N/A'}</div></div>
+                    <div className="col-6"><div className="text-muted small">Email</div><div className="fw-semibold">{maskEmail(user.email)}</div><div className="small text-muted">Full address shown only when required for support or trust operations.</div></div>
+                    <div className="col-6"><div className="text-muted small">Gender</div><div className="fw-semibold">{formatGender(user.gender)}</div></div>
                     <div className="col-6"><div className="text-muted small">Age</div><div className="fw-semibold">{user.age || 'N/A'}</div></div>
                     <div className="col-12">
                       <div className="text-muted small">Location</div>
-                      <div className="fw-semibold mb-2">{user.city && user.country ? `${user.city}, ${user.country}` : (user.city || user.country || 'N/A')}</div>
+                      <div className="fw-semibold mb-2">{profileLocation}</div>
+                      <div className="small text-muted mb-2">Approximate profile location is shown here. Exact coordinates remain isolated in the location tab.</div>
                       {user.latitude && user.longitude && (
                         <div className="mt-2">
                           <div id="miniMap" style={{ height: '200px', width: '100%', borderRadius: '8px' }}></div>
                           <div className="d-flex justify-content-between mt-2">
-                            <small className="text-muted"><i className="fas fa-map-marker-alt me-1"></i> Lat: {user.latitude} | Lng: {user.longitude}</small>
-                            <a href={`https://www.google.com/maps?q=${user.latitude},${user.longitude}`} target="_blank" rel="noopener noreferrer" className="small text-decoration-none"><i className="fas fa-external-link-alt me-1"></i> View larger map</a>
+                            <small className="text-muted"><i className="fas fa-map-marker-alt me-1"></i> Sensitive geodata available in protected review mode.</small>
+                            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setActiveTab('location')}><i className="fas fa-shield-halved me-1"></i> Open protected map</button>
                           </div>
                         </div>
                       )}
@@ -309,8 +327,8 @@ export default function AdminUserDetail() {
                     <div className="col-12"><div className="text-muted small">Bio</div><div className="fw-semibold">{user.bio || 'No bio'}</div></div>
                     <div className="col-6"><div className="text-muted small">Account Type</div><div className="fw-semibold text-capitalize">{user.account_type || 'free'}</div></div>
                     <div className="col-6"><div className="text-muted small">Profile Score</div><div className="fw-semibold">{user.profile_score !== undefined ? `${user.profile_score}%` : 'N/A'}</div></div>
-                    <div className="col-6"><div className="text-muted small">Joined</div><div className="fw-semibold">{user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A'}</div></div>
-                    <div className="col-6"><div className="text-muted small">Last Active</div><div className="fw-semibold">{user.last_activity ? new Date(user.last_activity).toLocaleString() : 'Never'}</div></div>
+                    <div className="col-6"><div className="text-muted small">Joined</div><div className="fw-semibold">{joinedLabel}</div></div>
+                    <div className="col-6"><div className="text-muted small">Last Active</div><div className="fw-semibold">{lastActiveLabel}</div></div>
                   </div>
                 </div>
               </div>
@@ -330,6 +348,36 @@ export default function AdminUserDetail() {
                     <div className="col-6"><div className="text-muted small">Account Age (days)</div><div className="fw-semibold">{user.stats?.account_age_days || 0}</div></div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="recent-blocks-card mb-5">
+            <div className="card-header bg-transparent border-0 pt-4 pb-2">
+              <h5 className="mb-0"><i className="fas fa-shield-halved text-danger me-2"></i>Restricted Actions</h5>
+            </div>
+            <div className="card-body pt-0 pb-4 px-4">
+              <div className="alert alert-warning mb-4">
+                Use account restriction or visibility controls only when needed for support, trust, moderation, or launch balancing. These actions affect the user experience directly.
+              </div>
+              <div className="d-flex gap-3 flex-wrap">
+                {user.is_active ? (
+                  <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => handleUserAction('ban')}><i className="fas fa-ban me-2"></i>Ban User</button>
+                ) : (
+                  <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleUserAction('unban')}><i className="fas fa-check-circle me-2"></i>Restore Access</button>
+                )}
+                {!user.is_verified && <button className="btn btn-outline-info rounded-pill px-4" onClick={() => handleUserAction('verify')}><i className="fas fa-check-double me-2"></i>Verify Profile</button>}
+                <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => setShowBlockModal(true)}><i className="fas fa-user-slash me-2"></i>Admin Block</button>
+                <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => setShowDeactivateModal(true)}><i className="fas fa-power-off me-2"></i>Deactivate</button>
+                <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleVisibilityAction('boost')} disabled={visibilityLoading}>
+                  <i className="fas fa-rocket me-2"></i>Boost Visibility
+                </button>
+                <button className="btn btn-outline-secondary rounded-pill px-4" onClick={() => handleVisibilityAction('reduce')} disabled={visibilityLoading}>
+                  <i className="fas fa-gauge-low me-2"></i>Reduce Exposure
+                </button>
+                <button className="btn btn-outline-primary rounded-pill px-4" onClick={() => handleVisibilityAction('inject')} disabled={visibilityLoading}>
+                  <i className="fas fa-bolt me-2"></i>Force Inject
+                </button>
               </div>
             </div>
           </div>
@@ -423,6 +471,9 @@ export default function AdminUserDetail() {
                 <div>
                   {user.latitude && user.longitude ? (
                     <>
+                      <div className="alert alert-warning">
+                        Exact coordinates are sensitive. Use this map only for trust, abuse review, safety escalation, or operational support.
+                      </div>
                       <div className="row mb-4">
                         <div className="col-md-6">
                           <div className="card bg-light"><div className="card-body"><h6><i className="fas fa-map-marker-alt text-danger me-2"></i>Coordinates</h6><p className="mb-1"><strong>Latitude:</strong> {user.latitude}</p><p className="mb-1"><strong>Longitude:</strong> {user.longitude}</p><p className="mb-0"><strong>Location:</strong> {user.city && user.country ? `${user.city}, ${user.country}` : (user.city || user.country || 'Not specified')}</p></div></div>
