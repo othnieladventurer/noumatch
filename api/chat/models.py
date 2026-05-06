@@ -28,6 +28,11 @@ class Conversation(models.Model):
         return self.match.user2 if user == self.match.user1 else self.match.user1
 
     def last_message(self):
+        prefetched = getattr(self, "_prefetched_objects_cache", {}).get("messages")
+        if prefetched is not None:
+            if not prefetched:
+                return None
+            return max(prefetched, key=lambda msg: msg.created_at)
         return self.messages.order_by('-created_at').first()
 
     def unread_count(self, user):
@@ -68,6 +73,11 @@ class SupportConversation(models.Model):
         return f"Support for {self.user.email} ({self.status})"
 
     def last_message(self):
+        prefetched = getattr(self, "_prefetched_objects_cache", {}).get("messages")
+        if prefetched is not None:
+            if not prefetched:
+                return None
+            return max(prefetched, key=lambda msg: msg.created_at)
         return self.messages.order_by('-created_at').first()
 
 

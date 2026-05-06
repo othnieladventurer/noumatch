@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
+import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import {
   Chart as ChartJS,
@@ -31,6 +32,8 @@ ChartJS.register(
 
 const API_BASE = getAdminApiBase();
 const DASHBOARD_CACHE_KEY = 'admin_dashboard_metrics_v1';
+const getActiveUsersCacheKey = ({ dateFrom, dateTo, actions }) =>
+  `admin_dashboard_active_users_v1:${dateFrom}:${dateTo}:${actions.slice().sort().join('|')}`;
 const ACTIVE_ACTIONS = ['login', 'view', 'like', 'message'];
 
 const formatDateInput = (date) => {
@@ -52,7 +55,7 @@ export default function AdminDashboard() {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const today = new Date();
   const defaultDateTo = formatDateInput(today);
-  const defaultDateFrom = formatDateInput(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29));
+  const defaultDateFrom = formatDateInput(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 13));
   const [activeUserFilters, setActiveUserFilters] = useState({
     dateFrom: defaultDateFrom,
     dateTo: defaultDateTo,
@@ -106,7 +109,15 @@ export default function AdminDashboard() {
       }
     };
 
-    fetchDashboard(Boolean(cachedDashboard));
+    if (!cachedDashboard) {
+      fetchDashboard(false);
+    }
+
+    const handleRefresh = () => {
+      fetchDashboard(false);
+    };
+    window.addEventListener('admin:refresh-page', handleRefresh);
+    return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, [cachedDashboard, navigate]);
 
   useEffect(() => {
@@ -115,7 +126,20 @@ export default function AdminDashboard() {
       return;
     }
 
-    const fetchActiveUsersMetrics = async () => {
+    const fetchActiveUsersMetrics = async (force = false) => {
+      const cacheKey = getActiveUsersCacheKey({
+        dateFrom: activeUserFilters.dateFrom,
+        dateTo: activeUserFilters.dateTo,
+        actions: activeUserFilters.actions,
+      });
+      const cachedActiveUsers = readFreshCache(cacheKey, 180000);
+      if (cachedActiveUsers) {
+        setActiveUsersMetrics(cachedActiveUsers);
+        setActiveUsersError('');
+        if (!force) {
+          return;
+        }
+      }
       try {
         setActiveUsersLoading(true);
         const actionsParam = activeUserFilters.actions.length === ACTIVE_ACTIONS.length
@@ -129,9 +153,9 @@ export default function AdminDashboard() {
             date_from: activeUserFilters.dateFrom,
             date_to: activeUserFilters.dateTo,
           },
-          timeout: 60000,
         });
         setActiveUsersMetrics(res.data);
+        writeCache(cacheKey, res.data);
         setActiveUsersError('');
       } catch (err) {
         if (err?.authExpired || err.response?.status === 401 || err.response?.status === 403) {
@@ -312,9 +336,7 @@ export default function AdminDashboard() {
 
         {loading && (
           <div className="px-4 pt-3">
-            <div className="d-flex align-items-center text-secondary small">
-              Refreshing dashboard...
-            </div>
+            <AdminPageSpinner label="Loading dashboard..." />
           </div>
         )}
 
@@ -442,7 +464,7 @@ export default function AdminDashboard() {
             </div>
           )}
           {activeUsersLoading && (
-            <div className="text-secondary small mt-3">Refreshing analytics charts...</div>
+            <div className="mt-3"><AdminPageSpinner label="Refreshing analytics charts..." /></div>
           )}
 
           <div className="analytics-chart-grid">

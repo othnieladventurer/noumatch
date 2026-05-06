@@ -1,12 +1,27 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+function deriveWsTarget(apiTarget) {
+  if (!apiTarget) return 'ws://127.0.0.1:8000'
+  if (apiTarget.startsWith('https://')) {
+    return `wss://${apiTarget.slice('https://'.length)}`
+  }
+  if (apiTarget.startsWith('http://')) {
+    return `ws://${apiTarget.slice('http://'.length)}`
+  }
+  return apiTarget
+}
+
 export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
   const isStaging = mode === 'staging';
   const isDevelopment = mode === 'development';
-  const localApiTarget = 'http://127.0.0.1:8001';
-  const localWsTarget = 'ws://127.0.0.1:8001';
+  const localApiPort = (env.VITE_API_PORT || '').trim()
+  const localApiTarget =
+    (env.VITE_API_URL || '').trim() || `http://127.0.0.1:${localApiPort || '8000'}`
+  const localWsTarget =
+    (env.VITE_WS_URL || '').trim() || deriveWsTarget(localApiTarget)
 
   return {
     plugins: [react()],

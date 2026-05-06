@@ -34,7 +34,11 @@ export default function AdminLogin() {
     try {
       const url = `${API_BASE}/admin_login/`;
       const res = await axios.post(url, { email, password }, { withCredentials: true });
-      localStorage.setItem('admin_access', '1');
+      if (res.data?.access) {
+        localStorage.setItem('admin_access', res.data.access);
+      } else {
+        localStorage.removeItem('admin_access');
+      }
       localStorage.setItem('admin_email', res.data.staff_email);
       navigate('/admin/dashboard');
     } catch (err) {

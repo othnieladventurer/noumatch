@@ -45,7 +45,9 @@ export default function AdminReports() {
       setTotalReports(res.data?.total || 0);
     } catch (err) {
       if (err.authExpired || err.response?.status === 401) {
-        localStorage.clear();
+        localStorage.removeItem('admin_access');
+        localStorage.removeItem('admin_refresh');
+        localStorage.removeItem('admin_email');
         navigate('/admin/login');
       } else {
         setError(err.response?.data?.message || 'Failed to load reports');
@@ -157,3 +159,4 @@ export default function AdminReports() {
     </div>
   );
 }
+

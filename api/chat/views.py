@@ -15,7 +15,6 @@ from .serializers import (
     UserChatSerializer,
 )
 from .utils import send_realtime_chat_event
-from notifications.utils import send_message_notification
 from users.throttles import ChatSendMessageThrottle
 
 
@@ -99,8 +98,6 @@ class SendMessageView(generics.CreateAPIView):
                 "message": output,
             },
         )
-        send_message_notification(message)
-
         return Response(output, status=status.HTTP_201_CREATED)
 
 

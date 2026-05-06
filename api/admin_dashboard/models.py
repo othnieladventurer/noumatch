@@ -2,6 +2,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.template import Context, Template
 
 
 
@@ -73,8 +74,8 @@ class ReportCase(models.Model):
     class Meta:
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["status", "priority"]),
-            models.Index(fields=["department", "created_at"]),
+            models.Index(fields=["status", "priority"], name="admin_dashb_status_932f4a_idx"),
+            models.Index(fields=["department", "created_at"], name="admin_dashb_departm_2f5f53_idx"),
         ]
 
     def __str__(self):
@@ -93,9 +94,97 @@ class CaseAssignment(models.Model):
     class Meta:
         ordering = ["-assigned_at"]
         indexes = [
-            models.Index(fields=["staff_user", "active"]),
-            models.Index(fields=["case", "active"]),
+            models.Index(fields=["staff_user", "active"], name="admin_dashb_staff_u_6d421e_idx"),
+            models.Index(fields=["case", "active"], name="admin_dashb_case_id_4061da_idx"),
         ]
 
     def __str__(self):
         return f"Assignment #{self.id} case #{self.case_id} -> {self.staff_user_id}"
+
+
+class NotificationEmailTemplate(models.Model):
+    EVENT_CHOICES = [
+        ("new_like", "New Like"),
+        ("new_match", "New Match"),
+        ("new_message", "New Message"),
+    ]
+
+    event_type = models.CharField(max_length=30, choices=EVENT_CHOICES, unique=True)
+    name = models.CharField(max_length=120)
+    is_enabled = models.BooleanField(default=True)
+    subject_template = models.CharField(max_length=255)
+    html_template = models.TextField()
+    text_template = models.TextField(blank=True)
+    sample_payload = models.JSONField(default=dict, blank=True)
+    from_name = models.CharField(max_length=120, blank=True, default="NouMatch")
+    reply_to = models.EmailField(blank=True, default="")
+    version = models.PositiveIntegerField(default=1)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_notification_email_templates",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["event_type"]
+
+    def __str__(self):
+        return f"{self.get_event_type_display()} email template"
+
+    def render_subject(self, context_data=None):
+        return Template(self.subject_template).render(Context(context_data or {})).strip()
+
+    def render_html(self, context_data=None):
+        return Template(self.html_template).render(Context(context_data or {})).strip()
+
+    def render_text(self, context_data=None):
+        if self.text_template:
+            return Template(self.text_template).render(Context(context_data or {})).strip()
+        return ""
+
+
+class NotificationEmailLog(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("sent", "Sent"),
+        ("failed", "Failed"),
+        ("skipped", "Skipped"),
+    ]
+
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notification_email_logs",
+        null=True,
+        blank=True,
+    )
+    recipient_email = models.EmailField()
+    event_type = models.CharField(max_length=30, choices=NotificationEmailTemplate.EVENT_CHOICES, db_index=True)
+    template_version = models.PositiveIntegerField(default=1)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    subject_rendered = models.CharField(max_length=255, blank=True)
+    html_rendered = models.TextField(blank=True)
+    text_rendered = models.TextField(blank=True)
+    provider_message_id = models.CharField(max_length=255, blank=True)
+    provider_response = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True)
+    retry_count = models.PositiveIntegerField(default=0)
+    metadata = models.JSONField(default=dict, blank=True)
+    related_object_type = models.CharField(max_length=100, blank=True)
+    related_object_id = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["event_type", "status", "-created_at"], name="admin_dashb_event_t_7dd12f_idx"),
+            models.Index(fields=["recipient_email", "-created_at"], name="admin_dashb_recipie_a88ffa_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.recipient_email} - {self.event_type} - {self.status}"

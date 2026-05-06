@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models import Q, Count, Avg, Sum, OuterRef, Subquery
+from django.db.models.functions import Lower
 from django.utils import timezone
 from datetime import timedelta, datetime
 from math import ceil
@@ -31,7 +32,19 @@ from report.models import Report
 from chat.models import Conversation, Message, SupportConversation, MessageFlag
 from chat.serializers import SupportConversationSerializer, MessageSerializer, MessageFlagSerializer
 from notifications.models import Notification
-from admin_dashboard.models import ProfileImpression, ReportCase, CaseAssignment
+from admin_dashboard.models import (
+    ProfileImpression,
+    ReportCase,
+    CaseAssignment,
+    NotificationEmailTemplate,
+    NotificationEmailLog,
+)
+from admin_dashboard.serializers import NotificationEmailTemplateSerializer, NotificationEmailLogSerializer
+from admin_dashboard.services.email_notifications import (
+    DEFAULT_NOTIFICATION_EMAIL_TEMPLATES,
+    ensure_notification_email_templates,
+    send_test_notification_email,
+)
 from admin_dashboard.services.ranking import compute_ranking_score
 from users.throttles import AdminLoginThrottle
 from users.auth_cookies import set_auth_cookies, clear_auth_cookies, get_refresh_token_from_request
@@ -232,10 +245,16 @@ class AdminUsersListView(APIView):
             search = request.GET.get('search', '').strip()
             status_filter = request.GET.get('status', 'all')
             user_type = (request.GET.get('user_type', 'app') or 'app').strip().lower()
+            gender_filter = (request.GET.get('gender', 'all') or 'all').strip().lower()
+            sort = (request.GET.get('sort', 'newest') or 'newest').strip().lower()
             if user_type not in {'app', 'admin'}:
                 user_type = 'app'
+            if gender_filter not in {'all', 'male', 'female'}:
+                gender_filter = 'all'
+            if sort not in {'newest', 'oldest', 'name_asc', 'name_desc'}:
+                sort = 'newest'
 
-            queryset = User.objects.all().order_by('-date_joined')
+            queryset = User.objects.all()
             if user_type == 'admin':
                 queryset = queryset.filter(is_staff=True)
             elif user_type == 'app':
@@ -255,15 +274,39 @@ class AdminUsersListView(APIView):
             elif status_filter == 'verified':
                 queryset = queryset.filter(is_verified=True)
 
+            if gender_filter != 'all':
+                queryset = queryset.filter(gender=gender_filter)
+
+            if sort == 'oldest':
+                queryset = queryset.order_by('date_joined')
+            elif sort == 'name_asc':
+                queryset = queryset.order_by(Lower('first_name'), Lower('last_name'), Lower('email'))
+            elif sort == 'name_desc':
+                queryset = queryset.order_by(Lower('first_name').desc(), Lower('last_name').desc(), Lower('email').desc())
+            else:
+                queryset = queryset.order_by('-date_joined')
+
             total = queryset.count()
             start = (page - 1) * limit
             end = start + limit
-            paginated_users = list(
-                queryset.annotate(
-                    matches_count_agg=Count('matches_as_user1', distinct=True) + Count('matches_as_user2', distinct=True),
-                    reports_received_count_agg=Count('reports_received', distinct=True),
-                )[start:end]
-            )
+            paginated_users = list(queryset[start:end])
+            user_ids = [user.id for user in paginated_users]
+
+            matches_count_by_user = {user_id: 0 for user_id in user_ids}
+            for row in Match.objects.filter(
+                Q(user1_id__in=user_ids) | Q(user2_id__in=user_ids)
+            ).values('user1_id', 'user2_id'):
+                if row['user1_id'] in matches_count_by_user:
+                    matches_count_by_user[row['user1_id']] += 1
+                if row['user2_id'] in matches_count_by_user:
+                    matches_count_by_user[row['user2_id']] += 1
+
+            reports_count_by_user = {
+                row['reported_user_id']: row['count']
+                for row in Report.objects.filter(reported_user_id__in=user_ids)
+                .values('reported_user_id')
+                .annotate(count=Count('id'))
+            }
             scorecards = {
                 card.user_id: card
                 for card in UserEngagementScore.objects.filter(user__in=paginated_users)
@@ -271,8 +314,8 @@ class AdminUsersListView(APIView):
 
             data = []
             for user in paginated_users:
-                matches_count = getattr(user, 'matches_count_agg', 0) or 0
-                reports_received_count = getattr(user, 'reports_received_count_agg', 0) or 0
+                matches_count = matches_count_by_user.get(user.id, 0)
+                reports_received_count = reports_count_by_user.get(user.id, 0)
                 risk = 'risky' if reports_received_count >= 5 else 'watch' if reports_received_count >= 2 else 'safe'
                 scorecard = scorecards.get(user.id)
 
@@ -281,6 +324,7 @@ class AdminUsersListView(APIView):
                     'email': user.email,
                     'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
                     'username': user.username,
+                    'gender': user.gender or '',
                     'profile_photo_url': user.profile_photo.url if user.profile_photo else None,
                     'is_active': user.is_active,
                     'is_staff': user.is_staff,
@@ -302,6 +346,8 @@ class AdminUsersListView(APIView):
                 'page': page,
                 'pages': ceil(total / limit) if limit > 0 else 1,
                 'user_type': user_type,
+                'gender': gender_filter,
+                'sort': sort,
             })
         except DatabaseError as exc:
             logger.exception("AdminUsersListView database error; returning empty payload: %s", exc)
@@ -313,6 +359,17 @@ class AdminUsersListView(APIView):
                 'user_type': (request.GET.get('user_type') or 'app'),
                 'degraded': True,
                 'warning': 'Temporary database connectivity issue while loading users.',
+            }, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.exception("AdminUsersListView unexpected error; returning empty payload: %s", exc)
+            return Response({
+                'data': [],
+                'total': 0,
+                'page': 1,
+                'pages': 1,
+                'user_type': (request.GET.get('user_type') or 'app'),
+                'degraded': True,
+                'warning': 'Temporary issue while loading users.',
             }, status=status.HTTP_200_OK)
 
 
@@ -398,151 +455,181 @@ class AdminDashboardView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        now = timezone.now()
-        last_24_hours = now - timedelta(hours=24)
-        start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        dau = _active_users_count_since(start_today, now)
-        wau = _active_users_count_since(now - timedelta(days=7), now)
-        mau = _active_users_count_since(now - timedelta(days=30), now)
-        stickiness = (dau / mau) if mau else 0
-        
-        total_users = User.objects.filter(is_active=True).count()
-        active_today = User.objects.filter(last_activity__gte=last_24_hours).count()
-        likes_today = Like.objects.filter(created_at__gte=last_24_hours).count()
-        passes_today = Pass.objects.filter(created_at__gte=last_24_hours).count()
-        matches_today = Match.objects.filter(created_at__gte=last_24_hours).count()
-        
-        total_swipes = likes_today + passes_today
-        match_rate = round((matches_today / total_swipes) * 100, 1) if total_swipes > 0 else 0.0
+        try:
+            now = timezone.now()
+            last_24_hours = now - timedelta(hours=24)
+            start_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            dau = _active_users_count_since(start_today, now)
+            wau = _active_users_count_since(now - timedelta(days=7), now)
+            mau = _active_users_count_since(now - timedelta(days=30), now)
+            stickiness = (dau / mau) if mau else 0
 
-        # Recent blocks
-        recent_blocks = Block.objects.filter(created_at__gte=last_24_hours).select_related('blocker', 'blocked').order_by('-created_at')[:10]
-        blocks_data = []
-        for block in recent_blocks:
-            blocker = block.blocker
-            blocked = block.blocked
-            blocks_data.append({
-                'id': block.id,
-                'blocker_id': blocker.id,
-                'blocker_name': f"{blocker.first_name} {blocker.last_name}".strip() or blocker.email,
-                'blocked_id': blocked.id,
-                'blocked_name': f"{blocked.first_name} {blocked.last_name}".strip() or blocked.email,
-                'created_at': block.created_at,
-            })
+            total_users = User.objects.filter(is_active=True).count()
+            active_today = User.objects.filter(last_activity__gte=last_24_hours).count()
+            likes_today = Like.objects.filter(created_at__gte=last_24_hours).count()
+            passes_today = Pass.objects.filter(created_at__gte=last_24_hours).count()
+            matches_today = Match.objects.filter(created_at__gte=last_24_hours).count()
 
-        # Analytics metrics
-        total_impressions = ProfileImpression.objects.count()
-        total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
-        total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
-        
-        impression_conversion_rate = round((total_likes_from_impressions / total_impressions) * 100, 1) if total_impressions > 0 else 0
-        avg_ranking_score = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
-        
-        pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
-        pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
-        position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
-        
-        # Top performing profiles
-        seven_days_ago = timezone.now() - timedelta(days=7)
-        top_profiles = []
-        profile_stats = ProfileImpression.objects.filter(
-            timestamp__gte=seven_days_ago,
-            was_swiped=True
-        ).values('viewed__email', 'viewed__id').annotate(
-            total_impressions=Count('id'),
-            likes=Count('id', filter=Q(swipe_action='like')),
-            avg_position=Avg('feed_position')
-        ).filter(total_impressions__gte=5).order_by('-likes')[:10]
-        
-        for stat in profile_stats:
-            like_rate = round((stat['likes'] / stat['total_impressions']) * 100, 1)
-            top_profiles.append({
-                'user_id': stat['viewed__id'],
-                'user_email': stat['viewed__email'],
-                'impressions': stat['total_impressions'],
-                'likes': stat['likes'],
-                'like_rate': like_rate,
-                'avg_position': stat['avg_position'],
-            })
-        
-        # Position performance
-        position_performance = []
-        for pos in range(15):
-            pos_imp = ProfileImpression.objects.filter(feed_position=pos)
-            pos_total = pos_imp.count()
-            if pos_total > 0:
-                pos_likes = pos_imp.filter(swipe_action='like').count()
-                pos_passes = pos_imp.filter(swipe_action='pass').count()
-                position_performance.append({
-                    'position': pos,
-                    'impressions': pos_total,
-                    'likes': pos_likes,
-                    'passes': pos_passes,
-                    'like_rate': round((pos_likes / pos_total) * 100, 1),
-                    'pass_rate': round((pos_passes / pos_total) * 100, 1),
+            total_swipes = likes_today + passes_today
+            match_rate = round((matches_today / total_swipes) * 100, 1) if total_swipes > 0 else 0.0
+
+            recent_blocks = Block.objects.filter(created_at__gte=last_24_hours).select_related('blocker', 'blocked').order_by('-created_at')[:10]
+            blocks_data = []
+            for block in recent_blocks:
+                blocker = block.blocker
+                blocked = block.blocked
+                blocks_data.append({
+                    'id': block.id,
+                    'blocker_id': blocker.id,
+                    'blocker_name': f"{blocker.first_name} {blocker.last_name}".strip() or blocker.email,
+                    'blocked_id': blocked.id,
+                    'blocked_name': f"{blocked.first_name} {blocked.last_name}".strip() or blocked.email,
+                    'created_at': block.created_at,
                 })
 
-        score_qs = UserEngagementScore.objects.select_related('user')
-        score_aggregates = score_qs.aggregate(
-            avg_user_score=Avg('overall_score'),
-            avg_engagement_score=Avg('engagement_score'),
-            avg_quality_score=Avg('quality_score'),
-            avg_trust_score=Avg('trust_score'),
-            avg_points=Avg('total_points'),
-        )
-        high_scoring_users = score_qs.filter(overall_score__gte=80).count()
-        top_scored_users = [
-            {
-                'user_id': item.user_id,
-                'user_email': item.user.email,
-                'full_name': f"{item.user.first_name} {item.user.last_name}".strip() or item.user.email,
-                'overall_score': item.overall_score,
-                'total_points': item.total_points,
-            }
-            for item in score_qs.order_by('-overall_score', '-total_points')[:10]
-        ]
+            total_impressions = ProfileImpression.objects.count()
+            total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
+            total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
+            impression_conversion_rate = round((total_likes_from_impressions / total_impressions) * 100, 1) if total_impressions > 0 else 0
+            avg_ranking_score = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
 
-        product_users = _product_users_queryset()
-        zero_match_users_count = product_users.filter(
-            matches_as_user1__isnull=True,
-            matches_as_user2__isnull=True,
-        ).count()
-        avg_matches_per_user = (
-            round((Match.objects.count() * 2) / max(1, product_users.count()), 2)
-            if product_users.exists()
-            else 0.0
-        )
+            pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
+            pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
+            position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
 
-        return Response({
-            'total_users': total_users,
-            'active_today': active_today,
-            'likes_today': likes_today,
-            'passes_today': passes_today,
-            'matches_today': matches_today,
-            'match_rate': match_rate,
-            'recent_blocks': blocks_data,
-            'total_impressions': total_impressions,
-            'total_likes_from_impressions': total_likes_from_impressions,
-            'total_passes_from_impressions': total_passes_from_impressions,
-            'impression_conversion_rate': impression_conversion_rate,
-            'avg_ranking_score': round(avg_ranking_score, 1),
-            'position1_like_rate': position1_like_rate,
-            'top_performing_profiles': top_profiles,
-            'position_performance': position_performance,
-            'dau': dau,
-            'wau': wau,
-            'mau': mau,
-            'stickiness': round(stickiness, 4),
-            'avg_user_score': round(score_aggregates['avg_user_score'] or 0, 1),
-            'avg_engagement_score': round(score_aggregates['avg_engagement_score'] or 0, 1),
-            'avg_quality_score': round(score_aggregates['avg_quality_score'] or 0, 1),
-            'avg_trust_score': round(score_aggregates['avg_trust_score'] or 0, 1),
-            'avg_points': round(score_aggregates['avg_points'] or 0, 1),
-            'high_scoring_users': high_scoring_users,
-            'top_scored_users': top_scored_users,
-            'zero_match_users_count': zero_match_users_count,
-            'avg_matches_per_user': avg_matches_per_user,
-        })
+            seven_days_ago = timezone.now() - timedelta(days=7)
+            top_profiles = []
+            profile_stats = ProfileImpression.objects.filter(
+                timestamp__gte=seven_days_ago,
+                was_swiped=True
+            ).values('viewed__email', 'viewed__id').annotate(
+                total_impressions=Count('id'),
+                likes=Count('id', filter=Q(swipe_action='like')),
+                avg_position=Avg('feed_position')
+            ).filter(total_impressions__gte=5).order_by('-likes')[:10]
+
+            for stat in profile_stats:
+                like_rate = round((stat['likes'] / stat['total_impressions']) * 100, 1)
+                top_profiles.append({
+                    'user_id': stat['viewed__id'],
+                    'user_email': stat['viewed__email'],
+                    'impressions': stat['total_impressions'],
+                    'likes': stat['likes'],
+                    'like_rate': like_rate,
+                    'avg_position': stat['avg_position'],
+                })
+
+            position_performance = []
+            for pos in range(15):
+                pos_imp = ProfileImpression.objects.filter(feed_position=pos)
+                pos_total = pos_imp.count()
+                if pos_total > 0:
+                    pos_likes = pos_imp.filter(swipe_action='like').count()
+                    pos_passes = pos_imp.filter(swipe_action='pass').count()
+                    position_performance.append({
+                        'position': pos,
+                        'impressions': pos_total,
+                        'likes': pos_likes,
+                        'passes': pos_passes,
+                        'like_rate': round((pos_likes / pos_total) * 100, 1),
+                        'pass_rate': round((pos_passes / pos_total) * 100, 1),
+                    })
+
+            score_qs = UserEngagementScore.objects.select_related('user')
+            score_aggregates = score_qs.aggregate(
+                avg_user_score=Avg('overall_score'),
+                avg_engagement_score=Avg('engagement_score'),
+                avg_quality_score=Avg('quality_score'),
+                avg_trust_score=Avg('trust_score'),
+                avg_points=Avg('total_points'),
+            )
+            high_scoring_users = score_qs.filter(overall_score__gte=80).count()
+            top_scored_users = [
+                {
+                    'user_id': item.user_id,
+                    'user_email': item.user.email,
+                    'full_name': f"{item.user.first_name} {item.user.last_name}".strip() or item.user.email,
+                    'overall_score': item.overall_score,
+                    'total_points': item.total_points,
+                }
+                for item in score_qs.order_by('-overall_score', '-total_points')[:10]
+            ]
+
+            product_users = _product_users_queryset()
+            zero_match_users_count = product_users.filter(
+                matches_as_user1__isnull=True,
+                matches_as_user2__isnull=True,
+            ).count()
+            avg_matches_per_user = (
+                round((Match.objects.count() * 2) / max(1, product_users.count()), 2)
+                if product_users.exists()
+                else 0.0
+            )
+
+            return Response({
+                'total_users': total_users,
+                'active_today': active_today,
+                'likes_today': likes_today,
+                'passes_today': passes_today,
+                'matches_today': matches_today,
+                'match_rate': match_rate,
+                'recent_blocks': blocks_data,
+                'total_impressions': total_impressions,
+                'total_likes_from_impressions': total_likes_from_impressions,
+                'total_passes_from_impressions': total_passes_from_impressions,
+                'impression_conversion_rate': impression_conversion_rate,
+                'avg_ranking_score': round(avg_ranking_score, 1),
+                'position1_like_rate': position1_like_rate,
+                'top_performing_profiles': top_profiles,
+                'position_performance': position_performance,
+                'dau': dau,
+                'wau': wau,
+                'mau': mau,
+                'stickiness': round(stickiness, 4),
+                'avg_user_score': round(score_aggregates['avg_user_score'] or 0, 1),
+                'avg_engagement_score': round(score_aggregates['avg_engagement_score'] or 0, 1),
+                'avg_quality_score': round(score_aggregates['avg_quality_score'] or 0, 1),
+                'avg_trust_score': round(score_aggregates['avg_trust_score'] or 0, 1),
+                'avg_points': round(score_aggregates['avg_points'] or 0, 1),
+                'high_scoring_users': high_scoring_users,
+                'top_scored_users': top_scored_users,
+                'zero_match_users_count': zero_match_users_count,
+                'avg_matches_per_user': avg_matches_per_user,
+            })
+        except Exception as exc:
+            logger.exception("AdminDashboardView failed; returning fallback payload: %s", exc)
+            return Response({
+                'total_users': 0,
+                'active_today': 0,
+                'likes_today': 0,
+                'passes_today': 0,
+                'matches_today': 0,
+                'match_rate': 0.0,
+                'recent_blocks': [],
+                'total_impressions': 0,
+                'total_likes_from_impressions': 0,
+                'total_passes_from_impressions': 0,
+                'impression_conversion_rate': 0,
+                'avg_ranking_score': 0.0,
+                'position1_like_rate': 0.0,
+                'top_performing_profiles': [],
+                'position_performance': [],
+                'dau': 0,
+                'wau': 0,
+                'mau': 0,
+                'stickiness': 0.0,
+                'avg_user_score': 0.0,
+                'avg_engagement_score': 0.0,
+                'avg_quality_score': 0.0,
+                'avg_trust_score': 0.0,
+                'avg_points': 0.0,
+                'high_scoring_users': 0,
+                'top_scored_users': [],
+                'zero_match_users_count': 0,
+                'avg_matches_per_user': 0.0,
+                'degraded': True,
+                'warning': 'Temporary issue while loading dashboard analytics.',
+            }, status=status.HTTP_200_OK)
 
 
 class AdminActiveUsersMetricsView(APIView):
@@ -593,7 +680,7 @@ class AdminActiveUsersMetricsView(APIView):
             if date_from > date_to:
                 date_from, date_to = date_to, date_from
 
-            max_days = 90
+            max_days = 14
             if (date_to - date_from).days + 1 > max_days:
                 date_from = date_to - timedelta(days=max_days - 1)
 
@@ -714,90 +801,16 @@ class AdminActiveUsersMetricsView(APIView):
             },
             ]
 
-        # --- Behavioral launch metrics (critical dating-product truth metrics) ---
-            cohort_users = product_users.filter(
-            date_joined__gte=range_start,
-            date_joined__lt=range_end,
-        )
-            first_like_subquery = Like.objects.filter(
-            from_user=OuterRef('pk')
-        ).order_by('created_at').values('created_at')[:1]
-            first_match_subquery = Match.objects.filter(
-            Q(user1=OuterRef('pk')) | Q(user2=OuterRef('pk'))
-        ).order_by('created_at').values('created_at')[:1]
-
-            cohort_with_firsts = cohort_users.annotate(
-            first_like_at=Subquery(first_like_subquery),
-            first_match_at=Subquery(first_match_subquery),
-        ).values('date_joined', 'first_like_at', 'first_match_at')
-
-            like_latencies = []
-            match_latencies = []
-            for row in cohort_with_firsts:
-                joined_at = row.get('date_joined')
-                first_like_at = row.get('first_like_at')
-                first_match_at = row.get('first_match_at')
-                if joined_at and first_like_at and first_like_at >= joined_at:
-                    like_latencies.append((first_like_at - joined_at).total_seconds())
-                if joined_at and first_match_at and first_match_at >= joined_at:
-                    match_latencies.append((first_match_at - joined_at).total_seconds())
-
-            def _summary(values):
-                if not values:
-                    return {'avg_seconds': None, 'median_seconds': None, 'samples': 0}
-                ordered = sorted(values)
-                n = len(ordered)
-                if n % 2 == 1:
-                    median = ordered[n // 2]
-                else:
-                    median = (ordered[(n // 2) - 1] + ordered[n // 2]) / 2
-                avg = sum(ordered) / n
-                return {
-                    'avg_seconds': round(avg, 1),
-                    'median_seconds': round(median, 1),
-                    'samples': n,
-                }
-
-            matches_in_range = Match.objects.filter(
-            created_at__gte=range_start,
-            created_at__lt=range_end,
-            user1_id__in=product_user_ids,
-            user2_id__in=product_user_ids,
-        )
-
-            total_matches_in_range = matches_in_range.count()
-            matched_with_message = 0
-            match_to_first_message_latencies = []
-            for m in matches_in_range:
-                try:
-                    conv = m.conversation
-                except Conversation.DoesNotExist:
-                    conv = None
-                first_message_at = getattr(conv, 'first_message_at', None) if conv else None
-                if first_message_at:
-                    matched_with_message += 1
-                    if first_message_at >= m.created_at:
-                        match_to_first_message_latencies.append((first_message_at - m.created_at).total_seconds())
-
-            match_to_message_rate = (
-                round((matched_with_message / total_matches_in_range) * 100, 1)
-                if total_matches_in_range else 0.0
-            )
-
-            started_conversations = Conversation.objects.filter(
-            match__created_at__gte=range_start,
-            match__created_at__lt=range_end,
-            first_message_at__isnull=False,
-        )
-            conversation_depth_values = []
-            for conv in started_conversations:
-                count = conv.messages.filter(sender_type='user').count()
-                if count > 0:
-                    conversation_depth_values.append(count)
-            avg_messages_per_started_conversation = (
-                round(sum(conversation_depth_values) / len(conversation_depth_values), 2)
-                if conversation_depth_values else 0.0
-            )
+            cohort_users_count = product_users.filter(
+                date_joined__gte=range_start,
+                date_joined__lt=range_end,
+            ).count()
+            total_matches_in_range = Match.objects.filter(
+                created_at__gte=range_start,
+                created_at__lt=range_end,
+                user1_id__in=product_user_ids,
+                user2_id__in=product_user_ids,
+            ).count()
 
             return Response({
             'dau': dau,
@@ -818,14 +831,14 @@ class AdminActiveUsersMetricsView(APIView):
                 'date_to': date_to.isoformat(),
             },
             'behavior': {
-                'time_to_first_like': _summary(like_latencies),
-                'time_to_first_match': _summary(match_latencies),
-                'match_to_message_rate_percent': match_to_message_rate,
-                'time_match_to_first_message': _summary(match_to_first_message_latencies),
-                'avg_messages_per_started_conversation': avg_messages_per_started_conversation,
-                'cohort_users_count': cohort_users.count(),
+                'time_to_first_like': {'avg_seconds': None, 'median_seconds': None, 'samples': 0},
+                'time_to_first_match': {'avg_seconds': None, 'median_seconds': None, 'samples': 0},
+                'match_to_message_rate_percent': 0.0,
+                'time_match_to_first_message': {'avg_seconds': None, 'median_seconds': None, 'samples': 0},
+                'avg_messages_per_started_conversation': 0.0,
+                'cohort_users_count': cohort_users_count,
                 'matches_in_range_count': total_matches_in_range,
-                'matches_with_message_count': matched_with_message,
+                'matches_with_message_count': 0,
             },
             'date_from': date_from.isoformat(),
             'date_to': date_to.isoformat(),
@@ -1271,58 +1284,99 @@ class AdminLaunchMonitorView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        now = timezone.now()
-        product_users = _product_users_queryset()
-        total_product_users = product_users.count()
+        try:
+            now = timezone.now()
+            product_users = _product_users_queryset()
+            total_product_users = product_users.count()
+            product_user_ids = list(product_users.values_list('id', flat=True))
 
-        monitored_users = product_users.annotate(
-            matches_count_agg=Count('matches_as_user1', distinct=True) + Count('matches_as_user2', distinct=True),
-            impressions_24h_agg=Count(
-                'impressions_received',
-                filter=Q(impressions_received__timestamp__gte=now - timedelta(hours=24)),
-                distinct=True,
-            ),
-            likes_given_24h_agg=Count(
-                'likes_sent',
-                filter=Q(likes_sent__created_at__gte=now - timedelta(hours=24)),
-                distinct=True,
-            ),
-        )
+            matched_user_ids = set(
+                Match.objects.filter(
+                    Q(user1_id__in=product_user_ids) | Q(user2_id__in=product_user_ids)
+                ).values_list('user1_id', flat=True)
+            )
+            matched_user_ids.update(
+                Match.objects.filter(
+                    Q(user1_id__in=product_user_ids) | Q(user2_id__in=product_user_ids)
+                ).values_list('user2_id', flat=True)
+            )
 
-        zero_match_qs = monitored_users.filter(matches_count_agg=0).order_by('-last_activity', '-date_joined')[:50]
+            zero_match_qs = list(
+                product_users.exclude(id__in=matched_user_ids).order_by('-last_activity', '-date_joined')[:50]
+            )
+            zero_match_ids = [user.id for user in zero_match_qs]
+            since_24h = now - timedelta(hours=24)
 
-        zero_match_users = [
-            {
-                'id': user.id,
-                'email': user.email,
-                'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
-                'date_joined': user.date_joined,
-                'last_activity': user.last_activity,
-                'impressions_24h': getattr(user, 'impressions_24h_agg', 0) or 0,
-                'likes_given_24h': getattr(user, 'likes_given_24h_agg', 0) or 0,
-                'minutes_since_join': int((now - user.date_joined).total_seconds() // 60) if user.date_joined else None,
+            impressions_by_user = {
+                row['viewed_id']: row['count']
+                for row in ProfileImpression.objects.filter(
+                    viewed_id__in=zero_match_ids,
+                    timestamp__gte=since_24h,
+                )
+                .values('viewed_id')
+                .annotate(count=Count('id'))
             }
-            for user in zero_match_qs
-        ]
+            likes_by_user = {
+                row['from_user_id']: row['count']
+                for row in Like.objects.filter(
+                    from_user_id__in=zero_match_ids,
+                    created_at__gte=since_24h,
+                )
+                .values('from_user_id')
+                .annotate(count=Count('id'))
+            }
 
-        aggregate_matches = monitored_users.aggregate(
-            total_m1=Count('matches_as_user1', distinct=True),
-            total_m2=Count('matches_as_user2', distinct=True),
-        )
-        total_matches_links = (aggregate_matches.get('total_m1') or 0) + (aggregate_matches.get('total_m2') or 0)
-        avg_matches_per_user = round(total_matches_links / max(1, total_product_users), 2)
+            zero_match_users = [
+                {
+                    'id': user.id,
+                    'email': user.email,
+                    'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
+                    'date_joined': user.date_joined,
+                    'last_activity': user.last_activity,
+                    'impressions_24h': impressions_by_user.get(user.id, 0),
+                    'likes_given_24h': likes_by_user.get(user.id, 0),
+                    'minutes_since_join': int((now - user.date_joined).total_seconds() // 60) if user.date_joined else None,
+                }
+                for user in zero_match_qs
+            ]
 
-        # Keep this lightweight for dashboard speed.
-        median_first_match_seconds = None
+            total_matches_links = Match.objects.filter(
+                Q(user1_id__in=product_user_ids) | Q(user2_id__in=product_user_ids)
+            ).count()
+            avg_matches_per_user = round(total_matches_links / max(1, total_product_users), 2)
 
-        return Response({
-            'total_product_users': total_product_users,
-            'zero_match_users_count': len(zero_match_users),
-            'avg_matches_per_user': avg_matches_per_user,
-            'median_time_to_first_match_seconds': median_first_match_seconds,
-            'zero_match_users': zero_match_users,
-            'generated_at': now,
-        })
+            return Response({
+                'total_product_users': total_product_users,
+                'zero_match_users_count': max(0, total_product_users - len(matched_user_ids & set(product_user_ids))),
+                'avg_matches_per_user': avg_matches_per_user,
+                'median_time_to_first_match_seconds': None,
+                'zero_match_users': zero_match_users,
+                'generated_at': now,
+            })
+        except DatabaseError as exc:
+            logger.exception("AdminLaunchMonitorView database error; returning degraded payload: %s", exc)
+            return Response({
+                'total_product_users': 0,
+                'zero_match_users_count': 0,
+                'avg_matches_per_user': 0,
+                'median_time_to_first_match_seconds': None,
+                'zero_match_users': [],
+                'generated_at': timezone.now(),
+                'degraded': True,
+                'warning': 'Temporary database connectivity issue while loading launch monitor.',
+            }, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.exception("AdminLaunchMonitorView unexpected error; returning degraded payload: %s", exc)
+            return Response({
+                'total_product_users': 0,
+                'zero_match_users_count': 0,
+                'avg_matches_per_user': 0,
+                'median_time_to_first_match_seconds': None,
+                'zero_match_users': [],
+                'generated_at': timezone.now(),
+                'degraded': True,
+                'warning': 'Temporary issue while loading launch monitor.',
+            }, status=status.HTTP_200_OK)
 
 
 class AdminBlockUserView(APIView):
@@ -1708,12 +1762,37 @@ class AdminCaseAssignmentDetailView(APIView):
 class AdminSupportConversationListView(APIView):
     permission_classes = [IsAdminUser]
     def get(self, request):
-        status = request.GET.get('status')
-        qs = SupportConversation.objects.all().order_by('-updated_at')
-        if status:
-            qs = qs.filter(status=status)
-        serializer = SupportConversationSerializer(qs, many=True)
-        return Response(serializer.data)
+        try:
+            status = request.GET.get('status')
+            qs = SupportConversation.objects.select_related('user', 'assigned_admin').order_by('-updated_at')
+            if status:
+                qs = qs.filter(status=status)
+            qs = list(qs[:100])
+            conversation_ids = [conv.id for conv in qs]
+            latest_messages = {}
+            for msg in Message.objects.filter(support_conversation_id__in=conversation_ids).order_by('support_conversation_id', '-created_at'):
+                latest_messages.setdefault(msg.support_conversation_id, msg)
+            data = []
+            for conv in qs:
+                last_msg = latest_messages.get(conv.id)
+                data.append({
+                    'id': conv.id,
+                    'user': conv.user_id,
+                    'user_email': conv.user.email if conv.user_id else None,
+                    'assigned_admin': conv.assigned_admin_id,
+                    'status': conv.status,
+                    'created_at': conv.created_at,
+                    'updated_at': conv.updated_at,
+                    'last_message': None if not last_msg else {
+                        'content': last_msg.content,
+                        'created_at': last_msg.created_at,
+                        'sender_type': last_msg.sender_type,
+                    },
+                })
+            return Response(data)
+        except Exception as exc:
+            logger.exception("AdminSupportConversationListView failed; returning empty list: %s", exc)
+            return Response([], status=status.HTTP_200_OK)
 
 
 class AdminSupportConversationDetailView(APIView):
@@ -1764,18 +1843,29 @@ class AdminTakeActionOnFlaggedMessageView(APIView):
 class AdminUserConversationsListView(APIView):
     permission_classes = [IsAdminUser]
     def get(self, request):
-        convs = Conversation.objects.all().order_by('-updated_at')
-        data = []
-        for c in convs:
-            participants = c.get_participants()
-            data.append({
-                'id': c.id,
-                'participants': [p.email for p in participants],
-                'last_message': c.last_message().content if c.last_message() else None,
-                'last_message_at': c.last_message_at,
-                'created_at': c.created_at,
-            })
-        return Response(data)
+        try:
+            convs = list(
+                Conversation.objects.select_related('match__user1', 'match__user2')
+                .order_by('-updated_at')[:100]
+            )
+            conversation_ids = [conv.id for conv in convs]
+            latest_messages = {}
+            for msg in Message.objects.filter(conversation_id__in=conversation_ids).order_by('conversation_id', '-created_at'):
+                latest_messages.setdefault(msg.conversation_id, msg)
+            data = []
+            for c in convs:
+                last_msg = latest_messages.get(c.id)
+                data.append({
+                    'id': c.id,
+                    'participants': [c.match.user1.email, c.match.user2.email],
+                    'last_message': last_msg.content if last_msg else None,
+                    'last_message_at': c.last_message_at,
+                    'created_at': c.created_at,
+                })
+            return Response(data)
+        except Exception as exc:
+            logger.exception("AdminUserConversationsListView failed; returning empty list: %s", exc)
+            return Response([], status=status.HTTP_200_OK)
 
 
 class AdminUserConversationDetailView(APIView):
@@ -1798,6 +1888,121 @@ class AdminUserConversationMessagesView(APIView):
         messages = conv.messages.all().order_by('created_at')
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
+
+
+class AdminNotificationEmailTemplatesView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        ensure_notification_email_templates()
+        queryset = NotificationEmailTemplate.objects.select_related('updated_by').order_by('event_type')
+        serializer = NotificationEmailTemplateSerializer(queryset, many=True)
+        logs = NotificationEmailLog.objects.all()
+        today = timezone.now().date()
+        return Response({
+            'templates': serializer.data,
+            'overview': {
+                'total_logs': logs.count(),
+                'sent_today': logs.filter(status='sent', created_at__date=today).count(),
+                'failed_today': logs.filter(status='failed', created_at__date=today).count(),
+                'pending_total': logs.filter(status='pending').count(),
+                'skipped_total': logs.filter(status='skipped').count(),
+                'by_event': {
+                    event_type: {
+                        'sent': logs.filter(event_type=event_type, status='sent').count(),
+                        'failed': logs.filter(event_type=event_type, status='failed').count(),
+                        'pending': logs.filter(event_type=event_type, status='pending').count(),
+                        'skipped': logs.filter(event_type=event_type, status='skipped').count(),
+                    }
+                    for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                },
+            },
+        })
+
+
+class AdminNotificationEmailTemplateDetailView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def patch(self, request, template_id):
+        ensure_notification_email_templates()
+        template = get_object_or_404(NotificationEmailTemplate, id=template_id)
+        serializer = NotificationEmailTemplateSerializer(template, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        updated = serializer.save(updated_by=request.user, version=template.version + 1)
+        return Response(NotificationEmailTemplateSerializer(updated).data)
+
+
+class AdminNotificationEmailLogsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        page = max(1, int(request.GET.get('page', 1) or 1))
+        limit = min(100, max(10, int(request.GET.get('limit', 20) or 20)))
+        event_type = (request.GET.get('event_type') or '').strip()
+        status_filter = (request.GET.get('status') or '').strip()
+        search = (request.GET.get('search') or '').strip()
+
+        queryset = NotificationEmailLog.objects.select_related('recipient').all()
+        if event_type:
+            queryset = queryset.filter(event_type=event_type)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if search:
+            queryset = queryset.filter(
+                Q(recipient_email__icontains=search) |
+                Q(subject_rendered__icontains=search)
+            )
+
+        total = queryset.count()
+        start = (page - 1) * limit
+        rows = queryset[start:start + limit]
+        serializer = NotificationEmailLogSerializer(rows, many=True)
+        return Response({
+            'results': serializer.data,
+            'total': total,
+            'page': page,
+            'pages': ceil(total / limit) if limit > 0 else 1,
+        })
+
+
+class AdminNotificationEmailTestSendView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        event_type = (request.data.get('event_type') or '').strip()
+        recipient_email = (request.data.get('recipient_email') or '').strip().lower()
+        context_data = request.data.get('sample_payload') or {}
+        template_overrides = request.data.get('template_overrides') or {}
+
+        if event_type not in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES:
+            return Response({'error': 'Invalid event type'}, status=400)
+        if not recipient_email:
+            return Response({'error': 'Recipient email is required'}, status=400)
+        if not isinstance(context_data, dict):
+            return Response({'error': 'Sample payload must be an object'}, status=400)
+        if not isinstance(template_overrides, dict):
+            return Response({'error': 'Template overrides must be an object'}, status=400)
+
+        try:
+            log = send_test_notification_email(
+                event_type,
+                recipient_email,
+                context_data,
+                template_overrides=template_overrides,
+                metadata={
+                    'triggered_by_admin_id': request.user.id,
+                    'triggered_by_admin_email': request.user.email,
+                },
+            )
+            return Response({
+                'success': True,
+                'status': log.status,
+                'log_id': log.id,
+                'message': f'Test {event_type} email processed with status: {log.status}',
+            })
+        except Exception as exc:
+            logger.exception("AdminNotificationEmailTestSendView failed: %s", exc)
+            return Response({'error': str(exc)}, status=500)
 
 
 # ---------- Analytics ----------

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
+import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 import { readFreshCache, writeCache } from '../utils/adminCache';
@@ -48,7 +49,15 @@ export default function AdminAnalyticsImpressions() {
       navigate('/admin/login');
       return;
     }
-    fetchImpressions(Boolean(cachedImpressions));
+    if (!cachedImpressions) {
+      fetchImpressions(false);
+    }
+
+    const handleRefresh = () => {
+      fetchImpressions(false);
+    };
+    window.addEventListener('admin:refresh-page', handleRefresh);
+    return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, []);
 
   const fetchImpressions = async (silent = false) => {
@@ -250,9 +259,7 @@ export default function AdminAnalyticsImpressions() {
               Profile Impressions Analytics
             </h2>
             {loading && (
-              <div className="small text-secondary">
-                Refreshing...
-              </div>
+              <AdminPageSpinner label="Loading impressions..." />
             )}
             <div className="btn-group">
               <button 
@@ -376,8 +383,14 @@ export default function AdminAnalyticsImpressions() {
                     {currentItems.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="text-center py-5">
-                          <i className="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
-                          No impressions recorded yet
+                          {loading ? (
+                            <AdminPageSpinner label="Loading impression records..." />
+                          ) : (
+                            <>
+                              <i className="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
+                              No impressions recorded yet
+                            </>
+                          )}
                          </td>
                       </tr>
                     ) : (

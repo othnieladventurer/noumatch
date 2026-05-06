@@ -7,6 +7,7 @@ from django.db import transaction
 from .models import Notification
 from .serializers import NotificationSerializer
 from interactions.models import Like
+from admin_dashboard.services.email_notifications import queue_event_notification_email
 
 
 def send_realtime_notification(user, notification):
@@ -51,6 +52,20 @@ def send_like_notification(like):
             if created:
                 Like.objects.filter(pk=locked_like.pk).update(notification_sent=True)
                 send_realtime_notification(to_user, notification)
+                queue_event_notification_email(
+                    'new_like',
+                    to_user,
+                    {
+                        'actor_name': from_user.first_name or from_user.email.split('@')[0],
+                        'cta_url': f"{notification.link or '/notifications'}",
+                    },
+                    related_object=locked_like,
+                    metadata={
+                        'notification_id': notification.id,
+                        'actor_id': from_user.id,
+                        'recipient_id': to_user.id,
+                    },
+                )
             return notification
     except Exception as e:
         logging.info(f"Error in send_like_notification: {e}")
@@ -76,6 +91,21 @@ def send_match_notification(match, user1, user2):
             icon='handshake',
         )
         send_realtime_notification(user1, n1)
+        queue_event_notification_email(
+            'new_match',
+            user1,
+            {
+                'actor_name': user2.first_name or user2.email.split('@')[0],
+                'cta_url': conversation_link or '/messages',
+            },
+            related_object=match,
+            metadata={
+                'notification_id': n1.id,
+                'actor_id': user2.id,
+                'recipient_id': user1.id,
+                'match_id': match.id,
+            },
+        )
 
         n2 = Notification.objects.create(
             recipient=user2,
@@ -87,6 +117,21 @@ def send_match_notification(match, user1, user2):
             icon='handshake',
         )
         send_realtime_notification(user2, n2)
+        queue_event_notification_email(
+            'new_match',
+            user2,
+            {
+                'actor_name': user1.first_name or user1.email.split('@')[0],
+                'cta_url': conversation_link or '/messages',
+            },
+            related_object=match,
+            metadata={
+                'notification_id': n2.id,
+                'actor_id': user1.id,
+                'recipient_id': user2.id,
+                'match_id': match.id,
+            },
+        )
         return [n1, n2]
     except Exception as e:
         logging.info(f"Error creating match notifications: {e}")
@@ -143,6 +188,23 @@ def send_message_notification(message):
             notification.save(update_fields=['title', 'message', 'count', 'is_read', 'read_at', 'metadata'])
 
         send_realtime_notification(recipient, notification)
+        queue_event_notification_email(
+            'new_message',
+            recipient,
+            {
+                'actor_name': sender.first_name or sender.email.split('@')[0],
+                'message_preview': preview,
+                'cta_url': notification.link or f"/messages?conversation={conversation.id}",
+            },
+            related_object=conversation,
+            metadata={
+                'notification_id': notification.id,
+                'actor_id': sender.id,
+                'recipient_id': recipient.id,
+                'conversation_id': conversation.id,
+                'message_id': message.id,
+            },
+        )
         return notification
     except Exception as e:
         logging.info(f"Error sending message notification: {e}")

@@ -21,6 +21,10 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
     navigate('/admin/login');
   };
 
+  const handleRefreshPage = () => {
+    window.dispatchEvent(new CustomEvent('admin:refresh-page'));
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -51,6 +55,14 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           aria-label="Toggle dark mode"
         >
           <i className={`fas ${darkMode ? 'fa-sun' : 'fa-moon'}`}></i>
+        </button>
+        <button
+          className="theme-toggle"
+          onClick={handleRefreshPage}
+          aria-label="Refresh current admin page"
+          title="Refresh current admin page"
+        >
+          <i className="fas fa-rotate-right"></i>
         </button>
         
         {/* Avatar with hover dropdown */}
