@@ -35,12 +35,13 @@ export default function Register() {
 
   // Email check states
   const [emailError, setEmailError] = useState("");
+  const [emailSuccessMessage, setEmailSuccessMessage] = useState("");
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [emailAvailable, setEmailAvailable] = useState(false);
   const [shakeEmail, setShakeEmail] = useState(false);
   const emailTimeoutRef = useRef(null);
   
-  // Waitlist eligibility states
+  // Registration pacing states
   const [canRegister, setCanRegister] = useState(false);
   const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [showEligibilityModal, setShowEligibilityModal] = useState(false);
@@ -67,19 +68,19 @@ export default function Register() {
       age >= 18 &&
       password === password2 &&
       isEmailValidFormat &&
-      canRegister;
+      emailAvailable;
     setStep1Valid(isValid);
-  }, [formData, canRegister]);
+  }, [formData, emailAvailable]);
 
   useEffect(() => {
-    setStep2Valid(formData.gender !== "");
-  }, [formData.gender]);
+    setStep2Valid(formData.gender !== "" && canRegister);
+  }, [formData.gender, canRegister]);
 
   useEffect(() => {
     setStep3Valid(formData.profile_photo !== null);
   }, [formData.profile_photo]);
 
-  // Check if email can register (waitlist eligibility)
+  // Check email availability first. Gender pacing is checked separately.
   useEffect(() => {
     if (emailTimeoutRef.current) clearTimeout(emailTimeoutRef.current);
 
@@ -88,6 +89,8 @@ export default function Register() {
     // If email is empty
     if (email === "") {
       setEmailError("");
+      setEmailSuccessMessage("");
+      setEmailAvailable(false);
       setCanRegister(false);
       setIsCheckingEmail(false);
       setCheckingEligibility(false);
@@ -97,6 +100,8 @@ export default function Register() {
     // If email format is invalid
     if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email)) {
       setEmailError(t("register.errorInvalidEmail"));
+      setEmailSuccessMessage("");
+      setEmailAvailable(false);
       setCanRegister(false);
       setIsCheckingEmail(false);
       setCheckingEligibility(false);
@@ -105,55 +110,91 @@ export default function Register() {
       return;
     }
 
-    // Check waitlist eligibility
     setCheckingEligibility(true);
     setIsCheckingEmail(true);
     setEmailError("");
+    setEmailSuccessMessage("");
 
     emailTimeoutRef.current = setTimeout(async () => {
       try {
         const checkResponse = await API.get(`/users/check-can-register/?email=${encodeURIComponent(email)}`);
-        const { exists, can_register, message } = checkResponse.data || {};
+        const { exists, email_available, message } = checkResponse.data || {};
 
         if (exists) {
           setEmailError(t("register.errorEmailExists"));
+          setEmailSuccessMessage("");
+          setEmailAvailable(false);
           setCanRegister(false);
           setShakeEmail(true);
           setTimeout(() => setShakeEmail(false), 400);
           return;
         }
 
-        if (can_register) {
-          setCanRegister(true);
-          setEmailError("");
-          setEligibilityMessage("");
-          return;
-        }
-
+        setEmailAvailable(Boolean(email_available));
         setCanRegister(false);
         setEmailError("");
-        setEligibilityMessage(message || t("register.waitlistOnly"));
-        setShowEligibilityModal(true);
+        setEmailSuccessMessage(message || t("register.emailVerified"));
+        setEligibilityMessage(message || "");
       } catch (err) {
         if (err.response?.status === 400) {
-          // Bad request - email missing
           setEmailError(t("register.errorEmailRequired"));
-        } else if (err.response?.status === 404) {
-          // Not in waitlist
-          setCanRegister(false);
-          setEligibilityMessage(t("register.waitlistOnly"));
-          setShowEligibilityModal(true);
         } else {
-          setCanRegister(false);
-          setEligibilityMessage(t("register.waitlistOnly"));
-          setShowEligibilityModal(true);
+          setEmailError(t("register.errorCheckUnavailable"));
         }
+        setEmailSuccessMessage("");
+        setEmailAvailable(false);
+        setCanRegister(false);
       } finally {
         setCheckingEligibility(false);
         setIsCheckingEmail(false);
       }
     }, 300);
   }, [formData.email]);
+
+  useEffect(() => {
+    const email = formData.email.trim();
+    const gender = formData.gender;
+
+    if (!emailAvailable || !gender) {
+      setCanRegister(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingEligibility(true);
+
+    const checkGenderAvailability = async () => {
+      try {
+        const response = await API.get(
+          `/users/check-can-register/?email=${encodeURIComponent(email)}&gender=${encodeURIComponent(gender)}`
+        );
+        if (cancelled) return;
+
+        const allowed = Boolean(response.data?.can_register);
+        setCanRegister(allowed);
+        if (!allowed) {
+          setEligibilityMessage(response.data?.message || t("register.menPauseMessage"));
+          setShowEligibilityModal(true);
+        } else {
+          setEligibilityMessage("");
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setCanRegister(false);
+        setEligibilityMessage(err.response?.data?.error || t("register.errorCheckUnavailable"));
+        setShowEligibilityModal(true);
+      } finally {
+        if (!cancelled) {
+          setCheckingEligibility(false);
+        }
+      }
+    };
+
+    checkGenderAvailability();
+    return () => {
+      cancelled = true;
+    };
+  }, [emailAvailable, formData.gender]);
 
   const calculateAge = (birthDate) => {
     if (!birthDate) return null;
@@ -186,15 +227,11 @@ export default function Register() {
   const nextStep = () => {
     setErrorMessage("");
     if (step === 1 && !step1Valid) {
-      if (!canRegister) {
-        setErrorMessage(t("register.waitlistOnly"));
-      } else {
-        setErrorMessage(t("register.errorFillFields"));
-      }
+      setErrorMessage(t("register.errorFillFields"));
       return;
     }
     if (step === 2 && !step2Valid) {
-      setErrorMessage(t("register.errorSelectGender"));
+      setErrorMessage(formData.gender ? (eligibilityMessage || t("register.menPauseMessage")) : t("register.errorSelectGender"));
       return;
     }
     if (step === 3 && !step3Valid) {
@@ -245,7 +282,8 @@ export default function Register() {
       
       if (error.response) {
         if (error.response.status === 403) {
-          message = t("register.waitlistOnly");
+          message = error.response.data?.error || t("register.menPauseMessage");
+          setEligibilityMessage(message);
           setShowEligibilityModal(true);
         } else if (error.response.data.error) {
           message = error.response.data.error;
@@ -254,8 +292,8 @@ export default function Register() {
           setTimeout(() => setShakeEmail(false), 400);
         } else if (typeof error.response.data === "object") {
           const errors = Object.values(error.response.data).flat();
-          if (errors.length > 0 && errors[0].toLowerCase().includes("waitlist")) {
-            message = t("register.waitlistOnly");
+          if (errors.length > 0 && (errors[0].toLowerCase().includes("waitlist") || errors[0].toLowerCase().includes("inscriptions hommes"))) {
+            message = t("register.menPauseMessage");
             setShowEligibilityModal(true);
           } else {
             message = errors.join("\n");
@@ -350,7 +388,7 @@ export default function Register() {
                       onChange={handleChange}
                       style={{ 
                         borderRadius: "16px",
-                        borderColor: emailError ? "#dc3545" : (canRegister ? "#28a745" : "#ced4da")
+                        borderColor: emailError ? "#dc3545" : (emailAvailable ? "#28a745" : "#ced4da")
                       }}
                     />
                     {emailError && (
@@ -358,9 +396,9 @@ export default function Register() {
                         {emailError}
                       </div>
                     )}
-                    {!emailError && canRegister && !checkingEligibility && (
+                    {!emailError && emailAvailable && !checkingEligibility && (
                       <div className="text-success small mt-1" style={{ fontSize: "0.75rem" }}>
-                        {t("register.emailVerified")}
+                        {emailSuccessMessage || t("register.emailVerified")}
                       </div>
                     )}
                     {(checkingEligibility || isCheckingEmail) && (
@@ -491,7 +529,7 @@ export default function Register() {
         </div>
       </div>
 
-      {/* Eligibility Modal - Only for waitlisted users */}
+      {/* Eligibility Modal */}
       {showEligibilityModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999 }}>
           <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "450px" }}>
@@ -500,34 +538,30 @@ export default function Register() {
                 <div className="text-center w-100">
                   <div className="mb-3">
                     <div className="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mx-auto" style={{ width: "70px", height: "70px" }}>
-                      <i className="fas fa-clock text-warning fs-1"></i>
+                      <i className="fas fa-user-clock text-warning fs-1"></i>
                     </div>
                   </div>
-                  <h5 className="modal-title fw-bold">{t("register.waitlistModalTitle")}</h5>
+                  <h5 className="modal-title fw-bold">{t("register.balanceModalTitle")}</h5>
                 </div>
               </div>
               <div className="modal-body text-center pt-0">
                 <p className="text-muted mb-3">
-                  {eligibilityMessage || t("register.waitlistOnly")}
+                  {eligibilityMessage || t("register.menPauseMessage")}
                 </p>
                 <div className="alert alert-info bg-light rounded-3 p-3 mb-0">
-                  <i className="fas fa-envelope-open-text text-primary me-2"></i>
+                  <i className="fas fa-heart text-primary me-2"></i>
                   <small className="text-dark">
-                    {t("register.waitlistPrompt")}
+                    {t("register.balancePrompt")}
                   </small>
                 </div>
               </div>
-              <div className="modal-footer border-0 justify-content-center gap-3 pt-0">
-                <Link to="/waitlist" className="btn btn-danger px-4 rounded-pill">
-                  <i className="fas fa-list me-2"></i>
-                  {t("register.joinWaitlist")}
-                </Link>
+              <div className="modal-footer border-0 justify-content-center pt-0">
                 <button 
                   type="button" 
-                  className="btn btn-outline-secondary px-4 rounded-pill" 
+                  className="btn btn-danger px-4 rounded-pill" 
                   onClick={() => setShowEligibilityModal(false)}
                 >
-                  {t("common.close")}
+                  {t("register.tryLater")}
                 </button>
               </div>
             </div>

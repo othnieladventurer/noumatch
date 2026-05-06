@@ -443,10 +443,6 @@ class IncrementLikeView(APIView):
                 except Exception:
                     logging.exception("increment-like reciprocal visibility injection failed")
 
-                # Send notification
-                from notifications.utils import send_like_notification
-                send_like_notification(like)
-
                 # Check for mutual like and create match
                 reverse_like = Like.objects.filter(
                     from_user_id=to_user_id,

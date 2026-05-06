@@ -3,28 +3,47 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
+import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
+import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
 const USERS_PER_PAGE = 10;
 const DEBOUNCE_DELAY = 300;
+const USERS_CACHE_TTL = 300000;
+const LAUNCH_MONITOR_CACHE_KEY = 'admin_launch_monitor_v1';
+
+const getUsersCacheKey = ({ page, search, status, userType, gender, sort }) =>
+  `admin_users_v1:${page}:${search || 'all'}:${status}:${userType}:${gender}:${sort}`;
 
 export default function AdminUsers() {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const initialUsersCacheKey = getUsersCacheKey({
+    page: 1,
+    search: '',
+    status: 'all',
+    userType: 'app',
+    gender: 'all',
+    sort: 'name_asc',
+  });
+  const cachedUsersPayload = readFreshCache(initialUsersCacheKey, USERS_CACHE_TTL);
+  const cachedLaunchMonitor = readFreshCache(LAUNCH_MONITOR_CACHE_KEY, USERS_CACHE_TTL);
+  const [users, setUsers] = useState(cachedUsersPayload?.data || []);
+  const [loading, setLoading] = useState(!cachedUsersPayload);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [userType, setUserType] = useState('app');
+  const [genderFilter, setGenderFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('name_asc');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('users');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalUsers, setTotalUsers] = useState(cachedUsersPayload?.total || 0);
   const [isFetching, setIsFetching] = useState(false);
-  const [launchMonitor, setLaunchMonitor] = useState(null);
+  const [launchMonitor, setLaunchMonitor] = useState(cachedLaunchMonitor);
   const [launchMonitorError, setLaunchMonitorError] = useState('');
   const [visibilityBusyUserId, setVisibilityBusyUserId] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -63,7 +82,7 @@ export default function AdminUsers() {
   }, [darkMode]);
 
   // Fetch users with pagination and search
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (force = false) => {
     const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
@@ -71,7 +90,27 @@ export default function AdminUsers() {
     }
 
     setIsFetching(true);
-    setLoading(true);
+    const cacheKey = getUsersCacheKey({
+      page: currentPage,
+      search: debouncedSearchTerm,
+      status: filterStatus,
+      userType,
+      gender: genderFilter,
+      sort: sortOrder,
+    });
+    const cachedPayload = readFreshCache(cacheKey, USERS_CACHE_TTL);
+
+    if (cachedPayload) {
+      setUsers(cachedPayload.data || []);
+      setTotalUsers(cachedPayload.total || 0);
+      setLoading(false);
+      if (!force) {
+        setIsFetching(false);
+        return;
+      }
+    } else {
+      setLoading(true);
+    }
     
     try {
       // Build query parameters
@@ -81,6 +120,8 @@ export default function AdminUsers() {
         search: debouncedSearchTerm,
         status: filterStatus,
         user_type: userType,
+        gender: genderFilter,
+        sort: sortOrder,
       };
       
       const url = `${API_BASE}/users/list/`;
@@ -90,12 +131,22 @@ export default function AdminUsers() {
       if (res.data.data && Array.isArray(res.data.data)) {
         setUsers(res.data.data);
         setTotalUsers(res.data.total || 0);
+        writeCache(cacheKey, {
+          data: res.data.data,
+          total: res.data.total || 0,
+          user_type: res.data.user_type || userType,
+        });
         if (res.data.user_type && res.data.user_type !== userType) {
           setUserType(res.data.user_type);
         }
       } else if (Array.isArray(res.data)) {
         setUsers(res.data);
         setTotalUsers(res.data.length);
+        writeCache(cacheKey, {
+          data: res.data,
+          total: res.data.length,
+          user_type: userType,
+        });
       } else {
         setUsers([]);
         setTotalUsers(0);
@@ -118,14 +169,23 @@ export default function AdminUsers() {
       setLoading(false);
       setIsFetching(false);
     }
-  }, [currentPage, debouncedSearchTerm, filterStatus, userType, navigate]);
+  }, [currentPage, debouncedSearchTerm, filterStatus, userType, genderFilter, sortOrder, navigate]);
 
-  const fetchLaunchMonitor = useCallback(async () => {
+  const fetchLaunchMonitor = useCallback(async (force = false) => {
     const token = getAdminAuthToken();
     if (!token) return;
     try {
+      const cachedPayload = readFreshCache(LAUNCH_MONITOR_CACHE_KEY, USERS_CACHE_TTL);
+      if (cachedPayload) {
+        setLaunchMonitor(cachedPayload);
+        if (!force) {
+          setLaunchMonitorError('');
+          return;
+        }
+      }
       const res = await adminRequest({ method: 'get', url: `${API_BASE}/launch/monitor/` });
       setLaunchMonitor(res.data);
+      writeCache(LAUNCH_MONITOR_CACHE_KEY, res.data);
       setLaunchMonitorError('');
     } catch (err) {
       setLaunchMonitorError(err.response?.data?.error || 'Failed to load launch monitor');
@@ -154,13 +214,30 @@ export default function AdminUsers() {
   }, [fetchUsers]);
 
   useEffect(() => {
-    fetchLaunchMonitor();
+    if (!cachedLaunchMonitor) {
+      fetchLaunchMonitor();
+    }
   }, [fetchLaunchMonitor]);
+
+  useEffect(() => {
+    if (cachedUsersPayload?.data) {
+      setUsers(cachedUsersPayload.data);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchUsers(true);
+      fetchLaunchMonitor(true);
+    };
+    window.addEventListener('admin:refresh-page', handleRefresh);
+    return () => window.removeEventListener('admin:refresh-page', handleRefresh);
+  }, [fetchUsers, fetchLaunchMonitor]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearchTerm, filterStatus, userType]);
+  }, [debouncedSearchTerm, filterStatus, userType, genderFilter, sortOrder]);
 
   const openCreateModal = () => {
     setEditingUser(null);
@@ -248,6 +325,21 @@ export default function AdminUsers() {
   }, []);
 
   const totalPages = Math.ceil(totalUsers / USERS_PER_PAGE);
+  const activeFilterSummary = useMemo(() => {
+    const items = [];
+    items.push(sortOrder === 'name_asc' ? 'Sorting A to Z' : sortOrder === 'name_desc' ? 'Sorting Z to A' : sortOrder === 'oldest' ? 'Sorting oldest first' : 'Sorting newest first');
+    if (filterStatus !== 'all') {
+      items.push(`Status: ${filterStatus}`);
+    }
+    if (genderFilter !== 'all') {
+      items.push(`Gender: ${genderFilter}`);
+    }
+    if (debouncedSearchTerm) {
+      items.push(`Search: "${debouncedSearchTerm}"`);
+    }
+    items.push(`Showing ${users.length} of ${totalUsers}`);
+    return items;
+  }, [sortOrder, filterStatus, genderFilter, debouncedSearchTerm, users.length, totalUsers]);
   
   const goToPage = useCallback((page) => {
     if (page >= 1 && page <= totalPages && !isFetching) {
@@ -389,17 +481,55 @@ export default function AdminUsers() {
                 </button>
               ))}
             </div>
-            <div className="position-relative" style={{ width: '100%', maxWidth: '300px' }}>
-              <i className="fas fa-search position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)' }}></i>
-              <input 
-                type="text" 
-                className="form-input" 
-                placeholder="Search by name or email..." 
-                style={{ paddingLeft: '35px', width: '100%' }} 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)}
+            <div className="d-flex gap-2 flex-wrap align-items-center" style={{ width: '100%', maxWidth: '760px' }}>
+              <select
+                className="form-select"
+                style={{ maxWidth: '170px' }}
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
                 disabled={isFetching}
-              />
+              >
+                <option value="name_asc">Name A to Z</option>
+                <option value="name_desc">Name Z to A</option>
+                <option value="newest">Newest joined</option>
+                <option value="oldest">Oldest joined</option>
+              </select>
+              <select
+                className="form-select"
+                style={{ maxWidth: '150px' }}
+                value={genderFilter}
+                onChange={(e) => setGenderFilter(e.target.value)}
+                disabled={isFetching}
+              >
+                <option value="all">All genders</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+              </select>
+              <div className="position-relative flex-grow-1" style={{ minWidth: '220px' }}>
+                <i className="fas fa-search position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)' }}></i>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Search by name or email..." 
+                  style={{ paddingLeft: '35px', width: '100%' }} 
+                  value={searchTerm} 
+                  onChange={e => setSearchTerm(e.target.value)}
+                  disabled={isFetching}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="card-body pt-0">
+            <div
+              className="d-flex flex-wrap gap-2 align-items-center"
+              style={{ padding: '0.9rem 1rem', borderRadius: '14px', background: 'rgba(220, 53, 69, 0.06)', border: '1px solid rgba(220, 53, 69, 0.15)' }}
+            >
+              <span className="fw-semibold text-danger">User sorting and filtering active</span>
+              {activeFilterSummary.map((item) => (
+                <span key={item} className="badge text-bg-light" style={{ fontSize: '0.82rem', padding: '0.55rem 0.75rem' }}>
+                  {item}
+                </span>
+              ))}
             </div>
           </div>
         </div>
@@ -410,7 +540,7 @@ export default function AdminUsers() {
             <h5>
               <i className="fas fa-users text-primary me-2"></i> 
               All Users ({totalUsers})
-              {isFetching && <span className="ms-2 text-muted small">Refreshing...</span>}
+              {isFetching && <span className="ms-2"><AdminPageSpinner label="Refreshing users..." /></span>}
             </h5>
             {totalPages > 1 && (
               <div className="pagination-controls">
@@ -450,7 +580,14 @@ export default function AdminUsers() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.length > 0 ? (
+                  {loading && (
+                    <tr>
+                      <td colSpan="7" className="text-center py-4">
+                        <AdminPageSpinner label="Loading users..." />
+                      </td>
+                    </tr>
+                  )}
+                  {!loading && users.length > 0 ? (
                     users.map(user => (
                       <tr key={user.id}>
                         <td className="align-middle">
@@ -468,6 +605,8 @@ export default function AdminUsers() {
                         <td className="align-middle">
                           <strong>{user.full_name || 'N/A'}</strong><br/>
                           <small className="text-muted">{user.email}</small>
+                          <br />
+                          <small className="text-muted text-capitalize">{user.gender || 'unspecified'}</small>
                         </td>
                         <td className="align-middle">{user.profile_score || 0}%</td>
                         <td className="align-middle">{user.matches_count || 0}</td>

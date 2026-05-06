@@ -109,6 +109,48 @@ class WaitlistStats(models.Model):
 
 
 
+    def get_live_gender_counts(self):
+        from users.models import User
+
+        queryset = User.objects.filter(
+            is_active=True,
+            is_staff=False,
+            is_superuser=False,
+            gender__in=['male', 'female'],
+        )
+        women = queryset.filter(gender='female').count()
+        men = queryset.filter(gender='male').count()
+        total = women + men
+        return {
+            'women': women,
+            'men': men,
+            'total': total,
+        }
+
+    def can_register_gender(self, gender):
+        if gender != 'male':
+            return True
+
+        counts = self.get_live_gender_counts()
+        women = counts['women']
+        total_after = counts['total'] + 1
+        if total_after <= 0:
+            return True
+
+        projected_women_pct = (women / total_after) * 100
+        return projected_women_pct >= self.target_women_percentage
+
+    def get_registration_message(self, gender):
+        if gender != 'male':
+            return None
+        if self.can_register_gender(gender):
+            return None
+        return (
+            "Les inscriptions sont temporairement limitées pour garantir la meilleure expérience possible. "
+            "Merci de revenir un peu plus tard."
+        )
+
+
 class ContactedArchive(models.Model):
     """Stores waitlist entries that have been removed (contacted, refused, etc.)"""
     first_name = models.CharField(max_length=100)

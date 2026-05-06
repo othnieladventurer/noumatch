@@ -74,6 +74,15 @@ const persistAdminAccessToken = (token) => {
   return null;
 };
 
+const clearAdminSession = () => {
+  clearAdminAuthTokens();
+};
+
+const clearUserSession = () => {
+  clearUserAuthTokens();
+  sessionStorage.removeItem("nm_user_session");
+};
+
 const isAuthRefreshEndpoint = (url = "") =>
   /users\/token\/refresh\/|noumatch-admin\/token\/refresh\//.test(url);
 
@@ -111,13 +120,12 @@ API.interceptors.request.use((config) => {
 });
 
 const redirectToLogin = () => {
-  clearUserAuthTokens();
-  sessionStorage.clear();
+  clearUserSession();
   window.location.href = `${FRONTEND_URL}/login`;
 };
 
 const redirectToAdminLogin = () => {
-  clearAdminAuthTokens();
+  clearAdminSession();
   window.location.href = `${FRONTEND_URL}/admin/login`;
 };
 
@@ -149,6 +157,8 @@ API.interceptors.response.use(
               ...(originalRequest.headers || {}),
               Authorization: `Bearer ${nextAccess}`,
             };
+          } else {
+            clearAdminSession();
           }
           return API(originalRequest);
         } catch (err) {
@@ -160,11 +170,14 @@ API.interceptors.response.use(
       try {
         const res = await API.post("users/token/refresh/", {}, { withCredentials: true });
         if (res.data?.access) {
-          localStorage.setItem("access", "1");
+          localStorage.setItem("access", res.data.access);
+          sessionStorage.setItem("nm_user_session", "1");
           originalRequest.headers = {
             ...(originalRequest.headers || {}),
             Authorization: `Bearer ${res.data.access}`,
           };
+        } else {
+          clearUserSession();
         }
         return API(originalRequest);
       } catch (err) {
@@ -216,11 +229,12 @@ adminAPI.interceptors.response.use(
             ...(originalRequest.headers || {}),
             Authorization: `Bearer ${nextAccess}`,
           };
+        } else {
+          clearAdminSession();
         }
         return adminAPI(originalRequest);
       } catch (err) {
-        clearAdminAuthTokens();
-        window.location.href = "/admin/login";
+        redirectToAdminLogin();
         return Promise.reject(err);
       }
     }

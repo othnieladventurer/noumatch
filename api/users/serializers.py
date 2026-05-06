@@ -1,8 +1,9 @@
 import logging
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User, UserPhoto
+from .models import PendingRegistration, User, UserPhoto
 from django.utils import timezone
+from django.contrib.auth.hashers import make_password
 from django.conf import settings
 from datetime import timedelta, date
 from django.contrib.auth.password_validation import validate_password
@@ -208,9 +209,13 @@ class RegisterSerializer(serializers.ModelSerializer):
                 'country_code': '',
             }
 
-    def create(self, validated_data):
-        from waitlist.models import WaitlistEntry, ContactedArchive
-        
+    def validate_email(self, value):
+        email = value.strip().lower()
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("Cet email est dÃ©jÃ  utilisÃ©. Veuillez vous connecter.")
+        return email
+
+    def _enrich_location_data(self, validated_data):
         # Get the request object to access client IP
         request = self.context.get('request')
         client_ip = None
@@ -237,25 +242,45 @@ class RegisterSerializer(serializers.ModelSerializer):
                 validated_data['country'] = location_data['country']
             if not validated_data.get('city') and location_data['city']:
                 validated_data['city'] = location_data['city']
-        
-        # Remove password2 as it's not needed for user creation
-        validated_data.pop('password2')
+        return validated_data
+
+    def build_pending_registration_data(self, validated_data):
+        validated_data = dict(validated_data)
+        validated_data = self._enrich_location_data(validated_data)
+        validated_data.pop('password2', None)
         password = validated_data.pop('password')
-        
-        # Create username from email
-        validated_data['username'] = validated_data['email'].split('@')[0]
-        
-        # Create user
-        user = User(**validated_data)
-        user.set_password(password)
+
+        return {
+            **validated_data,
+            "password_hash": make_password(password),
+        }
+
+    def create_verified_user_from_pending(self, pending_registration):
+        from waitlist.models import WaitlistEntry, ContactedArchive
+
+        user = User(
+            email=pending_registration.email,
+            username=pending_registration.email.split('@')[0],
+            first_name=pending_registration.first_name,
+            last_name=pending_registration.last_name,
+            birth_date=pending_registration.birth_date,
+            gender=pending_registration.gender,
+            country=pending_registration.country,
+            city=pending_registration.city,
+            latitude=pending_registration.latitude,
+            longitude=pending_registration.longitude,
+            is_verified=True,
+        )
+        user.password = pending_registration.password_hash
+
+        profile_photo = pending_registration.consume_profile_photo()
+        if profile_photo:
+            user.profile_photo = profile_photo
+
         user.save()
-        
-        # Mark waitlist entry as used (optional - move to archive or mark as registered)
-        email = validated_data.get('email')
-        waitlist_entry = WaitlistEntry.objects.filter(email=email).first()
-        
+
+        waitlist_entry = WaitlistEntry.objects.filter(email=user.email).first()
         if waitlist_entry:
-            # Move to archive with 'registered' reason
             ContactedArchive.objects.create(
                 first_name=waitlist_entry.first_name,
                 last_name=waitlist_entry.last_name,
@@ -264,12 +289,10 @@ class RegisterSerializer(serializers.ModelSerializer):
                 reason='registered',
                 notes=f"User registered on {date.today()}. Waitlist position: {waitlist_entry.position}"
             )
-            # Delete from active waitlist
             waitlist_entry.delete()
-            logging.info("Moved waitlist entry to archive for newly registered user_id=%s", user.id)
-        
-        logging.info("User created user_id=%s", user.id)
-        
+            logging.info("Moved waitlist entry to archive for verified user_id=%s", user.id)
+
+        logging.info("Verified user created user_id=%s from pending_registration_id=%s", user.id, pending_registration.id)
         return user
 
 class LoginSerializer(serializers.Serializer):

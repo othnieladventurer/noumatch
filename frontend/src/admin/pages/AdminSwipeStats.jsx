@@ -1,26 +1,31 @@
-// src/pages/AdminSwipeStats.jsx
+﻿// src/pages/AdminSwipeStats.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
+import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase } from '../utils/adminApi';
+import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
 const DAYS_PER_PAGE = 10;
+const SWIPE_STATS_CACHE_TTL = 300000;
+const getSwipeStatsCacheKey = (page) => `admin_swipe_stats_v1:${page}`;
 
 export default function AdminSwipeStats() {
+  const cachedPayload = readFreshCache(getSwipeStatsCacheKey(1), SWIPE_STATS_CACHE_TTL);
   const [stats, setStats] = useState({
-    total_likes: 0,
-    total_passes: 0,
-    today_likes: 0,
-    today_passes: 0,
-    top_users: [],
+    total_likes: cachedPayload?.total_likes || 0,
+    total_passes: cachedPayload?.total_passes || 0,
+    today_likes: cachedPayload?.today_likes || 0,
+    today_passes: cachedPayload?.today_passes || 0,
+    top_users: cachedPayload?.top_users || [],
   });
-  const [dailyData, setDailyData] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [dailyData, setDailyData] = useState(cachedPayload?.daily_data || []);
+  const [currentPage, setCurrentPage] = useState(cachedPayload?.page || 1);
+  const [totalPages, setTotalPages] = useState(cachedPayload?.pages || 1);
+  const [loading, setLoading] = useState(!cachedPayload);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
@@ -37,13 +42,31 @@ export default function AdminSwipeStats() {
     }
   }, [darkMode]);
 
-  const fetchStats = async (page = 1) => {
+  const fetchStats = async (page = 1, force = false) => {
     const token = localStorage.getItem('admin_access');
     if (!token) {
       navigate('/admin/login');
       return;
     }
-    setLoading(true);
+    const cacheKey = getSwipeStatsCacheKey(page);
+    const pageCache = readFreshCache(cacheKey, SWIPE_STATS_CACHE_TTL);
+    if (pageCache) {
+      setStats({
+        total_likes: pageCache.total_likes || 0,
+        total_passes: pageCache.total_passes || 0,
+        today_likes: pageCache.today_likes || 0,
+        today_passes: pageCache.today_passes || 0,
+        top_users: pageCache.top_users || [],
+      });
+      setDailyData(pageCache.daily_data || []);
+      setTotalPages(pageCache.pages || 1);
+      setLoading(false);
+      if (!force) {
+        return;
+      }
+    } else {
+      setLoading(true);
+    }
     setError('');
     try {
       const url = `${API_BASE}/swipe-stats/`;
@@ -62,10 +85,13 @@ export default function AdminSwipeStats() {
       setDailyData(res.data.daily_data);
       setCurrentPage(res.data.page);
       setTotalPages(res.data.pages);
+      writeCache(cacheKey, res.data);
     } catch (err) {
-      console.error('❌ Fetch error:', err);
+      console.error('âŒ Fetch error:', err);
       if (err.authExpired || err.response?.status === 401) {
-        localStorage.clear();
+        localStorage.removeItem('admin_access');
+        localStorage.removeItem('admin_refresh');
+        localStorage.removeItem('admin_email');
         navigate('/admin/login');
       } else {
         setError('Failed to load swipe statistics');
@@ -77,6 +103,14 @@ export default function AdminSwipeStats() {
 
   useEffect(() => {
     fetchStats(currentPage);
+  }, [currentPage]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchStats(currentPage, true);
+    };
+    window.addEventListener('admin:refresh-page', handleRefresh);
+    return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, [currentPage]);
 
   const handleMenuClick = (menu, path) => {
@@ -104,7 +138,8 @@ export default function AdminSwipeStats() {
         
         <div className="dashboard-hero">
           <h2>Swipe Analytics</h2>
-          <p>Daily swipe activity – likes, passes, and user engagement</p>
+          <p>Daily swipe activity â€“ likes, passes, and user engagement</p>
+          {loading && <AdminPageSpinner label="Loading swipe analytics..." />}
         </div>
 
         {/* Metric cards */}
@@ -135,8 +170,8 @@ export default function AdminSwipeStats() {
               <i className="fas fa-calendar-day fa-2x text-info mb-2"></i>
               <h6 className="text-muted mb-1">Today's Activity</h6>
               <p className="fw-bold mb-0 fs-7" style={{ fontSize: '1.25rem' }}>
-                <span className="text-danger">❤️ {stats.today_likes}</span>{' '}
-                <span className="text-secondary">❌ {stats.today_passes}</span>
+                <span className="text-danger">â¤ï¸ {stats.today_likes}</span>{' '}
+                <span className="text-secondary">âŒ {stats.today_passes}</span>
               </p>
             </div>
           </div>
@@ -165,7 +200,7 @@ export default function AdminSwipeStats() {
                   <tr><th>Date</th><th>Likes</th><th>Passes</th><th>Total</th><th>Like %</th></tr>
                 </thead>
                 <tbody>
-                  {dailyData.map((day) => {
+                  {!loading && dailyData.map((day) => {
                     const total = day.likes + day.passes;
                     const likePct = total ? ((day.likes / total) * 100).toFixed(0) : 0;
                     return (
@@ -185,6 +220,18 @@ export default function AdminSwipeStats() {
                       </tr>
                     );
                   })}
+                  {!loading && dailyData.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="text-center py-4 text-secondary">No swipe data available yet.</td>
+                    </tr>
+                  )}
+                  {loading && (
+                    <tr>
+                      <td colSpan="5" className="text-center py-4">
+                        <AdminPageSpinner label="Loading daily swipe stats..." />
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -203,13 +250,25 @@ export default function AdminSwipeStats() {
                   <tr><th>User</th><th>Email</th><th>Total Swipes</th></tr>
                 </thead>
                 <tbody>
-                  {stats.top_users.map((user, idx) => (
+                  {!loading && stats.top_users.map((user, idx) => (
                     <tr key={idx}>
                       <td style={{ maxWidth: '150px' }} className="text-truncate">{user.name}</td>
                       <td style={{ maxWidth: '200px' }} className="text-truncate">{user.email}</td>
                       <td>{user.total_swipes}</td>
                     </tr>
                   ))}
+                  {!loading && stats.top_users.length === 0 && (
+                    <tr>
+                      <td colSpan="3" className="text-center py-4 text-secondary">No active users recorded yet.</td>
+                    </tr>
+                  )}
+                  {loading && (
+                    <tr>
+                      <td colSpan="3" className="text-center py-4">
+                        <AdminPageSpinner label="Loading active users..." />
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -223,5 +282,6 @@ export default function AdminSwipeStats() {
     </div>
   );
 }
+
 
 

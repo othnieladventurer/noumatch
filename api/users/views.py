@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import threading
 from django.conf import settings
 from django.core.cache import cache
@@ -20,8 +20,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
+from django.db import transaction
 
-from .models import User, UserPhoto, OTP, FeedVisibilityBoost
+from .models import User, UserPhoto, OTP, FeedVisibilityBoost, PendingRegistration
 from interactions.models import Like, Pass
 from matches.models import Match
 from block.models import Block
@@ -53,6 +54,25 @@ from admin_dashboard.services.ranking import compute_ranking_score
 from users.visibility import trigger_activity_injection, inject_new_user_visibility
 from datetime import timedelta
 from django.db.models import F
+from django.shortcuts import get_object_or_404
+
+
+def _send_otp_async(recipient, otp_code, log_label):
+    def send_email_background():
+        try:
+            send_otp_via_api(recipient, otp_code)
+        except Exception as e:
+            logging.info("%s email failed: %s", log_label, e)
+
+    thread = threading.Thread(target=send_email_background)
+    thread.daemon = True
+    thread.start()
+
+
+def _get_pending_registration_or_none(pending_id):
+    if not pending_id:
+        return None
+    return PendingRegistration.objects.filter(id=pending_id).first()
 
 
 
@@ -79,7 +99,7 @@ class RegisterView(generics.CreateAPIView):
         # FIRST CHECK: Is this email already registered?
         if User.objects.filter(email=email).exists():
             return Response(
-                {"error": "Votre email est déjà enregistré. Retournez sur connexion."},
+                {"error": "Votre email est dÃ©jÃ  enregistrÃ©. Retournez sur connexion."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -97,14 +117,14 @@ class RegisterView(generics.CreateAPIView):
                 pass
             else:
                 return Response(
-                    {"error": "Accès non autorisé. Vous devez d'abord rejoindre la liste d'attente et être contacté par notre équipe pour vous inscrire."},
+                    {"error": "AccÃ¨s non autorisÃ©. Vous devez d'abord rejoindre la liste d'attente et Ãªtre contactÃ© par notre Ã©quipe pour vous inscrire."},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
         # If found in waitlist but not contacted
         if waitlist_entry and not waitlist_entry.contacted:
             return Response(
-                {"error": "Votre inscription sur la liste d'attente est en cours de traitement. Vous recevrez un email de confirmation avant de pouvoir créer votre compte."},
+                {"error": "Votre inscription sur la liste d'attente est en cours de traitement. Vous recevrez un email de confirmation avant de pouvoir crÃ©er votre compte."},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -178,11 +198,65 @@ class DetectLocationView(APIView):
         })
 
 
+class RegisterView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
+    permission_classes = [AllowAny]
+    throttle_classes = [AuthRegisterThrottle]
+
+    def create(self, request, *args, **kwargs):
+        email = request.data.get('email', '').strip().lower()
+        gender = (request.data.get('gender') or '').strip().lower()
+
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {"error": "Votre email est dÃƒÂ©jÃƒÂ  enregistrÃƒÂ©. Retournez sur connexion."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        pending_data = serializer.build_pending_registration_data(serializer.validated_data)
+
+        from waitlist.models import WaitlistStats
+
+        with transaction.atomic():
+            stats, _ = WaitlistStats.objects.select_for_update().get_or_create(id=1)
+            if gender == 'male' and not stats.can_register_gender('male'):
+                return Response(
+                    {"error": stats.get_registration_message('male')},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            pending_registration, created = PendingRegistration.objects.select_for_update().get_or_create(
+                email=email,
+                defaults=pending_data,
+            )
+            if not created:
+                for field, value in pending_data.items():
+                    setattr(pending_registration, field, value)
+                pending_registration.save()
+
+        otp_code = generate_otp()
+        pending_registration.reset_otp(otp_code)
+
+        _send_otp_async(pending_registration, otp_code, "Background")
+
+        logging.info("Pending registration created pending_registration_id=%s", pending_registration.id)
+
+        return Response({
+            "message": "Registration pending. Please verify your email with the 4-digit code sent.",
+            "user_id": pending_registration.id,
+            "pending_registration_id": pending_registration.id,
+        }, status=status.HTTP_201_CREATED)
+
+
 class CheckCanRegisterView(APIView):
     permission_classes = [AllowAny]
     
     def get(self, request):
-        return _build_registration_check_response(request.query_params.get("email", ""))
+        return _build_registration_check_response(
+            request.query_params.get("email", ""),
+            request.query_params.get("gender", ""),
+        )
 
 
 
@@ -197,6 +271,7 @@ class VerifyOTPView(APIView):
 
     def post(self, request):
         user_id = request.data.get('user_id')
+        pending_registration_id = request.data.get('pending_registration_id') or user_id
         code = request.data.get('code')
 
         # Validate input
@@ -212,6 +287,82 @@ class VerifyOTPView(APIView):
                 {'error': 'Code must be exactly 4 digits'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        pending_registration = _get_pending_registration_or_none(pending_registration_id)
+        if pending_registration:
+            if not pending_registration.can_attempt():
+                return Response(
+                    {'error': f'Maximum attempts exceeded ({pending_registration.max_attempts}/5). Please request a new code.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if not pending_registration.is_valid():
+                if pending_registration.is_used:
+                    return Response(
+                        {'error': 'This code has already been used. Please request a new code.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                return Response(
+                    {'error': 'Code has expired (5 minutes). Please request a new code.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            pending_registration.increment_attempts()
+            if pending_registration.code != code:
+                remaining = pending_registration.max_attempts - pending_registration.attempts
+                return Response(
+                    {'error': f'Invalid code. {remaining} attempt(s) remaining.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            serializer = RegisterSerializer(context={'request': request})
+            from waitlist.models import WaitlistStats
+
+            with transaction.atomic():
+                locked_pending = PendingRegistration.objects.select_for_update().get(id=pending_registration.id)
+                if locked_pending.is_used:
+                    return Response(
+                        {'error': 'This code has already been used. Please request a new code.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if User.objects.filter(email=locked_pending.email).exists():
+                    return Response(
+                        {'error': 'Cet email est deja utilise. Veuillez vous connecter.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                stats, _ = WaitlistStats.objects.select_for_update().get_or_create(id=1)
+                if locked_pending.gender == 'male' and not stats.can_register_gender('male'):
+                    return Response(
+                        {'error': stats.get_registration_message('male')},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
+                locked_pending.is_used = True
+                locked_pending.save(update_fields=['is_used', 'updated_at'])
+                user = serializer.create_verified_user_from_pending(locked_pending)
+
+            try:
+                inject_new_user_visibility(user, limit=20)
+            except Exception:
+                logging.exception("new-user visibility injection failed for user_id=%s", user.id)
+
+            locked_pending.delete()
+
+            refresh = RefreshToken.for_user(user)
+            response = Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                }
+            }, status=status.HTTP_200_OK)
+            set_auth_cookies(response, str(refresh.access_token), str(refresh), admin=False)
+            return response
 
         try:
             user = User.objects.get(id=user_id)
@@ -288,6 +439,7 @@ class ResendOTPView(APIView):
 
     def post(self, request):
         user_id = request.data.get('user_id')
+        pending_registration_id = request.data.get('pending_registration_id') or user_id
         
         if not user_id:
             return Response(
@@ -295,6 +447,18 @@ class ResendOTPView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        pending_registration = _get_pending_registration_or_none(pending_registration_id)
+        if pending_registration:
+            otp_code = generate_otp()
+            pending_registration.reset_otp(otp_code)
+            _send_otp_async(pending_registration, otp_code, "Resend")
+
+            logging.info("OTP resent for pending_registration_id=%s", pending_registration.id)
+            return Response(
+                {'message': 'New 4-digit verification code sent to your email. Valid for 5 minutes.'},
+                status=status.HTTP_200_OK
+            )
+
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
@@ -322,16 +486,7 @@ class ResendOTPView(APIView):
             attempts=0
         )
         
-        # Send email in background
-        def send_email_background():
-            try:
-                send_otp_via_api(user, otp_code)
-            except Exception as e:
-                logging.info(f"Resend email failed: {e}")
-        
-        thread = threading.Thread(target=send_email_background)
-        thread.daemon = True
-        thread.start()
+        _send_otp_async(user, otp_code, "Resend")
         
         logging.info("OTP resent for user_id=%s", user.id)
 
@@ -347,6 +502,7 @@ class CheckOTPStatusView(APIView):
     
     def post(self, request):
         user_id = request.data.get('user_id')
+        pending_registration_id = request.data.get('pending_registration_id') or user_id
         
         if not user_id:
             return Response(
@@ -354,6 +510,22 @@ class CheckOTPStatusView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        pending_registration = _get_pending_registration_or_none(pending_registration_id)
+        if pending_registration:
+            if pending_registration.is_valid():
+                elapsed = (timezone.now() - pending_registration.created_at).total_seconds()
+                remaining = max(0, 300 - elapsed)
+                return Response({
+                    'has_valid_otp': True,
+                    'remaining_seconds': int(remaining),
+                    'attempts_used': pending_registration.attempts,
+                    'attempts_remaining': pending_registration.max_attempts - pending_registration.attempts
+                }, status=status.HTTP_200_OK)
+            return Response({
+                'has_valid_otp': False,
+                'message': 'OTP expired or used'
+            }, status=status.HTTP_200_OK)
+
         try:
             user = User.objects.get(id=user_id)
             otp = OTP.objects.get(user=user)
@@ -852,10 +1024,53 @@ def _build_registration_check_response(raw_email):
         )
 
 
+def _build_registration_check_response(raw_email, raw_gender=''):
+    email = (raw_email or "").strip().lower()
+    gender = (raw_gender or "").strip().lower()
+    if not email:
+        return Response({'exists': False, 'can_register': False, 'error': 'No email'}, status=400)
+    try:
+        from waitlist.models import WaitlistStats
+
+        exists = User.objects.filter(email=email).exists()
+        can_register = not exists
+        message = "Vous pouvez créer votre compte" if can_register else ""
+        stats = WaitlistStats.get_current_stats()
+
+        if exists:
+            message = "Cet email est déjà utilisé. Veuillez vous connecter."
+        elif gender == 'male' and not stats.can_register_gender('male'):
+            can_register = False
+            message = stats.get_registration_message('male')
+
+        payload = {
+            'exists': exists,
+            'can_register': can_register,
+            'message': message,
+            'email_available': not exists,
+        }
+        if gender:
+            payload['gender'] = gender
+        return Response(payload)
+    except Exception:
+        logging.exception("check_email failed for email=%s", email)
+        return Response(
+            {
+                "exists": False,
+                "can_register": False,
+                "message": "Verification indisponible. Veuillez reessayer.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def check_email(request):
-    return _build_registration_check_response(request.query_params.get('email', ''))
+    return _build_registration_check_response(
+        request.query_params.get('email', ''),
+        request.query_params.get('gender', ''),
+    )
 
 
 class UserPhotoViewSet(viewsets.ModelViewSet):
@@ -1026,4 +1241,5 @@ class UserStatsView(APIView):
 
 
         
+
 

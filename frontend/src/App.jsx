@@ -47,6 +47,7 @@ import AdminSupportConversationDetail from "./admin/pages/AdminSupportConversati
 import AdminUserConversationDetail from "./admin/pages/AdminUserConversationDetail.jsx";
 import AdminFlaggedMessages from "./admin/pages/AdminFlaggedMessages.jsx";
 import AdminWaitlist from "./admin/pages/AdminWaitlist.jsx";  // NEW IMPORT
+import AdminEmailNotifications from "./admin/pages/AdminEmailNotifications.jsx";
 
 // Analytics Pages
 import AdminAnalyticsImpressions from "./admin/pages/AdminAnalyticsImpressions.jsx";
@@ -87,6 +88,7 @@ export default function App() {
     "/admin/analytics/ranking",
     "/admin/analytics/performance",
     "/admin/waitlist",  // NEW: hide layout for waitlist admin page
+    "/admin/notifications/email",
   ];
 
   const shouldHideLayout = hidePublicLayoutRoutes.some(route => 
@@ -147,6 +149,7 @@ export default function App() {
             
             {/* NEW: Waitlist Admin Route */}
             <Route path="/admin/waitlist" element={<AdminWaitlist />} />
+            <Route path="/admin/notifications/email" element={<AdminEmailNotifications />} />
 
             {/* Analytics Routes */}
             <Route path="/admin/analytics/impressions" element={<AdminAnalyticsImpressions />} />

@@ -8,6 +8,7 @@ from matches.models import Match
 from report.models import Report
 from chat.models import Conversation, Message
 from notifications.models import Notification
+from admin_dashboard.models import NotificationEmailTemplate, NotificationEmailLog
 
 
 # ---------- Basic Serializers ----------
@@ -119,6 +120,74 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ['id', 'title', 'message', 'is_read', 'created_at']
+
+
+class NotificationEmailTemplateSerializer(serializers.ModelSerializer):
+    preview_subject = serializers.SerializerMethodField()
+    preview_html = serializers.SerializerMethodField()
+    preview_text = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NotificationEmailTemplate
+        fields = [
+            'id',
+            'event_type',
+            'name',
+            'is_enabled',
+            'subject_template',
+            'html_template',
+            'text_template',
+            'sample_payload',
+            'from_name',
+            'reply_to',
+            'version',
+            'updated_by',
+            'created_at',
+            'updated_at',
+            'preview_subject',
+            'preview_html',
+            'preview_text',
+        ]
+        read_only_fields = ['version', 'updated_by', 'created_at', 'updated_at', 'preview_subject', 'preview_html', 'preview_text']
+
+    def get_preview_subject(self, obj):
+        return obj.render_subject(obj.sample_payload or {})
+
+    def get_preview_html(self, obj):
+        return obj.render_html(obj.sample_payload or {})
+
+    def get_preview_text(self, obj):
+        return obj.render_text(obj.sample_payload or {})
+
+
+class NotificationEmailLogSerializer(serializers.ModelSerializer):
+    recipient_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = NotificationEmailLog
+        fields = [
+            'id',
+            'recipient_display',
+            'recipient_email',
+            'event_type',
+            'template_version',
+            'status',
+            'subject_rendered',
+            'provider_message_id',
+            'provider_response',
+            'error_message',
+            'retry_count',
+            'metadata',
+            'related_object_type',
+            'related_object_id',
+            'created_at',
+            'sent_at',
+        ]
+
+    def get_recipient_display(self, obj):
+        if obj.recipient:
+            return f"{obj.recipient.first_name} {obj.recipient.last_name}".strip() or obj.recipient.email
+        return obj.recipient_email
 
 
 # ---------- Admin User List Serializer ----------

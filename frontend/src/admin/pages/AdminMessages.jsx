@@ -1,4 +1,4 @@
-// src/pages/AdminMessages.jsx
+﻿// src/pages/AdminMessages.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
@@ -45,9 +45,11 @@ export default function AdminMessages() {
       const userRes = await adminRequest({ method: 'get', url: userUrl });
       setUserConvs(userRes.data);
     } catch (err) {
-      console.error('❌ Fetch error:', err);
+      console.error('âŒ Fetch error:', err);
       if (err.response?.status === 401) {
-        localStorage.clear();
+        localStorage.removeItem('admin_access');
+        localStorage.removeItem('admin_refresh');
+        localStorage.removeItem('admin_email');
         navigate('/admin/login');
       } else {
         setError('Failed to load conversations');
@@ -75,7 +77,7 @@ export default function AdminMessages() {
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
         <div className="dashboard-hero">
           <h2>Messages</h2>
-          <p>Manage all conversations – support tickets and user chats</p>
+          <p>Manage all conversations â€“ support tickets and user chats</p>
         </div>
 
         <ul className="nav nav-tabs mx-3">
@@ -115,7 +117,7 @@ export default function AdminMessages() {
                             {conv.status}
                           </span>
                         </td>
-                        <td>{conv.last_message?.content?.substring(0, 50) || '—'}</td>
+                        <td>{conv.last_message?.content?.substring(0, 50) || 'â€”'}</td>
                         <td>{new Date(conv.created_at).toLocaleDateString()}</td>
                         <td>
                           <button className="btn btn-sm btn-outline-primary" onClick={() => navigate(`/admin/messages/support/${conv.id}`)}>
@@ -155,11 +157,11 @@ export default function AdminMessages() {
                             onClick={() => navigate(`/admin/messages/user/${conv.id}`)}
                             style={{ cursor: 'pointer' }}
                           >
-                            {conv.participants?.join(' & ') || '—'}
+                            {conv.participants?.join(' & ') || 'â€”'}
                           </button>
                         </td>
-                        <td>{conv.last_message?.substring(0, 50) || '—'}</td>
-                        <td>{conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : '—'}</td>
+                        <td>{conv.last_message?.substring(0, 50) || 'â€”'}</td>
+                        <td>{conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : 'â€”'}</td>
                         <td>
                           <button className="btn btn-sm btn-outline-primary" onClick={() => navigate(`/admin/messages/user/${conv.id}`)}>
                             <i className="fas fa-eye"></i> View
@@ -183,6 +185,7 @@ export default function AdminMessages() {
     </div>
   );
 }
+
 
 
 

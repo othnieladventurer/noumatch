@@ -59,9 +59,11 @@ export const refreshAdminAccessToken = async () => {
 };
 
 export const adminRequest = async (config) => {
-  const timeout = typeof config.timeout === "number" ? config.timeout : 30000;
+  const timeout =
+    typeof config.timeout === "number" && config.timeout > 0
+      ? config.timeout
+      : undefined;
   const withToken = {
-    timeout,
     withCredentials: true,
     ...config,
     headers: {
@@ -69,6 +71,9 @@ export const adminRequest = async (config) => {
       ...getAdminAuthHeaders(),
     },
   };
+  if (timeout !== undefined) {
+    withToken.timeout = timeout;
+  }
 
   try {
     return await axios(withToken);
@@ -78,8 +83,7 @@ export const adminRequest = async (config) => {
     }
     try {
       const newAccess = await refreshAdminAccessToken();
-      return await axios({
-        timeout,
+      const retryConfig = {
         withCredentials: true,
         ...config,
         headers: {
@@ -87,7 +91,11 @@ export const adminRequest = async (config) => {
           "X-Requested-With": "XMLHttpRequest",
           Authorization: `Bearer ${newAccess}`,
         },
-      });
+      };
+      if (timeout !== undefined) {
+        retryConfig.timeout = timeout;
+      }
+      return await axios(retryConfig);
     } catch (refreshErr) {
       localStorage.removeItem("admin_access");
       localStorage.removeItem("admin_email");

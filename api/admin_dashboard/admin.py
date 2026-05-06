@@ -1,7 +1,7 @@
 # admin_dashboard/admin.py
 
 from django.contrib import admin
-from .models import ProfileImpression
+from .models import ProfileImpression, NotificationEmailTemplate, NotificationEmailLog
 
 @admin.register(ProfileImpression)
 class ProfileImpressionAdmin(admin.ModelAdmin):
@@ -57,3 +57,19 @@ class ProfileImpressionAdmin(admin.ModelAdmin):
         updated = queryset.update(was_swiped=False, swipe_action='none')
         self.message_user(request, f'{updated} impressions cleared.')
     clear_swipe_action.short_description = 'Clear swipe data'
+
+
+@admin.register(NotificationEmailTemplate)
+class NotificationEmailTemplateAdmin(admin.ModelAdmin):
+    list_display = ('event_type', 'name', 'is_enabled', 'version', 'updated_at')
+    list_filter = ('event_type', 'is_enabled')
+    search_fields = ('name', 'subject_template')
+    readonly_fields = ('created_at', 'updated_at', 'version')
+
+
+@admin.register(NotificationEmailLog)
+class NotificationEmailLogAdmin(admin.ModelAdmin):
+    list_display = ('recipient_email', 'event_type', 'status', 'template_version', 'created_at', 'sent_at')
+    list_filter = ('event_type', 'status', 'created_at')
+    search_fields = ('recipient_email', 'subject_rendered', 'error_message')
+    readonly_fields = ('created_at', 'sent_at', 'provider_response', 'metadata')

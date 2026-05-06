@@ -26,11 +26,16 @@ const staticRoutes = [
   '/admin/login',
   '/admin/dashboard',
   '/admin/users',
+  '/admin/users/detail',
   '/admin/reports',
+  '/admin/reports/cases',
   '/admin/swipe-stats',
   '/admin/messages',
+  '/admin/messages/support',
+  '/admin/messages/user',
   '/admin/flagged-messages',
   '/admin/waitlist',
+  '/admin/notifications/email',
   '/admin/analytics/impressions',
   '/admin/analytics/ranking',
   '/admin/analytics/performance',
@@ -41,6 +46,7 @@ if (!fs.existsSync(indexPath)) {
 }
 
 const indexHtml = fs.readFileSync(indexPath, 'utf8');
+const fallbackFiles = ['200.html', '404.html'];
 
 for (const route of staticRoutes) {
   if (route === '/') {
@@ -53,3 +59,6 @@ for (const route of staticRoutes) {
   fs.writeFileSync(routeIndexPath, indexHtml, 'utf8');
 }
 
+for (const fallbackFile of fallbackFiles) {
+  fs.writeFileSync(path.join(distDir, fallbackFile), indexHtml, 'utf8');
+}

@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.core.files.base import File
 from django.utils import timezone
+from pathlib import Path
 
 from django.conf import settings
 
@@ -469,6 +471,59 @@ class OTP(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.code}"
+
+
+class PendingRegistration(models.Model):
+    email = models.EmailField(unique=True)
+    first_name = models.CharField(max_length=30)
+    last_name = models.CharField(max_length=30, blank=True)
+    birth_date = models.DateField()
+    gender = models.CharField(max_length=10, choices=User.GENDER_CHOICES, blank=True)
+    profile_photo = models.ImageField(upload_to="profiles/pending/", blank=True, null=True)
+    password_hash = models.CharField(max_length=128)
+    country = models.CharField(max_length=100, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    code = models.CharField(max_length=4)
+    is_used = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    max_attempts = models.IntegerField(default=5)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def is_valid(self):
+        if self.is_used:
+            return False
+        return (timezone.now() - self.created_at).total_seconds() <= 300
+
+    def can_attempt(self):
+        return self.attempts < self.max_attempts
+
+    def increment_attempts(self):
+        self.attempts += 1
+        self.save(update_fields=["attempts"])
+
+    def reset_otp(self, code):
+        self.code = code
+        self.is_used = False
+        self.attempts = 0
+        self.save(update_fields=["code", "is_used", "attempts", "updated_at"])
+
+    def consume_profile_photo(self):
+        if not self.profile_photo:
+            return None
+
+        source_name = self.profile_photo.name
+        try:
+            with self.profile_photo.open("rb") as src:
+                filename = Path(source_name).name or f"{self.email.split('@')[0]}-profile"
+                return File(src, name=filename)
+        except FileNotFoundError:
+            return None
+
+    def __str__(self):
+        return f"Pending registration for {self.email}"
 
 
 

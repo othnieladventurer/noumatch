@@ -47,7 +47,9 @@ export const AuthProvider = ({ children }) => {
     }
 
     const response = await API.post("users/login/", { email, password });
-    localStorage.setItem("access", "1");
+    if (response.data?.access) {
+      localStorage.setItem("access", response.data.access);
+    }
     sessionStorage.setItem("nm_user_session", "1");
     await fetchUser(); // immediately fetch user object
     return response.data;
@@ -95,7 +97,9 @@ export const AuthProvider = ({ children }) => {
   const adminLogin = async (email, password) => {
     try {
       const response = await API.post("noumatch-admin/admin_login/", { email, password });
-      localStorage.setItem("admin_access", "1");
+      if (response.data?.access) {
+        localStorage.setItem("admin_access", response.data.access);
+      }
       localStorage.setItem("admin_email", email);
       return response.data;
     } catch (error) {

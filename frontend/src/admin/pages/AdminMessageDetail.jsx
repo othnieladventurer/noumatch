@@ -1,4 +1,4 @@
-// src/pages/AdminMessageDetail.jsx
+﻿// src/pages/AdminMessageDetail.jsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
@@ -47,9 +47,11 @@ export default function AdminMessageDetail() {
       const msgRes = await adminRequest({ method: 'get', url: msgUrl });
       setMessages(msgRes.data);
     } catch (err) {
-      console.error('❌ Fetch error:', err);
+      console.error('âŒ Fetch error:', err);
       if (err.response?.status === 401) {
-        localStorage.clear();
+        localStorage.removeItem('admin_access');
+        localStorage.removeItem('admin_refresh');
+        localStorage.removeItem('admin_email');
         navigate('/admin/login');
       } else {
         setError('Failed to load conversation');
@@ -72,7 +74,7 @@ export default function AdminMessageDetail() {
       setReplyText('');
       fetchConversation(); // refresh
     } catch (err) {
-      console.error('❌ Reply error:', err);
+      console.error('âŒ Reply error:', err);
       alert('Failed to send reply');
     } finally {
       setSending(false);
@@ -94,7 +96,7 @@ export default function AdminMessageDetail() {
         <div className="dashboard-hero">
           <h2>Support Conversation</h2>
           <p>With {conversation?.user?.email || `User #${conversation?.user_id}`}</p>
-          <button className="btn btn-sm btn-outline-secondary mt-2" onClick={() => navigate('/admin/messages')}>← Back to list</button>
+          <button className="btn btn-sm btn-outline-secondary mt-2" onClick={() => navigate('/admin/messages')}>â† Back to list</button>
         </div>
         <div className="recent-blocks-card" style={{ margin: '0 1rem' }}>
           <div className="card-body p-3">
@@ -128,6 +130,7 @@ export default function AdminMessageDetail() {
     </div>
   );
 }
+
 
 
 

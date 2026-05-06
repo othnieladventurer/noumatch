@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
@@ -90,7 +90,9 @@ export default function AdminReportCases() {
 
   const handleAuthError = useCallback((err) => {
     if (err.authExpired || err.response?.status === 401) {
-      localStorage.clear();
+      localStorage.removeItem('admin_access');
+        localStorage.removeItem('admin_refresh');
+        localStorage.removeItem('admin_email');
       navigate('/admin/login');
       return true;
     }
@@ -537,3 +539,4 @@ export default function AdminReportCases() {
     </div>
   );
 }
+

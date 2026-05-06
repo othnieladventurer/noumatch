@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
+import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 import { readFreshCache, writeCache } from '../utils/adminCache';
@@ -60,8 +61,16 @@ export default function AdminAnalyticsRanking() {
       }
     };
 
-    fetchRankingData(Boolean(cachedRankingData));
-  }, [navigate]);
+    if (!cachedRankingData) {
+      fetchRankingData(false);
+    }
+
+    const handleRefresh = () => {
+      fetchRankingData(false);
+    };
+    window.addEventListener('admin:refresh-page', handleRefresh);
+    return () => window.removeEventListener('admin:refresh-page', handleRefresh);
+  }, [cachedRankingData, navigate]);
 
   const handleMenuClick = (menu, path) => {
     setActiveMenu(menu);
@@ -81,9 +90,7 @@ export default function AdminAnalyticsRanking() {
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h2 className="mb-0"><i className="fas fa-chart-bar me-2 text-danger"></i>Ranking Analytics</h2>
             {loading && (
-              <div className="small text-secondary">
-                Refreshing...
-              </div>
+              <AdminPageSpinner label="Loading ranking analytics..." />
             )}
           </div>
 

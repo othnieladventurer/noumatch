@@ -2,25 +2,32 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+function deriveWsTarget(apiTarget) {
+  if (!apiTarget) return 'ws://127.0.0.1:8000'
+  if (apiTarget.startsWith('https://')) {
+    return `wss://${apiTarget.slice('https://'.length)}`
+  }
+  if (apiTarget.startsWith('http://')) {
+    return `ws://${apiTarget.slice('http://'.length)}`
+  }
+  return apiTarget
+}
+
 export default defineConfig(({ mode }) => {
-  // Load environment variables
   const env = loadEnv(mode, process.cwd(), '')
   const isStaging = mode === 'staging'
   const isProduction = mode === 'production'
   const isDevelopment = mode === 'development'
-
-  // Use environment variable for local API port, default to 8000
-  const localApiPort = env.VITE_API_PORT || '8000'
-  const localApiTarget = `http://127.0.0.1:${localApiPort}`
-  const localWsTarget = `ws://127.0.0.1:${localApiPort}`
-
-  // Determine API target based on environment
+  const localApiPort = (env.VITE_API_PORT || '').trim()
+  const localApiTarget =
+    (env.VITE_API_URL || '').trim() || `http://127.0.0.1:${localApiPort || '8000'}`
+  const localWsTarget =
+    (env.VITE_WS_URL || '').trim() || deriveWsTarget(localApiTarget)
   const apiTarget = isStaging
     ? 'https://api-staging.noumatch.com'
     : isProduction
     ? 'https://api.noumatch.com'
     : localApiTarget
-
   const wsTarget = isStaging
     ? 'wss://api-staging.noumatch.com'
     : isProduction

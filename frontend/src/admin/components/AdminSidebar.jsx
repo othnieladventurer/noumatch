@@ -15,6 +15,7 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     else if (path.includes('/admin/reports')) setInternalActiveMenu('reports');
     else if (path.includes('/admin/swipe-stats')) setInternalActiveMenu('swipe-stats');
     else if (path.includes('/admin/messages')) setInternalActiveMenu('messages');
+    else if (path.includes('/admin/notifications/email')) setInternalActiveMenu('email-notifications');
     else if (path.includes('/admin/waitlist')) setInternalActiveMenu('waitlist');
     else if (path.includes('/admin/analytics/impressions')) setInternalActiveMenu('analytics-impressions');
     else if (path.includes('/admin/analytics/ranking')) setInternalActiveMenu('analytics-ranking');
@@ -45,6 +46,7 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     { key: 'report-cases', label: 'Cases', icon: 'fas fa-briefcase', path: '/admin/reports/cases' },
     { key: 'swipe-stats', label: 'Swipe Stats', icon: 'fas fa-chart-line', path: '/admin/swipe-stats' },
     { key: 'messages', label: 'Messages', icon: 'fas fa-comment-dots', path: '/admin/messages' },
+    { key: 'email-notifications', label: 'Email Notifications', icon: 'fas fa-envelope-open-text', path: '/admin/notifications/email' },
     { key: 'analytics-impressions', label: 'Profile Impressions', icon: 'fas fa-eye', path: '/admin/analytics/impressions' },
     { key: 'analytics-ranking', label: 'Ranking Analytics', icon: 'fas fa-chart-bar', path: '/admin/analytics/ranking' },
     { key: 'analytics-performance', label: 'Performance Metrics', icon: 'fas fa-trophy', path: '/admin/analytics/performance' },

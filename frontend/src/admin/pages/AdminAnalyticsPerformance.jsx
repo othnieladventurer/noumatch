@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
+import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 import { readFreshCache, writeCache } from '../utils/adminCache';
@@ -178,7 +179,6 @@ export default function AdminAnalyticsPerformance() {
           method: 'get',
           url: `${API_BASE}/admin/metrics/active-users/`,
           params,
-          timeout: 60000,
         });
         payload = response.data;
       } catch (primaryErr) {
@@ -188,7 +188,6 @@ export default function AdminAnalyticsPerformance() {
             method: 'get',
             url: `${API_BASE}/metrics/active-users/`,
             params,
-            timeout: 60000,
           });
           payload = response.data;
         } catch (compatErr) {
@@ -234,7 +233,16 @@ export default function AdminAnalyticsPerformance() {
   };
 
   useEffect(() => {
-    fetchMetrics({ silent: Boolean(cachedMetrics) });
+    if (!cachedMetrics) {
+      fetchMetrics({ silent: false });
+    }
+
+    const handleRefresh = () => {
+      fetchMetrics({ silent: false });
+      fetchSeoMetrics();
+    };
+    window.addEventListener('admin:refresh-page', handleRefresh);
+    return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, []);
 
   const fetchSeoMetrics = async () => {
@@ -254,7 +262,9 @@ export default function AdminAnalyticsPerformance() {
   };
 
   useEffect(() => {
-    fetchSeoMetrics();
+    if (!cachedMetrics) {
+      fetchSeoMetrics();
+    }
   }, []);
 
   const handleMenuClick = (menu, path) => {
@@ -339,7 +349,7 @@ export default function AdminAnalyticsPerformance() {
               <p>Track active users, behavior quality, SEO health, and historical trend data in one workspace.</p>
             </div>
             <div className="performance-actions">
-              {loading && <span className="performance-refreshing">Refreshing...</span>}
+              {loading && <AdminPageSpinner label="Loading metrics..." />}
               <button className="btn btn-outline-secondary btn-sm" onClick={downloadCSV} disabled={!series.length}>
                 <i className="fas fa-download me-1"></i>CSV
               </button>
