@@ -81,16 +81,23 @@ DEFAULT_NOTIFICATION_EMAIL_TEMPLATES = {
 
 def ensure_notification_email_templates():
     templates = []
-    try:
-        for event_type, defaults in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.items():
-            template, _ = NotificationEmailTemplate.objects.get_or_create(
-                event_type=event_type,
-                defaults=defaults,
-            )
+    for event_type, defaults in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.items():
+        try:
+            template = NotificationEmailTemplate.objects.filter(event_type=event_type).first()
+            if template is None:
+                template = NotificationEmailTemplate.objects.create(
+                    event_type=event_type,
+                    **defaults,
+                )
             templates.append(template)
-    except (ProgrammingError, OperationalError) as exc:
-        logger.exception("Notification email templates are unavailable in the current database state: %s", exc)
-        return []
+        except (ProgrammingError, OperationalError) as exc:
+            logger.exception(
+                "Notification email template for %s is unavailable in the current database state: %s",
+                event_type,
+                exc,
+            )
+        except Exception as exc:
+            logger.exception("Failed ensuring notification email template for %s: %s", event_type, exc)
     return templates
 
 

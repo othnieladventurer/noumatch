@@ -90,6 +90,26 @@ def _admin_dashboard_fallback_payload():
     }
 
 
+def _notification_email_template_fallback_rows():
+    fallback_rows = []
+    for index, (event_type, defaults) in enumerate(DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.items(), start=1):
+        template = NotificationEmailTemplate(
+            id=-index,
+            event_type=event_type,
+            name=defaults.get('name', ''),
+            is_enabled=True,
+            subject_template=defaults.get('subject_template', ''),
+            html_template=defaults.get('html_template', ''),
+            text_template=defaults.get('text_template', ''),
+            sample_payload=defaults.get('sample_payload') or {},
+            from_name=defaults.get('from_name') or 'NouMatch',
+            reply_to=defaults.get('reply_to') or '',
+            version=1,
+        )
+        fallback_rows.append(NotificationEmailTemplateSerializer(template).data)
+    return fallback_rows
+
+
 def _paginate_queryset(request, queryset, serializer_class):
     page = max(1, int(request.GET.get('page', 1) or 1))
     page_size = int(request.GET.get('page_size', 10) or 10)
@@ -1901,6 +1921,23 @@ class AdminNotificationEmailTemplatesView(APIView):
         try:
             ensure_notification_email_templates()
             queryset = NotificationEmailTemplate.objects.select_related('updated_by').order_by('event_type')
+            if not queryset.exists():
+                return Response({
+                    'templates': _notification_email_template_fallback_rows(),
+                    'overview': {
+                        'total_logs': 0,
+                        'sent_today': 0,
+                        'failed_today': 0,
+                        'pending_total': 0,
+                        'skipped_total': 0,
+                        'by_event': {
+                            event_type: {'sent': 0, 'failed': 0, 'pending': 0, 'skipped': 0}
+                            for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                        },
+                    },
+                    'degraded': True,
+                    'warning': 'Default notification email templates were loaded because no saved templates were found yet.',
+                }, status=status.HTTP_200_OK)
             serializer = NotificationEmailTemplateSerializer(queryset, many=True)
             logs = NotificationEmailLog.objects.all()
             today = timezone.now().date()
@@ -1926,7 +1963,7 @@ class AdminNotificationEmailTemplatesView(APIView):
         except (ProgrammingError, OperationalError) as exc:
             logger.exception("Admin notification email templates unavailable; returning fallback payload: %s", exc)
             return Response({
-                'templates': [],
+                'templates': _notification_email_template_fallback_rows(),
                 'overview': {
                     'total_logs': 0,
                     'sent_today': 0,
@@ -1952,7 +1989,16 @@ class AdminNotificationEmailTemplateDetailView(APIView):
     def patch(self, request, template_id):
         try:
             ensure_notification_email_templates()
-            template = get_object_or_404(NotificationEmailTemplate, id=template_id)
+            event_type = (request.data.get('event_type') or '').strip()
+            if template_id > 0:
+                template = get_object_or_404(NotificationEmailTemplate, id=template_id)
+            else:
+                if event_type not in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES:
+                    return Response({'error': 'Valid event_type is required.'}, status=400)
+                template, _ = NotificationEmailTemplate.objects.get_or_create(
+                    event_type=event_type,
+                    defaults=DEFAULT_NOTIFICATION_EMAIL_TEMPLATES[event_type],
+                )
             serializer = NotificationEmailTemplateSerializer(template, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             updated = serializer.save(updated_by=request.user, version=template.version + 1)
