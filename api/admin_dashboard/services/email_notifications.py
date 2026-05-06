@@ -4,7 +4,7 @@ import logging
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
-from django.db import OperationalError, ProgrammingError, transaction
+from django.db import connection, OperationalError, ProgrammingError, transaction
 from django.utils import timezone
 import requests
 
@@ -79,7 +79,25 @@ DEFAULT_NOTIFICATION_EMAIL_TEMPLATES = {
 }
 
 
+def notification_email_tables_ready():
+    try:
+        table_names = set(connection.introspection.table_names())
+    except Exception as exc:
+        logger.exception("Unable to inspect notification email tables: %s", exc)
+        return False
+
+    required_tables = {
+        NotificationEmailTemplate._meta.db_table,
+        NotificationEmailLog._meta.db_table,
+    }
+    return required_tables.issubset(table_names)
+
+
 def ensure_notification_email_templates():
+    if not notification_email_tables_ready():
+        logger.warning("Notification email tables are not ready yet; skipping template bootstrap.")
+        return []
+
     templates = []
     for event_type, defaults in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.items():
         try:
@@ -171,6 +189,10 @@ def _send_via_brevo(subject, html_body, text_body, recipient_email, recipient_na
 
 
 def _create_log(template, recipient, recipient_email, event_type, subject, html_body, text_body, status, metadata, related_object=None, error_message=""):
+    if not notification_email_tables_ready():
+        logger.warning("Notification email log table is not ready; skipping log creation for %s.", event_type)
+        return None
+
     return NotificationEmailLog.objects.create(
         recipient=recipient,
         recipient_email=recipient_email,
@@ -215,7 +237,7 @@ def _send_notification_email_with_template(template, event_type, recipient=None,
             error_message="Template missing or disabled.",
         )
 
-    if event_type == "new_message":
+    if event_type == "new_message" and notification_email_tables_ready():
         conversation_id = (metadata or {}).get("conversation_id")
         cooldown_minutes = int(getattr(settings, "NOTIFICATION_EMAIL_MESSAGE_COOLDOWN_MINUTES", 15) or 15)
         cooldown_start = timezone.now() - timedelta(minutes=cooldown_minutes)
@@ -303,6 +325,9 @@ def _send_notification_email_with_template(template, event_type, recipient=None,
 
 
 def send_event_notification_email(event_type, recipient, context_data, *, related_object=None, metadata=None):
+    if not notification_email_tables_ready():
+        logger.warning("Notification email tables are not ready; skipping event email send for %s.", event_type)
+        return None
     ensure_notification_email_templates()
     template = NotificationEmailTemplate.objects.filter(event_type=event_type).first()
     return _send_notification_email_with_template(
@@ -316,6 +341,8 @@ def send_event_notification_email(event_type, recipient, context_data, *, relate
 
 
 def send_test_notification_email(event_type, recipient_email, context_data, *, template_overrides=None, metadata=None):
+    if not notification_email_tables_ready():
+        raise RuntimeError("Notification email tables are not available yet. Run the latest admin_dashboard migrations.")
     ensure_notification_email_templates()
     base_template = NotificationEmailTemplate.objects.filter(event_type=event_type).first()
     if not base_template:

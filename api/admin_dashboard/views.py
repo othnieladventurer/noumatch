@@ -43,6 +43,7 @@ from admin_dashboard.serializers import NotificationEmailTemplateSerializer, Not
 from admin_dashboard.services.email_notifications import (
     DEFAULT_NOTIFICATION_EMAIL_TEMPLATES,
     ensure_notification_email_templates,
+    notification_email_tables_ready,
     send_test_notification_email,
 )
 from admin_dashboard.services.ranking import compute_ranking_score
@@ -1918,6 +1919,24 @@ class AdminNotificationEmailTemplatesView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
+        if not notification_email_tables_ready():
+            return Response({
+                'templates': _notification_email_template_fallback_rows(),
+                'overview': {
+                    'total_logs': 0,
+                    'sent_today': 0,
+                    'failed_today': 0,
+                    'pending_total': 0,
+                    'skipped_total': 0,
+                    'by_event': {
+                        event_type: {'sent': 0, 'failed': 0, 'pending': 0, 'skipped': 0}
+                        for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                    },
+                },
+                'degraded': True,
+                'warning': 'Notification email tables are not available yet. Run the latest admin_dashboard migrations.',
+            }, status=status.HTTP_200_OK)
+
         try:
             ensure_notification_email_templates()
             queryset = NotificationEmailTemplate.objects.select_related('updated_by').order_by('event_type')
@@ -1987,6 +2006,9 @@ class AdminNotificationEmailTemplateDetailView(APIView):
     permission_classes = [IsAdminUser]
 
     def patch(self, request, template_id):
+        if not notification_email_tables_ready():
+            return Response({'error': 'Notification email tables are not available yet. Run the latest admin_dashboard migrations.'}, status=503)
+
         try:
             ensure_notification_email_templates()
             event_type = (request.data.get('event_type') or '').strip()
@@ -2012,6 +2034,16 @@ class AdminNotificationEmailLogsView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
+        if not notification_email_tables_ready():
+            return Response({
+                'results': [],
+                'total': 0,
+                'page': 1,
+                'pages': 0,
+                'degraded': True,
+                'warning': 'Notification email tables are not available yet. Run the latest admin_dashboard migrations.',
+            }, status=status.HTTP_200_OK)
+
         try:
             page = max(1, int(request.GET.get('page', 1) or 1))
             limit = min(100, max(10, int(request.GET.get('limit', 20) or 20)))
