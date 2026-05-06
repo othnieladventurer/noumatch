@@ -1,12 +1,16 @@
 from datetime import timedelta
 from email.utils import formataddr
+import logging
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.utils import timezone
+import requests
 
 from admin_dashboard.models import NotificationEmailTemplate, NotificationEmailLog
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_NOTIFICATION_EMAIL_TEMPLATES = {
@@ -108,6 +112,53 @@ def _default_text_from_html(html):
     )
 
 
+def _sender_email_address():
+    return settings.DEFAULT_FROM_EMAIL.split("<")[-1].replace(">", "").strip()
+
+
+def _send_via_brevo(subject, html_body, text_body, recipient_email, recipient_name, from_name, reply_to):
+    api_key = getattr(settings, "BREVO_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("BREVO_API_KEY is not configured")
+
+    payload = {
+        "sender": {"name": from_name or "NouMatch", "email": _sender_email_address()},
+        "to": [{"email": recipient_email, "name": recipient_name or recipient_email.split("@")[0]}],
+        "subject": subject,
+        "htmlContent": html_body,
+        "textContent": text_body,
+    }
+    if reply_to:
+        payload["replyTo"] = {"email": reply_to[0]}
+
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json",
+    }
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        json=payload,
+        headers=headers,
+        timeout=15,
+    )
+    response_payload = {}
+    try:
+        response_payload = response.json()
+    except Exception:
+        response_payload = {"raw": response.text[:500]}
+
+    if response.status_code != 201:
+        message = response_payload.get("message") or response.text or f"Brevo send failed with status {response.status_code}"
+        raise RuntimeError(message)
+
+    return {
+        "provider": "brevo_api",
+        "message_id": response_payload.get("messageId") or response_payload.get("message_id") or "",
+        "response": response_payload,
+    }
+
+
 def _create_log(template, recipient, recipient_email, event_type, subject, html_body, text_body, status, metadata, related_object=None, error_message=""):
     return NotificationEmailLog.objects.create(
         recipient=recipient,
@@ -196,24 +247,42 @@ def _send_notification_email_with_template(template, event_type, recipient=None,
         related_object=related_object,
     )
 
-    from_email = formataddr((template.from_name or "NouMatch", settings.DEFAULT_FROM_EMAIL.split("<")[-1].replace(">", "").strip()))
+    from_email = formataddr((template.from_name or "NouMatch", _sender_email_address()))
     reply_to = [template.reply_to] if template.reply_to else None
+    recipient_name = context.get("recipient_name") or resolved_email.split("@")[0]
 
     try:
-        message = EmailMultiAlternatives(
-            subject=subject,
-            body=text_body,
-            from_email=from_email,
-            to=[resolved_email],
-            reply_to=reply_to,
-        )
-        if html_body:
-            message.attach_alternative(html_body, "text/html")
-        message.send(fail_silently=False)
+        provider_info = None
+        if getattr(settings, "BREVO_API_KEY", ""):
+            provider_info = _send_via_brevo(
+                subject,
+                html_body,
+                text_body,
+                resolved_email,
+                recipient_name,
+                template.from_name,
+                reply_to,
+            )
+        else:
+            message = EmailMultiAlternatives(
+                subject=subject,
+                body=text_body,
+                from_email=from_email,
+                to=[resolved_email],
+                reply_to=reply_to,
+            )
+            if html_body:
+                message.attach_alternative(html_body, "text/html")
+            message.send(fail_silently=False)
+            provider_info = {"provider": "django_smtp", "message_id": "", "response": {}}
+
         log.status = "sent"
         log.sent_at = timezone.now()
-        log.save(update_fields=["status", "sent_at"])
+        log.provider_message_id = provider_info.get("message_id", "")
+        log.provider_response = provider_info.get("response", {})
+        log.save(update_fields=["status", "sent_at", "provider_message_id", "provider_response"])
     except Exception as exc:
+        logger.exception("Notification email send failed for %s -> %s", event_type, resolved_email)
         log.status = "failed"
         log.error_message = str(exc)
         log.retry_count += 1

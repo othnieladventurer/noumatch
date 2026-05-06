@@ -1998,6 +1998,7 @@ class AdminNotificationEmailTestSendView(APIView):
                 'success': True,
                 'status': log.status,
                 'log_id': log.id,
+                'error_message': log.error_message,
                 'message': f'Test {event_type} email processed with status: {log.status}',
             })
         except Exception as exc:

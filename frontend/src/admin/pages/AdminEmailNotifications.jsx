@@ -273,7 +273,9 @@ export default function AdminEmailNotifications() {
       setTestState((prev) => ({
         ...prev,
         sending: false,
-        result: res.data?.message || `Test email finished with status: ${res.data?.status || 'unknown'}`,
+        result: res.data?.error_message
+          ? `${res.data?.message || 'Test email processed'} (${res.data.error_message})`
+          : (res.data?.message || `Test email finished with status: ${res.data?.status || 'unknown'}`),
       }));
       fetchLogs(1, true);
       fetchTemplates(true);
