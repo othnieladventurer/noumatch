@@ -4,7 +4,7 @@ import logging
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
-from django.db import transaction
+from django.db import OperationalError, ProgrammingError, transaction
 from django.utils import timezone
 import requests
 
@@ -81,12 +81,16 @@ DEFAULT_NOTIFICATION_EMAIL_TEMPLATES = {
 
 def ensure_notification_email_templates():
     templates = []
-    for event_type, defaults in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.items():
-        template, _ = NotificationEmailTemplate.objects.get_or_create(
-            event_type=event_type,
-            defaults=defaults,
-        )
-        templates.append(template)
+    try:
+        for event_type, defaults in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.items():
+            template, _ = NotificationEmailTemplate.objects.get_or_create(
+                event_type=event_type,
+                defaults=defaults,
+            )
+            templates.append(template)
+    except (ProgrammingError, OperationalError) as exc:
+        logger.exception("Notification email templates are unavailable in the current database state: %s", exc)
+        return []
     return templates
 
 

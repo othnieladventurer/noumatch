@@ -17,7 +17,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.db import DatabaseError
+from django.db import DatabaseError, OperationalError, ProgrammingError
 from django.conf import settings
 import logging
 import requests
@@ -1898,75 +1898,112 @@ class AdminNotificationEmailTemplatesView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        ensure_notification_email_templates()
-        queryset = NotificationEmailTemplate.objects.select_related('updated_by').order_by('event_type')
-        serializer = NotificationEmailTemplateSerializer(queryset, many=True)
-        logs = NotificationEmailLog.objects.all()
-        today = timezone.now().date()
-        return Response({
-            'templates': serializer.data,
-            'overview': {
-                'total_logs': logs.count(),
-                'sent_today': logs.filter(status='sent', created_at__date=today).count(),
-                'failed_today': logs.filter(status='failed', created_at__date=today).count(),
-                'pending_total': logs.filter(status='pending').count(),
-                'skipped_total': logs.filter(status='skipped').count(),
-                'by_event': {
-                    event_type: {
-                        'sent': logs.filter(event_type=event_type, status='sent').count(),
-                        'failed': logs.filter(event_type=event_type, status='failed').count(),
-                        'pending': logs.filter(event_type=event_type, status='pending').count(),
-                        'skipped': logs.filter(event_type=event_type, status='skipped').count(),
-                    }
-                    for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+        try:
+            ensure_notification_email_templates()
+            queryset = NotificationEmailTemplate.objects.select_related('updated_by').order_by('event_type')
+            serializer = NotificationEmailTemplateSerializer(queryset, many=True)
+            logs = NotificationEmailLog.objects.all()
+            today = timezone.now().date()
+            return Response({
+                'templates': serializer.data,
+                'overview': {
+                    'total_logs': logs.count(),
+                    'sent_today': logs.filter(status='sent', created_at__date=today).count(),
+                    'failed_today': logs.filter(status='failed', created_at__date=today).count(),
+                    'pending_total': logs.filter(status='pending').count(),
+                    'skipped_total': logs.filter(status='skipped').count(),
+                    'by_event': {
+                        event_type: {
+                            'sent': logs.filter(event_type=event_type, status='sent').count(),
+                            'failed': logs.filter(event_type=event_type, status='failed').count(),
+                            'pending': logs.filter(event_type=event_type, status='pending').count(),
+                            'skipped': logs.filter(event_type=event_type, status='skipped').count(),
+                        }
+                        for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                    },
                 },
-            },
-        })
+            })
+        except (ProgrammingError, OperationalError) as exc:
+            logger.exception("Admin notification email templates unavailable; returning fallback payload: %s", exc)
+            return Response({
+                'templates': [],
+                'overview': {
+                    'total_logs': 0,
+                    'sent_today': 0,
+                    'failed_today': 0,
+                    'pending_total': 0,
+                    'skipped_total': 0,
+                    'by_event': {
+                        event_type: {'sent': 0, 'failed': 0, 'pending': 0, 'skipped': 0}
+                        for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                    },
+                },
+                'degraded': True,
+                'warning': 'Notification email data is temporarily unavailable. Run the latest admin_dashboard migrations if this persists.',
+            }, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.exception("AdminNotificationEmailTemplatesView failed: %s", exc)
+            return Response({'error': 'Failed to load notification email templates.'}, status=500)
 
 
 class AdminNotificationEmailTemplateDetailView(APIView):
     permission_classes = [IsAdminUser]
 
     def patch(self, request, template_id):
-        ensure_notification_email_templates()
-        template = get_object_or_404(NotificationEmailTemplate, id=template_id)
-        serializer = NotificationEmailTemplateSerializer(template, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        updated = serializer.save(updated_by=request.user, version=template.version + 1)
-        return Response(NotificationEmailTemplateSerializer(updated).data)
+        try:
+            ensure_notification_email_templates()
+            template = get_object_or_404(NotificationEmailTemplate, id=template_id)
+            serializer = NotificationEmailTemplateSerializer(template, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            updated = serializer.save(updated_by=request.user, version=template.version + 1)
+            return Response(NotificationEmailTemplateSerializer(updated).data)
+        except (ProgrammingError, OperationalError) as exc:
+            logger.exception("Admin notification email template update unavailable: %s", exc)
+            return Response({'error': 'Notification email templates are temporarily unavailable.'}, status=503)
 
 
 class AdminNotificationEmailLogsView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        page = max(1, int(request.GET.get('page', 1) or 1))
-        limit = min(100, max(10, int(request.GET.get('limit', 20) or 20)))
-        event_type = (request.GET.get('event_type') or '').strip()
-        status_filter = (request.GET.get('status') or '').strip()
-        search = (request.GET.get('search') or '').strip()
+        try:
+            page = max(1, int(request.GET.get('page', 1) or 1))
+            limit = min(100, max(10, int(request.GET.get('limit', 20) or 20)))
+            event_type = (request.GET.get('event_type') or '').strip()
+            status_filter = (request.GET.get('status') or '').strip()
+            search = (request.GET.get('search') or '').strip()
 
-        queryset = NotificationEmailLog.objects.select_related('recipient').all()
-        if event_type:
-            queryset = queryset.filter(event_type=event_type)
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        if search:
-            queryset = queryset.filter(
-                Q(recipient_email__icontains=search) |
-                Q(subject_rendered__icontains=search)
-            )
+            queryset = NotificationEmailLog.objects.select_related('recipient').all()
+            if event_type:
+                queryset = queryset.filter(event_type=event_type)
+            if status_filter:
+                queryset = queryset.filter(status=status_filter)
+            if search:
+                queryset = queryset.filter(
+                    Q(recipient_email__icontains=search) |
+                    Q(subject_rendered__icontains=search)
+                )
 
-        total = queryset.count()
-        start = (page - 1) * limit
-        rows = queryset[start:start + limit]
-        serializer = NotificationEmailLogSerializer(rows, many=True)
-        return Response({
-            'results': serializer.data,
-            'total': total,
-            'page': page,
-            'pages': ceil(total / limit) if limit > 0 else 1,
-        })
+            total = queryset.count()
+            start = (page - 1) * limit
+            rows = queryset[start:start + limit]
+            serializer = NotificationEmailLogSerializer(rows, many=True)
+            return Response({
+                'results': serializer.data,
+                'total': total,
+                'page': page,
+                'pages': ceil(total / limit) if limit > 0 else 1,
+            })
+        except (ProgrammingError, OperationalError) as exc:
+            logger.exception("Admin notification email logs unavailable; returning empty payload: %s", exc)
+            return Response({
+                'results': [],
+                'total': 0,
+                'page': 1,
+                'pages': 0,
+                'degraded': True,
+                'warning': 'Notification email logs are temporarily unavailable. Run the latest admin_dashboard migrations if this persists.',
+            }, status=status.HTTP_200_OK)
 
 
 class AdminNotificationEmailTestSendView(APIView):
