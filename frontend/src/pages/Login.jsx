@@ -23,8 +23,20 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await API.post("users/login/", formData);
-      localStorage.setItem("access", "1");
+      localStorage.removeItem("admin_access");
+      localStorage.removeItem("admin_refresh");
+      localStorage.removeItem("admin_email");
+
+      const response = await API.post("users/login/", formData);
+      const accessToken = response.data?.access;
+      if (!accessToken || accessToken.split(".").length !== 3) {
+        throw new Error("Invalid login response. Please try again.");
+      }
+
+      localStorage.setItem("access", accessToken);
+      if (response.data?.refresh) {
+        localStorage.setItem("refresh", response.data.refresh);
+      }
       sessionStorage.setItem("nm_user_session", "1");
       navigate("/dashboard");
     } catch (error) {
@@ -32,6 +44,8 @@ export default function Login() {
         setErrorMessage(t("login.errorInvalidCredentials"));
       } else if (error.response?.data?.detail) {
         setErrorMessage(error.response.data.detail);
+      } else if (error.message) {
+        setErrorMessage(error.message);
       } else {
         setErrorMessage(t("login.errorGeneric"));
       }

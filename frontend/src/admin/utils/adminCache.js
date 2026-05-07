@@ -1,3 +1,5 @@
+const CURRENT_PAGE_CACHE_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 const readEntry = (key) => {
   try {
     const raw = sessionStorage.getItem(key);
@@ -11,6 +13,7 @@ const readEntry = (key) => {
 export const readFreshCache = (key, ttlMs = 60000) => {
   const entry = readEntry(key);
   if (!entry?.timestamp) return null;
+  if (entry.pageCacheId !== CURRENT_PAGE_CACHE_ID) return null;
   if (Date.now() - entry.timestamp > ttlMs) return null;
   return entry.data ?? null;
 };
@@ -21,6 +24,7 @@ export const writeCache = (key, data) => {
       key,
       JSON.stringify({
         timestamp: Date.now(),
+        pageCacheId: CURRENT_PAGE_CACHE_ID,
         data,
       })
     );

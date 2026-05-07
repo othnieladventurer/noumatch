@@ -32,6 +32,10 @@ export default function AdminLogin() {
     setLoading(true);
     setError('');
     try {
+      localStorage.removeItem('access');
+      localStorage.removeItem('refresh');
+      sessionStorage.removeItem('nm_user_session');
+
       const url = `${API_BASE}/admin_login/`;
       const res = await axios.post(url, { email, password }, { withCredentials: true });
       persistAdminAccessToken(res.data?.access);

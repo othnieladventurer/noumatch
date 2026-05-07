@@ -24,9 +24,7 @@ const getFrontendUrl = () => {
 const FRONTEND_URL = getFrontendUrl();
 
 const isAdminMode = () => {
-  const hasAdminToken = !!localStorage.getItem("admin_access");
-  const isAdminPath = window.location.pathname.startsWith("/admin");
-  return hasAdminToken || isAdminPath;
+  return window.location.pathname.startsWith("/admin");
 };
 
 const looksLikeJwt = (value) => typeof value === "string" && value.split(".").length === 3;
