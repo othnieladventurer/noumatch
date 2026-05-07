@@ -6,10 +6,8 @@ import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
-import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
-const IMPRESSIONS_CACHE_KEY = 'admin_impressions_v1';
 
 const emptyFilters = {
   viewer_email: '',
@@ -32,12 +30,10 @@ const normalizeImpressionsPayload = (payload) => {
 
 export default function AdminAnalyticsImpressions() {
   const navigate = useNavigate();
-  const cachedPayload = readFreshCache(IMPRESSIONS_CACHE_KEY, 120000);
-  const cachedImpressions = normalizeImpressionsPayload(cachedPayload);
-  const [impressions, setImpressions] = useState(cachedPayload ? cachedImpressions.data : []);
-  const [loading, setLoading] = useState(!cachedPayload);
+  const [impressions, setImpressions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [warning, setWarning] = useState(cachedPayload ? cachedImpressions.warning : '');
+  const [warning, setWarning] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('analytics-impressions');
@@ -64,9 +60,7 @@ export default function AdminAnalyticsImpressions() {
       navigate('/admin/login');
       return;
     }
-    if (!cachedPayload) {
-      fetchImpressions(false);
-    }
+    fetchImpressions(false);
 
     const handleRefresh = () => {
       fetchImpressions(false);
@@ -98,7 +92,6 @@ export default function AdminAnalyticsImpressions() {
       const normalized = normalizeImpressionsPayload(response.data);
       setImpressions(normalized.data);
       setWarning(normalized.warning);
-      writeCache(IMPRESSIONS_CACHE_KEY, response.data);
       setCurrentPage(1); // Reset to first page when new data loads
       setError('');
     } catch (err) {
@@ -206,7 +199,8 @@ export default function AdminAnalyticsImpressions() {
       'Feed Position',
       'Ranking Score',
       'Swipe Action',
-      'Device Type'
+      'Device Type',
+      'Source'
     ];
 
     const rows = impressions.map(imp => [
@@ -217,10 +211,11 @@ export default function AdminAnalyticsImpressions() {
       imp.viewed_name || '',
       imp.viewed_email || '',
       imp.viewed_location || '',
-      imp.feed_position + 1,
-      imp.ranking_score,
+      imp.feed_position == null ? 'N/A' : imp.feed_position + 1,
+      imp.ranking_score ?? 'N/A',
       imp.swipe_action === 'like' ? 'Like' : imp.swipe_action === 'pass' ? 'Pass' : 'Pending',
-      imp.device_type || 'unknown'
+      imp.device_type || 'unknown',
+      imp.source || 'profile_impression'
     ]);
 
     const csvContent = [
@@ -390,12 +385,13 @@ export default function AdminAnalyticsImpressions() {
                       <th>Score</th>
                       <th>Swipe</th>
                       <th>Device</th>
+                      <th>Source</th>
                     </tr>
                   </thead>
                   <tbody>
                     {currentItems.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="text-center py-5">
+                        <td colSpan="8" className="text-center py-5">
                           {loading ? (
                             <AdminPageSpinner label="Loading impression records..." />
                           ) : (
@@ -433,11 +429,13 @@ export default function AdminAnalyticsImpressions() {
                             )}
                             </td>
                           <td className="text-center">
-                            <span className="badge bg-secondary">#{imp.feed_position + 1}</span>
+                            <span className="badge bg-secondary">
+                              {imp.feed_position == null ? 'N/A' : `#${imp.feed_position + 1}`}
+                            </span>
                             </td>
                           <td>
-                            <span className={`badge ${imp.ranking_score >= 70 ? 'bg-success' : imp.ranking_score >= 40 ? 'bg-warning' : 'bg-danger'}`}>
-                              {imp.ranking_score}
+                            <span className={`badge ${imp.ranking_score == null ? 'bg-secondary' : imp.ranking_score >= 70 ? 'bg-success' : imp.ranking_score >= 40 ? 'bg-warning' : 'bg-danger'}`}>
+                              {imp.ranking_score ?? 'N/A'}
                             </span>
                             </td>
                           <td>
@@ -449,6 +447,11 @@ export default function AdminAnalyticsImpressions() {
                             <i className={`fas ${imp.device_type === 'mobile' ? 'fa-mobile-alt' : 'fa-desktop'} me-1`}></i>
                             {imp.device_type}
                             </td>
+                          <td>
+                            <span className={`badge ${imp.source ? 'bg-info' : 'bg-primary'}`}>
+                              {imp.source ? 'Interaction' : 'Impression'}
+                            </span>
+                          </td>
                         </tr>
                       ))
                     )}

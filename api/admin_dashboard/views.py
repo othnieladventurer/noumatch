@@ -194,9 +194,149 @@ def _delete_user_account_graph(user):
     return total_deleted, deleted_by_model
 
 
+def _user_display_name(user):
+    return f"{user.first_name} {user.last_name}".strip() or user.email.split('@')[0]
+
+
+def _user_location(user):
+    return f"{user.city}, {user.country}" if user.city and user.country else user.city or user.country or ""
+
+
+def _filter_interaction_queryset(queryset, request):
+    viewer_search = request.GET.get('viewer_email')
+    if viewer_search:
+        queryset = queryset.filter(
+            Q(from_user__email__icontains=viewer_search)
+            | Q(from_user__first_name__icontains=viewer_search)
+            | Q(from_user__last_name__icontains=viewer_search)
+        )
+
+    viewed_search = request.GET.get('viewed_email')
+    if viewed_search:
+        queryset = queryset.filter(
+            Q(to_user__email__icontains=viewed_search)
+            | Q(to_user__first_name__icontains=viewed_search)
+            | Q(to_user__last_name__icontains=viewed_search)
+        )
+
+    date_from = request.GET.get('date_from')
+    if date_from:
+        queryset = queryset.filter(created_at__date__gte=date_from)
+
+    date_to = request.GET.get('date_to')
+    if date_to:
+        queryset = queryset.filter(created_at__date__lte=date_to)
+
+    return queryset
+
+
+def _interaction_impression_rows(request, limit=500):
+    swipe_action = request.GET.get('swipe_action')
+    include_likes = swipe_action in (None, '', 'like')
+    include_passes = swipe_action in (None, '', 'pass')
+
+    rows = []
+    total = 0
+    sources = []
+
+    for model, action, label in (
+        (Like, 'like', 'like_fallback'),
+        (Pass, 'pass', 'pass_fallback'),
+    ):
+        if action == 'like' and not include_likes:
+            continue
+        if action == 'pass' and not include_passes:
+            continue
+
+        queryset = _filter_interaction_queryset(
+            model.objects.select_related('from_user', 'to_user').order_by('-created_at'),
+            request,
+        )
+        total += queryset.count()
+        sources.append(label)
+
+        for event in queryset[:limit]:
+            viewer = event.from_user
+            viewed = event.to_user
+            rows.append({
+                'id': f'{action}-{event.id}',
+                'viewer_email': viewer.email,
+                'viewer_name': _user_display_name(viewer),
+                'viewer_location': _user_location(viewer),
+                'viewed_email': viewed.email,
+                'viewed_name': _user_display_name(viewed),
+                'viewed_location': _user_location(viewed),
+                'timestamp': event.created_at,
+                'feed_position': None,
+                'ranking_score': None,
+                'swipe_action': action,
+                'device_type': 'unknown',
+                'session_id': 'interaction',
+                'source': label,
+            })
+
+    rows.sort(key=lambda item: item['timestamp'], reverse=True)
+    return rows[:limit], total, sources
+
+
+def _interaction_ranking_metrics():
+    likes_by_profile = {
+        row['to_user_id']: row['count']
+        for row in Like.objects.values('to_user_id').annotate(count=Count('id'))
+    }
+    passes_by_profile = {
+        row['to_user_id']: row['count']
+        for row in Pass.objects.values('to_user_id').annotate(count=Count('id'))
+    }
+
+    profile_ids = set(likes_by_profile) | set(passes_by_profile)
+    total_likes = sum(likes_by_profile.values())
+    total_passes = sum(passes_by_profile.values())
+    total_events = total_likes + total_passes
+    if total_events == 0:
+        return None
+
+    users_by_id = User.objects.in_bulk(profile_ids)
+    top_profiles = []
+    for profile_id in profile_ids:
+        likes = likes_by_profile.get(profile_id, 0)
+        passes = passes_by_profile.get(profile_id, 0)
+        total = likes + passes
+        user = users_by_id.get(profile_id)
+        top_profiles.append({
+            'user_id': profile_id,
+            'user_email': user.email if user else 'Deleted user',
+            'impressions': total,
+            'likes': likes,
+            'like_rate': round((likes / total) * 100, 1) if total else 0,
+            'avg_position': None,
+        })
+
+    top_profiles.sort(key=lambda item: (item['likes'], item['impressions']), reverse=True)
+
+    return {
+        'total_impressions': total_events,
+        'total_likes_from_impressions': total_likes,
+        'total_passes_from_impressions': total_passes,
+        'impression_conversion_rate': round((total_likes / total_events) * 100, 1),
+        'avg_ranking_score': 0.0,
+        'position1_like_rate': 0.0,
+        'top_performing_profiles': top_profiles[:10],
+        'position_performance': [],
+        'generated_at': timezone.now(),
+        'source': 'interactions_fallback',
+        'warning': 'No profile impression rows were found yet. Showing like/pass interaction analytics until impression tracking collects new rows.',
+    }
+
+
 def _profile_impression_metrics():
     try:
         total_impressions = ProfileImpression.objects.count()
+        if total_impressions == 0:
+            fallback_metrics = _interaction_ranking_metrics()
+            if fallback_metrics:
+                return fallback_metrics
+
         total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
         total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
 
@@ -214,7 +354,6 @@ def _profile_impression_metrics():
         top_profiles = []
         profile_stats = ProfileImpression.objects.filter(
             timestamp__gte=seven_days_ago,
-            was_swiped=True,
         ).values('viewed__email', 'viewed__id').annotate(
             total_impressions=Count('id'),
             likes=Count('id', filter=Q(swipe_action='like')),
@@ -2467,7 +2606,18 @@ class AdminAnalyticsImpressionsView(APIView):
                 'limited_to': 500,
                 'generated_at': timezone.now(),
             }
-            if total_matching > 500:
+            if not data:
+                fallback_rows, fallback_total, fallback_sources = _interaction_impression_rows(request)
+                if fallback_rows:
+                    data = fallback_rows
+                    total_matching = fallback_total
+                    payload['data'] = data
+                    payload['total'] = total_matching
+                    payload['source'] = 'interactions_fallback'
+                    payload['sources'] = fallback_sources
+                    payload['warning'] = 'No matching profile impression rows were found. Showing like/pass interaction records so admin analytics still displays who interacted with who.'
+
+            if total_matching > 500 and 'warning' not in payload:
                 payload['warning'] = 'Showing the latest 500 impressions. Use filters to narrow the result.'
             return Response(payload)
         except Exception as exc:
