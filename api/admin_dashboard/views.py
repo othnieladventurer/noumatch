@@ -17,7 +17,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.db import DatabaseError, OperationalError, ProgrammingError
+from django.db import DatabaseError, IntegrityError, OperationalError, ProgrammingError
+from django.db.models.deletion import ProtectedError
 from django.conf import settings
 import logging
 import requests
@@ -508,8 +509,44 @@ class AdminUsersManagementView(APIView):
         user = get_object_or_404(User, id=user_id)
         if user.id == request.user.id:
             return Response({'error': 'You cannot delete your own account'}, status=400)
-        user.delete()
-        return Response({'success': True})
+        if user.is_superuser and not request.user.is_superuser:
+            return Response({'error': 'Only a super admin can delete another super admin account'}, status=403)
+
+        user_email = user.email
+        try:
+            with transaction.atomic():
+                deleted_count, deleted_by_model = user.delete()
+        except ProtectedError as exc:
+            logger.warning("Admin user delete blocked for user_id=%s: %s", user_id, exc)
+            return Response({
+                'error': 'This user is linked to protected records and cannot be deleted safely.',
+                'code': 'protected_records',
+            }, status=status.HTTP_409_CONFLICT)
+        except (OperationalError, ProgrammingError) as exc:
+            logger.exception("Admin user delete schema/database readiness failure for user_id=%s: %s", user_id, exc)
+            return Response({
+                'error': 'User deletion could not run because the database schema is not ready. Run the latest migrations and retry.',
+                'code': 'database_schema_not_ready',
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except (IntegrityError, DatabaseError) as exc:
+            logger.exception("Admin user delete database failure for user_id=%s: %s", user_id, exc)
+            return Response({
+                'error': 'User deletion failed because related database records could not be removed safely. Nothing was deleted.',
+                'code': 'database_delete_failed',
+            }, status=status.HTTP_409_CONFLICT)
+        except Exception as exc:
+            logger.exception("Admin user delete unexpected failure for user_id=%s: %s", user_id, exc)
+            return Response({
+                'error': 'User deletion failed unexpectedly. The server logged the details for review.',
+                'code': 'delete_failed',
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            'success': True,
+            'deleted_email': user_email,
+            'deleted_count': deleted_count,
+            'deleted_by_model': deleted_by_model,
+        })
 
 
 # ---------- Dashboard ----------
