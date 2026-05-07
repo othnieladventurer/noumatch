@@ -272,7 +272,8 @@ export default function Register() {
     setLoading(true);
     try {
       const response = await API.post("users/register/", data, {
-        headers: { "Content-Type": "multipart/form-data" }
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 0,
       });
       navigate("/verify-otp", {
         state: { userId: response.data.user_id, email: formData.email }
