@@ -43,7 +43,7 @@ export default function AdminAnalyticsRanking() {
         if (!silent) {
           setLoading(true);
         }
-        const response = await adminRequest({ method: 'get', url: `${API_BASE}/dashboard/` });
+        const response = await adminRequest({ method: 'get', url: `${API_BASE}/analytics/ranking/` });
         setData(response.data);
         writeCache(RANKING_CACHE_KEY, response.data);
         setError('');

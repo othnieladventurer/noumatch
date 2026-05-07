@@ -11,12 +11,33 @@ import { readFreshCache, writeCache } from '../utils/adminCache';
 const API_BASE = getAdminApiBase();
 const IMPRESSIONS_CACHE_KEY = 'admin_impressions_v1';
 
+const emptyFilters = {
+  viewer_email: '',
+  viewed_email: '',
+  swipe_action: '',
+  date_from: '',
+  date_to: ''
+};
+
+const normalizeImpressionsPayload = (payload) => {
+  if (Array.isArray(payload)) {
+    return { data: payload, warning: '' };
+  }
+
+  return {
+    data: Array.isArray(payload?.data) ? payload.data : [],
+    warning: payload?.warning || '',
+  };
+};
+
 export default function AdminAnalyticsImpressions() {
   const navigate = useNavigate();
-  const cachedImpressions = readFreshCache(IMPRESSIONS_CACHE_KEY, 120000);
-  const [impressions, setImpressions] = useState(cachedImpressions || []);
-  const [loading, setLoading] = useState(!cachedImpressions);
+  const cachedPayload = readFreshCache(IMPRESSIONS_CACHE_KEY, 120000);
+  const cachedImpressions = normalizeImpressionsPayload(cachedPayload);
+  const [impressions, setImpressions] = useState(cachedPayload ? cachedImpressions.data : []);
+  const [loading, setLoading] = useState(!cachedPayload);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState(cachedPayload ? cachedImpressions.warning : '');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('analytics-impressions');
@@ -25,13 +46,7 @@ export default function AdminAnalyticsImpressions() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   
-  const [filters, setFilters] = useState({
-    viewer_email: '',
-    viewed_email: '',
-    swipe_action: '',
-    date_from: '',
-    date_to: ''
-  });
+  const [filters, setFilters] = useState(emptyFilters);
 
   useEffect(() => {
     if (darkMode) {
@@ -49,7 +64,7 @@ export default function AdminAnalyticsImpressions() {
       navigate('/admin/login');
       return;
     }
-    if (!cachedImpressions) {
+    if (!cachedPayload) {
       fetchImpressions(false);
     }
 
@@ -60,7 +75,7 @@ export default function AdminAnalyticsImpressions() {
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, []);
 
-  const fetchImpressions = async (silent = false) => {
+  const fetchImpressions = async (silent = false, nextFilters = filters) => {
     const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
@@ -72,15 +87,17 @@ export default function AdminAnalyticsImpressions() {
         setLoading(true);
       }
       const params = new URLSearchParams();
-      if (filters.viewer_email) params.append('viewer_email', filters.viewer_email);
-      if (filters.viewed_email) params.append('viewed_email', filters.viewed_email);
-      if (filters.swipe_action) params.append('swipe_action', filters.swipe_action);
-      if (filters.date_from) params.append('date_from', filters.date_from);
-      if (filters.date_to) params.append('date_to', filters.date_to);
+      if (nextFilters.viewer_email) params.append('viewer_email', nextFilters.viewer_email);
+      if (nextFilters.viewed_email) params.append('viewed_email', nextFilters.viewed_email);
+      if (nextFilters.swipe_action) params.append('swipe_action', nextFilters.swipe_action);
+      if (nextFilters.date_from) params.append('date_from', nextFilters.date_from);
+      if (nextFilters.date_to) params.append('date_to', nextFilters.date_to);
       
       const url = `${API_BASE}/analytics/impressions/`;
       const response = await adminRequest({ method: 'get', url, params });
-      setImpressions(response.data);
+      const normalized = normalizeImpressionsPayload(response.data);
+      setImpressions(normalized.data);
+      setWarning(normalized.warning);
       writeCache(IMPRESSIONS_CACHE_KEY, response.data);
       setCurrentPage(1); // Reset to first page when new data loads
       setError('');
@@ -92,6 +109,7 @@ export default function AdminAnalyticsImpressions() {
         navigate('/admin/login');
       } else {
         setError(err.response?.data?.error || 'Failed to load impressions');
+        setWarning('');
       }
     } finally {
       setLoading(false);
@@ -108,18 +126,12 @@ export default function AdminAnalyticsImpressions() {
   };
 
   const applyFilters = () => {
-    fetchImpressions();
+    fetchImpressions(false, filters);
   };
 
   const clearFilters = () => {
-    setFilters({
-      viewer_email: '',
-      viewed_email: '',
-      swipe_action: '',
-      date_from: '',
-      date_to: ''
-    });
-    setTimeout(() => fetchImpressions(), 100);
+    setFilters(emptyFilters);
+    fetchImpressions(false, emptyFilters);
   };
 
   // Pagination calculations
@@ -366,6 +378,7 @@ export default function AdminAnalyticsImpressions() {
           <div className="card shadow-sm">
             <div className="card-body">
               {error && <div className="alert alert-danger">{error}</div>}
+              {warning && <div className="alert alert-warning">{warning}</div>}
               <div className="table-responsive">
                 <table className="table table-hover">
                   <thead className="table-light">

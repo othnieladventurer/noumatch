@@ -15,6 +15,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth import authenticate
+from django.contrib.admin.models import LogEntry
+from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db import DatabaseError, IntegrityError, OperationalError, ProgrammingError
@@ -23,7 +25,7 @@ from django.conf import settings
 import logging
 import requests
 
-from users.models import User, UserEngagementScore
+from users.models import FeedVisibilityBoost, OTP, User, UserEngagementScore, UserPhoto, UserStats
 from users.scoring import refresh_user_score
 from users.visibility import admin_boost_visibility, admin_reduce_visibility, admin_force_inject
 from interactions.models import Like, Pass, DailySwipe
@@ -51,10 +53,229 @@ from admin_dashboard.services.ranking import compute_ranking_score
 from users.throttles import AdminLoginThrottle
 from users.auth_cookies import set_auth_cookies, clear_auth_cookies, get_refresh_token_from_request
 
+try:
+    from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+except Exception:  # pragma: no cover - token blacklist may be disabled in some environments
+    BlacklistedToken = None
+    OutstandingToken = None
+
 # Waitlist models only (no serializers import – we define them inline)
 from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
 
 logger = logging.getLogger(__name__)
+
+
+def _raw_delete_queryset(queryset, deleted_by_model):
+    count = queryset.count()
+    if count:
+        queryset._raw_delete(queryset.db)
+    label = queryset.model._meta.label
+    deleted_by_model[label] = deleted_by_model.get(label, 0) + count
+    return count
+
+
+def _delete_user_account_graph(user):
+    user_id = user.id
+    user_email = user.email
+    deleted_by_model = {}
+    total_deleted = 0
+
+    with transaction.atomic():
+        user.groups.clear()
+        user.user_permissions.clear()
+
+        match_ids = list(
+            Match.objects.filter(Q(user1_id=user_id) | Q(user2_id=user_id))
+            .values_list("id", flat=True)
+        )
+        conversation_ids = list(
+            Conversation.objects.filter(match_id__in=match_ids)
+            .values_list("id", flat=True)
+        )
+        support_conversation_ids = list(
+            SupportConversation.objects.filter(user_id=user_id)
+            .values_list("id", flat=True)
+        )
+        message_ids = list(
+            Message.objects.filter(
+                Q(conversation_id__in=conversation_ids)
+                | Q(support_conversation_id__in=support_conversation_ids)
+                | Q(sender_id=user_id)
+            ).values_list("id", flat=True)
+        )
+        like_ids = list(
+            Like.objects.filter(Q(from_user_id=user_id) | Q(to_user_id=user_id))
+            .values_list("id", flat=True)
+        )
+        pass_ids = list(
+            Pass.objects.filter(Q(from_user_id=user_id) | Q(to_user_id=user_id))
+            .values_list("id", flat=True)
+        )
+        report_ids = list(
+            Report.objects.filter(Q(reporter_id=user_id) | Q(reported_user_id=user_id))
+            .values_list("id", flat=True)
+        )
+        case_ids = list(
+            ReportCase.objects.filter(report_id__in=report_ids)
+            .values_list("id", flat=True)
+        )
+        impression_ids = list(
+            ProfileImpression.objects.filter(Q(viewer_id=user_id) | Q(viewed_id=user_id))
+            .values_list("id", flat=True)
+        )
+
+        if OutstandingToken is not None:
+            token_ids = list(
+                OutstandingToken.objects.filter(user_id=user_id)
+                .values_list("id", flat=True)
+            )
+            if BlacklistedToken is not None and token_ids:
+                total_deleted += _raw_delete_queryset(
+                    BlacklistedToken.objects.filter(token_id__in=token_ids),
+                    deleted_by_model,
+                )
+            total_deleted += _raw_delete_queryset(
+                OutstandingToken.objects.filter(id__in=token_ids),
+                deleted_by_model,
+            )
+
+        NotificationEmailTemplate.objects.filter(updated_by_id=user_id).update(updated_by=None)
+        ReportCase.objects.filter(created_by_id=user_id).update(created_by=None)
+        CaseAssignment.objects.filter(assigned_by_id=user_id).update(assigned_by=None)
+        SupportConversation.objects.filter(assigned_admin_id=user_id).update(assigned_admin=None)
+        Report.objects.filter(match_id__in=match_ids).exclude(id__in=report_ids).update(match=None)
+
+        notification_filter = Q(recipient_id=user_id)
+        try:
+            content_types = ContentType.objects.get_for_models(
+                Like, Pass, Match, Message, Report, ProfileImpression,
+                for_concrete_models=False,
+            )
+            related_content = [
+                (content_types.get(Like), like_ids),
+                (content_types.get(Pass), pass_ids),
+                (content_types.get(Match), match_ids),
+                (content_types.get(Message), message_ids),
+                (content_types.get(Report), report_ids),
+                (content_types.get(ProfileImpression), impression_ids),
+            ]
+            for content_type, object_ids in related_content:
+                if content_type and object_ids:
+                    notification_filter |= Q(content_type=content_type, object_id__in=object_ids)
+        except Exception:
+            logger.warning("Could not build generic notification cleanup filter for user_id=%s", user_id)
+
+        total_deleted += _raw_delete_queryset(Notification.objects.filter(notification_filter), deleted_by_model)
+        total_deleted += _raw_delete_queryset(
+            NotificationEmailLog.objects.filter(Q(recipient_id=user_id) | Q(recipient_email__iexact=user_email)),
+            deleted_by_model,
+        )
+        total_deleted += _raw_delete_queryset(MessageFlag.objects.filter(message_id__in=message_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Message.objects.filter(id__in=message_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(CaseAssignment.objects.filter(Q(case_id__in=case_ids) | Q(staff_user_id=user_id)), deleted_by_model)
+        total_deleted += _raw_delete_queryset(ReportCase.objects.filter(id__in=case_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Report.objects.filter(id__in=report_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(SupportConversation.objects.filter(id__in=support_conversation_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Conversation.objects.filter(id__in=conversation_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Like.objects.filter(id__in=like_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Pass.objects.filter(id__in=pass_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Block.objects.filter(Q(blocker_id=user_id) | Q(blocked_id=user_id)), deleted_by_model)
+        total_deleted += _raw_delete_queryset(DailySwipe.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(ProfileImpression.objects.filter(id__in=impression_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(FeedVisibilityBoost.objects.filter(Q(viewer_id=user_id) | Q(target_id=user_id)), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Match.objects.filter(id__in=match_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(LogEntry.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(UserPhoto.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(OTP.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(UserStats.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(UserEngagementScore.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(User.objects.filter(id=user_id), deleted_by_model)
+
+    return total_deleted, deleted_by_model
+
+
+def _profile_impression_metrics():
+    try:
+        total_impressions = ProfileImpression.objects.count()
+        total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
+        total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
+
+        impression_conversion_rate = (
+            round((total_likes_from_impressions / total_impressions) * 100, 1)
+            if total_impressions > 0 else 0
+        )
+        avg_ranking_score = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
+
+        pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
+        pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
+        position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
+
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        top_profiles = []
+        profile_stats = ProfileImpression.objects.filter(
+            timestamp__gte=seven_days_ago,
+            was_swiped=True,
+        ).values('viewed__email', 'viewed__id').annotate(
+            total_impressions=Count('id'),
+            likes=Count('id', filter=Q(swipe_action='like')),
+            avg_position=Avg('feed_position'),
+        ).filter(total_impressions__gte=1).order_by('-likes', '-total_impressions')[:10]
+
+        for stat in profile_stats:
+            total = stat['total_impressions'] or 0
+            likes = stat['likes'] or 0
+            top_profiles.append({
+                'user_id': stat['viewed__id'],
+                'user_email': stat['viewed__email'] or 'Deleted user',
+                'impressions': total,
+                'likes': likes,
+                'like_rate': round((likes / total) * 100, 1) if total else 0,
+                'avg_position': stat['avg_position'],
+            })
+
+        position_performance = []
+        for pos in range(15):
+            pos_imp = ProfileImpression.objects.filter(feed_position=pos)
+            pos_total = pos_imp.count()
+            if pos_total > 0:
+                pos_likes = pos_imp.filter(swipe_action='like').count()
+                pos_passes = pos_imp.filter(swipe_action='pass').count()
+                position_performance.append({
+                    'position': pos,
+                    'impressions': pos_total,
+                    'likes': pos_likes,
+                    'passes': pos_passes,
+                    'like_rate': round((pos_likes / pos_total) * 100, 1),
+                    'pass_rate': round((pos_passes / pos_total) * 100, 1),
+                })
+
+        return {
+            'total_impressions': total_impressions,
+            'total_likes_from_impressions': total_likes_from_impressions,
+            'total_passes_from_impressions': total_passes_from_impressions,
+            'impression_conversion_rate': impression_conversion_rate,
+            'avg_ranking_score': round(avg_ranking_score, 1),
+            'position1_like_rate': position1_like_rate,
+            'top_performing_profiles': top_profiles,
+            'position_performance': position_performance,
+            'generated_at': timezone.now(),
+        }
+    except Exception as exc:
+        logger.exception("Profile impression metric aggregation failed: %s", exc)
+        fallback = _admin_dashboard_fallback_payload()
+        return {
+            'total_impressions': fallback['total_impressions'],
+            'total_likes_from_impressions': fallback['total_likes_from_impressions'],
+            'total_passes_from_impressions': fallback['total_passes_from_impressions'],
+            'impression_conversion_rate': fallback['impression_conversion_rate'],
+            'avg_ranking_score': fallback['avg_ranking_score'],
+            'position1_like_rate': fallback['position1_like_rate'],
+            'top_performing_profiles': fallback['top_performing_profiles'],
+            'position_performance': fallback['position_performance'],
+            'generated_at': timezone.now(),
+            'degraded': True,
+            'warning': 'Temporary database issue while loading profile impression metrics.',
+        }
 
 
 def _admin_dashboard_fallback_payload():
@@ -514,8 +735,7 @@ class AdminUsersManagementView(APIView):
 
         user_email = user.email
         try:
-            with transaction.atomic():
-                deleted_count, deleted_by_model = user.delete()
+            deleted_count, deleted_by_model = _delete_user_account_graph(user)
         except ProtectedError as exc:
             logger.warning("Admin user delete blocked for user_id=%s: %s", user_id, exc)
             return Response({
@@ -586,53 +806,7 @@ class AdminDashboardView(APIView):
                     'created_at': block.created_at,
                 })
 
-            total_impressions = ProfileImpression.objects.count()
-            total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
-            total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
-
-            impression_conversion_rate = round((total_likes_from_impressions / total_impressions) * 100, 1) if total_impressions > 0 else 0
-            avg_ranking_score = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
-
-            pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
-            pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
-            position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
-            seven_days_ago = timezone.now() - timedelta(days=7)
-            top_profiles = []
-            profile_stats = ProfileImpression.objects.filter(
-                timestamp__gte=seven_days_ago,
-                was_swiped=True
-            ).values('viewed__email', 'viewed__id').annotate(
-                total_impressions=Count('id'),
-                likes=Count('id', filter=Q(swipe_action='like')),
-                avg_position=Avg('feed_position')
-            ).filter(total_impressions__gte=5).order_by('-likes')[:10]
-
-            for stat in profile_stats:
-                like_rate = round((stat['likes'] / stat['total_impressions']) * 100, 1)
-                top_profiles.append({
-                    'user_id': stat['viewed__id'],
-                    'user_email': stat['viewed__email'],
-                    'impressions': stat['total_impressions'],
-                    'likes': stat['likes'],
-                    'like_rate': like_rate,
-                    'avg_position': stat['avg_position'],
-                })
-
-            position_performance = []
-            for pos in range(15):
-                pos_imp = ProfileImpression.objects.filter(feed_position=pos)
-                pos_total = pos_imp.count()
-                if pos_total > 0:
-                    pos_likes = pos_imp.filter(swipe_action='like').count()
-                    pos_passes = pos_imp.filter(swipe_action='pass').count()
-                    position_performance.append({
-                        'position': pos,
-                        'impressions': pos_total,
-                        'likes': pos_likes,
-                        'passes': pos_passes,
-                        'like_rate': round((pos_likes / pos_total) * 100, 1),
-                        'pass_rate': round((pos_passes / pos_total) * 100, 1),
-                    })
+            impression_metrics = _profile_impression_metrics()
 
             score_qs = UserEngagementScore.objects.select_related('user')
             score_aggregates = score_qs.aggregate(
@@ -673,14 +847,14 @@ class AdminDashboardView(APIView):
                 'matches_today': matches_today,
                 'match_rate': match_rate,
                 'recent_blocks': blocks_data,
-                'total_impressions': total_impressions,
-                'total_likes_from_impressions': total_likes_from_impressions,
-                'total_passes_from_impressions': total_passes_from_impressions,
-                'impression_conversion_rate': impression_conversion_rate,
-                'avg_ranking_score': round(avg_ranking_score, 1),
-                'position1_like_rate': position1_like_rate,
-                'top_performing_profiles': top_profiles,
-                'position_performance': position_performance,
+                'total_impressions': impression_metrics['total_impressions'],
+                'total_likes_from_impressions': impression_metrics['total_likes_from_impressions'],
+                'total_passes_from_impressions': impression_metrics['total_passes_from_impressions'],
+                'impression_conversion_rate': impression_metrics['impression_conversion_rate'],
+                'avg_ranking_score': impression_metrics['avg_ranking_score'],
+                'position1_like_rate': impression_metrics['position1_like_rate'],
+                'top_performing_profiles': impression_metrics['top_performing_profiles'],
+                'position_performance': impression_metrics['position_performance'],
                 'dau': dau,
                 'wau': wau,
                 'mau': mau,
@@ -970,6 +1144,13 @@ class AdminUserScoringRefreshView(APIView):
             'refreshed': refreshed,
             'message': 'User scores recalculated successfully.',
         })
+
+
+class AdminAnalyticsRankingView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        return Response(_profile_impression_metrics())
 
 
 def _probe_public_url(url, timeout_seconds=8):
@@ -2251,6 +2432,7 @@ class AdminAnalyticsImpressionsView(APIView):
             if date_to:
                 queryset = queryset.filter(timestamp__date__lte=date_to)
         
+            total_matching = queryset.count()
             queryset = queryset[:500]
         
             data = []
@@ -2279,10 +2461,25 @@ class AdminAnalyticsImpressionsView(APIView):
                     'session_id': imp.session_id[:8] if imp.session_id else '',
                 })
         
-            return Response(data)
+            payload = {
+                'data': data,
+                'total': total_matching,
+                'limited_to': 500,
+                'generated_at': timezone.now(),
+            }
+            if total_matching > 500:
+                payload['warning'] = 'Showing the latest 500 impressions. Use filters to narrow the result.'
+            return Response(payload)
         except Exception as exc:
-            logger.exception("AdminAnalyticsImpressionsView failed; returning empty list: %s", exc)
-            return Response([], status=status.HTTP_200_OK)
+            logger.exception("AdminAnalyticsImpressionsView failed; returning degraded payload: %s", exc)
+            return Response({
+                'data': [],
+                'total': 0,
+                'limited_to': 500,
+                'generated_at': timezone.now(),
+                'degraded': True,
+                'warning': 'Temporary database issue while loading profile impressions.',
+            }, status=status.HTTP_200_OK)
 
 
 # ==================== WAITLIST ADMIN VIEWS (with inline serializers) ====================
