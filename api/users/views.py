@@ -246,6 +246,7 @@ class RegisterView(generics.CreateAPIView):
             "message": "Registration pending. Please verify your email with the 4-digit code sent.",
             "user_id": pending_registration.id,
             "pending_registration_id": pending_registration.id,
+            "expires_in": pending_registration.seconds_remaining(),
         }, status=status.HTTP_201_CREATED)
 
 
@@ -290,31 +291,6 @@ class VerifyOTPView(APIView):
 
         pending_registration = _get_pending_registration_or_none(pending_registration_id)
         if pending_registration:
-            if not pending_registration.can_attempt():
-                return Response(
-                    {'error': f'Maximum attempts exceeded ({pending_registration.max_attempts}/5). Please request a new code.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if not pending_registration.is_valid():
-                if pending_registration.is_used:
-                    return Response(
-                        {'error': 'This code has already been used. Please request a new code.'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                return Response(
-                    {'error': 'Code has expired (5 minutes). Please request a new code.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            pending_registration.increment_attempts()
-            if pending_registration.code != code:
-                remaining = pending_registration.max_attempts - pending_registration.attempts
-                return Response(
-                    {'error': f'Invalid code. {remaining} attempt(s) remaining.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
             serializer = RegisterSerializer(context={'request': request})
             from waitlist.models import WaitlistStats
 
@@ -323,6 +299,26 @@ class VerifyOTPView(APIView):
                 if locked_pending.is_used:
                     return Response(
                         {'error': 'This code has already been used. Please request a new code.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if not locked_pending.can_attempt():
+                    return Response(
+                        {'error': f'Maximum attempts exceeded ({locked_pending.max_attempts}/5). Please request a new code.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if not locked_pending.is_valid():
+                    return Response(
+                        {'error': 'Code has expired. Please request a new code.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if locked_pending.code != code:
+                    locked_pending.increment_attempts()
+                    remaining = locked_pending.max_attempts - locked_pending.attempts
+                    return Response(
+                        {'error': f'Invalid code. {remaining} attempt(s) remaining.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
@@ -395,7 +391,7 @@ class VerifyOTPView(APIView):
                 )
             else:
                 return Response(
-                    {'error': 'Code has expired (5 minutes). Please request a new code.'}, 
+                    {'error': 'Code has expired. Please request a new code.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -455,7 +451,10 @@ class ResendOTPView(APIView):
 
             logging.info("OTP resent for pending_registration_id=%s", pending_registration.id)
             return Response(
-                {'message': 'New 4-digit verification code sent to your email. Valid for 5 minutes.'},
+                {
+                    'message': 'New 4-digit verification code sent to your email. Valid for 10 minutes.',
+                    'expires_in': pending_registration.seconds_remaining(),
+                },
                 status=status.HTTP_200_OK
             )
 
@@ -491,7 +490,7 @@ class ResendOTPView(APIView):
         logging.info("OTP resent for user_id=%s", user.id)
 
         return Response(
-            {'message': 'New 4-digit verification code sent to your email. Valid for 5 minutes.'}, 
+            {'message': 'New 4-digit verification code sent to your email. Valid for 10 minutes.', 'expires_in': 600},
             status=status.HTTP_200_OK
         )
 
@@ -513,11 +512,9 @@ class CheckOTPStatusView(APIView):
         pending_registration = _get_pending_registration_or_none(pending_registration_id)
         if pending_registration:
             if pending_registration.is_valid():
-                elapsed = (timezone.now() - pending_registration.created_at).total_seconds()
-                remaining = max(0, 300 - elapsed)
                 return Response({
                     'has_valid_otp': True,
-                    'remaining_seconds': int(remaining),
+                    'remaining_seconds': pending_registration.seconds_remaining(),
                     'attempts_used': pending_registration.attempts,
                     'attempts_remaining': pending_registration.max_attempts - pending_registration.attempts
                 }, status=status.HTTP_200_OK)
@@ -536,13 +533,9 @@ class CheckOTPStatusView(APIView):
             }, status=status.HTTP_200_OK)
         
         if otp.is_valid():
-            # Calculate remaining time (5 minutes = 300 seconds)
-            elapsed = (timezone.now() - otp.created_at).total_seconds()
-            remaining = max(0, 300 - elapsed)
-            
             return Response({
                 'has_valid_otp': True,
-                'remaining_seconds': int(remaining),
+                'remaining_seconds': otp.seconds_remaining(),
                 'attempts_used': otp.attempts,
                 'attempts_remaining': otp.max_attempts - otp.attempts
             }, status=status.HTTP_200_OK)

@@ -58,7 +58,7 @@ def send_otp_via_api(user, otp_code):
           <p>Hello {user.first_name or user.email},</p>
           <p>Use this verification code to confirm your account:</p>
           <p class=\"code\">{otp_code}</p>
-          <div class=\"notice\">This code expires in 5 minutes.</div>
+          <div class=\"notice\">This code expires in 10 minutes.</div>
         </div>
       </div>
     </body>
@@ -68,7 +68,7 @@ def send_otp_via_api(user, otp_code):
     text_content = (
         f"Hello {user.first_name or user.email},\n\n"
         f"Your NouMatch verification code is: {otp_code}\n"
-        "This code expires in 5 minutes."
+        "This code expires in 10 minutes."
     )
 
     payload = {

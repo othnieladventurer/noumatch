@@ -276,7 +276,7 @@ export default function Register() {
         timeout: 0,
       });
       navigate("/verify-otp", {
-        state: { userId: response.data.user_id, email: formData.email }
+        state: { userId: response.data.user_id, email: formData.email, expiresIn: response.data?.expires_in }
       });
     } catch (error) {
       let message = t("register.errorGeneric");

@@ -5,6 +5,8 @@ import { FaSpinner, FaCheckCircle, FaEnvelope, FaClock, FaShieldAlt } from 'reac
 import BrandLogo from "../components/BrandLogo";
 import "../styles/auth-redesign.css";
 
+const OTP_VALIDITY_SECONDS = 600;
+
 export default function VerifyOtp() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -12,15 +14,16 @@ export default function VerifyOtp() {
   // Get userId from location state OR from localStorage (for returning unverified users)
   const userId = location.state?.userId || localStorage.getItem("unverified_user_id");
   const email = location.state?.email || localStorage.getItem("unverified_email");
+  const initialExpiresIn = location.state?.expiresIn || OTP_VALIDITY_SECONDS;
 
   const [otp, setOtp] = useState(['', '', '', '']); // Changed to 4 digits
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [timeLeft, setTimeLeft] = useState(300); // Changed to 5 minutes (300 seconds)
+  const [timeLeft, setTimeLeft] = useState(initialExpiresIn);
   const [canResend, setCanResend] = useState(false);
   const [emailSending, setEmailSending] = useState(true);
-  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendCooldown, setResendCooldown] = useState(60);
   const intervalRef = useRef(null);
   const cooldownRef = useRef(null);
 
@@ -126,7 +129,12 @@ export default function VerifyOtp() {
       });
       
       if (response.data.access || response.status === 200) {
-        localStorage.setItem("access", "1");
+        if (response.data.access) {
+          localStorage.setItem("access", response.data.access);
+        }
+        if (response.data.refresh) {
+          localStorage.setItem("refresh", response.data.refresh);
+        }
         sessionStorage.setItem("nm_user_session", "1");
       }
       
@@ -162,9 +170,9 @@ export default function VerifyOtp() {
     setEmailSending(true);
     
     try {
-      await API.post('users/resend-otp/', { user_id: userId });
+      const response = await API.post('users/resend-otp/', { user_id: userId });
       setSuccess('Un nouveau code a été envoyé à votre email !');
-      setTimeLeft(300); // Reset to 5 minutes
+      setTimeLeft(response.data?.expires_in || OTP_VALIDITY_SECONDS);
       setCanResend(false);
       setResendCooldown(60); // 60 seconds cooldown
       setOtp(['', '', '', '']); // Clear OTP fields
@@ -257,7 +265,7 @@ export default function VerifyOtp() {
               <FaShieldAlt className="me-2" />
               <strong>Règles de sécurité :</strong>
               <ul className="mt-2 mb-0 text-start small">
-                <li>✓ Code valable <strong>5 minutes</strong> seulement</li>
+                <li>✓ Code valable <strong>10 minutes</strong> seulement</li>
                 <li>✓ Utilisable <strong>une seule fois</strong></li>
                 <li>✓ <strong>5 tentatives</strong> maximum</li>
                 <li>✓ Un nouveau code invalide l'ancien</li>
@@ -279,7 +287,7 @@ export default function VerifyOtp() {
             type="button"
             className="btn btn-link p-0"
             onClick={handleResend}
-            disabled={loading || (!canResend && timeLeft > 0) || emailSending || resendCooldown > 0}
+            disabled={loading || emailSending || resendCooldown > 0}
           >
             {resendCooldown > 0 
               ? `Renvoyer (${resendCooldown}s)` 
