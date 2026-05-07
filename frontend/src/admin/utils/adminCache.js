@@ -28,3 +28,26 @@ export const writeCache = (key, data) => {
     // Ignore quota/storage errors in cache path.
   }
 };
+
+export const clearCache = (key) => {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Ignore storage errors in cache invalidation path.
+  }
+};
+
+export const clearCacheByPrefix = (prefix) => {
+  try {
+    const keys = [];
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const key = sessionStorage.key(index);
+      if (key?.startsWith(prefix)) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    // Ignore storage errors in cache invalidation path.
+  }
+};

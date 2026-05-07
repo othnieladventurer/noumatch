@@ -1,12 +1,12 @@
 // src/pages/AdminUsers.jsx
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
-import { readFreshCache, writeCache } from '../utils/adminCache';
+import { clearCache, clearCacheByPrefix, readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
 const USERS_PER_PAGE = 10;
@@ -16,6 +16,32 @@ const LAUNCH_MONITOR_CACHE_KEY = 'admin_launch_monitor_v1';
 
 const getUsersCacheKey = ({ page, search, status, userType, gender, sort }) =>
   `admin_users_v1:${page}:${search || 'all'}:${status}:${userType}:${gender}:${sort}`;
+
+const clearAdminUsersCaches = () => {
+  clearCacheByPrefix('admin_users_v1:');
+  clearCache(LAUNCH_MONITOR_CACHE_KEY);
+};
+
+const formatJoinedAge = (minutes) => {
+  const numericMinutes = Number(minutes);
+  if (!Number.isFinite(numericMinutes)) return 'n/a';
+
+  const wholeMinutes = Math.max(0, Math.floor(numericMinutes));
+  if (wholeMinutes < 1) return 'Just now';
+  if (wholeMinutes < 60) return `${wholeMinutes}m ago`;
+
+  const hours = Math.floor(wholeMinutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+
+  const years = Math.floor(months / 12);
+  return `${years}y ago`;
+};
 
 export default function AdminUsers() {
   const initialUsersCacheKey = getUsersCacheKey({
@@ -46,6 +72,7 @@ export default function AdminUsers() {
   const [launchMonitor, setLaunchMonitor] = useState(cachedLaunchMonitor);
   const [launchMonitorError, setLaunchMonitorError] = useState('');
   const [visibilityBusyUserId, setVisibilityBusyUserId] = useState(null);
+  const [deletingUserId, setDeletingUserId] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [userForm, setUserForm] = useState({
@@ -200,7 +227,8 @@ export default function AdminUsers() {
         url: `${API_BASE}/visibility/action/`,
         data: { user_id: userId, action },
       });
-      await Promise.all([fetchUsers(), fetchLaunchMonitor()]);
+      clearAdminUsersCaches();
+      await Promise.all([fetchUsers(true), fetchLaunchMonitor(true)]);
     } catch (err) {
       alert(err.response?.data?.error || `Failed to ${action} visibility`);
     } finally {
@@ -289,22 +317,32 @@ export default function AdminUsers() {
         });
       }
       setShowUserModal(false);
-      await fetchUsers();
+      clearAdminUsersCaches();
+      await Promise.all([fetchUsers(true), fetchLaunchMonitor(true)]);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to save user');
     }
   };
 
   const deleteUser = async (user) => {
-    if (!window.confirm(`Delete ${user.email}?`)) return;
+    if (!window.confirm(`Delete ${user.email}? This removes the user and related account data.`)) return;
     try {
+      setDeletingUserId(user.id);
       await adminRequest({
         method: 'delete',
         url: `${API_BASE}/users/manage/${user.id}/`,
       });
-      await fetchUsers();
+      clearAdminUsersCaches();
+      if (users.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        await fetchUsers(true);
+      }
+      await fetchLaunchMonitor(true);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to delete user');
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -411,7 +449,7 @@ export default function AdminUsers() {
                     <thead>
                       <tr>
                         <th>User</th>
-                        <th>Minutes Since Join</th>
+                        <th>Since Joined</th>
                         <th>Impressions 24h</th>
                         <th>Likes 24h</th>
                         <th>Action</th>
@@ -424,7 +462,7 @@ export default function AdminUsers() {
                             <strong>{user.full_name}</strong><br />
                             <small className="text-muted">{user.email}</small>
                           </td>
-                          <td>{user.minutes_since_join ?? 'n/a'}</td>
+                          <td>{formatJoinedAge(user.minutes_since_join)}</td>
                           <td>{user.impressions_24h ?? 0}</td>
                           <td>{user.likes_given_24h ?? 0}</td>
                           <td>
@@ -572,6 +610,7 @@ export default function AdminUsers() {
                   <tr>
                     <th>Profile</th>
                     <th>Username / Email</th>
+                    <th>Since Joined</th>
                     <th>Profile Score</th>
                     <th>Matches</th>
                     <th>Reports</th>
@@ -582,7 +621,7 @@ export default function AdminUsers() {
                 <tbody>
                   {loading && (
                     <tr>
-                      <td colSpan="7" className="text-center py-4">
+                      <td colSpan="8" className="text-center py-4">
                         <AdminPageSpinner label="Loading users..." />
                       </td>
                     </tr>
@@ -608,6 +647,7 @@ export default function AdminUsers() {
                           <br />
                           <small className="text-muted text-capitalize">{user.gender || 'unspecified'}</small>
                         </td>
+                        <td className="align-middle">{formatJoinedAge(user.minutes_since_join)}</td>
                         <td className="align-middle">{user.profile_score || 0}%</td>
                         <td className="align-middle">{user.matches_count || 0}</td>
                         <td className="align-middle">{user.reports_received_count || 0}</td>
@@ -623,8 +663,13 @@ export default function AdminUsers() {
                             <button className="btn btn-sm btn-outline-secondary" onClick={() => openEditModal(user)}>
                               <i className="fas fa-pen me-1"></i> Edit
                             </button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={() => deleteUser(user)}>
-                              <i className="fas fa-trash me-1"></i> Delete
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              disabled={deletingUserId === user.id}
+                              onClick={() => deleteUser(user)}
+                            >
+                              <i className="fas fa-trash me-1"></i>
+                              {deletingUserId === user.id ? 'Deleting...' : 'Delete'}
                             </button>
                             <button
                               className="btn btn-sm btn-outline-success"
@@ -639,7 +684,7 @@ export default function AdminUsers() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" className="text-center py-5">
+                      <td colSpan="8" className="text-center py-5">
                         {error ? error : 'No users found'}
                       </td>
                     </tr>

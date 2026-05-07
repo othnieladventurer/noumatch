@@ -369,11 +369,16 @@ class AdminUsersListView(APIView):
             }
 
             data = []
+            now = timezone.now()
             for user in paginated_users:
                 matches_count = matches_count_by_user.get(user.id, 0)
                 reports_received_count = reports_count_by_user.get(user.id, 0)
                 risk = 'risky' if reports_received_count >= 5 else 'watch' if reports_received_count >= 2 else 'safe'
                 scorecard = scorecards.get(user.id)
+                minutes_since_join = (
+                    int(max(0, (now - user.date_joined).total_seconds()) // 60)
+                    if user.date_joined else None
+                )
 
                 data.append({
                     'id': user.id,
@@ -394,6 +399,7 @@ class AdminUsersListView(APIView):
                     'reports_received_count': reports_received_count,
                     'risk_status': risk,
                     'date_joined': user.date_joined,
+                    'minutes_since_join': minutes_since_join,
                 })
 
             return Response({
