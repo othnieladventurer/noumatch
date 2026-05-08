@@ -44,6 +44,10 @@ urlpatterns = [
     path('photos/<int:pk>/delete/', 
          views.UserPhotoDeleteView.as_view(), 
          name='user-photos-delete'),
+
+    path('photos/<int:pk>/set-main/',
+         views.UserPhotoSetMainView.as_view(),
+         name='user-photos-set-main'),
     
     path('photos/delete-all/', 
          views.UserPhotoViewSet.as_view({'delete': 'delete_all_photos'}), 

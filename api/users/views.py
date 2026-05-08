@@ -1,7 +1,9 @@
 ﻿import logging
 import threading
+from pathlib import Path
 from django.conf import settings
 from django.core.cache import cache
+from django.core.files.base import ContentFile
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -1211,6 +1213,33 @@ class UserPhotoDeleteView(generics.DestroyAPIView):
 
     def get_queryset(self):
         return UserPhoto.objects.filter(user=self.request.user)
+
+
+class UserPhotoSetMainView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        photo = get_object_or_404(UserPhoto, pk=pk, user=request.user)
+        if not photo.image:
+            return Response(
+                {"error": "Photo file is unavailable."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with photo.image.open("rb") as source:
+                image_content = ContentFile(source.read())
+        except Exception:
+            logging.exception("Unable to read gallery photo %s for user %s", pk, request.user.id)
+            return Response(
+                {"error": "Unable to set this photo as main right now."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        filename = Path(photo.image.name).name or f"user-{request.user.id}-main-photo"
+        request.user.profile_photo.save(filename, image_content, save=True)
+        serializer = UserProfileSerializer(request.user, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 
