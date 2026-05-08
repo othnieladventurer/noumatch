@@ -198,6 +198,15 @@ class DetectLocationView(APIView):
         })
 
 
+def _normalize_registration_gender(value):
+    normalized = (value or '').strip().lower()
+    if normalized in {'male', 'man', 'homme', 'm'}:
+        return 'male'
+    if normalized in {'female', 'woman', 'femme', 'f'}:
+        return 'female'
+    return normalized
+
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [AllowAny]
@@ -205,7 +214,12 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         email = request.data.get('email', '').strip().lower()
-        gender = (request.data.get('gender') or '').strip().lower()
+        gender = _normalize_registration_gender(request.data.get('gender'))
+        registration_data = request.data.copy()
+        if gender in {'male', 'female'}:
+            registration_data['gender'] = gender
+        if email:
+            registration_data['email'] = email
 
         if User.objects.filter(email=email).exists():
             return Response(
@@ -213,7 +227,7 @@ class RegisterView(generics.CreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer = self.get_serializer(data=registration_data, context={'request': request})
         serializer.is_valid(raise_exception=True)
         pending_data = serializer.build_pending_registration_data(serializer.validated_data)
 
@@ -329,7 +343,8 @@ class VerifyOTPView(APIView):
                     )
 
                 stats, _ = WaitlistStats.objects.select_for_update().get_or_create(id=1)
-                if locked_pending.gender == 'male' and not stats.can_register_gender('male'):
+                pending_gender = _normalize_registration_gender(locked_pending.gender)
+                if pending_gender == 'male' and not stats.can_register_gender('male'):
                     return Response(
                         {'error': stats.get_registration_message('male')},
                         status=status.HTTP_403_FORBIDDEN
@@ -1019,7 +1034,7 @@ def _build_registration_check_response(raw_email):
 
 def _build_registration_check_response(raw_email, raw_gender=''):
     email = (raw_email or "").strip().lower()
-    gender = (raw_gender or "").strip().lower()
+    gender = _normalize_registration_gender(raw_gender)
     if not email:
         return Response({'exists': False, 'can_register': False, 'error': 'No email'}, status=400)
     try:

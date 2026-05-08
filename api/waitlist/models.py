@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import models
 from django.core.validators import MinLengthValidator
 
@@ -110,7 +112,8 @@ class WaitlistStats(models.Model):
 
 
     def get_live_gender_counts(self):
-        from users.models import User
+        from django.utils import timezone
+        from users.models import PendingRegistration, User
 
         queryset = User.objects.filter(
             is_active=True,
@@ -120,12 +123,26 @@ class WaitlistStats(models.Model):
         )
         women = queryset.filter(gender='female').count()
         men = queryset.filter(gender='male').count()
+        pending_queryset = PendingRegistration.objects.filter(
+            is_used=False,
+            gender__in=['male', 'female'],
+            otp_sent_at__gte=timezone.now() - timedelta(seconds=PendingRegistration.VALIDITY_SECONDS),
+        )
+        women += pending_queryset.filter(gender='female').count()
+        men += pending_queryset.filter(gender='male').count()
         total = women + men
         return {
             'women': women,
             'men': men,
             'total': total,
         }
+
+    def registration_target_women_percentage(self):
+        try:
+            configured = float(self.target_women_percentage or 55.0)
+        except (TypeError, ValueError):
+            configured = 55.0
+        return min(100.0, max(55.0, configured))
 
     def can_register_gender(self, gender):
         if gender != 'male':
@@ -138,7 +155,7 @@ class WaitlistStats(models.Model):
             return True
 
         projected_women_pct = (women / total_after) * 100
-        return projected_women_pct >= self.target_women_percentage
+        return projected_women_pct >= self.registration_target_women_percentage()
 
     def get_registration_message(self, gender):
         if gender != 'male':
