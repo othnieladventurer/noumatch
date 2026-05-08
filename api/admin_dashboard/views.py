@@ -202,6 +202,32 @@ def _user_location(user):
     return f"{user.city}, {user.country}" if user.city and user.country else user.city or user.country or ""
 
 
+def _parse_admin_date_window(request=None, *, default_to_today=True):
+    today = timezone.localdate()
+    date_from_raw = request.GET.get('date_from') if request else None
+    date_to_raw = request.GET.get('date_to') if request else None
+
+    def parse_date(value, fallback=None):
+        if not value:
+            return fallback
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            return fallback
+
+    date_from = parse_date(date_from_raw, today if default_to_today else None)
+    date_to = parse_date(date_to_raw, today if default_to_today else None)
+
+    if date_from and date_to and date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    tz = timezone.get_current_timezone()
+    start_dt = timezone.make_aware(datetime.combine(date_from, datetime.min.time()), timezone=tz) if date_from else None
+    end_dt = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time()), timezone=tz) if date_to else None
+
+    return start_dt, end_dt, date_from, date_to
+
+
 def _filter_interaction_queryset(queryset, request):
     viewer_search = request.GET.get('viewer_email')
     if viewer_search:
@@ -219,13 +245,11 @@ def _filter_interaction_queryset(queryset, request):
             | Q(to_user__last_name__icontains=viewed_search)
         )
 
-    date_from = request.GET.get('date_from')
-    if date_from:
-        queryset = queryset.filter(created_at__date__gte=date_from)
-
-    date_to = request.GET.get('date_to')
-    if date_to:
-        queryset = queryset.filter(created_at__date__lte=date_to)
+    start_dt, end_dt, _, _ = _parse_admin_date_window(request, default_to_today=True)
+    if start_dt:
+        queryset = queryset.filter(created_at__gte=start_dt)
+    if end_dt:
+        queryset = queryset.filter(created_at__lt=end_dt)
 
     return queryset
 
@@ -279,14 +303,25 @@ def _interaction_impression_rows(request, limit=500):
     return rows[:limit], total, sources
 
 
-def _interaction_ranking_metrics():
+def _interaction_ranking_metrics(request=None, *, start_dt=None, end_dt=None, date_from=None, date_to=None):
+    like_qs = Like.objects.all()
+    pass_qs = Pass.objects.all()
+    if request is not None and (start_dt is None and end_dt is None):
+        start_dt, end_dt, date_from, date_to = _parse_admin_date_window(request, default_to_today=True)
+    if start_dt:
+        like_qs = like_qs.filter(created_at__gte=start_dt)
+        pass_qs = pass_qs.filter(created_at__gte=start_dt)
+    if end_dt:
+        like_qs = like_qs.filter(created_at__lt=end_dt)
+        pass_qs = pass_qs.filter(created_at__lt=end_dt)
+
     likes_by_profile = {
         row['to_user_id']: row['count']
-        for row in Like.objects.values('to_user_id').annotate(count=Count('id'))
+        for row in like_qs.values('to_user_id').annotate(count=Count('id'))
     }
     passes_by_profile = {
         row['to_user_id']: row['count']
-        for row in Pass.objects.values('to_user_id').annotate(count=Count('id'))
+        for row in pass_qs.values('to_user_id').annotate(count=Count('id'))
     }
 
     profile_ids = set(likes_by_profile) | set(passes_by_profile)
@@ -324,37 +359,49 @@ def _interaction_ranking_metrics():
         'top_performing_profiles': top_profiles[:10],
         'position_performance': [],
         'generated_at': timezone.now(),
+        'date_from': date_from.isoformat() if date_from else None,
+        'date_to': date_to.isoformat() if date_to else None,
         'source': 'interactions_fallback',
-        'warning': 'No profile impression rows were found yet. Showing like/pass interaction analytics until impression tracking collects new rows.',
+        'warning': 'No profile impression rows were found for this live window. Showing like/pass interaction analytics for the same date window.',
     }
 
 
-def _profile_impression_metrics():
+def _profile_impression_metrics(request=None):
     try:
-        total_impressions = ProfileImpression.objects.count()
+        start_dt, end_dt, date_from, date_to = _parse_admin_date_window(request, default_to_today=True)
+        impression_qs = ProfileImpression.objects.all()
+        if start_dt:
+            impression_qs = impression_qs.filter(timestamp__gte=start_dt)
+        if end_dt:
+            impression_qs = impression_qs.filter(timestamp__lt=end_dt)
+
+        total_impressions = impression_qs.count()
         if total_impressions == 0:
-            fallback_metrics = _interaction_ranking_metrics()
+            fallback_metrics = _interaction_ranking_metrics(
+                request,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                date_from=date_from,
+                date_to=date_to,
+            )
             if fallback_metrics:
                 return fallback_metrics
 
-        total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
-        total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
+        total_likes_from_impressions = impression_qs.filter(swipe_action='like').count()
+        total_passes_from_impressions = impression_qs.filter(swipe_action='pass').count()
 
         impression_conversion_rate = (
             round((total_likes_from_impressions / total_impressions) * 100, 1)
             if total_impressions > 0 else 0
         )
-        avg_ranking_score = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
+        avg_ranking_score = impression_qs.aggregate(avg=Avg('ranking_score'))['avg'] or 0
 
-        pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
-        pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
+        pos1_impressions = impression_qs.filter(feed_position=0).count()
+        pos1_likes = impression_qs.filter(feed_position=0, swipe_action='like').count()
         position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
 
-        seven_days_ago = timezone.now() - timedelta(days=7)
         top_profiles = []
-        profile_stats = ProfileImpression.objects.filter(
-            timestamp__gte=seven_days_ago,
-        ).values('viewed__email', 'viewed__id').annotate(
+        profile_stats = impression_qs.values('viewed__email', 'viewed__id').annotate(
             total_impressions=Count('id'),
             likes=Count('id', filter=Q(swipe_action='like')),
             avg_position=Avg('feed_position'),
@@ -374,7 +421,7 @@ def _profile_impression_metrics():
 
         position_performance = []
         for pos in range(15):
-            pos_imp = ProfileImpression.objects.filter(feed_position=pos)
+            pos_imp = impression_qs.filter(feed_position=pos)
             pos_total = pos_imp.count()
             if pos_total > 0:
                 pos_likes = pos_imp.filter(swipe_action='like').count()
@@ -398,6 +445,9 @@ def _profile_impression_metrics():
             'top_performing_profiles': top_profiles,
             'position_performance': position_performance,
             'generated_at': timezone.now(),
+            'date_from': date_from.isoformat() if date_from else None,
+            'date_to': date_to.isoformat() if date_to else None,
+            'source': 'profile_impressions',
         }
     except Exception as exc:
         logger.exception("Profile impression metric aggregation failed: %s", exc)
@@ -1289,7 +1339,7 @@ class AdminAnalyticsRankingView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        return Response(_profile_impression_metrics())
+        return Response(_profile_impression_metrics(request))
 
 
 def _probe_public_url(url, timeout_seconds=8):
@@ -2550,6 +2600,7 @@ class AdminAnalyticsImpressionsView(APIView):
     def get(self, request):
         try:
             queryset = ProfileImpression.objects.select_related('viewer', 'viewed').all().order_by('-timestamp')
+            start_dt, end_dt, date_from, date_to = _parse_admin_date_window(request, default_to_today=True)
         
             viewer_search = request.GET.get('viewer_email')
             if viewer_search:
@@ -2562,14 +2613,11 @@ class AdminAnalyticsImpressionsView(APIView):
             swipe_action = request.GET.get('swipe_action')
             if swipe_action and swipe_action != '':
                 queryset = queryset.filter(swipe_action=swipe_action)
-        
-            date_from = request.GET.get('date_from')
-            if date_from:
-                queryset = queryset.filter(timestamp__date__gte=date_from)
-        
-            date_to = request.GET.get('date_to')
-            if date_to:
-                queryset = queryset.filter(timestamp__date__lte=date_to)
+
+            if start_dt:
+                queryset = queryset.filter(timestamp__gte=start_dt)
+            if end_dt:
+                queryset = queryset.filter(timestamp__lt=end_dt)
         
             total_matching = queryset.count()
             queryset = queryset[:500]
@@ -2605,6 +2653,9 @@ class AdminAnalyticsImpressionsView(APIView):
                 'total': total_matching,
                 'limited_to': 500,
                 'generated_at': timezone.now(),
+                'date_from': date_from.isoformat() if date_from else None,
+                'date_to': date_to.isoformat() if date_to else None,
+                'source': 'profile_impressions',
             }
             if not data:
                 fallback_rows, fallback_total, fallback_sources = _interaction_impression_rows(request)
@@ -2615,7 +2666,7 @@ class AdminAnalyticsImpressionsView(APIView):
                     payload['total'] = total_matching
                     payload['source'] = 'interactions_fallback'
                     payload['sources'] = fallback_sources
-                    payload['warning'] = 'No matching profile impression rows were found. Showing like/pass interaction records so admin analytics still displays who interacted with who.'
+                    payload['warning'] = 'No matching profile impression rows were found for this live window. Showing like/pass interaction records for the same date window.'
 
             if total_matching > 500 and 'warning' not in payload:
                 payload['warning'] = 'Showing the latest 500 impressions. Use filters to narrow the result.'

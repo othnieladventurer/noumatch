@@ -6,6 +6,11 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 class CookieJWTAuthentication(JWTAuthentication):
     def authenticate(self, request):
         is_admin_route = request.path.startswith("/api/noumatch-admin/")
+        normalized_path = request.path.rstrip("/") + "/"
+        is_user_impression_route = normalized_path in {
+            "/api/noumatch-admin/analytics/impression/",
+            "/api/noumatch-admin/analytics/impression/update/",
+        }
 
         header = self.get_header(request)
         if header is not None:
@@ -16,7 +21,7 @@ class CookieJWTAuthentication(JWTAuthentication):
                 validated_token = self.get_validated_token(raw_token)
                 user = self.get_user(validated_token)
                 # Prevent non-staff bearer tokens from taking over admin routes.
-                if is_admin_route and not getattr(user, "is_staff", False):
+                if is_admin_route and not is_user_impression_route and not getattr(user, "is_staff", False):
                     raise InvalidToken("Non-staff token cannot access admin route")
                 return user, validated_token
             except (InvalidToken, TokenError):
@@ -24,7 +29,7 @@ class CookieJWTAuthentication(JWTAuthentication):
                 # header is present (for compatibility during token-storage migration).
                 pass
 
-        if is_admin_route:
+        if is_admin_route and not is_user_impression_route:
             cookie_names = [
                 getattr(settings, "AUTH_ADMIN_ACCESS_COOKIE_NAME", "nm_admin_access"),
             ]

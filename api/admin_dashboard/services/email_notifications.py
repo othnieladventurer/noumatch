@@ -12,6 +12,14 @@ from admin_dashboard.models import NotificationEmailTemplate, NotificationEmailL
 
 logger = logging.getLogger(__name__)
 
+PREMIUM_NOTIFICATION_TIERS = {"premium", "gold", "god_mode"}
+
+PRIVATE_ACTOR_LABELS = {
+    "new_like": "Someone",
+    "new_match": "someone",
+    "new_message": "Someone",
+}
+
 
 DEFAULT_NOTIFICATION_EMAIL_TEMPLATES = {
     "new_like": {
@@ -141,6 +149,30 @@ def _default_text_from_html(html):
     )
 
 
+def _can_reveal_actor_name(recipient, context_data=None):
+    account_type = (
+        (context_data or {}).get("recipient_account_type")
+        or getattr(recipient, "account_type", None)
+        or "free"
+    )
+    return str(account_type).lower() in PREMIUM_NOTIFICATION_TIERS
+
+
+def _apply_actor_privacy(event_type, recipient, context):
+    if "actor_name" not in context:
+        return context
+    if _can_reveal_actor_name(recipient, context):
+        context["actor_name_hidden"] = False
+        return context
+
+    return {
+        **context,
+        "actor_name": PRIVATE_ACTOR_LABELS.get(event_type, "Someone"),
+        "actor_name_hidden": True,
+        "actor_privacy_note": "Upgrade to see who interacted with you.",
+    }
+
+
 def _sender_email_address():
     return settings.DEFAULT_FROM_EMAIL.split("<")[-1].replace(">", "").strip()
 
@@ -221,6 +253,7 @@ def _send_notification_email_with_template(template, event_type, recipient=None,
         ),
         **(context_data or {}),
     }
+    context = _apply_actor_privacy(event_type, recipient, context)
 
     if not template or not template.is_enabled:
         return _create_log(

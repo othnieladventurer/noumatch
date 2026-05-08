@@ -8,13 +8,14 @@ import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
 const API_BASE = getAdminApiBase();
+const TODAY = new Date().toISOString().slice(0, 10);
 
 const emptyFilters = {
   viewer_email: '',
   viewed_email: '',
   swipe_action: '',
-  date_from: '',
-  date_to: ''
+  date_from: TODAY,
+  date_to: TODAY
 };
 
 const normalizeImpressionsPayload = (payload) => {
