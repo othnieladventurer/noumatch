@@ -1,3 +1,5 @@
+import { refreshAdminAccessToken, refreshUserAccessToken } from '../api/axios';
+
 const USER_PROTECTED_PREFIXES = [
   '/dashboard',
   '/profile',
@@ -19,7 +21,7 @@ const decodeJwtPayload = (token) => {
   }
 };
 
-const isExpiredJwt = (token, skewSeconds = 10) => {
+const isExpiredJwt = (token, skewSeconds = 60) => {
   const payload = decodeJwtPayload(token);
   if (!payload?.exp) return true;
   return payload.exp * 1000 <= Date.now() + skewSeconds * 1000;
@@ -43,15 +45,20 @@ const redirectIfNeeded = (path) => {
   }
 };
 
-export const enforceSessionForCurrentRoute = () => {
+export const enforceSessionForCurrentRoute = async () => {
   const path = window.location.pathname;
 
   if (path.startsWith('/admin') && path !== ADMIN_LOGIN_PATH) {
     const adminToken = localStorage.getItem('admin_access');
     if (!adminToken || isExpiredJwt(adminToken)) {
-      clearAdminSession();
-      redirectIfNeeded(ADMIN_LOGIN_PATH);
-      return true;
+      try {
+        await refreshAdminAccessToken();
+        return false;
+      } catch {
+        clearAdminSession();
+        redirectIfNeeded(ADMIN_LOGIN_PATH);
+        return true;
+      }
     }
     return false;
   }
@@ -60,9 +67,14 @@ export const enforceSessionForCurrentRoute = () => {
   if (isUserProtectedRoute) {
     const userToken = localStorage.getItem('access');
     if (!userToken || isExpiredJwt(userToken)) {
-      clearUserSession();
-      redirectIfNeeded(USER_LOGIN_PATH);
-      return true;
+      try {
+        await refreshUserAccessToken();
+        return false;
+      } catch {
+        clearUserSession();
+        redirectIfNeeded(USER_LOGIN_PATH);
+        return true;
+      }
     }
   }
 
@@ -70,13 +82,17 @@ export const enforceSessionForCurrentRoute = () => {
 };
 
 export const startSessionExpiryGuard = () => {
-  enforceSessionForCurrentRoute();
+  const run = () => {
+    enforceSessionForCurrentRoute().catch(() => {});
+  };
 
-  const interval = window.setInterval(enforceSessionForCurrentRoute, 30000);
-  const onFocus = () => enforceSessionForCurrentRoute();
+  run();
+
+  const interval = window.setInterval(run, 30000);
+  const onFocus = run;
   const onStorage = (event) => {
     if (['access', 'admin_access'].includes(event.key)) {
-      enforceSessionForCurrentRoute();
+      run();
     }
   };
 
