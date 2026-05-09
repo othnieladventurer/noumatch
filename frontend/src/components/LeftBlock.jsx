@@ -1,6 +1,7 @@
 import React from "react";
 import { getProfilePhotoUrl, formatName } from "../utils/helpers";
 import { useI18n } from "../context/I18nContext";
+import { canSeeWhoLiked } from "../utils/accountAccess";
 
 const AvatarRow = ({ items, onClickAvatar }) => (
   <div className="avatar-row">
@@ -44,7 +45,7 @@ export default function LeftBlock({ user, likesList, matchesList, blockedList, o
       </div>
       <div className="mt-3" style={{ height: 1, background: "linear-gradient(90deg, transparent, #e9ecef, transparent)" }} />
 
-      {(user?.account_type === "premium" || user?.account_type === "god_mode") && (
+      {canSeeWhoLiked(user) && (
         <SectionCard title={t("dashboard.likesWhoLikeYou")} count={likesList.length}>
           {likesList.length ? <AvatarRow items={likesList} onClickAvatar={openLikeModal} /> : <div className="text-center py-3 text-secondary small"><i className="far fa-heart me-2"></i>{t("dashboard.noLikesYet")}</div>}
         </SectionCard>

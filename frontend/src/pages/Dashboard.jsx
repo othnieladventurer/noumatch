@@ -8,6 +8,7 @@ import CenterBlock from "../components/CenterBlock";
 import RightBlock from "../components/RightBlock";
 import Modals from "../components/Modals";
 import { getProfilePhotoUrl, calculateAge } from "../utils/helpers";
+import { canSeeWhoLiked } from "../utils/accountAccess";
 import { useNotifications } from '../context/NotificationContext';
 import API from '@/api/axios';
 import "../styles/Dashboard.css";
@@ -788,7 +789,7 @@ export default function Dashboard() {
   }, []);
   
   const openLikeModal = useCallback((p) => {
-    if (user?.account_type === "free") return;
+    if (!canSeeWhoLiked(user)) return;
     setSelectedLike(p);
     setLikeModalOpen(true);
     document.body.style.overflow = 'hidden';
@@ -1423,14 +1424,14 @@ export default function Dashboard() {
 
 // Internal components for mobile bottom nav
 const MobileBottomNav = ({ user, activeMobileTab, setActiveMobileTab, likesList, matchesList, getProfilePhotoUrl, t }) => {
-  const isPremiumOrGod = user?.account_type === 'premium' || user?.account_type === 'god_mode';
+  const canViewLikes = canSeeWhoLiked(user);
   return (
     <div className="mobile-bottom-nav">
       <button onClick={() => setActiveMobileTab('center')} className={`nav-item ${activeMobileTab === 'center' ? 'active' : ''}`}>
         <i className="fas fa-compass nav-icon"></i>
         <span>{t("dashboard.nav.discover")}</span>
       </button>
-      {isPremiumOrGod && (
+      {canViewLikes && (
         <button onClick={() => setActiveMobileTab('likes')} className={`nav-item ${activeMobileTab === 'likes' ? 'active' : ''}`} style={{ position: 'relative' }}>
           <i className="fas fa-heart nav-icon"></i>
           {likesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%', fontSize: '10px', padding: '2px 5px' }}>{likesList.length}</span>}

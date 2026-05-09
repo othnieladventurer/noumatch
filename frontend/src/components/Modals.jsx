@@ -1,5 +1,6 @@
 import React from "react";
 import ReportModal from "./ReportModal";
+import { canSeeWhoLiked } from "../utils/accountAccess";
 
 const ModalShell = ({ open, onClose, title, children, maxWidth = 520, overlay = "rgba(0,0,0,0.60)", noPadding = false }) => {
   if (!open) return null;
@@ -357,7 +358,7 @@ export default function Modals({
       />
 
       {/* MODAL DES LIKES */}
-      {(user?.account_type === "premium" || user?.account_type === "god_mode") && (
+      {canSeeWhoLiked(user) && (
         <ModalShell
           open={likeModalOpen}
           onClose={closeLikeModal}
