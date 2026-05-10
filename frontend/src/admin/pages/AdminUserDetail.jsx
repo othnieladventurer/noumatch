@@ -5,8 +5,10 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase } from '../utils/adminApi';
+import { resolveMediaUrl } from '../../utils/apiBase';
 
 const API_BASE = getAdminApiBase();
+const DEFAULT_PHOTO_REVIEW_MESSAGE = "Merci d'ajouter une photo recente et conforme a nos regles pour continuer a swiper et eviter une suspension de votre compte NouMatch.";
 
 export default function AdminUserDetail() {
   const { id } = useParams();
@@ -25,6 +27,13 @@ export default function AdminUserDetail() {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
   const [visibilityLoading, setVisibilityLoading] = useState(false);
+  const [photoReviewLoading, setPhotoReviewLoading] = useState(false);
+  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState('');
+  const [showPhotoReviewModal, setShowPhotoReviewModal] = useState(false);
+  const [photoReviewMode, setPhotoReviewMode] = useState('require');
+  const [photoReviewMessage, setPhotoReviewMessage] = useState(DEFAULT_PHOTO_REVIEW_MESSAGE);
+  const [photoReviewError, setPhotoReviewError] = useState('');
 
   const getAuthHeader = () => ({
     withCredentials: true
@@ -196,6 +205,54 @@ export default function AdminUserDetail() {
     }
   };
 
+  const refreshUserDetail = async () => {
+    const res = await adminRequest({ method: 'get', url: `${API_BASE}/users/detail/${id}/?full=true` });
+    setUser(res.data);
+  };
+
+  const openPhotoReviewModal = (mode) => {
+    setPhotoReviewMode(mode);
+    setPhotoReviewError('');
+    setPhotoReviewMessage(user?.photo_review_reason || DEFAULT_PHOTO_REVIEW_MESSAGE);
+    setShowPhotoReviewModal(true);
+  };
+
+  const closePhotoReviewModal = () => {
+    if (photoReviewLoading) return;
+    setShowPhotoReviewModal(false);
+    setPhotoReviewError('');
+  };
+
+  const submitPhotoReviewAction = async () => {
+    try {
+      setPhotoReviewLoading(true);
+      setPhotoReviewError('');
+      const action = photoReviewMode === 'clear' ? 'clear_photo_review' : 'require_photo_review';
+      await adminRequest({
+        method: 'post',
+        url: `${API_BASE}/user_action/`,
+        data: {
+          user_id: id,
+          action,
+          message: photoReviewMode === 'require' ? photoReviewMessage : '',
+        },
+      });
+      await refreshUserDetail();
+      setShowPhotoReviewModal(false);
+    } catch (err) {
+      console.error(err);
+      setPhotoReviewError(err.response?.data?.error || 'Failed to update profile photo moderation status');
+    } finally {
+      setPhotoReviewLoading(false);
+    }
+  };
+
+  const openPhotoViewer = (url) => {
+    if (!url) return;
+    setSelectedPhotoUrl(resolveMediaUrl(url, url));
+    setPhotoViewerOpen(true);
+  };
+
   const getRiskBadge = () => {
     const reportsCount = user.stats?.total_reports_received || 0;
     if (reportsCount >= 5) return <span className="badge bg-danger px-3 py-2">High Risk</span>;
@@ -254,7 +311,13 @@ export default function AdminUserDetail() {
               <div className="d-flex flex-wrap justify-content-between align-items-start gap-4">
                 <div className="d-flex align-items-center gap-4">
                   <div className="position-relative">
-                    <img src={user.profile_photo_url || '/default-avatar.png'} alt="Profile" className="rounded-circle border border-3 border-danger" style={{ width: 96, height: 96, objectFit: 'cover' }} />
+                    <img
+                      src={resolveMediaUrl(user.profile_photo_url, user.profile_photo_url) || '/default-avatar.png'}
+                      alt="Profile"
+                      className="rounded-circle border border-3 border-danger"
+                      style={{ width: 96, height: 96, objectFit: 'cover', cursor: user.profile_photo_url ? 'zoom-in' : 'default' }}
+                      onClick={() => openPhotoViewer(user.profile_photo_url)}
+                    />
                     <span className={`position-absolute bottom-0 end-0 rounded-circle border border-2 border-white ${user.is_online ? 'bg-success' : 'bg-secondary'}`} style={{ width: 20, height: 20 }}></span>
                   </div>
                   <div>
@@ -265,6 +328,7 @@ export default function AdminUserDetail() {
                       {getRiskBadge()}
                       {user.is_verified ? <span className="badge bg-info px-3 py-2">Verified</span> : <span className="badge bg-warning text-dark px-3 py-2">Unverified</span>}
                       <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>{accountStateLabel}</span>
+                      {user.photo_review_required && <span className="badge bg-warning text-dark px-3 py-2">Photo update required #{user.photo_review_trigger_count || 1}</span>}
                     </div>
                   </div>
                 </div>
@@ -342,6 +406,37 @@ export default function AdminUserDetail() {
               </div>
             </div>
             <div className="col-lg-6">
+              <div className="recent-blocks-card mb-4">
+                <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-camera text-danger me-2"></i>Profile Photos</h5></div>
+                <div className="card-body pt-0 pb-4 px-4">
+                  <div className="row g-3">
+                    {(user.photos?.length ? user.photos : user.profile_photo_url ? [{ id: 'main', image_url: user.profile_photo_url }] : []).map((photo, index) => (
+                      <div key={photo.id || index} className="col-6 col-md-4">
+                        <button
+                          type="button"
+                          className="border-0 p-0 bg-transparent w-100"
+                          onClick={() => openPhotoViewer(photo.image_url)}
+                          style={{ cursor: 'zoom-in' }}
+                        >
+                          <img
+                            src={resolveMediaUrl(photo.image_url, photo.image_url)}
+                            alt={`Profile ${index + 1}`}
+                            style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: '18px', boxShadow: '0 14px 28px rgba(15, 23, 42, 0.16)' }}
+                          />
+                        </button>
+                      </div>
+                    ))}
+                    {(!user.photos || user.photos.length === 0) && !user.profile_photo_url && (
+                      <div className="col-12 text-muted">No profile photos available for this user.</div>
+                    )}
+                  </div>
+                  {user.photo_review_reason && (
+                    <div className="alert alert-warning mt-3 mb-0">
+                      <strong>Review reason:</strong> {user.photo_review_reason}
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="recent-blocks-card h-100">
                 <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-chart-line text-success me-2"></i>Activity & Safety</h5></div>
                 <div className="card-body pt-0 pb-4 px-4">
@@ -375,6 +470,15 @@ export default function AdminUserDetail() {
                   <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleUserAction('unban')}><i className="fas fa-check-circle me-2"></i>Restore Access</button>
                 )}
                 {!user.is_verified && <button className="btn btn-outline-info rounded-pill px-4" onClick={() => handleUserAction('verify')}><i className="fas fa-check-double me-2"></i>Verify Profile</button>}
+                {user.photo_review_required ? (
+                  <button className="btn btn-outline-success rounded-pill px-4" onClick={() => openPhotoReviewModal('clear')} disabled={photoReviewLoading}>
+                    <i className="fas fa-camera-retro me-2"></i>{photoReviewLoading ? 'Updating...' : 'Clear Photo Requirement'}
+                  </button>
+                ) : (
+                  <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => openPhotoReviewModal('require')} disabled={photoReviewLoading}>
+                    <i className="fas fa-camera me-2"></i>{photoReviewLoading ? 'Updating...' : 'Require New Profile Photo'}
+                  </button>
+                )}
                 <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => setShowBlockModal(true)}><i className="fas fa-user-slash me-2"></i>Admin Block</button>
                 <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => setShowDeactivateModal(true)}><i className="fas fa-power-off me-2"></i>Deactivate</button>
                 <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleVisibilityAction('boost')} disabled={visibilityLoading}>
@@ -518,6 +622,74 @@ export default function AdminUserDetail() {
       {showMessagesModal && selectedConversation && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-lg"><div className="modal-content"><div className="modal-header"><h5 className="modal-title">Messages with {selectedConversation.other_participant}</h5><button type="button" className="btn-close" onClick={() => setShowMessagesModal(false)}></button></div><div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>{selectedConversation.messages?.map(msg => (<div key={msg.id} className={`mb-2 p-2 rounded ${msg.sender_email === user.email ? 'bg-light text-dark' : 'bg-primary bg-opacity-10'}`}><strong>{msg.sender_email}</strong> <small>{new Date(msg.created_at).toLocaleString()}</small><div>{msg.content}</div></div>))}</div><div className="modal-footer"><button className="btn btn-secondary" onClick={() => setShowMessagesModal(false)}>Close</button></div></div></div>
+        </div>
+      )}
+      {showPhotoReviewModal && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {photoReviewMode === 'require' ? 'Require New Profile Photo' : 'Clear Photo Requirement'}
+                </h5>
+                <button type="button" className="btn-close" onClick={closePhotoReviewModal}></button>
+              </div>
+              <div className="modal-body">
+                {photoReviewMode === 'require' ? (
+                  <>
+                    <p className="mb-3">
+                      This is the exact message the user will see on the blocked center card. You can edit it before sending.
+                    </p>
+                    <label className="form-label fw-semibold">User-facing message</label>
+                    <textarea
+                      className="form-control"
+                      rows="4"
+                      value={photoReviewMessage}
+                      onChange={(e) => setPhotoReviewMessage(e.target.value)}
+                      placeholder={DEFAULT_PHOTO_REVIEW_MESSAGE}
+                    />
+                    <div className="mt-4">
+                      <div className="small text-uppercase text-muted mb-2">Center card preview</div>
+                      <div style={{ background: '#111827', color: '#fff', borderRadius: '24px', padding: '22px', boxShadow: '0 20px 50px rgba(15, 23, 42, 0.35)' }}>
+                        <div className="d-flex align-items-center justify-content-center mb-3" style={{ width: '68px', height: '68px', borderRadius: '50%', margin: '0 auto', background: 'rgba(255,77,109,0.15)', color: '#ff4d6d', fontSize: '28px' }}>
+                          <i className="fas fa-camera-retro"></i>
+                        </div>
+                        <h4 className="fw-bold text-center mb-3">Veuillez mettre a jour votre photo de profil</h4>
+                        <p className="mb-0 text-center" style={{ color: 'rgba(255,255,255,0.82)', lineHeight: 1.7 }}>
+                          {photoReviewMessage || DEFAULT_PHOTO_REVIEW_MESSAGE}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="mb-0">
+                    Clear the profile photo requirement for <strong>{user?.full_name || user?.email}</strong>? The user will be able to swipe again immediately unless another blocker still applies.
+                  </p>
+                )}
+                {photoReviewError && <div className="alert alert-danger mt-3 mb-0">{photoReviewError}</div>}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={closePhotoReviewModal} disabled={photoReviewLoading}>Cancel</button>
+                <button className={`btn ${photoReviewMode === 'require' ? 'btn-warning' : 'btn-success'}`} onClick={submitPhotoReviewAction} disabled={photoReviewLoading || (photoReviewMode === 'require' && !photoReviewMessage.trim())}>
+                  {photoReviewLoading ? 'Updating...' : photoReviewMode === 'require' ? 'Trigger Requirement' : 'Clear Requirement'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {photoViewerOpen && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.82)' }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
+            <div className="modal-content border-0 bg-transparent">
+              <div className="modal-header border-0">
+                <button type="button" className="btn-close btn-close-white ms-auto" onClick={() => setPhotoViewerOpen(false)}></button>
+              </div>
+              <div className="modal-body text-center pt-0">
+                <img src={selectedPhotoUrl} alt="Profile preview" style={{ maxWidth: '100%', maxHeight: '80vh', borderRadius: '22px', objectFit: 'contain' }} />
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

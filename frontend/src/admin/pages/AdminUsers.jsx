@@ -7,6 +7,7 @@ import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 import { clearCache, clearCacheByPrefix, readFreshCache, writeCache } from '../utils/adminCache';
+import { resolveMediaUrl } from '../../utils/apiBase';
 
 const API_BASE = getAdminApiBase();
 const USERS_PER_PAGE = 10;
@@ -645,16 +646,51 @@ export default function AdminUsers() {
                     users.map(user => (
                       <tr key={user.id}>
                         <td className="align-middle">
-                          {user.profile_photo_url ? (
-                            <img 
-                              src={user.profile_photo_url} 
-                              alt="profile" 
-                              style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} 
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#ccc', display: 'inline-block' }}></div>
-                          )}
+                          <div className="d-flex align-items-center gap-3">
+                            {user.profile_photo_url ? (
+                              <img
+                                src={resolveMediaUrl(user.profile_photo_url, user.profile_photo_url)}
+                                alt={user.full_name || user.email}
+                                style={{
+                                  width: '56px',
+                                  height: '56px',
+                                  borderRadius: '16px',
+                                  objectFit: 'cover',
+                                  border: '1px solid rgba(148, 163, 184, 0.25)',
+                                  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)',
+                                }}
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: '56px',
+                                  height: '56px',
+                                  borderRadius: '16px',
+                                  background: 'linear-gradient(135deg, #e5e7eb, #cbd5e1)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 700,
+                                  color: '#475569',
+                                  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)',
+                                }}
+                              >
+                                {(user.full_name || user.email || 'U').trim().slice(0, 1).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="small">
+                              <div className="fw-semibold text-dark">Photo</div>
+                              <div className="text-muted">
+                                {user.profile_photo_url ? 'Visible profile image' : 'No profile image'}
+                              </div>
+                              {user.photo_review_required && (
+                                <span className="badge bg-warning text-dark mt-1">
+                                  Photo review trigger #{user.photo_review_trigger_count || 1}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td className="align-middle">
                           <strong>{user.full_name || 'N/A'}</strong><br/>

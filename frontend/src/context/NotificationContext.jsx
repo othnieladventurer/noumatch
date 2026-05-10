@@ -1,6 +1,7 @@
 // context/NotificationContext.jsx
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { getRuntimeApiBase, getRuntimeWsBase } from '../utils/apiBase';
+import API from '../api/axios';
+import { getRuntimeWsBase } from '../utils/apiBase';
 
 const NotificationContext = createContext();
 
@@ -12,75 +13,58 @@ export const NotificationProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Use refs to prevent re-render loops
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const heartbeatRef = useRef(null);
   const connectionAttemptRef = useRef(0);
   const mountedRef = useRef(true);
+  const notificationsRef = useRef([]);
 
-  // --- NEW: Check if in admin mode ---
   const isAdminMode = useCallback(() => {
     const hasAdminToken = !!localStorage.getItem('admin_access');
     const isAdminPath = window.location.pathname.startsWith('/admin');
     return hasAdminToken || isAdminPath;
   }, []);
 
-  const BASE_URL = getRuntimeApiBase();
   const WS_BASE_URL = getRuntimeWsBase();
 
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
+
   const isAuthenticated = () => {
-    // Don't use user authentication in admin mode
     if (isAdminMode()) {
       return false;
     }
-    return sessionStorage.getItem("nm_user_session") === "1";
+    return sessionStorage.getItem("nm_user_session") === "1" || !!localStorage.getItem("access");
   };
 
   const fetchNotifications = async () => {
-    // Skip if in admin mode
     if (isAdminMode()) {
       setLoading(false);
       return;
     }
-
-    // Prevent multiple simultaneous fetches
     if (fetchNotifications.isFetching) return;
 
     try {
       fetchNotifications.isFetching = true;
 
-      const headers = {
-        'Content-Type': 'application/json'
-      };
+      const response = await API.get('/notifications/');
+      const data = Array.isArray(response.data) ? response.data : [];
 
-      const response = await fetch(`${BASE_URL}/api/notifications/`, {
-        credentials: 'include',
-        headers,
+      setNotifications((prev) => {
+        const existingMap = new Map(prev.map((notification) => [notification.id, notification]));
+        return data.map((serverNotification) => {
+          const existing = existingMap.get(serverNotification.id);
+          if (existing && existing.is_read && !serverNotification.is_read) {
+            return { ...serverNotification, is_read: true, read_at: existing.read_at };
+          }
+          return serverNotification;
+        });
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(prev => {
-          // Merge with existing state to preserve read status
-          const existingMap = new Map(prev.map(n => [n.id, n]));
-
-          const merged = data.map(serverNotif => {
-            const existing = existingMap.get(serverNotif.id);
-            if (existing && existing.is_read && !serverNotif.is_read) {
-              return { ...serverNotif, is_read: true, read_at: existing.read_at };
-            }
-            return serverNotif;
-          });
-
-          return merged;
-        });
-
-        setUnreadCount(data.filter(n => !n.is_read).length);
-      } else if (response.status === 401) {
-        // Silent fail for 401 - token might be expired
-      }
+      setUnreadCount(data.filter((notification) => !notification.is_read).length);
     } catch (error) {
       console.error('❌ [CONTEXT] Error fetching notifications:', error);
     } finally {
@@ -90,47 +74,47 @@ export const NotificationProvider = ({ children }) => {
   };
 
   const connectWebSocket = useCallback(() => {
-    // Skip if in admin mode
     if (isAdminMode()) {
       return;
     }
-
-    // Don't try to connect if already connected or no token
+    if (!isAuthenticated()) {
+      return;
+    }
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       return;
     }
 
-
-    // Limit reconnection attempts
     connectionAttemptRef.current += 1;
-    if (connectionAttemptRef.current > 5) {
-      return;
-    }
 
-    // Close existing socket if any
     if (socketRef.current) {
       try {
         socketRef.current.close();
-      } catch (e) {
-        // Ignore
+      } catch (error) {
+        // Ignore stale socket shutdown errors.
       }
     }
 
-    const wsUrl = `${WS_BASE_URL}/ws/notifications/`;
+    const accessToken = localStorage.getItem("access");
+    const wsUrl = accessToken
+      ? `${WS_BASE_URL}/ws/notifications/?token=${encodeURIComponent(accessToken)}`
+      : `${WS_BASE_URL}/ws/notifications/`;
+
     try {
       socketRef.current = new WebSocket(wsUrl);
 
       socketRef.current.onopen = () => {
         setIsConnected(true);
-        connectionAttemptRef.current = 0; // Reset counter on successful connection
+        connectionAttemptRef.current = 0;
 
-        // Clear any existing reconnect timeout
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
           reconnectTimeoutRef.current = null;
         }
 
-        // Send a ping every 30 seconds to keep connection alive
+        if (heartbeatRef.current) {
+          clearInterval(heartbeatRef.current);
+        }
+
         heartbeatRef.current = setInterval(() => {
           if (socketRef.current?.readyState === WebSocket.OPEN) {
             socketRef.current.send(JSON.stringify({
@@ -146,62 +130,50 @@ export const NotificationProvider = ({ children }) => {
           const data = JSON.parse(event.data);
           if (data.type === 'new_notification' || data.type === 'new_message') {
             const notification = data.notification || data;
+            if (!notification?.id) return;
 
-            setNotifications(prev => {
-              // Check for duplicate
-              if (prev.some(n => n.id === notification.id)) {
-                return prev;
-              }
-              return [notification, ...prev];
-            });
+            const existing = notificationsRef.current.find((item) => item.id === notification.id);
 
-            setUnreadCount(prev => {
-              return prev + 1;
-            });
+            setNotifications((prev) => [notification, ...prev.filter((item) => item.id !== notification.id)]);
+
+            if (!notification.is_read && !existing) {
+              setUnreadCount((prev) => prev + 1);
+            }
+
+            fetchNotifications();
           }
-          else if (data.type === 'pong') {
-          }
-          else if (data.type === 'connection_success') {
-          }
-        } catch (err) {
-          console.error('❌ [CONTEXT] Error parsing WebSocket message:', err);
+        } catch (error) {
+          console.error('❌ [CONTEXT] Error parsing WebSocket message:', error);
         }
       };
 
       socketRef.current.onclose = (event) => {
         setIsConnected(false);
 
-        // Clear heartbeat
         if (heartbeatRef.current) {
           clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
         }
 
-        // Only attempt reconnect if component is mounted and we haven't exceeded attempts
-        // Don't reconnect on normal closure (1000) or if in admin mode
-        if (mountedRef.current && event.code !== 1000 && connectionAttemptRef.current <= 5 && !isAdminMode()) {
+        if (mountedRef.current && event.code !== 1000 && !isAdminMode()) {
+          const reconnectDelay = Math.min(30000, 1000 * (2 ** Math.min(connectionAttemptRef.current, 5)));
           reconnectTimeoutRef.current = setTimeout(() => {
             connectWebSocket();
-          }, 5000);
-        } else if (event.code === 1000) {
-        } else if (isAdminMode()) {
+          }, reconnectDelay);
         }
       };
 
       socketRef.current.onerror = (error) => {
         console.error('❌ [CONTEXT] WebSocket error:', error);
-        // Don't try to reconnect here, onclose will handle it
       };
     } catch (error) {
       console.error('❌ [CONTEXT] Failed to create WebSocket:', error);
     }
   }, [WS_BASE_URL, isAdminMode]);
 
-  // Initialize on mount
   useEffect(() => {
     mountedRef.current = true;
 
-    // Skip everything if in admin mode
     if (isAdminMode()) {
       setLoading(false);
       return;
@@ -211,21 +183,28 @@ export const NotificationProvider = ({ children }) => {
       setLoading(false);
       return;
     }
-    // Initial fetch
+
     fetchNotifications();
 
-    // Setup polling ONLY as backup (30 seconds)
     pollingIntervalRef.current = setInterval(() => {
-      // Skip if in admin mode
       if (isAdminMode()) return;
-      
-      // Only poll if WebSocket is not connected and user is authenticated
       if (!isConnected && isAuthenticated()) {
         fetchNotifications();
       }
-    }, 30000); // 30 seconds
+    }, 10000);
 
-    // Request notification permission (only for regular users)
+    const refreshOnFocus = () => {
+      if (document.visibilityState !== 'hidden' && isAuthenticated()) {
+        fetchNotifications();
+        if (!socketRef.current || socketRef.current.readyState === WebSocket.CLOSED) {
+          connectWebSocket();
+        }
+      }
+    };
+
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnFocus);
+
     if (Notification.permission === 'default' && !isAdminMode()) {
       Notification.requestPermission();
     }
@@ -237,13 +216,11 @@ export const NotificationProvider = ({ children }) => {
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;
       }
-
       if (socketRef.current) {
-        // Send normal closure
         try {
           socketRef.current.close(1000, "Component unmounting");
-        } catch (e) {
-          // Ignore
+        } catch (error) {
+          // Ignore socket close errors during cleanup.
         }
       }
       if (reconnectTimeoutRef.current) {
@@ -254,18 +231,18 @@ export const NotificationProvider = ({ children }) => {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
-    };
-  }, [isAdminMode]); // Add isAdminMode to dependency array
 
-  // Connect WebSocket AFTER we have user (separate effect)
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+    };
+  }, [isAdminMode, connectWebSocket, isConnected]);
+
   useEffect(() => {
-    // Skip if in admin mode
     if (isAdminMode()) {
       return;
     }
-    
-    if (!socketRef.current && connectionAttemptRef.current < 5 && !isAdminMode()) {
-      // Small delay to ensure everything is ready
+
+    if ((!socketRef.current || socketRef.current.readyState === WebSocket.CLOSED) && isAuthenticated()) {
       const timer = setTimeout(() => {
         connectWebSocket();
       }, 1000);
@@ -275,116 +252,78 @@ export const NotificationProvider = ({ children }) => {
   }, [connectWebSocket, isAdminMode]);
 
   const markAsRead = useCallback(async (notificationId) => {
-    // Skip if in admin mode
     if (isAdminMode()) {
       return;
     }
-
     if (!notificationId) return;
-    // Store original for potential revert
+
     const originalNotifications = [...notifications];
     const originalUnreadCount = unreadCount;
 
-    // Optimistic update
-    setNotifications(prev =>
-      prev.map(n =>
-        n.id === notificationId ? { ...n, is_read: true, read_at: new Date().toISOString() } : n
+    setNotifications((prev) =>
+      prev.map((notification) =>
+        notification.id === notificationId ? { ...notification, is_read: true, read_at: new Date().toISOString() } : notification
       )
     );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
 
     try {
-      const response = await fetch(`${BASE_URL}/api/notifications/mark-read/`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ notification_ids: [notificationId] }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to mark as read');
-      }
-
-      const result = await response.json();
+      await API.post('/notifications/mark-read/', { notification_ids: [notificationId] });
     } catch (error) {
       console.error('❌ [CONTEXT] Error marking as read:', error);
-      // Revert on error
       setNotifications(originalNotifications);
       setUnreadCount(originalUnreadCount);
     }
-  }, [notifications, unreadCount, BASE_URL, isAdminMode]);
+  }, [notifications, unreadCount, isAdminMode]);
 
   const markAllAsRead = useCallback(async () => {
-    // Skip if in admin mode
     if (isAdminMode()) {
       return;
     }
-    // Store current state for revert
+
     const previousNotifications = [...notifications];
     const previousUnreadCount = unreadCount;
 
-    // Optimistic update
-    setNotifications(prev =>
-      prev.map(n => ({ ...n, is_read: true, read_at: new Date().toISOString() }))
+    setNotifications((prev) =>
+      prev.map((notification) => ({ ...notification, is_read: true, read_at: new Date().toISOString() }))
     );
     setUnreadCount(0);
 
     try {
-      const response = await fetch(`${BASE_URL}/api/notifications/mark-read/`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ mark_all: true }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to mark all as read');
-      }
-
-      const result = await response.json();
+      await API.post('/notifications/mark-read/', { mark_all: true });
     } catch (error) {
       console.error('❌ [CONTEXT] Error marking all as read:', error);
-      // Revert on error
       setNotifications(previousNotifications);
       setUnreadCount(previousUnreadCount);
     }
-  }, [notifications, unreadCount, BASE_URL, isAdminMode]);
+  }, [notifications, unreadCount, isAdminMode]);
 
   const deleteNotification = useCallback(async (notificationId) => {
     if (isAdminMode()) return;
     if (!notificationId) return;
 
     const previous = [...notifications];
-    const deleted = notifications.find((n) => n.id === notificationId);
+    const deleted = notifications.find((notification) => notification.id === notificationId);
 
-    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    setNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
     if (deleted && !deleted.is_read) {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     }
 
     try {
-      const response = await fetch(`${BASE_URL}/api/notifications/${notificationId}/delete/`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Delete failed');
+      await API.delete(`/notifications/${notificationId}/delete/`);
     } catch (error) {
       console.error('❌ [CONTEXT] Error deleting notification:', error);
       setNotifications(previous);
-      setUnreadCount(previous.filter((n) => !n.is_read).length);
+      setUnreadCount(previous.filter((notification) => !notification.is_read).length);
     }
-  }, [notifications, BASE_URL, isAdminMode]);
+  }, [notifications, isAdminMode]);
 
   const refresh = useCallback(() => {
-    // Skip if in admin mode
     if (isAdminMode()) {
       return;
     }
-    
+
     if (isAuthenticated()) {
       fetchNotifications();
     }
@@ -407,4 +346,3 @@ export const NotificationProvider = ({ children }) => {
     </NotificationContext.Provider>
   );
 };
-

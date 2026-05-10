@@ -18,7 +18,7 @@ from django.contrib.auth import authenticate
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
-from django.db import transaction
+from django.db import connection, transaction
 from django.db import DatabaseError, IntegrityError, OperationalError, ProgrammingError
 from django.db.models.deletion import ProtectedError
 from django.conf import settings
@@ -63,6 +63,25 @@ except Exception:  # pragma: no cover - token blacklist may be disabled in some 
 from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
 
 logger = logging.getLogger(__name__)
+
+
+def _user_photo_review_fields_ready():
+    try:
+        with connection.cursor() as cursor:
+            columns = {
+                column.name
+                for column in connection.introspection.get_table_description(cursor, User._meta.db_table)
+            }
+        required = {
+            "photo_review_required",
+            "photo_review_trigger_count",
+            "photo_review_reason",
+            "photo_review_required_at",
+        }
+        return required.issubset(columns)
+    except Exception:
+        logger.exception("Could not verify user photo review column readiness.")
+        return False
 
 
 def _raw_delete_queryset(queryset, deleted_by_model):
@@ -468,8 +487,23 @@ def _profile_impression_metrics(request=None):
 
 
 def _admin_dashboard_fallback_payload():
+    registration_counts = {
+        'women_registered_count': 0,
+        'men_registered_count': 0,
+        'other_registered_count': 0,
+        'women_registered_ratio': 0.0,
+        'men_registered_ratio': 0.0,
+        'total_registered_app_users': 0,
+        'generated_at': timezone.now(),
+    }
+    try:
+        registration_counts = _registration_balance_payload()
+    except Exception:
+        logger.exception("Could not compute registration balance for admin dashboard fallback.")
+
     return {
         'total_users': 0,
+        **registration_counts,
         'active_today': 0,
         'likes_today': 0,
         'passes_today': 0,
@@ -580,6 +614,35 @@ def _product_users_queryset():
         | Q(email__iendswith='@example.com')
     )
     return User.objects.filter(is_active=True, is_staff=False, is_superuser=False).exclude(test_user_q)
+
+
+def _registered_app_users_queryset():
+    # Registration balance should reflect actual app registrations, even in staging datasets.
+    return User.objects.filter(is_active=True, is_staff=False, is_superuser=False)
+
+
+def _registration_balance_payload():
+    queryset = _registered_app_users_queryset()
+    gender_counts = {
+        (row['gender'] or 'unspecified'): row['count']
+        for row in queryset.values('gender').annotate(count=Count('id'))
+    }
+    women_registered_count = gender_counts.get('female', 0)
+    men_registered_count = gender_counts.get('male', 0)
+    other_registered_count = sum(
+        count for gender, count in gender_counts.items()
+        if gender not in {'female', 'male'}
+    )
+    binary_registered_total = women_registered_count + men_registered_count
+    return {
+        'women_registered_count': women_registered_count,
+        'men_registered_count': men_registered_count,
+        'other_registered_count': other_registered_count,
+        'women_registered_ratio': round((women_registered_count / binary_registered_total) * 100, 1) if binary_registered_total else 0.0,
+        'men_registered_ratio': round((men_registered_count / binary_registered_total) * 100, 1) if binary_registered_total else 0.0,
+        'total_registered_app_users': queryset.count(),
+        'generated_at': timezone.now(),
+    }
 
 
 def _active_users_count_since(start_datetime, end_datetime=None):
@@ -753,6 +816,16 @@ class AdminUsersListView(APIView):
             else:
                 queryset = queryset.order_by('-date_joined')
 
+            photo_review_ready = _user_photo_review_fields_ready()
+            user_only_fields = [
+                'id', 'email', 'first_name', 'last_name', 'username', 'gender',
+                'profile_photo', 'is_active', 'is_staff', 'is_superuser',
+                'is_verified', 'profile_score', 'date_joined',
+            ]
+            if photo_review_ready:
+                user_only_fields.extend(['photo_review_required', 'photo_review_trigger_count'])
+            queryset = queryset.only(*user_only_fields)
+
             total = queryset.count()
             start = (page - 1) * limit
             end = start + limit
@@ -797,12 +870,14 @@ class AdminUsersListView(APIView):
                     'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
                     'username': user.username,
                     'gender': user.gender or '',
-                    'profile_photo_url': user.profile_photo.url if user.profile_photo else None,
+                    'profile_photo_url': request.build_absolute_uri(user.profile_photo.url) if user.profile_photo else None,
                     'is_active': user.is_active,
                     'is_staff': user.is_staff,
                     'is_superuser': user.is_superuser,
                     'role': 'superadmin' if user.is_superuser else ('staff' if user.is_staff else 'app_user'),
                     'is_verified': user.is_verified,
+                    'photo_review_required': user.photo_review_required if photo_review_ready else False,
+                    'photo_review_trigger_count': user.photo_review_trigger_count if photo_review_ready else 0,
                     'profile_score': user.profile_score,
                     'user_score': scorecard.overall_score if scorecard else 0,
                     'total_points': scorecard.total_points if scorecard else 0,
@@ -1018,6 +1093,7 @@ class AdminDashboardView(APIView):
             ]
 
             product_users = _product_users_queryset()
+            registration_balance = _registration_balance_payload()
             zero_match_users_count = product_users.filter(
                 matches_as_user1__isnull=True,
                 matches_as_user2__isnull=True,
@@ -1030,6 +1106,7 @@ class AdminDashboardView(APIView):
 
             return Response({
                 'total_users': total_users,
+                **registration_balance,
                 'active_today': active_today,
                 'likes_today': likes_today,
                 'passes_today': passes_today,
@@ -1061,6 +1138,26 @@ class AdminDashboardView(APIView):
         except Exception as exc:
             logger.exception("AdminDashboardView failed; returning fallback payload: %s", exc)
             return Response(_admin_dashboard_fallback_payload(), status=status.HTTP_200_OK)
+
+
+class AdminRegistrationBalanceView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        try:
+            return Response(_registration_balance_payload())
+        except DatabaseError as exc:
+            logger.exception("AdminRegistrationBalanceView database error; returning fallback payload: %s", exc)
+            return Response({
+                **_admin_dashboard_fallback_payload(),
+                'warning': 'Temporary database connectivity issue while loading registration balance.',
+            }, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.exception("AdminRegistrationBalanceView unexpected error; returning fallback payload: %s", exc)
+            return Response({
+                **_admin_dashboard_fallback_payload(),
+                'warning': 'Temporary issue while loading registration balance.',
+            }, status=status.HTTP_200_OK)
 
 
 class AdminActiveUsersMetricsView(APIView):
@@ -1535,7 +1632,21 @@ class AdminUserDetailView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request, user_id):
-        user = get_object_or_404(User, id=user_id)
+        photo_review_ready = _user_photo_review_fields_ready()
+        user_only_fields = [
+            'id', 'email', 'first_name', 'last_name', 'profile_photo', 'gender',
+            'city', 'country', 'bio', 'account_type', 'profile_score',
+            'is_active', 'is_verified', 'date_joined', 'last_activity',
+            'is_online', 'birth_date', 'latitude', 'longitude',
+        ]
+        if photo_review_ready:
+            user_only_fields.extend([
+                'photo_review_required',
+                'photo_review_trigger_count',
+                'photo_review_reason',
+                'photo_review_required_at',
+            ])
+        user = get_object_or_404(User.objects.only(*user_only_fields), id=user_id)
         full = request.query_params.get('full') == 'true'
         try:
             scorecard, _ = UserEngagementScore.objects.get_or_create(user=user)
@@ -1548,7 +1659,7 @@ class AdminUserDetailView(APIView):
             'id': user.id,
             'email': user.email,
             'full_name': f"{user.first_name} {user.last_name}".strip() or user.email,
-            'profile_photo_url': user.profile_photo.url if user.profile_photo else None,
+            'profile_photo_url': request.build_absolute_uri(user.profile_photo.url) if user.profile_photo else None,
             'gender': user.gender,
             'city': user.city,
             'country': user.country,
@@ -1557,6 +1668,10 @@ class AdminUserDetailView(APIView):
             'profile_score': user.profile_score,
             'is_active': user.is_active,
             'is_verified': user.is_verified,
+            'photo_review_required': user.photo_review_required if photo_review_ready else False,
+            'photo_review_trigger_count': user.photo_review_trigger_count if photo_review_ready else 0,
+            'photo_review_reason': user.photo_review_reason if photo_review_ready else '',
+            'photo_review_required_at': user.photo_review_required_at if photo_review_ready else None,
             'date_joined': user.date_joined,
             'last_activity': user.last_activity,
             'is_online': user.is_online,
@@ -1586,6 +1701,16 @@ class AdminUserDetailView(APIView):
                 'last_calculated_at': scorecard.last_calculated_at if scorecard else None,
             },
         }
+
+        response_data['photos'] = [
+            {
+                'id': photo.id,
+                'image_url': request.build_absolute_uri(photo.image.url) if photo.image else None,
+                'uploaded_at': photo.uploaded_at,
+            }
+            for photo in user.photos.all().order_by('-uploaded_at')
+            if photo.image
+        ]
 
         # Stats
         likes_given = Like.objects.filter(from_user=user).count()
@@ -1667,13 +1792,26 @@ class AdminUserActionView(APIView):
 
     def post(self, request):
         user_id = request.data.get('user_id')
-        action = request.data.get('action')
+        action = str(request.data.get('action') or '').strip().lower()
         if not user_id or not action:
             return Response({'error': 'user_id and action required'}, status=400)
 
         target = get_object_or_404(User, id=user_id)
         if target.id == request.user.id:
             return Response({'error': 'Cannot act on yourself'}, status=400)
+
+        require_photo_review_actions = {
+            'require_photo_review',
+            'require_profile_picture',
+            'require_profile_photo',
+            'require_new_profile_photo',
+        }
+        clear_photo_review_actions = {
+            'clear_photo_review',
+            'clear_profile_picture_requirement',
+            'clear_profile_photo_requirement',
+        }
+        photo_review_ready = _user_photo_review_fields_ready()
 
         if action == 'ban':
             target.is_active = False
@@ -1687,6 +1825,34 @@ class AdminUserActionView(APIView):
             target.is_verified = True
             target.save()
             return Response({'message': f'User {target.email} verified'})
+        elif action in require_photo_review_actions:
+            if not photo_review_ready:
+                return Response({
+                    'error': 'Photo review moderation fields are not available yet. Run the latest users migrations first.',
+                    'code': 'photo_review_schema_not_ready',
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            user_message = (request.data.get('message') or '').strip()
+            target.trigger_photo_review_requirement(
+                user_message or "Merci d'ajouter une photo recente et conforme a nos regles pour continuer a swiper et eviter une suspension de votre compte NouMatch."
+            )
+            return Response({
+                'message': f'User {target.email} must upload a new profile photo before swiping again',
+                'photo_review_required': True,
+                'photo_review_trigger_count': target.photo_review_trigger_count,
+                'photo_review_reason': target.photo_review_reason,
+            })
+        elif action in clear_photo_review_actions:
+            if not photo_review_ready:
+                return Response({
+                    'error': 'Photo review moderation fields are not available yet. Run the latest users migrations first.',
+                    'code': 'photo_review_schema_not_ready',
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            target.clear_photo_review_requirement()
+            return Response({
+                'message': f'Photo review requirement cleared for {target.email}',
+                'photo_review_required': False,
+                'photo_review_trigger_count': target.photo_review_trigger_count,
+            })
         return Response({'error': 'Invalid action'}, status=400)
 
 
@@ -1740,7 +1906,9 @@ class AdminLaunchMonitorView(APIView):
             )
 
             zero_match_qs = list(
-                product_users.exclude(id__in=matched_user_ids).order_by('-last_activity', '-date_joined')[:50]
+                product_users.exclude(id__in=matched_user_ids)
+                .only('id', 'email', 'first_name', 'last_name', 'last_activity', 'date_joined')
+                .order_by('-last_activity', '-date_joined')[:50]
             )
             zero_match_ids = [user.id for user in zero_match_qs]
             since_24h = now - timedelta(hours=24)

@@ -1080,6 +1080,7 @@ export default function Dashboard() {
               handleUnmatch={handleUnmatch}
               isAnimating={isAnimating}
               goToMessenger={goToMessenger}
+              goToMyProfile={goToMyProfile}
               setMatchedProfile={setMatchedProfile}
               setMatchModalOpen={setMatchModalOpen}
               openReportModal={openReportModal}
@@ -1147,6 +1148,7 @@ export default function Dashboard() {
                       handleUnmatch={handleUnmatch}
                       isAnimating={isAnimating}
                       goToMessenger={goToMessenger}
+                      goToMyProfile={goToMyProfile}
                       setMatchedProfile={setMatchedProfile}
                       setMatchModalOpen={setMatchModalOpen}
                       openReportModal={openReportModal}

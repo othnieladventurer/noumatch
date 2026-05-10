@@ -20,6 +20,7 @@ urlpatterns = [
     path('profiles/', UserProfileListView.as_view(), name='profile-list'),
     path('profiles/<int:pk>/', UserDetailView.as_view(), name='profile-detail'),
     path('profile/update/', ProfileUpdateView.as_view(), name='profile-update'),
+    path('delete-account/', views.DeleteAccountView.as_view(), name='delete-account'),
 
 
     path("logout/", LogoutView.as_view(), name="logout"),

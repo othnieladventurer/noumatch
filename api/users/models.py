@@ -90,6 +90,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     hobbies = models.TextField(blank=True)
     favorite_music = models.TextField(blank=True)
 
+    # Moderation
+    photo_review_required = models.BooleanField(default=False)
+    photo_review_trigger_count = models.PositiveIntegerField(default=0)
+    photo_review_required_at = models.DateTimeField(null=True, blank=True)
+    photo_review_reason = models.CharField(max_length=255, blank=True)
+
     # Activity
     last_activity = models.DateTimeField(null=True, blank=True)
     is_online = models.BooleanField(default=False)
@@ -225,6 +231,32 @@ class User(AbstractBaseUser, PermissionsMixin):
         if self.is_online:
             self.is_online = False
             self.save(update_fields=['is_online'])
+
+    def trigger_photo_review_requirement(self, reason=""):
+        cleaned_reason = (reason or "").strip()[:255]
+        self.photo_review_required = True
+        self.photo_review_trigger_count = int(self.photo_review_trigger_count or 0) + 1
+        self.photo_review_required_at = timezone.now()
+        self.photo_review_reason = cleaned_reason
+        self.save(update_fields=[
+            'photo_review_required',
+            'photo_review_trigger_count',
+            'photo_review_required_at',
+            'photo_review_reason',
+        ])
+
+    def clear_photo_review_requirement(self):
+        if not (self.photo_review_required or self.photo_review_required_at or self.photo_review_reason):
+            return False
+        self.photo_review_required = False
+        self.photo_review_required_at = None
+        self.photo_review_reason = ""
+        self.save(update_fields=[
+            'photo_review_required',
+            'photo_review_required_at',
+            'photo_review_reason',
+        ])
+        return True
 
 
 class UserStats(models.Model):

@@ -381,6 +381,9 @@ class MeSerializer(serializers.ModelSerializer):
             "profile_photo",
             "profile_photo_url",
             "account_type",
+            "photo_review_required",
+            "photo_review_trigger_count",
+            "photo_review_reason",
         ]
         read_only_fields = ["id", "email", "username"]
 

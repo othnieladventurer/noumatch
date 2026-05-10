@@ -13,6 +13,10 @@ export default function Messages() {
   const location = useLocation();
   const messagesEndRef = useRef(null);
   const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const heartbeatRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const activeConversationIdRef = useRef(null);
   const fileInputRef = useRef(null);
   const messageInputRef = useRef(null);
 
@@ -28,6 +32,10 @@ export default function Messages() {
   const [error, setError] = useState("");
 
   const activeConversationId = activeConversation?.id;
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId || null;
+  }, [activeConversationId]);
 
   const getRecentMatchNudge = () => {
     if (!activeConversation || messages.length > 0) return null;
@@ -80,6 +88,17 @@ export default function Messages() {
     });
   };
 
+  const clearSocketArtifacts = () => {
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  };
+
   const connectConversationSocket = (conversationId) => {
     if (!conversationId) return;
     const token = localStorage.getItem("access");
@@ -88,12 +107,25 @@ export default function Messages() {
       wsRef.current.close(1000, "switch conversation");
       wsRef.current = null;
     }
+    clearSocketArtifacts();
 
     const wsPath = token
       ? `${getRuntimeWsBase()}/ws/chat/${conversationId}/?token=${encodeURIComponent(token)}`
       : `${getRuntimeWsBase()}/ws/chat/${conversationId}/`;
     const ws = new WebSocket(wsPath);
     wsRef.current = ws;
+
+    ws.onopen = () => {
+      reconnectAttemptsRef.current = 0;
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+      }
+      heartbeatRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ action: "ping" }));
+        }
+      }, 30000);
+    };
 
     ws.onmessage = (event) => {
       try {
@@ -116,8 +148,24 @@ export default function Messages() {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
       if (wsRef.current === ws) wsRef.current = null;
+
+      if (event.code === 1000 || activeConversationIdRef.current !== conversationId) {
+        return;
+      }
+
+      const delay = Math.min(10000, 1000 * (2 ** Math.min(reconnectAttemptsRef.current, 4)));
+      reconnectAttemptsRef.current += 1;
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (activeConversationIdRef.current === conversationId) {
+          connectConversationSocket(conversationId);
+        }
+      }, delay);
     };
   };
 
@@ -183,6 +231,7 @@ export default function Messages() {
   useEffect(() => {
     initialize();
     return () => {
+      clearSocketArtifacts();
       if (wsRef.current) wsRef.current.close(1000, "unmount");
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

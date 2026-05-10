@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
@@ -90,13 +91,15 @@ class SendMessageView(generics.CreateAPIView):
 
         output = MessageSerializer(message, context={"request": request}).data
 
-        send_realtime_chat_event(
-            conversation.id,
-            "message_created",
-            {
-                "conversation_id": conversation.id,
-                "message": output,
-            },
+        transaction.on_commit(
+            lambda: send_realtime_chat_event(
+                conversation.id,
+                "message_created",
+                {
+                    "conversation_id": conversation.id,
+                    "message": output,
+                },
+            )
         )
         return Response(output, status=status.HTTP_201_CREATED)
 

@@ -26,6 +26,8 @@ const RoundActionBtn = ({ onClick, bg, icon, iconColor, label, size = 52, disabl
   </button>
 );
 
+const DEFAULT_PHOTO_REVIEW_MESSAGE = "Merci d'ajouter une photo recente et conforme a nos regles pour continuer a swiper et eviter une suspension de votre compte NouMatch.";
+
 export default function CenterBlock(props) {
   const { t } = useI18n();
   const {
@@ -33,7 +35,7 @@ export default function CenterBlock(props) {
     openPhotoModal, getCurrentProfilePhotos, currentPhotoIndex,
     goToPrevPhoto, goToNextPhoto, isMatched, isLiked, goToProfile,
     handlePass, handleLike, isAnimating, goToMessenger,
-    openReportModal, handleBlock, centerCardStyle, reloadProfiles, swipeLimits, user
+    openReportModal, handleBlock, centerCardStyle, reloadProfiles, swipeLimits, user, goToMyProfile
   } = props;
 
   const backendLimit = swipeLimits?.daily_limit;
@@ -101,7 +103,127 @@ export default function CenterBlock(props) {
     alert(t("center.inviteCopied"));
   };
 
+  const requiresPhotoRefresh = Boolean(user?.photo_review_required);
+  const requiresBio = !String(user?.bio || "").trim();
+  const photoReviewMessage = String(user?.photo_review_reason || "").trim() || DEFAULT_PHOTO_REVIEW_MESSAGE;
+  const requiresProfileCompletionBlock = requiresPhotoRefresh || requiresBio;
+
   if (profilesLoading && !currentProfile) return <div className="vh-100 d-flex align-items-center justify-content-center bg-black"><div className="spinner-border text-danger" /></div>;
+  if (requiresProfileCompletionBlock) {
+    return (
+      <div
+        className="d-flex flex-column align-items-center justify-content-center p-4 text-center"
+        style={{
+          width: "100%",
+          height: "100%",
+          minHeight: isMobile ? "100dvh" : "100%",
+          background: "#000",
+          color: "#fff",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "460px",
+            background: "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: "28px",
+            padding: isMobile ? "28px 22px" : "34px 30px",
+            boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+          }}
+        >
+          <div
+            className="mx-auto mb-3 d-flex align-items-center justify-content-center"
+            style={{
+              width: "78px",
+              height: "78px",
+              borderRadius: "50%",
+              background: "rgba(255, 77, 109, 0.12)",
+              color: "#ff4d6d",
+              fontSize: "30px",
+            }}
+          >
+            <i className={`fas ${requiresPhotoRefresh ? "fa-camera-retro" : "fa-pen-fancy"}`} />
+          </div>
+          <h3 className="fw-bold mb-2">
+            {requiresPhotoRefresh && requiresBio
+              ? "Veuillez completer votre profil avant de continuer"
+              : requiresPhotoRefresh
+                ? "Veuillez mettre a jour votre photo de profil"
+                : "Veuillez ajouter une bio avant de continuer"}
+          </h3>
+          <div className="mb-4 d-flex flex-column gap-3" style={{ color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>
+            {requiresPhotoRefresh && (
+              <div
+                style={{
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "18px",
+                  background: "rgba(255,255,255,0.04)",
+                  padding: "14px 16px",
+                  textAlign: "left",
+                }}
+              >
+                <div className="fw-semibold mb-2 text-white">
+                  <i className="fas fa-camera me-2" />
+                  Photo de profil
+                </div>
+                <div>{photoReviewMessage}</div>
+              </div>
+            )}
+            {requiresBio && (
+              <div
+                style={{
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "18px",
+                  background: "rgba(255,255,255,0.04)",
+                  padding: "14px 16px",
+                  textAlign: "left",
+                }}
+              >
+                <div className="fw-semibold mb-2 text-white">
+                  <i className="fas fa-pen-fancy me-2" />
+                  Bio
+                </div>
+                <div>Votre bio aide les autres a mieux vous decouvrir avant un like ou un match. Ajoutez quelques lignes pour acceder au fil.</div>
+              </div>
+            )}
+          </div>
+          <div className="d-flex flex-column gap-3">
+            {requiresPhotoRefresh && (
+              <button
+                type="button"
+                onClick={goToMyProfile}
+                className="btn w-100 rounded-pill py-3 fw-semibold"
+                style={{
+                  background: "linear-gradient(145deg, #ff4d6d, #ff3355)",
+                  border: "none",
+                  color: "#fff",
+                }}
+              >
+                <i className="fas fa-camera me-2" />
+                Mettre a jour ma photo
+              </button>
+            )}
+            {requiresBio && (
+              <button
+                type="button"
+                onClick={goToMyProfile}
+                className="btn w-100 rounded-pill py-3 fw-semibold"
+                style={{
+                  background: requiresPhotoRefresh ? "transparent" : "linear-gradient(145deg, #ff4d6d, #ff3355)",
+                  border: requiresPhotoRefresh ? "1px solid rgba(255,255,255,0.18)" : "none",
+                  color: "#fff",
+                }}
+              >
+                <i className="fas fa-user-edit me-2" />
+                Ajouter ma bio
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (apiError || !profiles.length || !currentProfile) {
     return (
       <div

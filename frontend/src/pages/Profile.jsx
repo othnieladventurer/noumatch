@@ -30,6 +30,8 @@ export default function Profile() {
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [photoToDelete, setPhotoToDelete] = useState(null);
+  const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -375,6 +377,8 @@ export default function Profile() {
       Object.keys(formData).forEach((key) => {
         if (key === "profile_photo" && formData[key] instanceof File) {
           formDataToSend.append("profile_photo", formData[key]);
+        } else if (key === "bio") {
+          formDataToSend.append("bio", formData[key] ?? "");
         } else if (formData[key] !== null && formData[key] !== "") {
           formDataToSend.append(key, formData[key]);
         }
@@ -431,6 +435,46 @@ export default function Profile() {
   };
 
   const goBack = () => navigate(-1);
+
+  const clearUserSession = () => {
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    sessionStorage.removeItem("nm_user_session");
+  };
+
+  const openDeleteAccountModal = () => {
+    setError(null);
+    setDeleteAccountModalOpen(true);
+  };
+
+  const closeDeleteAccountModal = () => {
+    if (deletingAccount) return;
+    setDeleteAccountModalOpen(false);
+  };
+
+  const handleClearBio = () => {
+    setFormData((prev) => ({ ...prev, bio: "" }));
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeletingAccount(true);
+    setError(null);
+
+    try {
+      await API.delete("/users/delete-account/");
+      clearUserSession();
+      navigate("/login", { replace: true });
+    } catch (deleteError) {
+      setError(
+        deleteError.response?.data?.error ||
+          deleteError.message ||
+          "Failed to delete account"
+      );
+    } finally {
+      setDeletingAccount(false);
+      setDeleteAccountModalOpen(false);
+    }
+  };
 
   const PhotoModal = () => {
     if (!photoModalOpen) return null;
@@ -690,6 +734,114 @@ export default function Profile() {
     );
   };
 
+  const DeleteAccountModal = () => {
+    if (!deleteAccountModalOpen) return null;
+
+    return (
+      <>
+        <div
+          onClick={closeDeleteAccountModal}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            zIndex: 999998,
+            backdropFilter: "blur(4px)",
+          }}
+        />
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 999999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "460px",
+              background: "#fff",
+              borderRadius: "22px",
+              padding: "24px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div className="text-center mb-3">
+              <div
+                style={{
+                  width: "70px",
+                  height: "70px",
+                  borderRadius: "50%",
+                  background: "#fff0f3",
+                  margin: "0 auto 14px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ff4d6d",
+                  fontSize: "28px",
+                }}
+              >
+                <i className="fas fa-user-slash"></i>
+              </div>
+              <h4 style={{ fontWeight: 700, marginBottom: "8px" }}>Delete your account?</h4>
+              <p style={{ color: "#6c757d", marginBottom: 0, lineHeight: 1.6 }}>
+                This permanently removes your profile, photos, messages, matches, and related account data.
+              </p>
+            </div>
+
+            <div
+              style={{
+                background: "#fff6f8",
+                borderRadius: "16px",
+                padding: "14px 16px",
+                color: "#7a4b57",
+                fontSize: "0.95rem",
+              }}
+            >
+              Please make sure you really want to leave before continuing.
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", marginTop: "22px" }}>
+              <button
+                onClick={closeDeleteAccountModal}
+                disabled={deletingAccount}
+                style={{
+                  flex: 1,
+                  height: "48px",
+                  borderRadius: "14px",
+                  border: "1px solid #dee2e6",
+                  background: "#fff",
+                  fontWeight: 600,
+                }}
+              >
+                Keep my account
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                style={{
+                  flex: 1,
+                  height: "48px",
+                  borderRadius: "14px",
+                  border: "none",
+                  background: "#ff4d6d",
+                  color: "#fff",
+                  fontWeight: 700,
+                }}
+              >
+                {deletingAccount ? "Deleting..." : "Delete account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   if (loading) {
     return (
       <>
@@ -712,6 +864,7 @@ export default function Profile() {
       <DashboardNavbar user={user} />
       <PhotoModal />
       <DeletePhotoModal />
+      <DeleteAccountModal />
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -1653,7 +1806,16 @@ export default function Profile() {
             ) : (
               <div className="row g-3">
                 <div className="col-12">
-                  <label className="edit-form-label">Bio</label>
+                  <div className="d-flex align-items-center justify-content-between mb-2">
+                    <label className="edit-form-label mb-0">Bio</label>
+                    <button
+                      type="button"
+                      onClick={handleClearBio}
+                      className="btn btn-link p-0 text-danger text-decoration-none fw-semibold"
+                    >
+                      Clear bio
+                    </button>
+                  </div>
                   <textarea
                     className="edit-form-control"
                     name="bio"
@@ -2022,6 +2184,47 @@ export default function Profile() {
                   <option value="en">{t("common.english")}</option>
                 </select>
                 <div className="small text-secondary mt-2">{t("profile.settingsLanguageHelp")}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="profile-section">
+            <h3 className="section-title" style={{ color: "#d63354" }}>
+              <i className="fas fa-shield-heart"></i>
+              Account Control
+            </h3>
+            <div
+              style={{
+                border: "1px solid rgba(214, 51, 84, 0.16)",
+                borderRadius: "20px",
+                padding: "18px",
+                background: "linear-gradient(180deg, rgba(255, 77, 109, 0.05), rgba(255, 255, 255, 0.92))",
+              }}
+            >
+              <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "1rem", color: "#212529" }}>Delete account</div>
+                  <div style={{ color: "#6c757d", lineHeight: 1.6 }}>
+                    Remove your account and its related data if you no longer want to use NouMatch.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={openDeleteAccountModal}
+                  className="btn"
+                  style={{
+                    minWidth: "180px",
+                    borderRadius: "999px",
+                    background: "#fff",
+                    border: "1px solid rgba(214, 51, 84, 0.28)",
+                    color: "#d63354",
+                    fontWeight: 700,
+                    padding: "12px 18px",
+                  }}
+                >
+                  <i className="fas fa-user-slash me-2"></i>
+                  Delete my account
+                </button>
               </div>
             </div>
           </div>

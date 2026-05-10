@@ -22,7 +22,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
-from django.db import transaction
+from django.db import DatabaseError, IntegrityError, OperationalError, ProgrammingError, transaction
+from django.db.models.deletion import ProtectedError
 
 from .models import User, UserPhoto, OTP, FeedVisibilityBoost, PendingRegistration
 from interactions.models import Like, Pass
@@ -959,8 +960,57 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
             raise e
             
         self.perform_update(serializer)
+        if 'profile_photo' in request.data and request.data.get('profile_photo'):
+            instance.clear_photo_review_requirement()
         
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        user_email = user.email
+
+        try:
+            from admin_dashboard.views import _delete_user_account_graph
+
+            deleted_count, deleted_by_model = _delete_user_account_graph(user)
+        except ProtectedError as exc:
+            logging.warning("Self-service user delete blocked for user_id=%s: %s", user.id, exc)
+            return Response({
+                'error': 'Your account is linked to protected records and could not be deleted safely.',
+                'code': 'protected_records',
+            }, status=status.HTTP_409_CONFLICT)
+        except (OperationalError, ProgrammingError) as exc:
+            logging.exception("Self-service user delete schema/database readiness failure for user_id=%s: %s", user.id, exc)
+            return Response({
+                'error': 'Account deletion could not run because the database schema is not ready. Run the latest migrations and retry.',
+                'code': 'database_schema_not_ready',
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except (IntegrityError, DatabaseError) as exc:
+            logging.exception("Self-service user delete database failure for user_id=%s: %s", user.id, exc)
+            return Response({
+                'error': 'Account deletion failed because related database records could not be removed safely. Nothing was deleted.',
+                'code': 'database_delete_failed',
+            }, status=status.HTTP_409_CONFLICT)
+        except Exception as exc:
+            logging.exception("Self-service user delete unexpected failure for user_id=%s: %s", user.id, exc)
+            return Response({
+                'error': 'Account deletion failed unexpectedly. The server logged the details for review.',
+                'code': 'delete_failed',
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        response = Response({
+            'success': True,
+            'deleted_email': user_email,
+            'deleted_count': deleted_count,
+            'deleted_by_model': deleted_by_model,
+        }, status=status.HTTP_200_OK)
+        clear_auth_cookies(response, admin=False)
+        clear_auth_cookies(response, admin=True)
+        return response
 
 
 @api_view(['POST'])
@@ -1140,6 +1190,9 @@ class UserPhotoViewSet(viewsets.ModelViewSet):
             "uploaded": created_photos,
             "count": len(created_photos)
         }
+
+        if created_photos:
+            request.user.clear_photo_review_requirement()
         
         if errors:
             response_data["errors"] = errors
@@ -1205,6 +1258,7 @@ class UserPhotoUploadView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        self.request.user.clear_photo_review_requirement()
 
 
 class UserPhotoDeleteView(generics.DestroyAPIView):

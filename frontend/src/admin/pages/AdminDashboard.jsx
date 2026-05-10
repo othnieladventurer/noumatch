@@ -31,7 +31,7 @@ ChartJS.register(
 );
 
 const API_BASE = getAdminApiBase();
-const DASHBOARD_CACHE_KEY = 'admin_dashboard_metrics_v1';
+const DASHBOARD_CACHE_KEY = 'admin_dashboard_metrics_v2';
 const getActiveUsersCacheKey = ({ dateFrom, dateTo, actions }) =>
   `admin_dashboard_active_users_v1:${dateFrom}:${dateTo}:${actions.slice().sort().join('|')}`;
 const ACTIVE_ACTIONS = ['login', 'view', 'like', 'message'];
@@ -48,6 +48,13 @@ export default function AdminDashboard() {
   const [cachedDashboard] = useState(() => readFreshCache(DASHBOARD_CACHE_KEY, 120000));
 
   const [metrics, setMetrics] = useState(cachedDashboard);
+  const [registrationBalance, setRegistrationBalance] = useState({
+    women_registered_count: 0,
+    men_registered_count: 0,
+    other_registered_count: 0,
+    women_registered_ratio: 0,
+    men_registered_ratio: 0,
+  });
   const [loading, setLoading] = useState(!cachedDashboard);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -119,6 +126,106 @@ export default function AdminDashboard() {
     window.addEventListener('admin:refresh-page', handleRefresh);
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, [cachedDashboard, navigate]);
+
+  useEffect(() => {
+    const token = getAdminAuthToken();
+    if (!token) {
+      return;
+    }
+
+    const fetchRegistrationBalanceFromUsersList = async () => {
+      const commonParams = {
+        page: 1,
+        limit: 1,
+        search: '',
+        status: 'all',
+        user_type: 'app',
+        sort: 'newest',
+      };
+
+      const [allRes, womenRes, menRes] = await Promise.all([
+        adminRequest({
+          method: 'get',
+          url: `${API_BASE}/users/list/`,
+          params: { ...commonParams, gender: 'all' },
+        }),
+        adminRequest({
+          method: 'get',
+          url: `${API_BASE}/users/list/`,
+          params: { ...commonParams, gender: 'female' },
+        }),
+        adminRequest({
+          method: 'get',
+          url: `${API_BASE}/users/list/`,
+          params: { ...commonParams, gender: 'male' },
+        }),
+      ]);
+
+      const total = Number(allRes.data?.total || 0);
+      const women = Number(womenRes.data?.total || 0);
+      const men = Number(menRes.data?.total || 0);
+      const other = Math.max(0, total - women - men);
+      const binaryTotal = women + men;
+
+      return {
+        women_registered_count: women,
+        men_registered_count: men,
+        other_registered_count: other,
+        women_registered_ratio: binaryTotal ? Number(((women / binaryTotal) * 100).toFixed(1)) : 0,
+        men_registered_ratio: binaryTotal ? Number(((men / binaryTotal) * 100).toFixed(1)) : 0,
+      };
+    };
+
+    const fetchRegistrationBalance = async () => {
+      try {
+        const res = await adminRequest({
+          method: 'get',
+          url: `${API_BASE}/dashboard/registration-balance/`,
+        });
+        const liveBalance = {
+          women_registered_count: res.data?.women_registered_count || 0,
+          men_registered_count: res.data?.men_registered_count || 0,
+          other_registered_count: res.data?.other_registered_count || 0,
+          women_registered_ratio: res.data?.women_registered_ratio || 0,
+          men_registered_ratio: res.data?.men_registered_ratio || 0,
+        };
+
+        const hasRealCounts =
+          (liveBalance.women_registered_count || 0) > 0 ||
+          (liveBalance.men_registered_count || 0) > 0 ||
+          (liveBalance.other_registered_count || 0) > 0;
+
+        if (hasRealCounts) {
+          setRegistrationBalance(liveBalance);
+          return;
+        }
+
+        const fallbackBalance = await fetchRegistrationBalanceFromUsersList();
+        setRegistrationBalance(fallbackBalance);
+      } catch (err) {
+        if (err?.authExpired || err.response?.status === 401 || err.response?.status === 403) {
+          localStorage.removeItem('admin_access');
+          localStorage.removeItem('admin_refresh');
+          localStorage.removeItem('admin_email');
+          navigate('/admin/login');
+          return;
+        }
+        try {
+          const fallbackBalance = await fetchRegistrationBalanceFromUsersList();
+          setRegistrationBalance(fallbackBalance);
+        } catch (fallbackErr) {
+          console.error('Failed to load registration balance:', fallbackErr);
+        }
+      }
+    };
+
+    fetchRegistrationBalance();
+    const handleRefresh = () => {
+      fetchRegistrationBalance();
+    };
+    window.addEventListener('admin:refresh-page', handleRefresh);
+    return () => window.removeEventListener('admin:refresh-page', handleRefresh);
+  }, [navigate]);
 
   useEffect(() => {
     const token = getAdminAuthToken();
@@ -378,6 +485,63 @@ export default function AdminDashboard() {
           <div className="metric-card">
             <div className="metric-icon bg-info-light"><i className="fas fa-chart-line text-info"></i></div>
             <div className="metric-info"><h6>Match Rate</h6><p className="metric-value">{safeMetrics.match_rate || 0}%</p></div>
+          </div>
+        </div>
+
+        <div className="recent-blocks-card" style={{ marginBottom: '1.5rem' }}>
+          <div className="card-header">
+            <h5><i className="fas fa-venus-mars text-danger me-2"></i>Registered Gender Balance</h5>
+          </div>
+          <div className="card-body">
+            <div className="row g-3 mb-3">
+              <div className="col-md-4">
+                <div className="metric-card h-100 mb-0">
+                  <div className="metric-icon bg-danger-light"><i className="fas fa-venus text-danger"></i></div>
+                  <div className="metric-info">
+                    <h6>Women Registered</h6>
+                    <p className="metric-value">{registrationBalance.women_registered_count || 0}</p>
+                    <small className="text-muted">{(registrationBalance.women_registered_ratio || 0).toFixed(1)}% of men/women base</small>
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-4">
+                <div className="metric-card h-100 mb-0">
+                  <div className="metric-icon bg-primary-light"><i className="fas fa-mars text-primary"></i></div>
+                  <div className="metric-info">
+                    <h6>Men Registered</h6>
+                    <p className="metric-value">{registrationBalance.men_registered_count || 0}</p>
+                    <small className="text-muted">{(registrationBalance.men_registered_ratio || 0).toFixed(1)}% of men/women base</small>
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-4">
+                <div className="metric-card h-100 mb-0">
+                  <div className="metric-icon bg-secondary-light"><i className="fas fa-users-viewfinder text-secondary"></i></div>
+                  <div className="metric-info">
+                    <h6>Other / Unspecified</h6>
+                    <p className="metric-value">{registrationBalance.other_registered_count || 0}</p>
+                    <small className="text-muted">Tracked separately from the 55 / 45 product balance</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="d-flex justify-content-between small mb-2">
+                <span className="fw-semibold">Current women vs men ratio</span>
+                <span>{(registrationBalance.women_registered_ratio || 0).toFixed(1)}% / {(registrationBalance.men_registered_ratio || 0).toFixed(1)}%</span>
+              </div>
+              <div style={{ height: '14px', borderRadius: '999px', overflow: 'hidden', background: 'rgba(148, 163, 184, 0.18)' }}>
+                <div className="d-flex h-100">
+                  <div style={{ width: `${Math.max(0, Math.min(100, registrationBalance.women_registered_ratio || 0))}%`, background: 'linear-gradient(90deg, #fb7185, #f43f5e)' }} />
+                  <div style={{ width: `${Math.max(0, Math.min(100, registrationBalance.men_registered_ratio || 0))}%`, background: 'linear-gradient(90deg, #60a5fa, #2563eb)' }} />
+                </div>
+              </div>
+              <div className="d-flex justify-content-between small text-muted mt-2">
+                <span>Women target: 55%</span>
+                <span>Men target: 45%</span>
+              </div>
+            </div>
           </div>
         </div>
 
