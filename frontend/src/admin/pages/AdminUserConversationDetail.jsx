@@ -13,7 +13,6 @@ export default function AdminUserConversationDetail() {
   const navigate = useNavigate();
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
@@ -29,27 +28,33 @@ export default function AdminUserConversationDetail() {
     }
   }, [darkMode]);
 
-  const fetchConversation = async () => {
-    const token = getAdminAuthToken();
-    if (!token) {
-      navigate('/admin/login');
-      return;
-    }
-    try {
-      const convRes = await adminRequest({ method: 'get', url: `${API_BASE}/user-conversations/${id}/` });
-      setConversation(convRes.data);
-      const msgRes = await adminRequest({ method: 'get', url: `${API_BASE}/user-conversations/${id}/messages/` });
-      setMessages(msgRes.data);
-    } catch (err) {
-      setError('Failed to load conversation');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let isActive = true;
+
+    const fetchConversation = async () => {
+      const token = getAdminAuthToken();
+      if (!token) {
+        navigate('/admin/login');
+        return;
+      }
+      try {
+        const convRes = await adminRequest({ method: 'get', url: `${API_BASE}/user-conversations/${id}/` });
+        const msgRes = await adminRequest({ method: 'get', url: `${API_BASE}/user-conversations/${id}/messages/` });
+        if (!isActive) return;
+        setConversation(convRes.data);
+        setMessages(msgRes.data);
+      } catch {
+        if (isActive) {
+          setError('Failed to load conversation');
+        }
+      }
+    };
+
     fetchConversation();
-  }, [id]);
+    return () => {
+      isActive = false;
+    };
+  }, [id, navigate]);
 
   const handleMenuClick = (menu, path) => {
     setActiveMenu(menu);
@@ -64,24 +69,30 @@ export default function AdminUserConversationDetail() {
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
         <div className="dashboard-hero">
-          <h2>User Conversation</h2>
-          <p>Between {conversation?.participants?.join(' and ') || 'participants'}</p>
-          <button className="btn btn-sm btn-outline-secondary mt-2" onClick={() => navigate('/admin/messages')}>← Back to Messages</button>
+          <div className="admin-chat-header">
+            <div>
+              <h2>User Conversation</h2>
+              <p>Between {conversation?.participants?.join(' and ') || 'participants'}</p>
+            </div>
+            <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/admin/messages')}>
+              <i className="fas fa-arrow-left me-1"></i> Back to messages
+            </button>
+          </div>
         </div>
-        <div className="recent-blocks-card" style={{ margin: '0 1rem' }}>
+        <div className="recent-blocks-card admin-chat-card">
           <div className="card-body p-3">
-            <div className="chat-messages" style={{ maxHeight: '500px', overflowY: 'auto', marginBottom: '1rem' }}>
-              {messages.map(msg => (
+            <div className="chat-messages">
+              {messages.map((msg) => (
                 <div key={msg.id} className={`mb-2 d-flex ${msg.sender_type === 'admin' ? 'justify-content-end' : 'justify-content-start'}`}>
-                  <div className={`p-2 rounded ${msg.sender_type === 'admin' ? 'bg-primary text-white' : 'bg-light'}`} style={{ maxWidth: '70%' }}>
-                    <small className="d-block text-muted">{msg.sender_email}</small>
+                  <div className={`admin-chat-bubble ${msg.sender_type === 'admin' ? 'is-admin' : 'is-user'}`}>
+                    <small className="admin-chat-meta">{msg.sender_email}</small>
                     <div>{msg.content}</div>
                     <small className="text-muted">{new Date(msg.created_at).toLocaleString()}</small>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="text-muted text-center">Admin cannot reply directly to user chats (only support conversations).</div>
+            <div className="text-muted text-center">Admin cannot reply directly to user chats. Use support conversations for staff responses.</div>
           </div>
         </div>
         <footer className="admin-footer mt-3"><small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small></footer>
@@ -89,8 +100,3 @@ export default function AdminUserConversationDetail() {
     </div>
   );
 }
-
-
-
-
-

@@ -14,7 +14,6 @@ export default function AdminMessageDetail() {
   const [conversation, setConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [replyText, setReplyText] = useState('');
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -47,7 +46,7 @@ export default function AdminMessageDetail() {
       const msgRes = await adminRequest({ method: 'get', url: msgUrl });
       setMessages(msgRes.data);
     } catch (err) {
-      console.error('âŒ Fetch error:', err);
+      console.error('Failed to fetch support conversation:', err);
       if (err.response?.status === 401) {
         localStorage.removeItem('admin_access');
         localStorage.removeItem('admin_refresh');
@@ -56,8 +55,6 @@ export default function AdminMessageDetail() {
       } else {
         setError('Failed to load conversation');
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -73,8 +70,8 @@ export default function AdminMessageDetail() {
       await adminRequest({ method: 'post', url: replyUrl, data: { content: replyText } });
       setReplyText('');
       fetchConversation(); // refresh
-    } catch (err) {
-      console.error('âŒ Reply error:', err);
+    } catch (sendError) {
+      console.error('Failed to send support reply:', sendError);
       alert('Failed to send reply');
     } finally {
       setSending(false);
@@ -94,17 +91,23 @@ export default function AdminMessageDetail() {
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
         <div className="dashboard-hero">
-          <h2>Support Conversation</h2>
-          <p>With {conversation?.user?.email || `User #${conversation?.user_id}`}</p>
-          <button className="btn btn-sm btn-outline-secondary mt-2" onClick={() => navigate('/admin/messages')}>â† Back to list</button>
+          <div className="admin-chat-header">
+            <div>
+              <h2>Support Conversation</h2>
+              <p>With {conversation?.user?.email || `User #${conversation?.user_id}`}</p>
+            </div>
+            <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/admin/messages')}>
+              <i className="fas fa-arrow-left me-1"></i> Back to list
+            </button>
+          </div>
         </div>
-        <div className="recent-blocks-card" style={{ margin: '0 1rem' }}>
+        <div className="recent-blocks-card admin-chat-card">
           <div className="card-body p-3">
-            <div className="chat-messages" style={{ maxHeight: '500px', overflowY: 'auto', marginBottom: '1rem' }}>
+            <div className="chat-messages">
               {messages.map(msg => (
                 <div key={msg.id} className={`mb-2 d-flex ${msg.sender_type === 'admin' ? 'justify-content-end' : 'justify-content-start'}`}>
-                  <div className={`p-2 rounded ${msg.sender_type === 'admin' ? 'bg-primary text-white' : 'bg-light'}`} style={{ maxWidth: '70%' }}>
-                    <small className="d-block text-muted">{msg.sender_type === 'admin' ? 'Admin' : msg.sender_email}</small>
+                  <div className={`admin-chat-bubble ${msg.sender_type === 'admin' ? 'is-admin' : 'is-user'}`}>
+                    <small className="admin-chat-meta">{msg.sender_type === 'admin' ? 'Admin' : msg.sender_email}</small>
                     <div>{msg.content}</div>
                     <small className="text-muted">{new Date(msg.created_at).toLocaleString()}</small>
                   </div>

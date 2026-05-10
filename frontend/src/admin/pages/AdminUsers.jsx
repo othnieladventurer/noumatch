@@ -44,6 +44,13 @@ const formatJoinedAge = (minutes) => {
   return `${years}y ago`;
 };
 
+const formatDateTime = (value) => {
+  if (!value) return 'Unknown';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Unknown';
+  return date.toLocaleString();
+};
+
 export default function AdminUsers() {
   const initialUsersCacheKey = getUsersCacheKey({
     page: 1,
@@ -51,7 +58,7 @@ export default function AdminUsers() {
     status: 'all',
     userType: 'app',
     gender: 'all',
-    sort: 'name_asc',
+    sort: 'newest',
   });
   const cachedUsersPayload = readFreshCache(initialUsersCacheKey, USERS_CACHE_TTL);
   const cachedLaunchMonitor = readFreshCache(LAUNCH_MONITOR_CACHE_KEY, USERS_CACHE_TTL);
@@ -63,7 +70,7 @@ export default function AdminUsers() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [userType, setUserType] = useState('app');
   const [genderFilter, setGenderFilter] = useState('all');
-  const [sortOrder, setSortOrder] = useState('name_asc');
+  const [sortOrder, setSortOrder] = useState('newest');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('users');
@@ -87,20 +94,17 @@ export default function AdminUsers() {
     role: 'app_user',
     is_active: true,
   });
-  
-  const navigate = useNavigate();
-  const adminEmail = localStorage.getItem('admin_email') || 'Admin';
 
-  // Debounce search term
+  const navigate = useNavigate();
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
     }, DEBOUNCE_DELAY);
-    
+
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Theme management
   useEffect(() => {
     if (darkMode) {
       document.body.classList.add('dark-mode');
@@ -111,7 +115,6 @@ export default function AdminUsers() {
     }
   }, [darkMode]);
 
-  // Fetch users with pagination and search
   const fetchUsers = useCallback(async (force = false) => {
     const token = getAdminAuthToken();
     if (!token) {
@@ -141,9 +144,8 @@ export default function AdminUsers() {
     } else {
       setLoading(true);
     }
-    
+
     try {
-      // Build query parameters
       const params = {
         page: currentPage,
         limit: USERS_PER_PAGE,
@@ -153,11 +155,9 @@ export default function AdminUsers() {
         gender: genderFilter,
         sort: sortOrder,
       };
-      
-      const url = `${API_BASE}/users/list/`;
-      const res = await adminRequest({ method: 'get', url, params });
-      
-      // Handle both paginated and non-paginated responses
+
+      const res = await adminRequest({ method: 'get', url: `${API_BASE}/users/list/`, params });
+
       if (res.data.data && Array.isArray(res.data.data)) {
         setUsers(res.data.data);
         setTotalUsers(res.data.total || 0);
@@ -181,7 +181,7 @@ export default function AdminUsers() {
         setUsers([]);
         setTotalUsers(0);
       }
-      
+
       setError('');
     } catch (err) {
       console.error('Fetch users error:', err);
@@ -239,7 +239,6 @@ export default function AdminUsers() {
     }
   }, [fetchUsers, fetchLaunchMonitor]);
 
-  // Fetch when dependencies change
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -265,24 +264,9 @@ export default function AdminUsers() {
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, [fetchUsers, fetchLaunchMonitor]);
 
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearchTerm, filterStatus, userType, genderFilter, sortOrder]);
-
-  const openCreateModal = () => {
-    setEditingUser(null);
-    setUserForm({
-      first_name: '',
-      last_name: '',
-      username: '',
-      email: '',
-      password: '',
-      role: userType === 'admin' ? 'staff' : 'app_user',
-      is_active: true,
-    });
-    setShowUserModal(true);
-  };
 
   const openEditModal = (user) => {
     setEditingUser(user);
@@ -368,7 +352,7 @@ export default function AdminUsers() {
   }, [navigate]);
 
   const getRiskBadge = useCallback((status) => {
-    switch(status) {
+    switch (status) {
       case 'risky':
         return <span className="badge bg-danger">Risky</span>;
       case 'watch':
@@ -379,9 +363,12 @@ export default function AdminUsers() {
   }, []);
 
   const totalPages = Math.ceil(totalUsers / USERS_PER_PAGE);
+  const latestJoinedExact = users[0]?.date_joined ? formatDateTime(users[0].date_joined) : 'No users loaded';
+  const launchZeroMatchUsers = launchMonitor?.zero_match_users || [];
+
   const activeFilterSummary = useMemo(() => {
     const items = [];
-    items.push(sortOrder === 'name_asc' ? 'Sorting A to Z' : sortOrder === 'name_desc' ? 'Sorting Z to A' : sortOrder === 'oldest' ? 'Sorting oldest first' : 'Sorting newest first');
+    items.push(sortOrder === 'newest' ? 'Latest joined first' : sortOrder === 'oldest' ? 'Oldest joined first' : sortOrder === 'name_asc' ? 'Sorted A to Z' : 'Sorted Z to A');
     if (filterStatus !== 'all') {
       items.push(`Status: ${filterStatus}`);
     }
@@ -394,7 +381,32 @@ export default function AdminUsers() {
     items.push(`Showing ${users.length} of ${totalUsers}`);
     return items;
   }, [sortOrder, filterStatus, genderFilter, debouncedSearchTerm, users.length, totalUsers]);
-  
+
+  const spotlightStats = [
+    {
+      label: 'Users in view',
+      value: totalUsers,
+      helper: userType === 'admin' ? 'Staff and admin accounts' : 'Main app accounts',
+    },
+    {
+      label: 'Latest joined',
+      value: users[0] ? formatJoinedAge(users[0].minutes_since_join) : 'n/a',
+      helper: latestJoinedExact,
+    },
+    {
+      label: 'Zero-match users',
+      value: launchMonitor?.zero_match_users_count || 0,
+      helper: 'People who may need visibility help',
+    },
+    {
+      label: 'Median first match',
+      value: launchMonitor?.median_time_to_first_match_seconds == null
+        ? 'n/a'
+        : `${(launchMonitor.median_time_to_first_match_seconds / 60).toFixed(1)}m`,
+      helper: 'Time to first successful match',
+    },
+  ];
+
   const goToPage = useCallback((page) => {
     if (page >= 1 && page <= totalPages && !isFetching) {
       setCurrentPage(page);
@@ -403,313 +415,312 @@ export default function AdminUsers() {
 
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <AdminSidebar 
-        collapsed={sidebarCollapsed} 
-        setCollapsed={setSidebarCollapsed} 
-        activeMenu={activeMenu} 
-        onMenuClick={handleMenuClick} 
+      <AdminSidebar
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
+        activeMenu={activeMenu}
+        onMenuClick={handleMenuClick}
       />
       <main className="admin-main">
-        <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
-        
-        <div className="dashboard-hero">
-          <h2>User Management</h2>
-          <p>View, search, filter, and manage all registered users</p>
-          {error && <div className="alert alert-danger">{error}</div>}
-          <div className="mt-2 d-flex gap-2">
-            <button className={`btn btn-sm ${userType === 'app' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setUserType('app')}>Main App Users</button>
-            <button className={`btn btn-sm ${userType === 'admin' ? 'btn-warning' : 'btn-outline-warning'}`} onClick={() => setUserType('admin')}>Admin & Staff</button>
-            <button className="btn btn-sm btn-success" onClick={openCreateModal}><i className="fas fa-plus me-1"></i>Add User</button>
-          </div>
-        </div>
+        <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} pageTitle="User Management" />
 
-        {/* Filters Section */}
-        <div className="recent-blocks-card" style={{ margin: '0 1rem 1.5rem' }}>
-          <div className="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <h5><i className="fas fa-rocket text-warning me-2"></i>Launch Monitor</h5>
-            <button className="btn btn-sm btn-outline-secondary" onClick={fetchLaunchMonitor}>
-              <i className="fas fa-rotate-right me-1"></i>Refresh
-            </button>
-          </div>
-          <div className="card-body">
-            {launchMonitorError && <div className="alert alert-danger">{launchMonitorError}</div>}
-            {!launchMonitorError && launchMonitor && (
-              <>
-                <div className="row g-3 mb-3">
-                  <div className="col-md-4">
-                    <div className="p-3 rounded border bg-light">
-                      <div className="small text-uppercase text-muted">Zero Match Users</div>
-                      <div className="fs-4 fw-bold">{launchMonitor.zero_match_users_count || 0}</div>
-                    </div>
-                  </div>
-                  <div className="col-md-4">
-                    <div className="p-3 rounded border bg-light">
-                      <div className="small text-uppercase text-muted">Avg Matches / User</div>
-                      <div className="fs-4 fw-bold">{(launchMonitor.avg_matches_per_user || 0).toFixed(2)}</div>
-                    </div>
-                  </div>
-                  <div className="col-md-4">
-                    <div className="p-3 rounded border bg-light">
-                      <div className="small text-uppercase text-muted">Median Time To First Match</div>
-                      <div className="fs-4 fw-bold">
-                        {launchMonitor.median_time_to_first_match_seconds == null
-                          ? 'n/a'
-                          : `${(launchMonitor.median_time_to_first_match_seconds / 60).toFixed(1)}m`}
-                      </div>
-                    </div>
-                  </div>
+        <div className="admin-page-shell users-page-shell">
+          <section className="dashboard-summary-band users-summary-band">
+            {spotlightStats.map((card) => (
+              <div key={card.label} className="dashboard-stat-card">
+                <span className="dashboard-stat-label">{card.label}</span>
+                <strong>{card.value}</strong>
+                <p>{card.helper}</p>
+              </div>
+            ))}
+          </section>
+
+          <section className="dashboard-bottom-grid users-overview-grid">
+            <div className="dashboard-data-panel">
+              <div className="dashboard-panel-header">
+                <div>
+                  <span className="dashboard-panel-kicker">Launch monitor</span>
+                  <h3>Users who may need early visibility support</h3>
+                  <p>Keep an eye on new members who are not yet getting traction.</p>
                 </div>
+                <button className="btn btn-sm btn-outline-secondary" onClick={() => fetchLaunchMonitor(true)}>
+                  <i className="fas fa-rotate-right me-1"></i>Refresh
+                </button>
+              </div>
+              {launchMonitorError && <div className="alert alert-danger">{launchMonitorError}</div>}
+              {!launchMonitorError && launchMonitor && (
+                <>
+                  <div className="users-monitor-cards">
+                    <div className="users-monitor-card">
+                      <span>Zero match users</span>
+                      <strong>{launchMonitor.zero_match_users_count || 0}</strong>
+                    </div>
+                    <div className="users-monitor-card">
+                      <span>Average matches per user</span>
+                      <strong>{(launchMonitor.avg_matches_per_user || 0).toFixed(2)}</strong>
+                    </div>
+                    <div className="users-monitor-card">
+                      <span>Median time to first match</span>
+                      <strong>{launchMonitor.median_time_to_first_match_seconds == null ? 'n/a' : `${(launchMonitor.median_time_to_first_match_seconds / 60).toFixed(1)}m`}</strong>
+                    </div>
+                  </div>
 
-                <div className="table-responsive">
-                  <table className="table admin-table mb-0">
-                    <thead>
-                      <tr>
-                        <th>User</th>
-                        <th>Since Joined</th>
-                        <th>Impressions 24h</th>
-                        <th>Likes 24h</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(launchMonitor.zero_match_users || []).slice(0, 12).map((user) => (
-                        <tr key={user.id}>
-                          <td>
-                            <strong>{user.full_name}</strong><br />
-                            <small className="text-muted">{user.email}</small>
-                          </td>
-                          <td>{formatJoinedAge(user.minutes_since_join)}</td>
-                          <td>{user.impressions_24h ?? 0}</td>
-                          <td>{user.likes_given_24h ?? 0}</td>
-                          <td>
-                            <div className="d-flex gap-2 flex-wrap">
-                              <button
-                                className="btn btn-sm btn-outline-success"
-                                disabled={visibilityBusyUserId === user.id}
-                                onClick={() => runVisibilityAction(user.id, 'boost')}
-                              >
-                                Boost
-                              </button>
-                              <button
-                                className="btn btn-sm btn-outline-danger"
-                                disabled={visibilityBusyUserId === user.id}
-                                onClick={() => runVisibilityAction(user.id, 'reduce')}
-                              >
-                                Reduce
-                              </button>
-                              <button
-                                className="btn btn-sm btn-outline-primary"
-                                disabled={visibilityBusyUserId === user.id}
-                                onClick={() => runVisibilityAction(user.id, 'inject')}
-                              >
-                                Force Inject
-                              </button>
-                            </div>
-                          </td>
+                  <div className="table-responsive">
+                    <table className="table admin-table mb-0">
+                      <thead>
+                        <tr>
+                          <th>User</th>
+                          <th>Joined</th>
+                          <th>Impressions 24h</th>
+                          <th>Likes 24h</th>
+                          <th>Action</th>
                         </tr>
-                      ))}
-                      {(!launchMonitor.zero_match_users || launchMonitor.zero_match_users.length === 0) && (
-                        <tr><td colSpan="5" className="text-center py-3 text-muted">No zero-match users right now.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {launchZeroMatchUsers.slice(0, 8).map((user) => (
+                          <tr key={user.id}>
+                            <td>
+                              <strong>{user.full_name}</strong><br />
+                              <small className="text-muted">{user.email}</small>
+                            </td>
+                            <td>{formatJoinedAge(user.minutes_since_join)}</td>
+                            <td>{user.impressions_24h ?? 0}</td>
+                            <td>{user.likes_given_24h ?? 0}</td>
+                            <td>
+                              <div className="d-flex gap-2 flex-wrap">
+                                <button
+                                  className="btn btn-sm btn-outline-success"
+                                  disabled={visibilityBusyUserId === user.id}
+                                  onClick={() => runVisibilityAction(user.id, 'boost')}
+                                >
+                                  Boost
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-outline-danger"
+                                  disabled={visibilityBusyUserId === user.id}
+                                  onClick={() => runVisibilityAction(user.id, 'reduce')}
+                                >
+                                  Reduce
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-outline-primary"
+                                  disabled={visibilityBusyUserId === user.id}
+                                  onClick={() => runVisibilityAction(user.id, 'inject')}
+                                >
+                                  Inject
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {launchZeroMatchUsers.length === 0 && (
+                          <tr>
+                            <td colSpan="5" className="text-center py-3 text-muted">No zero-match users right now.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="dashboard-data-panel">
+              <div className="dashboard-panel-header">
+                <div>
+                  <span className="dashboard-panel-kicker">Review controls</span>
+                  <h3>Keep the list focused</h3>
+                  <p>Newest joined users are the default, with filters available when you need a narrower slice.</p>
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Filters Section */}
-        <div className="recent-blocks-card" style={{ margin: '0 1rem 1.5rem' }}>
-          <div className="card-header d-flex justify-content-between flex-wrap gap-2">
-            <div className="d-flex gap-2 flex-wrap">
-              {['all', 'active', 'inactive', 'verified'].map(status => (
-                <button 
-                  key={status} 
-                  className={`btn ${filterStatus === status ? 'btn-danger' : 'btn-outline-secondary'}`} 
-                  onClick={() => setFilterStatus(status)} 
-                  style={{ borderRadius: '30px' }}
-                  disabled={isFetching}
-                >
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </button>
-              ))}
-            </div>
-            <div className="d-flex gap-2 flex-wrap align-items-center" style={{ width: '100%', maxWidth: '760px' }}>
-              <select
-                className="form-select"
-                style={{ maxWidth: '170px' }}
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                disabled={isFetching}
-              >
-                <option value="name_asc">Name A to Z</option>
-                <option value="name_desc">Name Z to A</option>
-                <option value="newest">Newest joined</option>
-                <option value="oldest">Oldest joined</option>
-              </select>
-              <select
-                className="form-select"
-                style={{ maxWidth: '150px' }}
-                value={genderFilter}
-                onChange={(e) => setGenderFilter(e.target.value)}
-                disabled={isFetching}
-              >
-                <option value="all">All genders</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-              </select>
-              <div className="position-relative flex-grow-1" style={{ minWidth: '220px' }}>
-                <i className="fas fa-search position-absolute" style={{ left: '12px', top: '50%', transform: 'translateY(-50%)' }}></i>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="Search by name or email..." 
-                  style={{ paddingLeft: '35px', width: '100%' }} 
-                  value={searchTerm} 
-                  onChange={e => setSearchTerm(e.target.value)}
-                  disabled={isFetching}
-                />
               </div>
-            </div>
-          </div>
-          <div className="card-body pt-0">
-            <div
-              className="d-flex flex-wrap gap-2 align-items-center"
-              style={{ padding: '0.9rem 1rem', borderRadius: '14px', background: 'rgba(220, 53, 69, 0.06)', border: '1px solid rgba(220, 53, 69, 0.15)' }}
-            >
-              <span className="fw-semibold text-danger">User sorting and filtering active</span>
-              {activeFilterSummary.map((item) => (
-                <span key={item} className="badge text-bg-light" style={{ fontSize: '0.82rem', padding: '0.55rem 0.75rem' }}>
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        {/* Users Table Section */}
-        <div className="recent-blocks-card" style={{ margin: '0 1rem 1.5rem' }}>
-          <div className="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <h5>
-              <i className="fas fa-users text-primary me-2"></i> 
-              All Users ({totalUsers})
-              {isFetching && <span className="ms-2"><AdminPageSpinner label="Refreshing users..." /></span>}
-            </h5>
-            {totalPages > 1 && (
-              <div className="pagination-controls">
-                <button 
-                  className="btn btn-sm btn-outline-secondary me-2" 
-                  onClick={() => goToPage(currentPage - 1)} 
-                  disabled={currentPage === 1 || isFetching}
-                >
-                  <i className="fas fa-chevron-left"></i> Prev
-                </button>
-                <span className="text-muted">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button 
-                  className="btn btn-sm btn-outline-secondary ms-2" 
-                  onClick={() => goToPage(currentPage + 1)} 
-                  disabled={currentPage === totalPages || isFetching}
-                >
-                  Next <i className="fas fa-chevron-right"></i>
-                </button>
+              <div className="admin-toolbar-group users-status-row">
+                {['all', 'active', 'inactive', 'verified'].map((status) => (
+                  <button
+                    key={status}
+                    className={`btn ${filterStatus === status ? 'btn-danger' : 'btn-outline-secondary'}`}
+                    onClick={() => setFilterStatus(status)}
+                    disabled={isFetching}
+                  >
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
-          
-          <div className="card-body p-0">
+
+              <div className="admin-filter-grid mt-3">
+                <div>
+                  <label className="form-label">Sort order</label>
+                  <select
+                    className="form-select"
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    disabled={isFetching}
+                  >
+                    <option value="newest">Latest joined first</option>
+                    <option value="oldest">Oldest joined first</option>
+                    <option value="name_asc">Name A to Z</option>
+                    <option value="name_desc">Name Z to A</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Gender</label>
+                  <select
+                    className="form-select"
+                    value={genderFilter}
+                    onChange={(e) => setGenderFilter(e.target.value)}
+                    disabled={isFetching}
+                  >
+                    <option value="all">All genders</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                  </select>
+                </div>
+                <div className="admin-search-wrap">
+                  <label className="form-label">Search</label>
+                  <i className="fas fa-search"></i>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Search by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    disabled={isFetching}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-summary-strip mt-3">
+                <span className="fw-semibold text-danger">Current review state</span>
+                {activeFilterSummary.map((item) => (
+                  <span key={item} className="badge text-bg-light">{item}</span>
+                ))}
+              </div>
+
+              {users[0] && (
+                <div className="users-review-note mt-3">
+                  <div className="users-review-note-icon">
+                    <i className="fas fa-clock"></i>
+                  </div>
+                  <div>
+                    <strong>Newest account in queue</strong>
+                    <p>
+                      {users[0].full_name || users[0].email || 'This user'} joined {formatJoinedAge(users[0].minutes_since_join)}.
+                      Keep the first rows for same-day review so staff can spot onboarding, trust, or visibility issues early.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="dashboard-data-panel users-list-panel">
+            <div className="dashboard-panel-header">
+              <div>
+                <span className="dashboard-panel-kicker">Latest joined queue</span>
+                <h3>Users list</h3>
+                <p>Fresh signups appear first so staff can review the newest activity without switching sort mode every time.</p>
+              </div>
+              {totalPages > 1 && (
+                <div className="pagination-controls">
+                  <button
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1 || isFetching}
+                  >
+                    <i className="fas fa-chevron-left"></i> Prev
+                  </button>
+                  <span className="text-muted">Page {currentPage} of {totalPages}</span>
+                  <button
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages || isFetching}
+                  >
+                    Next <i className="fas fa-chevron-right"></i>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {error && <div className="alert alert-danger mb-3">{error}</div>}
+
             <div className="table-responsive">
-              <table className="table admin-table">
+              <table className="table admin-table users-table">
                 <thead>
                   <tr>
-                    <th>Profile</th>
-                    <th>Username / Email</th>
-                    <th>Since Joined</th>
-                    <th>Profile Score</th>
+                    <th>Member</th>
+                    <th>Joined</th>
+                    <th>Profile quality</th>
                     <th>Matches</th>
                     <th>Reports</th>
-                    <th>Risk Status</th>
+                    <th>Risk</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && (
                     <tr>
-                      <td colSpan="8" className="text-center py-4">
+                      <td colSpan="7" className="text-center py-4">
                         <AdminPageSpinner label="Loading users..." />
                       </td>
                     </tr>
                   )}
                   {!loading && users.length > 0 ? (
-                    users.map(user => (
+                    users.map((user, index) => (
                       <tr key={user.id}>
                         <td className="align-middle">
-                          <div className="d-flex align-items-center gap-3">
+                          <div className="users-member-cell">
+                            <div className="users-queue-rank">
+                              {currentPage === 1 && index === 0 ? 'New' : `#${((currentPage - 1) * USERS_PER_PAGE) + index + 1}`}
+                            </div>
                             {user.profile_photo_url ? (
                               <img
                                 src={resolveMediaUrl(user.profile_photo_url, user.profile_photo_url)}
                                 alt={user.full_name || user.email}
-                                style={{
-                                  width: '56px',
-                                  height: '56px',
-                                  borderRadius: '16px',
-                                  objectFit: 'cover',
-                                  border: '1px solid rgba(148, 163, 184, 0.25)',
-                                  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.12)',
-                                }}
+                                className="users-member-avatar"
                                 loading="lazy"
                               />
                             ) : (
-                              <div
-                                style={{
-                                  width: '56px',
-                                  height: '56px',
-                                  borderRadius: '16px',
-                                  background: 'linear-gradient(135deg, #e5e7eb, #cbd5e1)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontWeight: 700,
-                                  color: '#475569',
-                                  boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)',
-                                }}
-                              >
+                              <div className="users-member-avatar users-member-avatar-fallback">
                                 {(user.full_name || user.email || 'U').trim().slice(0, 1).toUpperCase()}
                               </div>
                             )}
-                            <div className="small">
-                              <div className="fw-semibold text-dark">Photo</div>
-                              <div className="text-muted">
-                                {user.profile_photo_url ? 'Visible profile image' : 'No profile image'}
-                              </div>
-                              {user.photo_review_required && (
-                                <span className="badge bg-warning text-dark mt-1">
-                                  Photo review trigger #{user.photo_review_trigger_count || 1}
+                            <div className="users-member-copy">
+                              <strong>{user.full_name || 'N/A'}</strong>
+                              <span>{user.email}</span>
+                              <small className="text-capitalize">{user.gender || 'unspecified'} · {user.profile_photo_url ? 'Photo added' : 'No profile photo'}</small>
+                              <div className="users-inline-badges">
+                                <span className={`badge ${user.is_active ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'}`}>
+                                  {user.is_active ? 'Active' : 'Restricted'}
                                 </span>
-                              )}
+                                {user.photo_review_required && (
+                                  <span className="badge bg-warning text-dark">Photo review required</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
                         <td className="align-middle">
-                          <strong>{user.full_name || 'N/A'}</strong><br/>
-                          <small className="text-muted">{user.email}</small>
-                          <br />
-                          <small className="text-muted text-capitalize">{user.gender || 'unspecified'}</small>
+                          <div className="users-joined-cell">
+                            <strong>{formatJoinedAge(user.minutes_since_join)}</strong>
+                            <span>{formatDateTime(user.date_joined)}</span>
+                          </div>
                         </td>
-                        <td className="align-middle">{formatJoinedAge(user.minutes_since_join)}</td>
-                        <td className="align-middle">{user.profile_score || 0}%</td>
+                        <td className="align-middle">
+                          <div className="users-metric-stack">
+                            <strong>{user.profile_score || 0}%</strong>
+                            <span>{user.is_active ? 'Active profile' : 'Restricted profile'}</span>
+                          </div>
+                        </td>
                         <td className="align-middle">{user.matches_count || 0}</td>
                         <td className="align-middle">{user.reports_received_count || 0}</td>
                         <td className="align-middle">{getRiskBadge(user.risk_status)}</td>
                         <td className="align-middle">
-                          <div className="d-flex gap-2 flex-wrap">
-                            <button 
-                              className="btn btn-sm btn-outline-primary" 
+                          <div className="users-action-group">
+                            <button
+                              className="btn btn-sm btn-outline-primary"
                               onClick={() => navigate(`/admin/users/detail/${user.id}`)}
                             >
-                              <i className="fas fa-eye me-1"></i> View
+                              <i className="fas fa-eye me-1"></i> Review
                             </button>
                             <button className="btn btn-sm btn-outline-secondary" onClick={() => openEditModal(user)}>
                               <i className="fas fa-pen me-1"></i> Edit
@@ -734,22 +745,25 @@ export default function AdminUsers() {
                       </tr>
                     ))
                   ) : (
-                    <tr>
-                      <td colSpan="8" className="text-center py-5">
-                        {error ? error : 'No users found'}
-                      </td>
-                    </tr>
+                    !loading && (
+                      <tr>
+                        <td colSpan="7" className="text-center py-5">
+                          {error ? error : 'No users found'}
+                        </td>
+                      </tr>
+                    )
                   )}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
+
+          <footer className="admin-footer">
+            <small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small>
+          </footer>
         </div>
-        
-        <footer className="admin-footer">
-          <small>NouMatch Admin Dashboard &copy; {new Date().getFullYear()}</small>
-        </footer>
       </main>
+
       {showUserModal && (
         <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog">
@@ -819,6 +833,3 @@ export default function AdminUsers() {
     </div>
   );
 }
-
-
-

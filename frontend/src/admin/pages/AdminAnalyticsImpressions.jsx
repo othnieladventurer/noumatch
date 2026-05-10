@@ -15,7 +15,7 @@ const emptyFilters = {
   viewed_email: '',
   swipe_action: '',
   date_from: TODAY,
-  date_to: TODAY
+  date_to: TODAY,
 };
 
 const normalizeImpressionsPayload = (payload) => {
@@ -38,11 +38,8 @@ export default function AdminAnalyticsImpressions() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('analytics-impressions');
-  
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  
   const [filters, setFilters] = useState(emptyFilters);
 
   useEffect(() => {
@@ -87,16 +84,15 @@ export default function AdminAnalyticsImpressions() {
       if (nextFilters.swipe_action) params.append('swipe_action', nextFilters.swipe_action);
       if (nextFilters.date_from) params.append('date_from', nextFilters.date_from);
       if (nextFilters.date_to) params.append('date_to', nextFilters.date_to);
-      
-      const url = `${API_BASE}/analytics/impressions/`;
-      const response = await adminRequest({ method: 'get', url, params });
+
+      const response = await adminRequest({ method: 'get', url: `${API_BASE}/analytics/impressions/`, params });
       const normalized = normalizeImpressionsPayload(response.data);
       setImpressions(normalized.data);
       setWarning(normalized.warning);
-      setCurrentPage(1); // Reset to first page when new data loads
+      setCurrentPage(1);
       setError('');
     } catch (err) {
-      console.error('❌ Fetch error:', err);
+      console.error('Failed to fetch impression analytics:', err);
       if (err.response?.status === 401 || err.response?.status === 403) {
         localStorage.removeItem('admin_access');
         localStorage.removeItem('admin_refresh');
@@ -128,7 +124,6 @@ export default function AdminAnalyticsImpressions() {
     fetchImpressions(false, emptyFilters);
   };
 
-  // Pagination calculations
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = impressions.slice(indexOfFirstItem, indexOfLastItem);
@@ -146,43 +141,39 @@ export default function AdminAnalyticsImpressions() {
     }
   };
 
-  // Generate page numbers to display
   const getPageNumbers = () => {
     const pageNumbers = [];
     const maxPagesToShow = 5;
-    
+
     if (totalPages <= maxPagesToShow) {
-      for (let i = 1; i <= totalPages; i++) {
+      for (let i = 1; i <= totalPages; i += 1) {
+        pageNumbers.push(i);
+      }
+    } else if (currentPage <= 3) {
+      for (let i = 1; i <= 4; i += 1) {
+        pageNumbers.push(i);
+      }
+      pageNumbers.push('...');
+      pageNumbers.push(totalPages);
+    } else if (currentPage >= totalPages - 2) {
+      pageNumbers.push(1);
+      pageNumbers.push('...');
+      for (let i = totalPages - 3; i <= totalPages; i += 1) {
         pageNumbers.push(i);
       }
     } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) {
-          pageNumbers.push(i);
-        }
-        pageNumbers.push('...');
-        pageNumbers.push(totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pageNumbers.push(1);
-        pageNumbers.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) {
-          pageNumbers.push(i);
-        }
-      } else {
-        pageNumbers.push(1);
-        pageNumbers.push('...');
-        for (let i = currentPage - 1; i <= currentPage + 1; i++) {
-          pageNumbers.push(i);
-        }
-        pageNumbers.push('...');
-        pageNumbers.push(totalPages);
+      pageNumbers.push(1);
+      pageNumbers.push('...');
+      for (let i = currentPage - 1; i <= currentPage + 1; i += 1) {
+        pageNumbers.push(i);
       }
+      pageNumbers.push('...');
+      pageNumbers.push(totalPages);
     }
-    
+
     return pageNumbers;
   };
 
-  // Download CSV function
   const downloadCSV = () => {
     if (impressions.length === 0) {
       alert('No data to download');
@@ -201,10 +192,10 @@ export default function AdminAnalyticsImpressions() {
       'Ranking Score',
       'Swipe Action',
       'Device Type',
-      'Source'
+      'Source',
     ];
 
-    const rows = impressions.map(imp => [
+    const rows = impressions.map((imp) => [
       new Date(imp.timestamp).toLocaleString(),
       imp.viewer_name || '',
       imp.viewer_email || '',
@@ -216,12 +207,12 @@ export default function AdminAnalyticsImpressions() {
       imp.ranking_score ?? 'N/A',
       imp.swipe_action === 'like' ? 'Like' : imp.swipe_action === 'pass' ? 'Pass' : 'Pending',
       imp.device_type || 'unknown',
-      imp.source || 'profile_impression'
+      imp.source || 'profile_impression',
     ]);
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
     ].join('\n');
 
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -235,7 +226,6 @@ export default function AdminAnalyticsImpressions() {
     URL.revokeObjectURL(url);
   };
 
-  // Download as JSON
   const downloadJSON = () => {
     if (impressions.length === 0) {
       alert('No data to download');
@@ -259,89 +249,64 @@ export default function AdminAnalyticsImpressions() {
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
-        
-        <div className="container-fluid px-4 py-4">
-          <div className="d-flex justify-content-between align-items-center mb-4">
-            <h2 className="mb-0">
-              <i className="fas fa-eye me-2 text-danger"></i>
-              Profile Impressions Analytics
-            </h2>
-            {loading && (
-              <AdminPageSpinner label="Loading impressions..." />
-            )}
-            <div className="btn-group">
-              <button 
-                className="btn btn-success btn-sm" 
-                onClick={downloadCSV}
-                disabled={impressions.length === 0}
-              >
-                <i className="fas fa-download me-1"></i> Download CSV
-              </button>
-              <button 
-                className="btn btn-info btn-sm" 
-                onClick={downloadJSON}
-                disabled={impressions.length === 0}
-              >
-                <i className="fas fa-file-code me-1"></i> Download JSON
-              </button>
+
+        <div className="admin-page-shell">
+          <div className="admin-page-header">
+            <div className="admin-page-header-copy">
+              <h2 className="admin-page-title"><i className="fas fa-eye me-2 text-danger"></i>Profile Impressions Analytics</h2>
+              <p className="admin-page-subtitle">Inspect impression flow, swipe outcomes, and feed-position behavior without leaving the shared admin shell.</p>
+            </div>
+            <div className="admin-page-actions">
+              {loading && <AdminPageSpinner label="Loading impressions..." />}
+              <div className="btn-group">
+                <button className="btn btn-success btn-sm" onClick={downloadCSV} disabled={impressions.length === 0}>
+                  <i className="fas fa-download me-1"></i> Download CSV
+                </button>
+                <button className="btn btn-info btn-sm" onClick={downloadJSON} disabled={impressions.length === 0}>
+                  <i className="fas fa-file-code me-1"></i> Download JSON
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Stats Summary */}
           {impressions.length > 0 && (
-            <div className="row g-3 mb-4">
-              <div className="col-md-3">
-                <div className="card bg-primary bg-opacity-10 border-0">
-                  <div className="card-body text-center">
-                    <h5 className="mb-0">{impressions.length}</h5>
-                    <small className="text-muted">Total Impressions</small>
-                  </div>
-                </div>
+            <div className="metrics-grid" style={{ padding: '0 0 1.5rem' }}>
+              <div className="metric-card">
+                <div className="metric-icon bg-primary-light"><i className="fas fa-eye text-primary"></i></div>
+                <div className="metric-info"><h6>Total Impressions</h6><p className="metric-value">{impressions.length}</p></div>
               </div>
-              <div className="col-md-3">
-                <div className="card bg-success bg-opacity-10 border-0">
-                  <div className="card-body text-center">
-                    <h5 className="mb-0">{impressions.filter(i => i.swipe_action === 'like').length}</h5>
-                    <small className="text-muted">Total Likes</small>
-                  </div>
-                </div>
+              <div className="metric-card">
+                <div className="metric-icon bg-success-light"><i className="fas fa-thumbs-up text-success"></i></div>
+                <div className="metric-info"><h6>Total Likes</h6><p className="metric-value">{impressions.filter((i) => i.swipe_action === 'like').length}</p></div>
               </div>
-              <div className="col-md-3">
-                <div className="card bg-danger bg-opacity-10 border-0">
-                  <div className="card-body text-center">
-                    <h5 className="mb-0">{impressions.filter(i => i.swipe_action === 'pass').length}</h5>
-                    <small className="text-muted">Total Passes</small>
-                  </div>
-                </div>
+              <div className="metric-card">
+                <div className="metric-icon bg-danger-light"><i className="fas fa-thumbs-down text-danger"></i></div>
+                <div className="metric-info"><h6>Total Passes</h6><p className="metric-value">{impressions.filter((i) => i.swipe_action === 'pass').length}</p></div>
               </div>
-              <div className="col-md-3">
-                <div className="card bg-warning bg-opacity-10 border-0">
-                  <div className="card-body text-center">
-                    <h5 className="mb-0">
-                      {impressions.length > 0 
-                        ? ((impressions.filter(i => i.swipe_action === 'like').length / impressions.length) * 100).toFixed(1)
-                        : 0}%
-                    </h5>
-                    <small className="text-muted">Conversion Rate</small>
-                  </div>
+              <div className="metric-card">
+                <div className="metric-icon bg-warning-light"><i className="fas fa-chart-line text-warning"></i></div>
+                <div className="metric-info">
+                  <h6>Conversion Rate</h6>
+                  <p className="metric-value">
+                    {impressions.length > 0 ? ((impressions.filter((i) => i.swipe_action === 'like').length / impressions.length) * 100).toFixed(1) : 0}%
+                  </p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Filters */}
-          <div className="card shadow-sm mb-4">
+          <div className="recent-blocks-card admin-section" style={{ margin: '0 0 1.5rem' }}>
             <div className="card-body">
-              <div className="row g-3">
-                <div className="col-md-3">
+              <div className="admin-filter-grid">
+                <div>
                   <label className="form-label small">Viewer</label>
                   <input type="text" name="viewer_email" className="form-control" placeholder="Name or email..." value={filters.viewer_email} onChange={handleFilterChange} />
                 </div>
-                <div className="col-md-3">
+                <div>
                   <label className="form-label small">Viewed</label>
                   <input type="text" name="viewed_email" className="form-control" placeholder="Name or email..." value={filters.viewed_email} onChange={handleFilterChange} />
                 </div>
-                <div className="col-md-2">
+                <div>
                   <label className="form-label small">Swipe Action</label>
                   <select name="swipe_action" className="form-select" value={filters.swipe_action} onChange={handleFilterChange}>
                     <option value="">All</option>
@@ -350,34 +315,35 @@ export default function AdminAnalyticsImpressions() {
                     <option value="none">None</option>
                   </select>
                 </div>
-                <div className="col-md-2">
+                <div>
                   <label className="form-label small">Date From</label>
                   <input type="date" name="date_from" className="form-control" value={filters.date_from} onChange={handleFilterChange} />
                 </div>
-                <div className="col-md-2">
+                <div>
                   <label className="form-label small">Date To</label>
                   <input type="date" name="date_to" className="form-control" value={filters.date_to} onChange={handleFilterChange} />
                 </div>
               </div>
-              <div className="mt-3">
-                <button className="btn btn-danger btn-sm me-2" onClick={applyFilters}>
-                  <i className="fas fa-search me-1"></i> Apply
-                </button>
-                <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
-                  <i className="fas fa-times me-1"></i> Clear
-                </button>
+              <div className="admin-toolbar mt-3">
+                <div className="admin-toolbar-group">
+                  <button className="btn btn-danger btn-sm" onClick={applyFilters}>
+                    <i className="fas fa-search me-1"></i> Apply
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={clearFilters}>
+                    <i className="fas fa-times me-1"></i> Clear
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Table */}
-          <div className="card shadow-sm">
+          <div className="recent-blocks-card admin-section" style={{ margin: 0 }}>
             <div className="card-body">
               {error && <div className="alert alert-danger">{error}</div>}
               {warning && <div className="alert alert-warning">{warning}</div>}
               <div className="table-responsive">
-                <table className="table table-hover">
-                  <thead className="table-light">
+                <table className="table admin-table">
+                  <thead>
                     <tr>
                       <th>Time</th>
                       <th>Viewer</th>
@@ -393,66 +359,32 @@ export default function AdminAnalyticsImpressions() {
                     {currentItems.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="text-center py-5">
-                          {loading ? (
-                            <AdminPageSpinner label="Loading impression records..." />
-                          ) : (
-                            <>
-                              <i className="fas fa-inbox fa-2x text-muted mb-2 d-block"></i>
-                              No impressions recorded yet
-                            </>
-                          )}
-                         </td>
+                          {loading ? <AdminPageSpinner label="Loading impression records..." /> : <div className="admin-empty-state"><i className="fas fa-inbox"></i><span>No impressions recorded yet.</span></div>}
+                        </td>
                       </tr>
                     ) : (
-                      currentItems.map(imp => (
+                      currentItems.map((imp) => (
                         <tr key={imp.id}>
-                          <td className="text-nowrap small">
-                            {new Date(imp.timestamp).toLocaleString()}
-                            </td>
+                          <td className="text-nowrap small">{new Date(imp.timestamp).toLocaleString()}</td>
                           <td>
                             <div className="fw-semibold">{imp.viewer_name}</div>
                             <div className="small text-muted">{imp.viewer_email}</div>
-                            {imp.viewer_location && (
-                              <div className="small text-muted">
-                                <i className="fas fa-map-marker-alt me-1"></i>
-                                {imp.viewer_location}
-                              </div>
-                            )}
-                            </td>
+                            {imp.viewer_location && <div className="small text-muted"><i className="fas fa-map-marker-alt me-1"></i>{imp.viewer_location}</div>}
+                          </td>
                           <td>
                             <div className="fw-semibold">{imp.viewed_name}</div>
                             <div className="small text-muted">{imp.viewed_email}</div>
-                            {imp.viewed_location && (
-                              <div className="small text-muted">
-                                <i className="fas fa-map-marker-alt me-1"></i>
-                                {imp.viewed_location}
-                              </div>
-                            )}
-                            </td>
-                          <td className="text-center">
-                            <span className="badge bg-secondary">
-                              {imp.feed_position == null ? 'N/A' : `#${imp.feed_position + 1}`}
-                            </span>
-                            </td>
-                          <td>
-                            <span className={`badge ${imp.ranking_score == null ? 'bg-secondary' : imp.ranking_score >= 70 ? 'bg-success' : imp.ranking_score >= 40 ? 'bg-warning' : 'bg-danger'}`}>
-                              {imp.ranking_score ?? 'N/A'}
-                            </span>
-                            </td>
+                            {imp.viewed_location && <div className="small text-muted"><i className="fas fa-map-marker-alt me-1"></i>{imp.viewed_location}</div>}
+                          </td>
+                          <td className="text-center"><span className="badge bg-secondary">{imp.feed_position == null ? 'N/A' : `#${imp.feed_position + 1}`}</span></td>
+                          <td><span className={`badge ${imp.ranking_score == null ? 'bg-secondary' : imp.ranking_score >= 70 ? 'bg-success' : imp.ranking_score >= 40 ? 'bg-warning' : 'bg-danger'}`}>{imp.ranking_score ?? 'N/A'}</span></td>
                           <td>
                             <span className={`badge ${imp.swipe_action === 'like' ? 'bg-success' : imp.swipe_action === 'pass' ? 'bg-danger' : 'bg-secondary'}`}>
-                              {imp.swipe_action === 'like' ? <><i className="fas fa-thumbs-up me-1"></i> Like</> : imp.swipe_action === 'pass' ? <><i className="fas fa-thumbs-down me-1"></i> Pass</> : 'Pending'}
-                            </span>
-                            </td>
-                          <td>
-                            <i className={`fas ${imp.device_type === 'mobile' ? 'fa-mobile-alt' : 'fa-desktop'} me-1`}></i>
-                            {imp.device_type}
-                            </td>
-                          <td>
-                            <span className={`badge ${imp.source ? 'bg-info' : 'bg-primary'}`}>
-                              {imp.source ? 'Interaction' : 'Impression'}
+                              {imp.swipe_action === 'like' ? <><i className="fas fa-thumbs-up me-1"></i>Like</> : imp.swipe_action === 'pass' ? <><i className="fas fa-thumbs-down me-1"></i>Pass</> : 'Pending'}
                             </span>
                           </td>
+                          <td><i className={`fas ${imp.device_type === 'mobile' ? 'fa-mobile-alt' : 'fa-desktop'} me-1`}></i>{imp.device_type}</td>
+                          <td><span className={`badge ${imp.source ? 'bg-info' : 'bg-primary'}`}>{imp.source ? 'Interaction' : 'Impression'}</span></td>
                         </tr>
                       ))
                     )}
@@ -460,9 +392,8 @@ export default function AdminAnalyticsImpressions() {
                 </table>
               </div>
 
-              {/* Pagination */}
               {impressions.length > 0 && (
-                <div className="d-flex justify-content-between align-items-center mt-4">
+                <div className="admin-toolbar mt-4">
                   <div className="text-muted small">
                     Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, impressions.length)} of {impressions.length} entries
                   </div>
@@ -474,14 +405,8 @@ export default function AdminAnalyticsImpressions() {
                         </button>
                       </li>
                       {getPageNumbers().map((number, index) => (
-                        <li key={index} className={`page-item ${number === currentPage ? 'active' : ''} ${number === '...' ? 'disabled' : ''}`}>
-                          {number === '...' ? (
-                            <span className="page-link">...</span>
-                          ) : (
-                            <button className="page-link" onClick={() => paginate(number)}>
-                              {number}
-                            </button>
-                          )}
+                        <li key={`${number}-${index}`} className={`page-item ${number === currentPage ? 'active' : ''} ${number === '...' ? 'disabled' : ''}`}>
+                          {number === '...' ? <span className="page-link">...</span> : <button className="page-link" onClick={() => paginate(number)}>{number}</button>}
                         </li>
                       ))}
                       <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
@@ -500,9 +425,3 @@ export default function AdminAnalyticsImpressions() {
     </div>
   );
 }
-
-
-
-
-
-

@@ -1,18 +1,23 @@
 // src/components/AdminTopNav.jsx
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+const formatToday = () =>
+  new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 
 export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashboard" }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const adminEmail = localStorage.getItem('admin_email') || 'Admin';
-  const [today, setToday] = useState('');
+  const [today] = useState(formatToday);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const avatarRef = useRef(null);
-
-  useEffect(() => {
-    setToday(new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
-  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('admin_access');
@@ -40,10 +45,32 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [dropdownOpen]);
 
+  const derivedTitle = (() => {
+    if (pageTitle && pageTitle !== 'Dashboard') return pageTitle;
+    const path = location.pathname;
+    if (path.includes('/admin/users/detail/')) return 'User Detail';
+    if (path.includes('/admin/users')) return 'User Management';
+    if (path.includes('/admin/reports/cases')) return 'Case Management';
+    if (path.includes('/admin/reports')) return 'Reports';
+    if (path.includes('/admin/swipe-stats')) return 'Swipe Analytics';
+    if (path.includes('/admin/messages/support/')) return 'Support Conversation';
+    if (path.includes('/admin/messages/user/')) return 'User Conversation';
+    if (path.includes('/admin/messages')) return 'Messages';
+    if (path.includes('/admin/flagged-messages')) return 'Flagged Messages';
+    if (path.includes('/admin/waitlist')) return 'Waitlist';
+    if (path.includes('/admin/notifications/email')) return 'Email Notifications';
+    if (path.includes('/admin/analytics/impressions')) return 'Profile Impressions';
+    if (path.includes('/admin/analytics/ranking')) return 'Ranking Analytics';
+    if (path.includes('/admin/analytics/performance')) return 'Performance Metrics';
+    if (path.includes('/admin/login')) return 'Admin Login';
+    return 'Dashboard';
+  })();
+
   return (
     <nav className="admin-navbar">
       <div className="navbar-left">
-        <span className="page-title">{pageTitle}</span>
+        <div className="admin-navbar-eyebrow">NouMatch Admin</div>
+        <span className="page-title">{derivedTitle}</span>
       </div>
       <div className="navbar-right">
         <span className="date-badge">
@@ -65,12 +92,20 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           <i className="fas fa-rotate-right"></i>
         </button>
         
-        {/* Avatar with hover dropdown */}
         <div 
           className="admin-avatar"
           ref={avatarRef}
+          onClick={() => setDropdownOpen((prev) => !prev)}
           onMouseEnter={() => setDropdownOpen(true)}
           onMouseLeave={() => setDropdownOpen(false)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setDropdownOpen((prev) => !prev);
+            }
+          }}
         >
           <i className="fas fa-user-circle"></i>
           <span className="admin-name">{adminEmail.split('@')[0]}</span>
@@ -88,105 +123,6 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           )}
         </div>
       </div>
-
-      {/* Optional: inject styles to ensure dropdown positioning and behavior */}
-      <style>{`
-        .admin-navbar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0 24px;
-          height: 64px;
-          background: ${darkMode ? '#1e1e2f' : '#ffffff'};
-          border-bottom: 1px solid ${darkMode ? '#2d2d3a' : '#e9ecef'};
-          box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-        }
-        .navbar-left .page-title {
-          font-size: 1.25rem;
-          font-weight: 600;
-          color: ${darkMode ? '#f1f3f5' : '#212529'};
-        }
-        .navbar-right {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-        }
-        .date-badge {
-          font-size: 0.85rem;
-          color: ${darkMode ? '#adb5bd' : '#6c757d'};
-          background: ${darkMode ? '#2d2d3a' : '#f8f9fa'};
-          padding: 6px 12px;
-          border-radius: 30px;
-        }
-        .theme-toggle {
-          background: transparent;
-          border: none;
-          font-size: 1.2rem;
-          color: ${darkMode ? '#ffd966' : '#495057'};
-          cursor: pointer;
-          padding: 8px;
-          border-radius: 50%;
-          transition: background 0.2s;
-        }
-        .theme-toggle:hover {
-          background: ${darkMode ? '#3a3a4a' : '#e9ecef'};
-        }
-        .admin-avatar {
-          position: relative;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          cursor: pointer;
-          padding: 6px 12px;
-          border-radius: 40px;
-          transition: background 0.2s;
-        }
-        .admin-avatar:hover {
-          background: ${darkMode ? '#2d2d3a' : '#f1f3f5'};
-        }
-        .admin-avatar i {
-          font-size: 1.6rem;
-          color: ${darkMode ? '#adb5bd' : '#6c757d'};
-        }
-        .admin-name {
-          font-size: 0.9rem;
-          font-weight: 500;
-          color: ${darkMode ? '#e9ecef' : '#495057'};
-        }
-        .avatar-dropdown {
-          position: absolute;
-          top: calc(100% + 8px);
-          right: 0;
-          background: ${darkMode ? '#2d2d3a' : '#ffffff'};
-          border-radius: 12px;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-          min-width: 160px;
-          z-index: 1000;
-          overflow: hidden;
-          border: 1px solid ${darkMode ? '#3a3a4a' : '#e9ecef'};
-        }
-        .dropdown-item {
-          display: flex;
-          align-items: center;
-          width: 100%;
-          padding: 10px 16px;
-          background: transparent;
-          border: none;
-          color: ${darkMode ? '#f8f9fa' : '#212529'};
-          font-size: 0.9rem;
-          cursor: pointer;
-          transition: background 0.2s;
-          text-align: left;
-        }
-        .dropdown-item:hover {
-          background: ${darkMode ? '#3a3a4a' : '#f8f9fa'};
-        }
-        @media (max-width: 768px) {
-          .admin-navbar { padding: 0 16px; }
-          .date-badge { display: none; }
-          .admin-name { display: none; }
-        }
-      `}</style>
     </nav>
   );
 }
