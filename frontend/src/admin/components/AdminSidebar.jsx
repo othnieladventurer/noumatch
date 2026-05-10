@@ -1,27 +1,30 @@
 // src/components/AdminSidebar.jsx
+import { useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
 import BrandLogo from '../../components/BrandLogo';
+
+const getMenuFromPath = (path) => {
+  if (path.includes('/admin/users')) return 'users';
+  if (path.includes('/admin/reports/cases')) return 'report-cases';
+  if (path.includes('/admin/reports')) return 'reports';
+  if (path.includes('/admin/swipe-stats')) return 'swipe-stats';
+  if (path.includes('/admin/messages')) return 'messages';
+  if (path.includes('/admin/notifications/email')) return 'email-notifications';
+  if (path.includes('/admin/waitlist')) return 'waitlist';
+  if (path.includes('/admin/analytics/impressions')) return 'analytics-impressions';
+  if (path.includes('/admin/analytics/ranking')) return 'analytics-ranking';
+  if (path.includes('/admin/analytics/performance')) return 'analytics-performance';
+  if (path === '/admin/dashboard') return 'dashboard';
+  return 'dashboard';
+};
 
 export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMenuClick }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [internalActiveMenu, setInternalActiveMenu] = useState(activeMenu || 'dashboard');
-
-  useEffect(() => {
-    const path = location.pathname;
-    if (path.includes('/admin/users')) setInternalActiveMenu('users');
-    else if (path.includes('/admin/reports/cases')) setInternalActiveMenu('report-cases');
-    else if (path.includes('/admin/reports')) setInternalActiveMenu('reports');
-    else if (path.includes('/admin/swipe-stats')) setInternalActiveMenu('swipe-stats');
-    else if (path.includes('/admin/messages')) setInternalActiveMenu('messages');
-    else if (path.includes('/admin/notifications/email')) setInternalActiveMenu('email-notifications');
-    else if (path.includes('/admin/waitlist')) setInternalActiveMenu('waitlist');
-    else if (path.includes('/admin/analytics/impressions')) setInternalActiveMenu('analytics-impressions');
-    else if (path.includes('/admin/analytics/ranking')) setInternalActiveMenu('analytics-ranking');
-    else if (path.includes('/admin/analytics/performance')) setInternalActiveMenu('analytics-performance');
-    else if (path === '/admin/dashboard') setInternalActiveMenu('dashboard');
-  }, [location.pathname]);
+  const internalActiveMenu = useMemo(
+    () => activeMenu || getMenuFromPath(location.pathname),
+    [activeMenu, location.pathname]
+  );
 
   const handleLogout = () => {
     localStorage.removeItem('admin_access');
@@ -32,7 +35,6 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
   };
 
   const handleMenuClick = (key, path) => {
-    setInternalActiveMenu(key);
     if (location.pathname === path) return;
     if (onMenuClick) onMenuClick(key, path);
     else navigate(path);
@@ -54,44 +56,68 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
   ];
 
   return (
-    <aside className={`admin-sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
-      <div className="sidebar-header">
-        {!collapsed ? (
-          <div className="d-flex align-items-center justify-content-center gap-2">
-            <BrandLogo height={28} />
-            <span className="text-white fw-bold">Admin</span>
-          </div>
-        ) : (
-          <BrandLogo variant="mark" height={30} />
-        )}
-      </div>
-      <nav className="sidebar-nav">
-        <ul className="nav flex-column">
-          {menuItems.map((item) => (
-            <li className="nav-item" key={item.key}>
-              <button
-                className={`nav-link ${internalActiveMenu === item.key ? 'active' : ''}`}
-                onClick={() => handleMenuClick(item.key, item.path)}
-              >
-                <i className={item.icon}></i>
-                {!collapsed && <span>{item.label}</span>}
+    <>
+      <button
+        type="button"
+        className={`admin-mobile-sidebar-toggle ${collapsed ? 'is-open' : ''}`}
+        onClick={() => setCollapsed(!collapsed)}
+        aria-label={collapsed ? 'Close navigation menu' : 'Open navigation menu'}
+      >
+        <i className={`fas ${collapsed ? 'fa-xmark' : 'fa-bars'}`}></i>
+      </button>
+      <button
+        type="button"
+        className={`admin-sidebar-backdrop ${collapsed ? 'is-visible' : ''}`}
+        onClick={() => setCollapsed(false)}
+        aria-label="Close navigation menu overlay"
+      />
+      <aside className={`admin-sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
+        <div className="sidebar-header">
+          {!collapsed ? (
+            <div className="d-flex align-items-center justify-content-center gap-2">
+              <BrandLogo height={28} />
+              <span className="text-white fw-bold">Admin</span>
+            </div>
+          ) : (
+            <BrandLogo variant="mark" height={30} />
+          )}
+          <button
+            type="button"
+            className="sidebar-mobile-close"
+            onClick={() => setCollapsed(false)}
+            aria-label="Close sidebar"
+          >
+            <i className="fas fa-xmark"></i>
+          </button>
+        </div>
+        <nav className="sidebar-nav">
+          <ul className="nav flex-column">
+            {menuItems.map((item) => (
+              <li className="nav-item" key={item.key}>
+                <button
+                  className={`nav-link ${internalActiveMenu === item.key ? 'active' : ''}`}
+                  onClick={() => handleMenuClick(item.key, item.path)}
+                >
+                  <i className={item.icon}></i>
+                  {!collapsed && <span>{item.label}</span>}
+                </button>
+              </li>
+            ))}
+            <li className="nav-item mt-auto">
+              <button className="nav-link logout-btn" onClick={handleLogout}>
+                <i className="fas fa-sign-out-alt"></i>
+                {!collapsed && <span>Logout</span>}
               </button>
             </li>
-          ))}
-          <li className="nav-item mt-auto">
-            <button className="nav-link logout-btn" onClick={handleLogout}>
-              <i className="fas fa-sign-out-alt"></i>
-              {!collapsed && <span>Logout</span>}
-            </button>
-          </li>
-        </ul>
-      </nav>
-      <div className="sidebar-footer">
-        <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
-          <i className={`fas ${collapsed ? 'fa-angle-double-right' : 'fa-angle-double-left'}`}></i>
-          {!collapsed && <span>Collapse</span>}
-        </button>
-      </div>
-    </aside>
+          </ul>
+        </nav>
+        <div className="sidebar-footer">
+          <button className="collapse-btn" onClick={() => setCollapsed(!collapsed)}>
+            <i className={`fas ${collapsed ? 'fa-angle-double-right' : 'fa-angle-double-left'}`}></i>
+            {!collapsed && <span>Collapse</span>}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

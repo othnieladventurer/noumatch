@@ -11,7 +11,6 @@ export default function AdminMessages() {
   const [activeTab, setActiveTab] = useState('support');
   const [supportConvs, setSupportConvs] = useState([]);
   const [userConvs, setUserConvs] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
@@ -34,7 +33,6 @@ export default function AdminMessages() {
       navigate('/admin/login');
       return;
     }
-    setLoading(true);
     setError('');
     try {
       const supportUrl = `${API_BASE}/support-conversations/`;
@@ -45,7 +43,7 @@ export default function AdminMessages() {
       const userRes = await adminRequest({ method: 'get', url: userUrl });
       setUserConvs(userRes.data);
     } catch (err) {
-      console.error('âŒ Fetch error:', err);
+      console.error('Failed to fetch admin conversations:', err);
       if (err.response?.status === 401) {
         localStorage.removeItem('admin_access');
         localStorage.removeItem('admin_refresh');
@@ -55,7 +53,7 @@ export default function AdminMessages() {
         setError('Failed to load conversations');
       }
     } finally {
-      setLoading(false);
+      // No page-level spinner is rendered here.
     }
   };
 
@@ -77,7 +75,7 @@ export default function AdminMessages() {
         <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
         <div className="dashboard-hero">
           <h2>Messages</h2>
-          <p>Manage all conversations â€“ support tickets and user chats</p>
+          <p>Manage support tickets and user conversations from one workspace.</p>
         </div>
 
         <ul className="nav nav-tabs mx-3">
@@ -117,7 +115,7 @@ export default function AdminMessages() {
                             {conv.status}
                           </span>
                         </td>
-                        <td>{conv.last_message?.content?.substring(0, 50) || 'â€”'}</td>
+                        <td>{conv.last_message?.content?.substring(0, 50) || '—'}</td>
                         <td>{new Date(conv.created_at).toLocaleDateString()}</td>
                         <td>
                           <button className="btn btn-sm btn-outline-primary" onClick={() => navigate(`/admin/messages/support/${conv.id}`)}>
@@ -157,11 +155,11 @@ export default function AdminMessages() {
                             onClick={() => navigate(`/admin/messages/user/${conv.id}`)}
                             style={{ cursor: 'pointer' }}
                           >
-                            {conv.participants?.join(' & ') || 'â€”'}
+                            {conv.participants?.join(' & ') || '—'}
                           </button>
                         </td>
-                        <td>{conv.last_message?.substring(0, 50) || 'â€”'}</td>
-                        <td>{conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : 'â€”'}</td>
+                        <td>{conv.last_message?.substring(0, 50) || '—'}</td>
+                        <td>{conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : '—'}</td>
                         <td>
                           <button className="btn btn-sm btn-outline-primary" onClick={() => navigate(`/admin/messages/user/${conv.id}`)}>
                             <i className="fas fa-eye"></i> View

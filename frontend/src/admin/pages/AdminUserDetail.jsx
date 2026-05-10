@@ -1,6 +1,16 @@
 // src/pages/AdminUserDetail.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Doughnut, Bar } from 'react-chartjs-2';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
@@ -9,6 +19,9 @@ import { resolveMediaUrl } from '../../utils/apiBase';
 
 const API_BASE = getAdminApiBase();
 const DEFAULT_PHOTO_REVIEW_MESSAGE = "Merci d'ajouter une photo recente et conforme a nos regles pour continuer a swiper et eviter une suspension de votre compte NouMatch.";
+const BIO_REQUEST_SUPPORTED = false;
+
+ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 export default function AdminUserDetail() {
   const { id } = useParams();
@@ -20,7 +33,7 @@ export default function AdminUserDetail() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('users');
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('all_matches');
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [modalReason, setModalReason] = useState('');
@@ -34,10 +47,6 @@ export default function AdminUserDetail() {
   const [photoReviewMode, setPhotoReviewMode] = useState('require');
   const [photoReviewMessage, setPhotoReviewMessage] = useState(DEFAULT_PHOTO_REVIEW_MESSAGE);
   const [photoReviewError, setPhotoReviewError] = useState('');
-
-  const getAuthHeader = () => ({
-    withCredentials: true
-  });
 
   useEffect(() => {
     if (darkMode) {
@@ -77,64 +86,6 @@ export default function AdminUserDetail() {
     };
     fetchUserDetail();
   }, [id, navigate]);
-
-  // Load Leaflet CSS and JS dynamically
-  useEffect(() => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(link);
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    script.async = true;
-    document.head.appendChild(script);
-    return () => {
-      if (window.userMap) window.userMap.remove();
-      if (window.miniMap) window.miniMap.remove();
-    };
-  }, []);
-
-  // Mini map
-  useEffect(() => {
-    if (user?.latitude && user?.longitude && !loading) {
-      const timer = setTimeout(() => {
-        const container = document.getElementById('miniMap');
-        if (!container || !window.L) return;
-        if (window.miniMap) window.miniMap.remove();
-        const map = window.L.map('miniMap').setView([user.latitude, user.longitude], 13);
-        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-        window.L.marker([user.latitude, user.longitude])
-          .addTo(map)
-          .bindPopup(`<b>${user.full_name}</b><br>${user.city ? user.city + ', ' : ''}${user.country || ''}`)
-          .openPopup();
-        window.miniMap = map;
-      }, 200);
-      return () => { clearTimeout(timer); if (window.miniMap) window.miniMap.remove(); };
-    }
-  }, [user, loading]);
-
-  // Full map
-  useEffect(() => {
-    if (user?.latitude && user?.longitude && activeTab === 'location') {
-      const timer = setTimeout(() => {
-        const container = document.getElementById('userMap');
-        if (!container || !window.L) return;
-        if (window.userMap) window.userMap.remove();
-        const map = window.L.map('userMap').setView([user.latitude, user.longitude], 13);
-        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-        window.L.marker([user.latitude, user.longitude])
-          .addTo(map)
-          .bindPopup(`<b>${user.full_name}</b><br>${user.city ? user.city + ', ' : ''}${user.country || ''}<br>Lat: ${user.latitude.toFixed(6)}<br>Lng: ${user.longitude.toFixed(6)}`)
-          .openPopup();
-        window.userMap = map;
-      }, 200);
-      return () => { clearTimeout(timer); if (window.userMap) window.userMap.remove(); };
-    }
-  }, [user, activeTab]);
 
   const handleMenuClick = (menu, path) => {
     setActiveMenu(menu);
@@ -272,6 +223,249 @@ export default function AdminUserDetail() {
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
 
+  const safeUser = user || {
+    score: {},
+    stats: {},
+    bio: '',
+    city: '',
+    country: '',
+    date_joined: null,
+    last_activity: null,
+    is_active: false,
+    is_verified: false,
+    profile_score: 0,
+    photo_review_required: false,
+    photo_review_trigger_count: 0,
+    profile_photo_url: '',
+    account_type: '',
+    gender: '',
+    age: null,
+    latitude: null,
+    longitude: null,
+  };
+
+  const accountStateLabel = safeUser.is_active ? 'Active' : 'Restricted';
+  const joinedLabel = safeUser.date_joined ? new Date(safeUser.date_joined).toLocaleDateString() : 'N/A';
+  const lastActiveLabel = safeUser.last_activity ? new Date(safeUser.last_activity).toLocaleString() : 'Never';
+  const profileLocation = safeUser.city && safeUser.country ? `${safeUser.city}, ${safeUser.country}` : (safeUser.city || safeUser.country || 'Not specified');
+  const overviewStats = [
+    { icon: 'fas fa-ranking-star', tone: 'text-warning', label: 'Score', value: safeUser.score?.overall_score || 0 },
+    { icon: 'fas fa-list-check', tone: 'text-primary', label: 'Complete', value: `${safeUser.score?.profile_completion_percent || 0}%` },
+    { icon: 'fas fa-handshake', tone: 'text-success', label: 'Matches', value: safeUser.stats?.total_matches || 0 },
+    { icon: 'fas fa-flag', tone: 'text-danger', label: 'Reports', value: safeUser.stats?.total_reports_received || 0 },
+  ];
+  const reviewHighlights = [
+    {
+      label: 'Status',
+      value: accountStateLabel,
+      helper: safeUser.is_verified ? 'Verified' : 'Needs review',
+    },
+    {
+      label: 'Joined',
+      value: joinedLabel,
+      helper: lastActiveLabel === 'Never' ? 'No activity' : `Active ${lastActiveLabel}`,
+    },
+    {
+      label: 'Profile',
+      value: `${safeUser.profile_score !== undefined ? safeUser.profile_score : 0}%`,
+      helper: safeUser.photo_review_required ? 'Photo blocked' : 'Ready',
+    },
+  ];
+  const bioPresent = Boolean((safeUser.bio || '').trim());
+  const profileRequestItems = [
+    {
+      title: safeUser.photo_review_required ? 'Photo requirement is active' : 'Request a new profile photo',
+      description: safeUser.photo_review_required
+        ? `Triggered ${safeUser.photo_review_trigger_count || 1} time(s).`
+        : 'Ask for a new photo.',
+      actionLabel: safeUser.photo_review_required ? (photoReviewLoading ? 'Updating...' : 'Clear photo requirement') : (photoReviewLoading ? 'Updating...' : 'Request photo update'),
+      actionTone: safeUser.photo_review_required ? 'btn-success' : 'btn-warning',
+      icon: safeUser.photo_review_required ? 'fas fa-camera-retro' : 'fas fa-camera',
+      onClick: () => openPhotoReviewModal(safeUser.photo_review_required ? 'clear' : 'require'),
+      disabled: photoReviewLoading,
+    },
+    {
+      title: bioPresent ? 'Request a stronger bio' : 'Request a missing bio',
+      description: bioPresent
+        ? 'Reserved action.'
+        : 'Reserved action.',
+      actionLabel: BIO_REQUEST_SUPPORTED ? 'Request bio update' : 'Bio request unavailable',
+      actionTone: 'btn-outline-secondary',
+      icon: 'fas fa-pen-to-square',
+      onClick: () => {},
+      disabled: !BIO_REQUEST_SUPPORTED,
+    },
+  ];
+  const reachControlItems = [
+    {
+      title: 'Boost visibility',
+      description: 'Increase reach.',
+      actionLabel: 'Boost now',
+      actionTone: 'btn-outline-success',
+      icon: 'fas fa-rocket',
+      onClick: () => handleVisibilityAction('boost'),
+      disabled: visibilityLoading,
+    },
+    {
+      title: 'Reduce exposure',
+      description: 'Lower reach.',
+      actionLabel: 'Reduce now',
+      actionTone: 'btn-outline-secondary',
+      icon: 'fas fa-gauge-low',
+      onClick: () => handleVisibilityAction('reduce'),
+      disabled: visibilityLoading,
+    },
+    {
+      title: 'Force inject',
+      description: 'Manual placement.',
+      actionLabel: 'Inject now',
+      actionTone: 'btn-outline-primary',
+      icon: 'fas fa-bolt',
+      onClick: () => handleVisibilityAction('inject'),
+      disabled: visibilityLoading,
+    },
+  ];
+  const restrictionItems = [
+    safeUser.is_active
+      ? {
+          title: 'Ban user',
+          description: 'Restrict access.',
+          actionLabel: 'Ban account',
+          actionTone: 'btn-outline-danger',
+          icon: 'fas fa-ban',
+          onClick: () => handleUserAction('ban'),
+        }
+      : {
+          title: 'Restore access',
+          description: 'Restore access.',
+          actionLabel: 'Restore account',
+          actionTone: 'btn-outline-success',
+          icon: 'fas fa-check-circle',
+          onClick: () => handleUserAction('unban'),
+        },
+    !safeUser.is_verified
+      ? {
+          title: 'Verify profile',
+          description: 'Mark verified.',
+          actionLabel: 'Verify now',
+          actionTone: 'btn-outline-info',
+          icon: 'fas fa-check-double',
+          onClick: () => handleUserAction('verify'),
+        }
+      : null,
+    {
+      title: 'Admin block',
+      description: 'Admin-only block.',
+      actionLabel: 'Open block modal',
+      actionTone: 'btn-outline-warning',
+      icon: 'fas fa-user-slash',
+      onClick: () => setShowBlockModal(true),
+    },
+    {
+      title: 'Deactivate account',
+      description: 'Disable login.',
+      actionLabel: 'Deactivate now',
+      actionTone: 'btn-outline-danger',
+      icon: 'fas fa-power-off',
+      onClick: () => setShowDeactivateModal(true),
+    },
+  ].filter(Boolean);
+  const chartTextColor = darkMode ? '#e2e8f0' : '#334155';
+  const chartGridColor = darkMode ? 'rgba(148, 163, 184, 0.18)' : 'rgba(100, 116, 139, 0.18)';
+  const scoreRingData = useMemo(() => ({
+    labels: ['Completed', 'Remaining'],
+    datasets: [
+      {
+        data: [
+          Math.max(0, Math.min(100, safeUser.score?.profile_completion_percent || 0)),
+          Math.max(0, 100 - Math.max(0, Math.min(100, safeUser.score?.profile_completion_percent || 0))),
+        ],
+        backgroundColor: ['#f43f5e', darkMode ? 'rgba(51, 65, 85, 0.9)' : '#e2e8f0'],
+        borderWidth: 0,
+      },
+    ],
+  }), [darkMode, safeUser.score?.profile_completion_percent]);
+  const qualityBarData = useMemo(() => ({
+    labels: ['Trust', 'Quality', 'Engagement'],
+    datasets: [
+      {
+        data: [
+          safeUser.score?.trust_score || 0,
+          safeUser.score?.quality_score || 0,
+          safeUser.score?.engagement_score || 0,
+        ],
+        backgroundColor: ['#2563eb', '#14b8a6', '#f59e0b'],
+        borderWidth: 0,
+        borderRadius: 10,
+      },
+    ],
+  }), [safeUser.score?.engagement_score, safeUser.score?.quality_score, safeUser.score?.trust_score]);
+  const activityBarData = useMemo(() => ({
+    labels: ['Likes', 'Matches', 'Sent', 'Received', 'Reports'],
+    datasets: [
+      {
+        data: [
+          safeUser.stats?.total_likes_given || 0,
+          safeUser.stats?.total_matches || 0,
+          safeUser.stats?.total_messages_sent || 0,
+          safeUser.stats?.total_messages_received || 0,
+          safeUser.stats?.total_reports_received || 0,
+        ],
+        backgroundColor: ['#f43f5e', '#14b8a6', '#2563eb', '#0ea5e9', '#f59e0b'],
+        borderRadius: 10,
+      },
+    ],
+  }), [safeUser.stats]);
+  const scoreRingOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '72%',
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: true },
+    },
+  }), []);
+  const qualityBarOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: true },
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        max: 100,
+        grid: { color: chartGridColor },
+        ticks: { color: chartTextColor, precision: 0 },
+      },
+      y: {
+        grid: { display: false },
+        ticks: { color: chartTextColor },
+      },
+    },
+  }), [chartGridColor, chartTextColor]);
+  const activityBarOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: true },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: chartTextColor },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: chartGridColor },
+        ticks: { color: chartTextColor, precision: 0 },
+      },
+    },
+  }), [chartGridColor, chartTextColor]);
+
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center vh-100">
@@ -283,219 +477,302 @@ export default function AdminUserDetail() {
   if (error) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="alert alert-danger">{error}</div></div>;
   if (!user) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="alert alert-warning">User details are unavailable.</div></div>;
 
-  const accountStateLabel = user.is_active ? 'Active' : 'Restricted';
-  const joinedLabel = user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A';
-  const lastActiveLabel = user.last_activity ? new Date(user.last_activity).toLocaleString() : 'Never';
-  const profileLocation = user.city && user.country ? `${user.city}, ${user.country}` : (user.city || user.country || 'Not specified');
-  const overviewStats = [
-    { icon: 'fas fa-ranking-star', tone: 'text-warning', label: 'User Score', value: user.score?.overall_score || 0 },
-    { icon: 'fas fa-coins', tone: 'text-secondary', label: 'Total Points', value: user.score?.total_points || 0 },
-    { icon: 'fas fa-heart', tone: 'text-danger', label: 'Likes Given', value: user.stats?.total_likes_given || 0 },
-    { icon: 'fas fa-handshake', tone: 'text-warning', label: 'Matches', value: user.stats?.total_matches || 0 },
-    { icon: 'fas fa-comment-dots', tone: 'text-primary', label: 'Messages Sent', value: user.stats?.total_messages_sent || 0 },
-    { icon: 'fas fa-flag', tone: 'text-danger', label: 'Reports Received', value: user.stats?.total_reports_received || 0 },
-  ];
-
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <AdminSidebar collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed} activeMenu={activeMenu} onMenuClick={handleMenuClick} />
       <main className="admin-main">
-        <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} />
-        <div className="container-fluid px-4 py-4">
+        <AdminTopNav darkMode={darkMode} setDarkMode={setDarkMode} pageTitle="User Detail" />
+        <div className="admin-page-shell user-detail-shell">
           <button className="back-btn mb-4" onClick={() => navigate('/admin/users')}>
             <i className="fas fa-arrow-left me-2"></i> Back to Users
           </button>
 
-          <div className="recent-blocks-card mb-4" style={{ overflow: 'hidden' }}>
-            <div className="card-body p-4" style={{ background: darkMode ? 'linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,41,59,0.94))' : 'linear-gradient(135deg, rgba(248,250,252,0.98), rgba(241,245,249,0.98))' }}>
-              <div className="d-flex flex-wrap justify-content-between align-items-start gap-4">
-                <div className="d-flex align-items-center gap-4">
-                  <div className="position-relative">
-                    <img
-                      src={resolveMediaUrl(user.profile_photo_url, user.profile_photo_url) || '/default-avatar.png'}
-                      alt="Profile"
-                      className="rounded-circle border border-3 border-danger"
-                      style={{ width: 96, height: 96, objectFit: 'cover', cursor: user.profile_photo_url ? 'zoom-in' : 'default' }}
-                      onClick={() => openPhotoViewer(user.profile_photo_url)}
-                    />
-                    <span className={`position-absolute bottom-0 end-0 rounded-circle border border-2 border-white ${user.is_online ? 'bg-success' : 'bg-secondary'}`} style={{ width: 20, height: 20 }}></span>
+          <section className="user-ops-layout">
+            <aside className="user-ops-identity">
+              <div className="user-ops-panel user-ops-profile-card">
+                <div className="user-ops-avatar-wrap">
+                  <img
+                    src={resolveMediaUrl(user.profile_photo_url, user.profile_photo_url) || '/default-avatar.png'}
+                    alt="Profile"
+                    className="user-ops-avatar"
+                    style={{ cursor: user.profile_photo_url ? 'zoom-in' : 'default' }}
+                    onClick={() => openPhotoViewer(user.profile_photo_url)}
+                  />
+                  <span className={`user-ops-online-dot ${user.is_online ? 'is-online' : 'is-offline'}`}></span>
+                </div>
+                <span className="user-ops-kicker">Identity rail</span>
+                <h1>{user.full_name}</h1>
+                <p>{maskEmail(user.email)}</p>
+                <div className="user-ops-badges">
+                  {getRiskBadge()}
+                  {user.is_verified ? <span className="badge bg-info px-3 py-2">Verified</span> : <span className="badge bg-warning text-dark px-3 py-2">Unverified</span>}
+                  <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>{accountStateLabel}</span>
+                </div>
+                {user.photo_review_required && (
+                  <div className="user-ops-inline-alert">
+                    Photo update required #{user.photo_review_trigger_count || 1}
                   </div>
-                  <div>
-                    <div className="small text-uppercase text-danger fw-semibold mb-2">Sensitive account view</div>
-                    <h1 className="display-6 fw-bold mb-1">{user.full_name}</h1>
-                    <p className="text-muted mb-2">{maskEmail(user.email)}</p>
-                    <div className="d-flex gap-2 flex-wrap">
-                      {getRiskBadge()}
-                      {user.is_verified ? <span className="badge bg-info px-3 py-2">Verified</span> : <span className="badge bg-warning text-dark px-3 py-2">Unverified</span>}
-                      <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>{accountStateLabel}</span>
-                      {user.photo_review_required && <span className="badge bg-warning text-dark px-3 py-2">Photo update required #{user.photo_review_trigger_count || 1}</span>}
+                )}
+                <div className="user-ops-facts">
+                  <div><span>Gender</span><strong>{formatGender(user.gender)}</strong></div>
+                  <div><span>Age</span><strong>{user.age || 'N/A'}</strong></div>
+                  <div><span>Account type</span><strong className="text-capitalize">{user.account_type || 'free'}</strong></div>
+                  <div><span>Joined</span><strong>{joinedLabel}</strong></div>
+                  <div><span>Last active</span><strong>{lastActiveLabel}</strong></div>
+                  <div><span>Location</span><strong>{profileLocation}</strong></div>
+                </div>
+              </div>
+
+              <div className="user-ops-panel">
+                <div className="user-ops-section-head">
+                  <span className="user-ops-kicker">Quick status</span>
+                  <h3>At a glance</h3>
+                </div>
+                <div className="user-ops-summary-list">
+                  {reviewHighlights.map((item) => (
+                    <div key={item.label} className="user-ops-summary-item">
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <p>{item.helper}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </aside>
+
+            <div className="user-ops-main">
+              <div className="user-ops-panel">
+                <div className="user-ops-section-head">
+                  <span className="user-ops-kicker">Core metrics</span>
+                  <h3>Simple metrics</h3>
+                </div>
+                <div className="user-ops-metric-grid">
+                  {overviewStats.map((item) => (
+                    <div key={item.label} className="user-ops-metric">
+                      <i className={`${item.icon} ${item.tone}`}></i>
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="user-ops-chart-grid">
+                <div className="user-ops-panel user-ops-chart-card">
+                  <div className="user-ops-section-head compact">
+                    <span className="user-ops-kicker">Completion</span>
+                    <h3>{user.score?.profile_completion_percent || 0}% ready</h3>
+                  </div>
+                  <div className="user-ops-ring-layout">
+                    <div className="user-ops-ring-wrap">
+                      <Doughnut data={scoreRingData} options={scoreRingOptions} />
+                      <div className="user-ops-ring-center">
+                        <strong>{user.score?.profile_completion_percent || 0}%</strong>
+                        <span>complete</span>
+                      </div>
+                    </div>
+                    <div className="user-ops-mini-list">
+                      <div><span>Bio</span><strong>{bioPresent ? 'Present' : 'Missing'}</strong></div>
+                      <div><span>Photo</span><strong>{user.profile_photo_url ? 'Present' : 'Missing'}</strong></div>
+                      <div><span>Verification</span><strong>{user.is_verified ? 'Verified' : 'Pending'}</strong></div>
                     </div>
                   </div>
                 </div>
-                <div className="rounded-4 p-3" style={{ minWidth: '280px', background: darkMode ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.78)', border: darkMode ? '1px solid rgba(148,163,184,0.18)' : '1px solid rgba(148,163,184,0.18)' }}>
-                  <div className="small text-uppercase text-muted mb-2">Privacy handling</div>
-                  <div className="fw-semibold mb-2">Internal review only</div>
-                  <div className="text-muted small">
-                    Use this page for moderation, trust, and account support only. Sensitive details should be handled with care and only when operationally necessary.
+
+                <div className="user-ops-panel user-ops-chart-card">
+                  <div className="user-ops-section-head compact">
+                    <span className="user-ops-kicker">Score mix</span>
+                    <h3>Trust, quality, engagement</h3>
+                  </div>
+                  <div className="user-ops-bar-wrap large">
+                    <Bar data={qualityBarData} options={qualityBarOptions} />
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="row g-4 mb-5">
-            {overviewStats.map((item) => (
-              <div key={item.label} className="col-md-6 col-lg-2">
-                <div className="metric-card p-3 text-center">
-                  <i className={`${item.icon} fa-2x ${item.tone} mb-2`}></i>
-                  <h6 className="text-muted mb-1">{item.label}</h6>
-                  <p className="display-6 fw-bold mb-0">{item.value}</p>
+              <div className="user-ops-panel">
+                <div className="user-ops-section-head">
+                  <span className="user-ops-kicker">Profile</span>
+                  <h3>Identity and media</h3>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="recent-blocks-card mb-5">
-            <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-chart-line text-warning me-2"></i>Score Breakdown</h5></div>
-            <div className="card-body pt-0 pb-4 px-4">
-              <div className="row g-3">
-                <div className="col-md-3"><div className="text-muted small">Engagement</div><div className="fw-semibold">{user.score?.engagement_score || 0}</div></div>
-                <div className="col-md-3"><div className="text-muted small">Quality</div><div className="fw-semibold">{user.score?.quality_score || 0}</div></div>
-                <div className="col-md-3"><div className="text-muted small">Trust</div><div className="fw-semibold">{user.score?.trust_score || 0}</div></div>
-                <div className="col-md-3"><div className="text-muted small">Profile Completion</div><div className="fw-semibold">{user.score?.profile_completion_percent || 0}%</div></div>
-                <div className="col-md-3"><div className="text-muted small">Onboarding Points</div><div className="fw-semibold">{user.score?.onboarding_points || 0}</div></div>
-                <div className="col-md-3"><div className="text-muted small">Activity Points</div><div className="fw-semibold">{user.score?.activity_points || 0}</div></div>
-                <div className="col-md-3"><div className="text-muted small">Quality Points</div><div className="fw-semibold">{user.score?.quality_points || 0}</div></div>
-                <div className="col-md-3"><div className="text-muted small">Penalty Points</div><div className="fw-semibold">{user.score?.penalty_points || 0}</div></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Profile & Activity */}
-          <div className="row g-4 mb-5">
-            <div className="col-lg-6">
-              <div className="recent-blocks-card h-100">
-                <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-user-circle text-primary me-2"></i>Profile Details</h5></div>
-                <div className="card-body pt-0 pb-4 px-4">
-                  <div className="row g-3">
-                    <div className="col-6"><div className="text-muted small">Full Name</div><div className="fw-semibold">{user.full_name}</div></div>
-                    <div className="col-6"><div className="text-muted small">Email</div><div className="fw-semibold">{maskEmail(user.email)}</div><div className="small text-muted">Full address shown only when required for support or trust operations.</div></div>
-                    <div className="col-6"><div className="text-muted small">Gender</div><div className="fw-semibold">{formatGender(user.gender)}</div></div>
-                    <div className="col-6"><div className="text-muted small">Age</div><div className="fw-semibold">{user.age || 'N/A'}</div></div>
-                    <div className="col-12">
-                      <div className="text-muted small">Location</div>
-                      <div className="fw-semibold mb-2">{profileLocation}</div>
-                      <div className="small text-muted mb-2">Approximate profile location is shown here. Exact coordinates remain isolated in the location tab.</div>
-                      {user.latitude && user.longitude && (
-                        <div className="mt-2">
-                          <div id="miniMap" style={{ height: '200px', width: '100%', borderRadius: '8px' }}></div>
-                          <div className="d-flex justify-content-between mt-2">
-                            <small className="text-muted"><i className="fas fa-map-marker-alt me-1"></i> Sensitive geodata available in protected review mode.</small>
-                            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setActiveTab('location')}><i className="fas fa-shield-halved me-1"></i> Open protected map</button>
+                <div className="user-ops-detail-grid">
+                  <div className="user-ops-detail-card">
+                    <h4>Profile details</h4>
+                    <div className="user-ops-definition-grid">
+                      <div><span>Full name</span><strong>{user.full_name}</strong></div>
+                      <div><span>Email</span><strong>{maskEmail(user.email)}</strong></div>
+                      <div><span>Profile score</span><strong>{user.profile_score !== undefined ? `${user.profile_score}%` : 'N/A'}</strong></div>
+                      <div><span>Location</span><strong>{profileLocation}</strong></div>
+                    </div>
+                    <div className="user-ops-bio-card">
+                      <span>Bio</span>
+                      <p>{user.bio || 'No bio on file for this user yet.'}</p>
+                    </div>
+                    {user.latitude && user.longitude && (
+                      <div className="user-ops-map-preview">
+                        <div className="user-ops-location-preview">
+                          <div>
+                            <span>Latitude</span>
+                            <strong>{Number(user.latitude).toFixed(6)}</strong>
+                          </div>
+                          <div>
+                            <span>Longitude</span>
+                            <strong>{Number(user.longitude).toFixed(6)}</strong>
                           </div>
                         </div>
-                      )}
-                    </div>
-                    <div className="col-12"><div className="text-muted small">Bio</div><div className="fw-semibold">{user.bio || 'No bio'}</div></div>
-                    <div className="col-6"><div className="text-muted small">Account Type</div><div className="fw-semibold text-capitalize">{user.account_type || 'free'}</div></div>
-                    <div className="col-6"><div className="text-muted small">Profile Score</div><div className="fw-semibold">{user.profile_score !== undefined ? `${user.profile_score}%` : 'N/A'}</div></div>
-                    <div className="col-6"><div className="text-muted small">Joined</div><div className="fw-semibold">{joinedLabel}</div></div>
-                    <div className="col-6"><div className="text-muted small">Last Active</div><div className="fw-semibold">{lastActiveLabel}</div></div>
+                        <div className="d-flex gap-2 mt-3 flex-wrap">
+                          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setActiveTab('location')}>
+                            <i className="fas fa-shield-halved me-1"></i>Open protected location
+                          </button>
+                          <a
+                            href={`https://www.google.com/maps?q=${user.latitude},${user.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-sm btn-outline-primary"
+                          >
+                            <i className="fas fa-location-arrow me-1"></i>Open map
+                          </a>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
-            </div>
-            <div className="col-lg-6">
-              <div className="recent-blocks-card mb-4">
-                <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-camera text-danger me-2"></i>Profile Photos</h5></div>
-                <div className="card-body pt-0 pb-4 px-4">
-                  <div className="row g-3">
-                    {(user.photos?.length ? user.photos : user.profile_photo_url ? [{ id: 'main', image_url: user.profile_photo_url }] : []).map((photo, index) => (
-                      <div key={photo.id || index} className="col-6 col-md-4">
+
+                  <div className="user-ops-detail-card">
+                    <h4>Profile media and trust notes</h4>
+                    <div className="user-ops-photo-grid">
+                      {(user.photos?.length ? user.photos : user.profile_photo_url ? [{ id: 'main', image_url: user.profile_photo_url }] : []).map((photo, index) => (
                         <button
+                          key={photo.id || index}
                           type="button"
-                          className="border-0 p-0 bg-transparent w-100"
+                          className="user-ops-photo-button"
                           onClick={() => openPhotoViewer(photo.image_url)}
-                          style={{ cursor: 'zoom-in' }}
                         >
                           <img
                             src={resolveMediaUrl(photo.image_url, photo.image_url)}
                             alt={`Profile ${index + 1}`}
-                            style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: '18px', boxShadow: '0 14px 28px rgba(15, 23, 42, 0.16)' }}
+                            className="user-ops-photo"
                           />
                         </button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                     {(!user.photos || user.photos.length === 0) && !user.profile_photo_url && (
-                      <div className="col-12 text-muted">No profile photos available for this user.</div>
+                      <div className="user-ops-empty">No profile photos available for this user.</div>
+                    )}
+                    {user.photo_review_reason && (
+                      <div className="alert alert-warning mt-3 mb-0">
+                        <strong>Review reason:</strong> {user.photo_review_reason}
+                      </div>
                     )}
                   </div>
-                  {user.photo_review_reason && (
-                    <div className="alert alert-warning mt-3 mb-0">
-                      <strong>Review reason:</strong> {user.photo_review_reason}
+                </div>
+              </div>
+
+              <div className="user-ops-panel">
+                <div className="user-ops-section-head">
+                  <span className="user-ops-kicker">Activity</span>
+                  <h3>Behavior snapshot</h3>
+                </div>
+                <div className="user-ops-activity-grid">
+                  <div className="user-ops-detail-card">
+                    <h4>Score details</h4>
+                    <div className="user-ops-definition-grid compact">
+                      <div><span>Engagement</span><strong>{user.score?.engagement_score || 0}</strong></div>
+                      <div><span>Quality</span><strong>{user.score?.quality_score || 0}</strong></div>
+                      <div><span>Trust</span><strong>{user.score?.trust_score || 0}</strong></div>
+                      <div><span>Profile completion</span><strong>{user.score?.profile_completion_percent || 0}%</strong></div>
+                      <div><span>Onboarding points</span><strong>{user.score?.onboarding_points || 0}</strong></div>
+                      <div><span>Activity points</span><strong>{user.score?.activity_points || 0}</strong></div>
+                      <div><span>Quality points</span><strong>{user.score?.quality_points || 0}</strong></div>
+                      <div><span>Penalty points</span><strong>{user.score?.penalty_points || 0}</strong></div>
+                    </div>
+                  </div>
+
+                  <div className="user-ops-detail-card user-ops-bar-card">
+                    <h4>Activity chart</h4>
+                    <div className="user-ops-bar-wrap">
+                      <Bar data={activityBarData} options={activityBarOptions} />
+                    </div>
+                    <div className="user-ops-definition-grid compact mt-3">
+                      <div><span>Active matches</span><strong>{user.stats?.active_matches || 0}</strong></div>
+                      <div><span>Account age</span><strong>{user.stats?.account_age_days || 0} days</strong></div>
+                      <div><span>Blocks received</span><strong>{user.stats?.total_blocks_received || 0}</strong></div>
+                      <div><span>Reports filed</span><strong>{user.stats?.total_reports_filed || 0}</strong></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <aside className="user-ops-actions">
+              <div className="user-ops-panel">
+                <div className="user-ops-section-head">
+                  <span className="user-ops-kicker">Requests</span>
+                  <h3>Profile requests</h3>
+                </div>
+                <div className="user-ops-action-stack">
+                  {profileRequestItems.map((item) => (
+                    <div key={item.title} className="user-ops-command-card">
+                      <div className="user-ops-command-copy">
+                        <strong>{item.title}</strong>
+                        <p>{item.description}</p>
+                      </div>
+                      <button className={`btn ${item.actionTone}`} onClick={item.onClick} disabled={item.disabled}>
+                        <i className={`${item.icon} me-2`}></i>{item.actionLabel}
+                      </button>
+                    </div>
+                  ))}
+                  {!BIO_REQUEST_SUPPORTED && (
+                    <div className="user-ops-note">
+                      Bio request not wired yet.
                     </div>
                   )}
                 </div>
               </div>
-              <div className="recent-blocks-card h-100">
-                <div className="card-header bg-transparent border-0 pt-4 pb-2"><h5 className="mb-0"><i className="fas fa-chart-line text-success me-2"></i>Activity & Safety</h5></div>
-                <div className="card-body pt-0 pb-4 px-4">
-                  <div className="row g-3">
-                    <div className="col-6"><div className="text-muted small">Likes Received</div><div className="fw-semibold">{user.stats?.total_likes_received || 0}</div></div>
-                    <div className="col-6"><div className="text-muted small">Passes Received</div><div className="fw-semibold">{user.stats?.total_passes_received || 0}</div></div>
-                    <div className="col-6"><div className="text-muted small">Active Matches</div><div className="fw-semibold">{user.stats?.active_matches || 0}</div></div>
-                    <div className="col-6"><div className="text-muted small">Messages Received</div><div className="fw-semibold">{user.stats?.total_messages_received || 0}</div></div>
-                    <div className="col-6"><div className="text-muted small">Blocks Given</div><div className="fw-semibold">{user.stats?.total_blocks_given || 0}</div></div>
-                    <div className="col-6"><div className="text-muted small">Blocks Received</div><div className="fw-semibold">{user.stats?.total_blocks_received || 0}</div></div>
-                    <div className="col-6"><div className="text-muted small">Reports Filed</div><div className="fw-semibold">{user.stats?.total_reports_filed || 0}</div></div>
-                    <div className="col-6"><div className="text-muted small">Account Age (days)</div><div className="fw-semibold">{user.stats?.account_age_days || 0}</div></div>
-                  </div>
+
+              <div className="user-ops-panel">
+                <div className="user-ops-section-head">
+                  <span className="user-ops-kicker">Reach</span>
+                  <h3>Visibility</h3>
+                </div>
+                <div className="user-ops-action-stack">
+                  {reachControlItems.map((item) => (
+                    <div key={item.title} className="user-ops-command-card">
+                      <div className="user-ops-command-copy">
+                        <strong>{item.title}</strong>
+                        <p>{item.description}</p>
+                      </div>
+                      <button className={`btn ${item.actionTone}`} onClick={item.onClick} disabled={item.disabled}>
+                        <i className={`${item.icon} me-2`}></i>{item.actionLabel}
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
-          </div>
 
-          <div className="recent-blocks-card mb-5">
-            <div className="card-header bg-transparent border-0 pt-4 pb-2">
-              <h5 className="mb-0"><i className="fas fa-shield-halved text-danger me-2"></i>Restricted Actions</h5>
-            </div>
-            <div className="card-body pt-0 pb-4 px-4">
-              <div className="alert alert-warning mb-4">
-                Use account restriction or visibility controls only when needed for support, trust, moderation, or launch balancing. These actions affect the user experience directly.
+              <div className="user-ops-panel tone-danger">
+                <div className="user-ops-section-head">
+                  <span className="user-ops-kicker">Restriction</span>
+                  <h3>Access</h3>
+                </div>
+                <div className="user-ops-action-stack">
+                  {restrictionItems.map((item) => (
+                    <div key={item.title} className="user-ops-command-card">
+                      <div className="user-ops-command-copy">
+                        <strong>{item.title}</strong>
+                        <p>{item.description}</p>
+                      </div>
+                      <button className={`btn ${item.actionTone}`} onClick={item.onClick}>
+                        <i className={`${item.icon} me-2`}></i>{item.actionLabel}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="d-flex gap-3 flex-wrap">
-                {user.is_active ? (
-                  <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => handleUserAction('ban')}><i className="fas fa-ban me-2"></i>Ban User</button>
-                ) : (
-                  <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleUserAction('unban')}><i className="fas fa-check-circle me-2"></i>Restore Access</button>
-                )}
-                {!user.is_verified && <button className="btn btn-outline-info rounded-pill px-4" onClick={() => handleUserAction('verify')}><i className="fas fa-check-double me-2"></i>Verify Profile</button>}
-                {user.photo_review_required ? (
-                  <button className="btn btn-outline-success rounded-pill px-4" onClick={() => openPhotoReviewModal('clear')} disabled={photoReviewLoading}>
-                    <i className="fas fa-camera-retro me-2"></i>{photoReviewLoading ? 'Updating...' : 'Clear Photo Requirement'}
-                  </button>
-                ) : (
-                  <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => openPhotoReviewModal('require')} disabled={photoReviewLoading}>
-                    <i className="fas fa-camera me-2"></i>{photoReviewLoading ? 'Updating...' : 'Require New Profile Photo'}
-                  </button>
-                )}
-                <button className="btn btn-outline-warning rounded-pill px-4" onClick={() => setShowBlockModal(true)}><i className="fas fa-user-slash me-2"></i>Admin Block</button>
-                <button className="btn btn-outline-danger rounded-pill px-4" onClick={() => setShowDeactivateModal(true)}><i className="fas fa-power-off me-2"></i>Deactivate</button>
-                <button className="btn btn-outline-success rounded-pill px-4" onClick={() => handleVisibilityAction('boost')} disabled={visibilityLoading}>
-                  <i className="fas fa-rocket me-2"></i>Boost Visibility
-                </button>
-                <button className="btn btn-outline-secondary rounded-pill px-4" onClick={() => handleVisibilityAction('reduce')} disabled={visibilityLoading}>
-                  <i className="fas fa-gauge-low me-2"></i>Reduce Exposure
-                </button>
-                <button className="btn btn-outline-primary rounded-pill px-4" onClick={() => handleVisibilityAction('inject')} disabled={visibilityLoading}>
-                  <i className="fas fa-bolt me-2"></i>Force Inject
-                </button>
-              </div>
-            </div>
-          </div>
+            </aside>
+          </section>
 
           {/* Tabs */}
-          <div className="card shadow-sm mt-5">
+          <div className="card shadow-sm mt-5 user-detail-tabs-card">
             <div className="card-header bg-transparent border-bottom">
               <ul className="nav nav-tabs card-header-tabs">
                 <li className="nav-item"><button className={`nav-link ${activeTab === 'all_matches' ? 'active' : ''}`} onClick={() => setActiveTab('all_matches')}>All Matches ({user.all_matches?.length || 0})</button></li>
@@ -503,7 +780,7 @@ export default function AdminUserDetail() {
                 <li className="nav-item"><button className={`nav-link ${activeTab === 'conversations' ? 'active' : ''}`} onClick={() => setActiveTab('conversations')}>Conversations ({user.conversations?.length || 0})</button></li>
                 <li className="nav-item"><button className={`nav-link ${activeTab === 'all_reports' ? 'active' : ''}`} onClick={() => setActiveTab('all_reports')}>All Reports ({user.all_reports_received?.length || 0})</button></li>
                 <li className="nav-item"><button className={`nav-link ${activeTab === 'notifications' ? 'active' : ''}`} onClick={() => setActiveTab('notifications')}>Notifications ({user.all_notifications?.length || 0})</button></li>
-                <li className="nav-item"><button className={`nav-link ${activeTab === 'location' ? 'active' : ''}`} onClick={() => setActiveTab('location')}>Full Screen Map {user.latitude && user.longitude ? '🗺️' : '❌'}</button></li>
+                <li className="nav-item"><button className={`nav-link ${activeTab === 'location' ? 'active' : ''}`} onClick={() => setActiveTab('location')}>Protected Map {user.latitude && user.longitude ? 'Available' : 'Unavailable'}</button></li>
               </ul>
             </div>
             <div className="card-body">
@@ -594,7 +871,30 @@ export default function AdminUserDetail() {
                           <div className="card bg-light"><div className="card-body"><h6><i className="fas fa-globe me-2"></i>Map Links</h6><a href={`https://www.openstreetmap.org/?mlat=${user.latitude}&mlon=${user.longitude}#map=15/${user.latitude}/${user.longitude}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary me-2"><i className="fas fa-map me-1"></i> OpenStreetMap</a><a href={`https://www.google.com/maps?q=${user.latitude},${user.longitude}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-danger"><i className="fab fa-google me-1"></i> Google Maps</a></div></div>
                         </div>
                       </div>
-                      <div className="card"><div className="card-body p-0"><div id="userMap" style={{ height: '500px', width: '100%', borderRadius: '8px' }}></div></div></div>
+                      <div className="user-ops-location-surface">
+                        <div className="user-ops-location-preview large">
+                          <div>
+                            <span>Latitude</span>
+                            <strong>{Number(user.latitude).toFixed(6)}</strong>
+                          </div>
+                          <div>
+                            <span>Longitude</span>
+                            <strong>{Number(user.longitude).toFixed(6)}</strong>
+                          </div>
+                          <div>
+                            <span>Location</span>
+                            <strong>{user.city && user.country ? `${user.city}, ${user.country}` : (user.city || user.country || 'Not specified')}</strong>
+                          </div>
+                        </div>
+                        <div className="d-flex gap-2 flex-wrap mt-3">
+                          <a href={`https://www.openstreetmap.org/?mlat=${user.latitude}&mlon=${user.longitude}#map=15/${user.latitude}/${user.longitude}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
+                            <i className="fas fa-map me-1"></i>OpenStreetMap
+                          </a>
+                          <a href={`https://www.google.com/maps?q=${user.latitude},${user.longitude}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-danger">
+                            <i className="fab fa-google me-1"></i>Google Maps
+                          </a>
+                        </div>
+                      </div>
                     </>
                   ) : (
                     <div className="alert alert-warning"><i className="fas fa-exclamation-triangle me-2"></i>No location data available for this user.</div>
@@ -654,7 +954,7 @@ export default function AdminUserDetail() {
                         <div className="d-flex align-items-center justify-content-center mb-3" style={{ width: '68px', height: '68px', borderRadius: '50%', margin: '0 auto', background: 'rgba(255,77,109,0.15)', color: '#ff4d6d', fontSize: '28px' }}>
                           <i className="fas fa-camera-retro"></i>
                         </div>
-                        <h4 className="fw-bold text-center mb-3">Veuillez mettre a jour votre photo de profil</h4>
+                        <h4 className="fw-bold text-center mb-3">Request a new profile photo</h4>
                         <p className="mb-0 text-center" style={{ color: 'rgba(255,255,255,0.82)', lineHeight: 1.7 }}>
                           {photoReviewMessage || DEFAULT_PHOTO_REVIEW_MESSAGE}
                         </p>
