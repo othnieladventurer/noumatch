@@ -5,21 +5,19 @@ import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
-import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
-const RANKING_CACHE_KEY = 'admin_ranking_metrics_v1';
 
 export default function AdminAnalyticsRanking() {
   const navigate = useNavigate();
-  const [cachedRankingData] = useState(() => readFreshCache(RANKING_CACHE_KEY, 120000));
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('analytics-ranking');
-  const [data, setData] = useState(cachedRankingData);
-  const [loading, setLoading] = useState(!cachedRankingData);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
 
   useEffect(() => {
     if (darkMode) {
@@ -43,9 +41,9 @@ export default function AdminAnalyticsRanking() {
         if (!silent) {
           setLoading(true);
         }
-        const response = await adminRequest({ method: 'get', url: `${API_BASE}/dashboard/` });
+        const response = await adminRequest({ method: 'get', url: `${API_BASE}/analytics/ranking/` });
         setData(response.data);
-        writeCache(RANKING_CACHE_KEY, response.data);
+        setWarning(response.data?.warning || '');
         setError('');
       } catch (err) {
         if (err.response?.status === 401 || err.response?.status === 403) {
@@ -56,21 +54,20 @@ export default function AdminAnalyticsRanking() {
           return;
         }
         setError(err.response?.data?.error || 'Failed to load ranking analytics');
+        setWarning('');
       } finally {
         setLoading(false);
       }
     };
 
-    if (!cachedRankingData) {
-      fetchRankingData(false);
-    }
+    fetchRankingData(false);
 
     const handleRefresh = () => {
       fetchRankingData(false);
     };
     window.addEventListener('admin:refresh-page', handleRefresh);
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
-  }, [cachedRankingData, navigate]);
+  }, [navigate]);
 
   const handleMenuClick = (menu, path) => {
     setActiveMenu(menu);
@@ -96,6 +93,9 @@ export default function AdminAnalyticsRanking() {
 
           {error && (
             <div className="alert alert-danger">{error}</div>
+          )}
+          {warning && (
+            <div className="alert alert-warning">{warning}</div>
           )}
 
           <div className="metrics-grid" style={{ padding: 0 }}>
@@ -143,7 +143,7 @@ export default function AdminAnalyticsRanking() {
                           <td>{profile.impressions}</td>
                           <td>{profile.likes}</td>
                           <td><span className="badge bg-success">{profile.like_rate}%</span></td>
-                          <td>{profile.avg_position?.toFixed(1) || 'N/A'}</td>
+                          <td>{profile.avg_position == null ? 'N/A' : profile.avg_position.toFixed(1)}</td>
                         </tr>
                       ))
                     )}

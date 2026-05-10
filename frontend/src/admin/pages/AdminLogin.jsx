@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BrandLogo from '../../components/BrandLogo';
-import { getAdminApiBase } from '../../admin/utils/adminApi';
+import { getAdminApiBase, persistAdminAccessToken } from '../../admin/utils/adminApi';
 import './AdminLogin.css';
 
 const API_BASE = getAdminApiBase();
@@ -32,13 +32,13 @@ export default function AdminLogin() {
     setLoading(true);
     setError('');
     try {
+      localStorage.removeItem('access');
+      localStorage.removeItem('refresh');
+      sessionStorage.removeItem('nm_user_session');
+
       const url = `${API_BASE}/admin_login/`;
       const res = await axios.post(url, { email, password }, { withCredentials: true });
-      if (res.data?.access) {
-        localStorage.setItem('admin_access', res.data.access);
-      } else {
-        localStorage.removeItem('admin_access');
-      }
+      persistAdminAccessToken(res.data?.access);
       localStorage.setItem('admin_email', res.data.staff_email);
       navigate('/admin/dashboard');
     } catch (err) {

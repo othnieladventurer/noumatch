@@ -15,13 +15,24 @@ function deriveWsTarget(apiTarget) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const isStaging = mode === 'staging';
-  const isDevelopment = mode === 'development';
+  const isStaging = mode === 'staging'
+  const isProduction = mode === 'production'
+  const isDevelopment = mode === 'development'
   const localApiPort = (env.VITE_API_PORT || '').trim()
   const localApiTarget =
     (env.VITE_API_URL || '').trim() || `http://127.0.0.1:${localApiPort || '8000'}`
   const localWsTarget =
     (env.VITE_WS_URL || '').trim() || deriveWsTarget(localApiTarget)
+  const apiTarget = isStaging
+    ? 'https://api-staging.noumatch.com'
+    : isProduction
+    ? 'https://api.noumatch.com'
+    : localApiTarget
+  const wsTarget = isStaging
+    ? 'wss://api-staging.noumatch.com'
+    : isProduction
+    ? 'wss://api.noumatch.com'
+    : localWsTarget
 
   return {
     plugins: [react()],
@@ -61,12 +72,18 @@ export default defineConfig(({ mode }) => {
           secure: false,
         },
         '/api': {
-          target: isStaging ? 'https://api-staging.noumatch.com' : localApiTarget,
+          target: apiTarget,
           changeOrigin: true,
           secure: false,
+          ws: true,
+          configure: (proxy, options) => {
+            proxy.on('error', (err, req, res) => {
+              console.log('[Proxy Error]', err.message)
+            })
+          }
         },
         '/ws': {
-          target: isStaging ? 'wss://api-staging.noumatch.com' : localWsTarget,
+          target: wsTarget,
           ws: true,
           changeOrigin: true,
         }
@@ -84,4 +101,4 @@ export default defineConfig(({ mode }) => {
       port: isStaging ? 4174 : 4173,
     },
   }
-});
+})

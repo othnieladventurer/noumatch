@@ -24,9 +24,7 @@ export default function DashboardNavbar({ user }) {
 
   // --- NEW: Check if in admin mode ---
   const isAdminMode = () => {
-    const hasAdminToken = !!localStorage.getItem('admin_access');
-    const isAdminPath = window.location.pathname.startsWith('/admin');
-    return hasAdminToken || isAdminPath;
+    return window.location.pathname.startsWith('/admin');
   };
 
   useEffect(() => {

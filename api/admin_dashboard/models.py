@@ -1,8 +1,13 @@
 # admin_dashboard/models.py
+import logging
+
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-from django.template import Context, Template
+from django.template import Context, Template, TemplateSyntaxError
+
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -136,14 +141,26 @@ class NotificationEmailTemplate(models.Model):
         return f"{self.get_event_type_display()} email template"
 
     def render_subject(self, context_data=None):
-        return Template(self.subject_template).render(Context(context_data or {})).strip()
+        try:
+            return Template(self.subject_template).render(Context(context_data or {})).strip()
+        except TemplateSyntaxError as exc:
+            logger.warning("Invalid notification email subject template for %s: %s", self.event_type, exc)
+            return (self.subject_template or "").strip()
 
     def render_html(self, context_data=None):
-        return Template(self.html_template).render(Context(context_data or {})).strip()
+        try:
+            return Template(self.html_template).render(Context(context_data or {})).strip()
+        except TemplateSyntaxError as exc:
+            logger.warning("Invalid notification email HTML template for %s: %s", self.event_type, exc)
+            return (self.html_template or "").strip()
 
     def render_text(self, context_data=None):
         if self.text_template:
-            return Template(self.text_template).render(Context(context_data or {})).strip()
+            try:
+                return Template(self.text_template).render(Context(context_data or {})).strip()
+            except TemplateSyntaxError as exc:
+                logger.warning("Invalid notification email text template for %s: %s", self.event_type, exc)
+                return (self.text_template or "").strip()
         return ""
 
 

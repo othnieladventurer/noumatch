@@ -59,14 +59,22 @@ export default function Profile() {
     return String(url).split("?")[0].split("#")[0].trim();
   };
 
+  const getImageFingerprint = (url) => {
+    const normalized = normalizeImageUrl(url);
+    if (!normalized) return "";
+    return normalized.split("/").pop() || normalized;
+  };
+
   const getAllPhotos = () => {
     const photos = [];
     const seen = new Set();
 
     const pushUnique = (photo) => {
       const normalized = normalizeImageUrl(photo?.image);
-      if (!normalized || seen.has(normalized)) return;
-      seen.add(normalized);
+      const fingerprint = getImageFingerprint(photo?.image);
+      const dedupeKey = fingerprint || normalized;
+      if (!dedupeKey || seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
       photos.push(photo);
     };
 
@@ -237,21 +245,25 @@ export default function Profile() {
       const photo = userPhotos.find((p) => p.id === photoId);
       if (!photo) return;
 
-      const submitData = new FormData();
-      const filename = photo.image.split("/").pop();
-      submitData.append("profile_photo", filename);
+      const response = await API.post(`/users/photos/${photoId}/set-main/`);
+      const nextMainPhoto =
+        response.data?.profile_photo_url ||
+        getProfilePhotoUrl(response.data?.profile_photo) ||
+        photoUrl;
 
-      const response = await API.put("/users/profile/update/", submitData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      setUser((prev) => ({ ...prev, ...response.data }));
-      setPhotoPreview(photoUrl);
+      setUser((prev) => ({ ...prev, ...response.data, profile_photo_url: nextMainPhoto }));
+      setPhotoPreview(nextMainPhoto);
+      setFormData((prev) => ({ ...prev, profile_photo: null }));
       setActivePhotoIndex(0);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.response?.data?.message || error.message || "Failed to set main photo");
+      setError(
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to set main photo"
+      );
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -718,7 +730,9 @@ export default function Profile() {
 
         .profile-page {
           font-family: 'Inter', sans-serif;
-          background: #f5f7fb;
+          background:
+            radial-gradient(circle at top left, rgba(255,77,109,0.14), transparent 34%),
+            linear-gradient(180deg, #fff7f9 0%, #f5f7fb 42%, #ffffff 100%);
           min-height: 100vh;
           height: auto;
         }
@@ -941,42 +955,100 @@ export default function Profile() {
         }
 
         .profile-content {
-          max-width: 800px;
-          margin: -30px auto 0;
-          background: white;
-          border-radius: 30px 30px 0 0;
+          max-width: 860px;
+          margin: -36px auto 0;
+          background: rgba(255,255,255,0.96);
+          border: 1px solid rgba(255,255,255,0.82);
+          border-radius: 32px 32px 0 0;
           position: relative;
           z-index: 40;
-          box-shadow: 0 -10px 30px rgba(0,0,0,0.05);
+          box-shadow: 0 -18px 45px rgba(38, 20, 27, 0.12);
+          padding: 6px 18px 24px;
+        }
+
+        .profile-content-editing {
+          background: linear-gradient(180deg, #ffffff 0%, #fff8fa 100%);
         }
 
         .profile-section {
+          margin: 16px 0;
           padding: 24px;
-          border-bottom: 1px solid #f0f0f0;
+          border: 1px solid rgba(255, 77, 109, 0.08);
+          border-radius: 24px;
+          background: rgba(255,255,255,0.92);
+          box-shadow: 0 14px 34px rgba(31, 41, 55, 0.06);
+        }
+
+        .profile-top-status {
+          margin-top: 18px;
+          margin-bottom: 0;
+          padding: 14px 18px !important;
+        }
+
+        .edit-mode-banner {
+          margin: 18px 0 4px;
+          padding: 20px;
+          border-radius: 26px;
+          background:
+            linear-gradient(135deg, rgba(17,17,17,0.94), rgba(88,25,43,0.92)),
+            radial-gradient(circle at top right, rgba(255,77,109,0.35), transparent 32%);
+          color: #fff;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          box-shadow: 0 18px 38px rgba(17,17,17,0.22);
+        }
+
+        .edit-mode-banner-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 18px;
+          background: rgba(255,255,255,0.14);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffccd5;
+          flex-shrink: 0;
+        }
+
+        .edit-mode-banner h2 {
+          font-size: 1.24rem;
+          line-height: 1.2;
+          margin: 0 0 4px;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+        }
+
+        .edit-mode-banner p {
+          margin: 0;
+          color: rgba(255,255,255,0.76);
+          font-size: 0.9rem;
         }
 
         .section-title {
           font-size: 1.2rem;
-          font-weight: 600;
-          color: #2d2d2d;
+          font-weight: 800;
+          color: #201b1d;
           margin-bottom: 16px;
           display: flex;
           align-items: center;
+          gap: 10px;
+          letter-spacing: -0.02em;
         }
 
         .section-title i {
           color: #ff4d6d;
-          margin-right: 10px;
           font-size: 1.2rem;
         }
 
         .about-text {
           font-size: 1rem;
           line-height: 1.6;
-          color: #4a4a4a;
-          background: #f8f9fa;
+          color: #3d3639;
+          background: linear-gradient(180deg, #fff, #fff7f9);
           padding: 20px;
-          border-radius: 16px;
+          border-radius: 18px;
+          border: 1px solid #ffe2e8;
         }
 
         .info-chips {
@@ -987,7 +1059,7 @@ export default function Profile() {
         }
 
         .info-chip {
-          background: #f8f9fa;
+          background: #fff;
           padding: 8px 16px;
           border-radius: 30px;
           font-size: 0.9rem;
@@ -995,7 +1067,8 @@ export default function Profile() {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          border: 1px solid #e9ecef;
+          border: 1px solid #f2dce1;
+          box-shadow: 0 8px 18px rgba(31,41,55,0.04);
         }
 
         .info-chip i {
@@ -1069,8 +1142,8 @@ export default function Profile() {
 
         .photo-gallery-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-          gap: 12px;
+          grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+          gap: 14px;
           margin-top: 16px;
           align-items: start;
         }
@@ -1078,10 +1151,11 @@ export default function Profile() {
         .gallery-item {
           position: relative;
           aspect-ratio: 1;
-          border-radius: 14px;
+          border-radius: 20px;
           overflow: hidden;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          box-shadow: 0 16px 28px rgba(31,41,55,0.12);
           background: #f8f9fa;
+          border: 1px solid rgba(255,255,255,0.9);
         }
 
         .gallery-item img {
@@ -1155,8 +1229,8 @@ export default function Profile() {
 
         .upload-placeholder {
           aspect-ratio: 1;
-          border: 2px dashed #dee2e6;
-          border-radius: 14px;
+          border: 2px dashed #ffc4d0;
+          border-radius: 20px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -1165,7 +1239,7 @@ export default function Profile() {
           color: #6c757d;
           cursor: pointer;
           transition: all 0.2s;
-          background: #f8f9fa;
+          background: linear-gradient(180deg, #fff, #fff5f7);
           text-align: center;
           padding: 10px;
         }
@@ -1178,19 +1252,21 @@ export default function Profile() {
 
         .edit-form-label {
           font-size: 0.85rem;
-          font-weight: 600;
+          font-weight: 800;
           margin-bottom: 6px;
-          color: #2d2d2d;
+          color: #31272b;
+          letter-spacing: 0.01em;
         }
 
         .edit-form-control {
           width: 100%;
-          padding: 10px 14px;
-          border: 1px solid #dee2e6;
-          border-radius: 12px;
-          font-size: 0.9rem;
+          padding: 12px 14px;
+          border: 1px solid #f0cfd7;
+          border-radius: 16px;
+          font-size: 0.95rem;
           transition: all 0.2s;
           background: #fff;
+          box-shadow: 0 8px 20px rgba(31,41,55,0.035);
         }
 
         .edit-form-control:focus {
@@ -1214,6 +1290,85 @@ export default function Profile() {
           background-repeat: no-repeat;
           background-position: right 12px center;
           background-size: 14px;
+        }
+
+        .verification-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 9px 14px;
+          border-radius: 999px;
+          font-size: 0.82rem;
+          font-weight: 800;
+        }
+
+        .verified-badge {
+          background: #ecfdf5;
+          color: #047857;
+          border: 1px solid #bbf7d0;
+        }
+
+        .unverified-badge {
+          background: #fff7ed;
+          color: #c2410c;
+          border: 1px solid #fed7aa;
+        }
+
+        .professional-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 14px;
+        }
+
+        .professional-card {
+          padding: 16px;
+          border-radius: 18px;
+          background: linear-gradient(180deg, #fff, #f9fafb);
+          border: 1px solid #edf0f4;
+        }
+
+        .professional-label {
+          font-size: 0.72rem;
+          font-weight: 800;
+          color: #8a6f78;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          margin-bottom: 8px;
+        }
+
+        .professional-value {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-weight: 700;
+          color: #211b1e;
+        }
+
+        .professional-value i {
+          color: #ff4d6d;
+        }
+
+        .top-edit-photo-box {
+          margin-top: 16px;
+        }
+
+        .top-edit-photo-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .mini-upload-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 10px 14px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.94);
+          color: #ff3355;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 10px 24px rgba(0,0,0,0.18);
         }
 
         .action-buttons {
@@ -1266,6 +1421,25 @@ export default function Profile() {
           
           .profile-content {
             margin-top: -20px;
+            padding: 4px 12px 20px;
+          }
+
+          .profile-section {
+            padding: 18px;
+            border-radius: 20px;
+          }
+
+          .edit-mode-banner {
+            align-items: flex-start;
+            padding: 18px;
+          }
+
+          .gallery-name {
+            font-size: 2rem;
+          }
+
+          .gallery-age {
+            font-size: 1.35rem;
           }
 
           .photo-gallery-grid {
@@ -1412,8 +1586,20 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="profile-content">
-          <div className="profile-section pt-3 pb-0">
+        <div className={`profile-content ${editing ? "profile-content-editing" : ""}`}>
+          {editing && (
+            <div className="edit-mode-banner">
+              <div className="edit-mode-banner-icon">
+                <i className="fas fa-magic"></i>
+              </div>
+              <div>
+                <h2>Make your profile feel complete</h2>
+                <p>Update the details people see first, then save once everything looks right.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="profile-section profile-top-status pt-3 pb-0">
             <div className="d-flex justify-content-end">
               {user?.is_verified ? (
                 <span className="verification-badge verified-badge">
@@ -1574,7 +1760,7 @@ export default function Profile() {
                 )}
 
                 {userPhotos.map((photo) => {
-                  if (photoPreview === photo.image) return null;
+                  if (getImageFingerprint(photoPreview) === getImageFingerprint(photo.image)) return null;
 
                   const displayIndex = getAllPhotos().findIndex((p) => p.image === photo.image);
 

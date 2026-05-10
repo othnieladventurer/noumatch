@@ -1,5 +1,5 @@
 // src/App.jsx
-import React from "react";
+import React, { useEffect } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 
 // Context Providers
@@ -53,9 +53,16 @@ import AdminEmailNotifications from "./admin/pages/AdminEmailNotifications.jsx";
 import AdminAnalyticsImpressions from "./admin/pages/AdminAnalyticsImpressions.jsx";
 import AdminAnalyticsRanking from "./admin/pages/AdminAnalyticsRanking.jsx";
 import AdminAnalyticsPerformance from "./admin/pages/AdminAnalyticsPerformance.jsx";
+import { enforceSessionForCurrentRoute, startSessionExpiryGuard } from "./utils/sessionGuard";
 
 export default function App() {
   const location = useLocation();
+
+  useEffect(() => startSessionExpiryGuard(), []);
+
+  useEffect(() => {
+    enforceSessionForCurrentRoute();
+  }, [location.pathname]);
 
   // Routes where public navbar/footer should NOT appear
   const hidePublicLayoutRoutes = [

@@ -24,12 +24,12 @@ const getFrontendUrl = () => {
 const FRONTEND_URL = getFrontendUrl();
 
 const isAdminMode = () => {
-  const hasAdminToken = !!localStorage.getItem("admin_access");
-  const isAdminPath = window.location.pathname.startsWith("/admin");
-  return hasAdminToken || isAdminPath;
+  return window.location.pathname.startsWith("/admin");
 };
 
 const looksLikeJwt = (value) => typeof value === "string" && value.split(".").length === 3;
+let userRefreshPromise = null;
+let adminRefreshPromise = null;
 
 const isTrustedApiRequest = (config) => {
   if (!config?.url) return true;
@@ -64,6 +64,16 @@ const clearAdminAuthTokens = () => {
   localStorage.removeItem("admin_email");
 };
 
+const persistAdminAccessToken = (token) => {
+  if (looksLikeJwt(token)) {
+    localStorage.setItem("admin_access", token);
+    return token;
+  }
+
+  localStorage.removeItem("admin_access");
+  return null;
+};
+
 const clearAdminSession = () => {
   clearAdminAuthTokens();
 };
@@ -71,6 +81,69 @@ const clearAdminSession = () => {
 const clearUserSession = () => {
   clearUserAuthTokens();
   sessionStorage.removeItem("nm_user_session");
+};
+
+export const refreshUserAccessToken = async () => {
+  if (userRefreshPromise) return userRefreshPromise;
+
+  userRefreshPromise = (async () => {
+    const storedRefresh = localStorage.getItem("refresh");
+    const payload = storedRefresh ? { refresh: storedRefresh } : {};
+    const res = await axios.post(`${BASE_URL}/api/users/token/refresh/`, payload, {
+      withCredentials: true,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+
+    const nextAccess = res.data?.access;
+    if (!looksLikeJwt(nextAccess)) {
+      throw new Error("Invalid user refresh response");
+    }
+
+    localStorage.setItem("access", nextAccess);
+    if (res.data?.refresh) {
+      localStorage.setItem("refresh", res.data.refresh);
+    }
+    sessionStorage.setItem("nm_user_session", "1");
+    return nextAccess;
+  })().finally(() => {
+    userRefreshPromise = null;
+  });
+
+  return userRefreshPromise;
+};
+
+export const refreshAdminAccessToken = async () => {
+  if (adminRefreshPromise) return adminRefreshPromise;
+
+  adminRefreshPromise = (async () => {
+    const storedRefresh = localStorage.getItem("admin_refresh");
+    const payload = storedRefresh ? { refresh: storedRefresh } : {};
+    const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, payload, {
+      withCredentials: true,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+
+    const nextAccess = persistAdminAccessToken(res.data?.access);
+    if (!nextAccess) {
+      throw new Error("Invalid admin refresh response");
+    }
+    if (res.data?.refresh) {
+      localStorage.setItem("admin_refresh", res.data.refresh);
+    }
+    return nextAccess;
+  })().finally(() => {
+    adminRefreshPromise = null;
+  });
+
+  return adminRefreshPromise;
 };
 
 const isAuthRefreshEndpoint = (url = "") =>
@@ -138,41 +211,28 @@ API.interceptors.response.use(
 
       if (isAdminRequest) {
         try {
-          const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {}, {
-            withCredentials: true,
-          });
-          if (res.data?.access) {
-            localStorage.setItem("admin_access", res.data.access);
-          } else {
-            clearAdminSession();
-          }
-          if (res.data?.access) {
-            originalRequest.headers = {
-              ...(originalRequest.headers || {}),
-              Authorization: `Bearer ${res.data.access}`,
-            };
-          }
+          const nextAccess = await refreshAdminAccessToken();
+          originalRequest.headers = {
+            ...(originalRequest.headers || {}),
+            Authorization: `Bearer ${nextAccess}`,
+          };
           return API(originalRequest);
         } catch (err) {
+          clearAdminSession();
           redirectToAdminLogin();
           return Promise.reject(err);
         }
       }
 
       try {
-        const res = await API.post("users/token/refresh/", {}, { withCredentials: true });
-        if (res.data?.access) {
-          localStorage.setItem("access", res.data.access);
-          sessionStorage.setItem("nm_user_session", "1");
-          originalRequest.headers = {
-            ...(originalRequest.headers || {}),
-            Authorization: `Bearer ${res.data.access}`,
-          };
-        } else {
-          clearUserSession();
-        }
+        const nextAccess = await refreshUserAccessToken();
+        originalRequest.headers = {
+          ...(originalRequest.headers || {}),
+          Authorization: `Bearer ${nextAccess}`,
+        };
         return API(originalRequest);
       } catch (err) {
+        clearUserSession();
         redirectToLogin();
         return Promise.reject(err);
       }
@@ -212,20 +272,14 @@ adminAPI.interceptors.response.use(
     if (status === 401 && !originalRequest._retry && !isAuthRefreshEndpoint(requestUrl)) {
       originalRequest._retry = true;
       try {
-        const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, {}, {
-          withCredentials: true,
-        });
-        if (res.data?.access) {
-          localStorage.setItem("admin_access", res.data.access);
-          originalRequest.headers = {
-            ...(originalRequest.headers || {}),
-            Authorization: `Bearer ${res.data.access}`,
-          };
-        } else {
-          clearAdminSession();
-        }
+        const nextAccess = await refreshAdminAccessToken();
+        originalRequest.headers = {
+          ...(originalRequest.headers || {}),
+          Authorization: `Bearer ${nextAccess}`,
+        };
         return adminAPI(originalRequest);
       } catch (err) {
+        clearAdminSession();
         redirectToAdminLogin();
         return Promise.reject(err);
       }

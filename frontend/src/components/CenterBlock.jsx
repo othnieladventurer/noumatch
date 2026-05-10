@@ -104,7 +104,16 @@ export default function CenterBlock(props) {
   if (profilesLoading && !currentProfile) return <div className="vh-100 d-flex align-items-center justify-content-center bg-black"><div className="spinner-border text-danger" /></div>;
   if (apiError || !profiles.length || !currentProfile) {
     return (
-      <div className="d-flex flex-column align-items-center justify-content-center p-4 text-center" style={{ minHeight: '100%', background: '#000', color: 'white' }}>
+      <div
+        className="d-flex flex-column align-items-center justify-content-center p-4 text-center"
+        style={{
+          width: '100%',
+          height: '100%',
+          minHeight: isMobile ? '100dvh' : '100%',
+          background: '#000',
+          color: '#fff',
+        }}
+      >
         <div className="mb-4">
           <i className="fas fa-users fa-3x mb-3" style={{ color: '#ff4d6d' }}></i>
           <h4 className="mb-3">{t("center.noProfilesTitle")}</h4>

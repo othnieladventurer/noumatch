@@ -228,8 +228,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             else:
                 client_ip = request.META.get('REMOTE_ADDR')
         
-        # Get coordinates from IP address (fallback if frontend didn't send them)
-        if not validated_data.get('latitude') and not validated_data.get('longitude'):
+        has_coordinates = validated_data.get('latitude') and validated_data.get('longitude')
+        has_location_labels = bool(validated_data.get('country') or validated_data.get('city'))
+
+        # Avoid blocking registration on third-party geolocation when the form already
+        # provided a usable country/city. The dedicated location endpoint can still do
+        # richer detection before submit.
+        if not has_coordinates and not has_location_labels:
             location_data = self.get_coordinates_from_ip(client_ip)
             
             # Only set if coordinates were found

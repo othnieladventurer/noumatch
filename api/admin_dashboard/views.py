@@ -15,14 +15,17 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth import authenticate
+from django.contrib.admin.models import LogEntry
+from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.db import DatabaseError
+from django.db import DatabaseError, IntegrityError, OperationalError, ProgrammingError
+from django.db.models.deletion import ProtectedError
 from django.conf import settings
 import logging
 import requests
 
-from users.models import User, UserEngagementScore
+from users.models import FeedVisibilityBoost, OTP, User, UserEngagementScore, UserPhoto, UserStats
 from users.scoring import refresh_user_score
 from users.visibility import admin_boost_visibility, admin_reduce_visibility, admin_force_inject
 from interactions.models import Like, Pass, DailySwipe
@@ -43,16 +46,480 @@ from admin_dashboard.serializers import NotificationEmailTemplateSerializer, Not
 from admin_dashboard.services.email_notifications import (
     DEFAULT_NOTIFICATION_EMAIL_TEMPLATES,
     ensure_notification_email_templates,
+    notification_email_tables_ready,
     send_test_notification_email,
 )
 from admin_dashboard.services.ranking import compute_ranking_score
 from users.throttles import AdminLoginThrottle
 from users.auth_cookies import set_auth_cookies, clear_auth_cookies, get_refresh_token_from_request
 
+try:
+    from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+except Exception:  # pragma: no cover - token blacklist may be disabled in some environments
+    BlacklistedToken = None
+    OutstandingToken = None
+
 # Waitlist models only (no serializers import – we define them inline)
 from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
 
 logger = logging.getLogger(__name__)
+
+
+def _raw_delete_queryset(queryset, deleted_by_model):
+    count = queryset.count()
+    if count:
+        queryset._raw_delete(queryset.db)
+    label = queryset.model._meta.label
+    deleted_by_model[label] = deleted_by_model.get(label, 0) + count
+    return count
+
+
+def _delete_user_account_graph(user):
+    user_id = user.id
+    user_email = user.email
+    deleted_by_model = {}
+    total_deleted = 0
+
+    with transaction.atomic():
+        user.groups.clear()
+        user.user_permissions.clear()
+
+        match_ids = list(
+            Match.objects.filter(Q(user1_id=user_id) | Q(user2_id=user_id))
+            .values_list("id", flat=True)
+        )
+        conversation_ids = list(
+            Conversation.objects.filter(match_id__in=match_ids)
+            .values_list("id", flat=True)
+        )
+        support_conversation_ids = list(
+            SupportConversation.objects.filter(user_id=user_id)
+            .values_list("id", flat=True)
+        )
+        message_ids = list(
+            Message.objects.filter(
+                Q(conversation_id__in=conversation_ids)
+                | Q(support_conversation_id__in=support_conversation_ids)
+                | Q(sender_id=user_id)
+            ).values_list("id", flat=True)
+        )
+        like_ids = list(
+            Like.objects.filter(Q(from_user_id=user_id) | Q(to_user_id=user_id))
+            .values_list("id", flat=True)
+        )
+        pass_ids = list(
+            Pass.objects.filter(Q(from_user_id=user_id) | Q(to_user_id=user_id))
+            .values_list("id", flat=True)
+        )
+        report_ids = list(
+            Report.objects.filter(Q(reporter_id=user_id) | Q(reported_user_id=user_id))
+            .values_list("id", flat=True)
+        )
+        case_ids = list(
+            ReportCase.objects.filter(report_id__in=report_ids)
+            .values_list("id", flat=True)
+        )
+        impression_ids = list(
+            ProfileImpression.objects.filter(Q(viewer_id=user_id) | Q(viewed_id=user_id))
+            .values_list("id", flat=True)
+        )
+
+        if OutstandingToken is not None:
+            token_ids = list(
+                OutstandingToken.objects.filter(user_id=user_id)
+                .values_list("id", flat=True)
+            )
+            if BlacklistedToken is not None and token_ids:
+                total_deleted += _raw_delete_queryset(
+                    BlacklistedToken.objects.filter(token_id__in=token_ids),
+                    deleted_by_model,
+                )
+            total_deleted += _raw_delete_queryset(
+                OutstandingToken.objects.filter(id__in=token_ids),
+                deleted_by_model,
+            )
+
+        NotificationEmailTemplate.objects.filter(updated_by_id=user_id).update(updated_by=None)
+        ReportCase.objects.filter(created_by_id=user_id).update(created_by=None)
+        CaseAssignment.objects.filter(assigned_by_id=user_id).update(assigned_by=None)
+        SupportConversation.objects.filter(assigned_admin_id=user_id).update(assigned_admin=None)
+        Report.objects.filter(match_id__in=match_ids).exclude(id__in=report_ids).update(match=None)
+
+        notification_filter = Q(recipient_id=user_id)
+        try:
+            content_types = ContentType.objects.get_for_models(
+                Like, Pass, Match, Message, Report, ProfileImpression,
+                for_concrete_models=False,
+            )
+            related_content = [
+                (content_types.get(Like), like_ids),
+                (content_types.get(Pass), pass_ids),
+                (content_types.get(Match), match_ids),
+                (content_types.get(Message), message_ids),
+                (content_types.get(Report), report_ids),
+                (content_types.get(ProfileImpression), impression_ids),
+            ]
+            for content_type, object_ids in related_content:
+                if content_type and object_ids:
+                    notification_filter |= Q(content_type=content_type, object_id__in=object_ids)
+        except Exception:
+            logger.warning("Could not build generic notification cleanup filter for user_id=%s", user_id)
+
+        total_deleted += _raw_delete_queryset(Notification.objects.filter(notification_filter), deleted_by_model)
+        total_deleted += _raw_delete_queryset(
+            NotificationEmailLog.objects.filter(Q(recipient_id=user_id) | Q(recipient_email__iexact=user_email)),
+            deleted_by_model,
+        )
+        total_deleted += _raw_delete_queryset(MessageFlag.objects.filter(message_id__in=message_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Message.objects.filter(id__in=message_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(CaseAssignment.objects.filter(Q(case_id__in=case_ids) | Q(staff_user_id=user_id)), deleted_by_model)
+        total_deleted += _raw_delete_queryset(ReportCase.objects.filter(id__in=case_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Report.objects.filter(id__in=report_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(SupportConversation.objects.filter(id__in=support_conversation_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Conversation.objects.filter(id__in=conversation_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Like.objects.filter(id__in=like_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Pass.objects.filter(id__in=pass_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Block.objects.filter(Q(blocker_id=user_id) | Q(blocked_id=user_id)), deleted_by_model)
+        total_deleted += _raw_delete_queryset(DailySwipe.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(ProfileImpression.objects.filter(id__in=impression_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(FeedVisibilityBoost.objects.filter(Q(viewer_id=user_id) | Q(target_id=user_id)), deleted_by_model)
+        total_deleted += _raw_delete_queryset(Match.objects.filter(id__in=match_ids), deleted_by_model)
+        total_deleted += _raw_delete_queryset(LogEntry.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(UserPhoto.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(OTP.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(UserStats.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(UserEngagementScore.objects.filter(user_id=user_id), deleted_by_model)
+        total_deleted += _raw_delete_queryset(User.objects.filter(id=user_id), deleted_by_model)
+
+    return total_deleted, deleted_by_model
+
+
+def _user_display_name(user):
+    return f"{user.first_name} {user.last_name}".strip() or user.email.split('@')[0]
+
+
+def _user_location(user):
+    return f"{user.city}, {user.country}" if user.city and user.country else user.city or user.country or ""
+
+
+def _parse_admin_date_window(request=None, *, default_to_today=True):
+    today = timezone.localdate()
+    date_from_raw = request.GET.get('date_from') if request else None
+    date_to_raw = request.GET.get('date_to') if request else None
+
+    def parse_date(value, fallback=None):
+        if not value:
+            return fallback
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').date()
+        except (TypeError, ValueError):
+            return fallback
+
+    date_from = parse_date(date_from_raw, today if default_to_today else None)
+    date_to = parse_date(date_to_raw, today if default_to_today else None)
+
+    if date_from and date_to and date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    tz = timezone.get_current_timezone()
+    start_dt = timezone.make_aware(datetime.combine(date_from, datetime.min.time()), timezone=tz) if date_from else None
+    end_dt = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time()), timezone=tz) if date_to else None
+
+    return start_dt, end_dt, date_from, date_to
+
+
+def _filter_interaction_queryset(queryset, request):
+    viewer_search = request.GET.get('viewer_email')
+    if viewer_search:
+        queryset = queryset.filter(
+            Q(from_user__email__icontains=viewer_search)
+            | Q(from_user__first_name__icontains=viewer_search)
+            | Q(from_user__last_name__icontains=viewer_search)
+        )
+
+    viewed_search = request.GET.get('viewed_email')
+    if viewed_search:
+        queryset = queryset.filter(
+            Q(to_user__email__icontains=viewed_search)
+            | Q(to_user__first_name__icontains=viewed_search)
+            | Q(to_user__last_name__icontains=viewed_search)
+        )
+
+    start_dt, end_dt, _, _ = _parse_admin_date_window(request, default_to_today=True)
+    if start_dt:
+        queryset = queryset.filter(created_at__gte=start_dt)
+    if end_dt:
+        queryset = queryset.filter(created_at__lt=end_dt)
+
+    return queryset
+
+
+def _interaction_impression_rows(request, limit=500):
+    swipe_action = request.GET.get('swipe_action')
+    include_likes = swipe_action in (None, '', 'like')
+    include_passes = swipe_action in (None, '', 'pass')
+
+    rows = []
+    total = 0
+    sources = []
+
+    for model, action, label in (
+        (Like, 'like', 'like_fallback'),
+        (Pass, 'pass', 'pass_fallback'),
+    ):
+        if action == 'like' and not include_likes:
+            continue
+        if action == 'pass' and not include_passes:
+            continue
+
+        queryset = _filter_interaction_queryset(
+            model.objects.select_related('from_user', 'to_user').order_by('-created_at'),
+            request,
+        )
+        total += queryset.count()
+        sources.append(label)
+
+        for event in queryset[:limit]:
+            viewer = event.from_user
+            viewed = event.to_user
+            rows.append({
+                'id': f'{action}-{event.id}',
+                'viewer_email': viewer.email,
+                'viewer_name': _user_display_name(viewer),
+                'viewer_location': _user_location(viewer),
+                'viewed_email': viewed.email,
+                'viewed_name': _user_display_name(viewed),
+                'viewed_location': _user_location(viewed),
+                'timestamp': event.created_at,
+                'feed_position': None,
+                'ranking_score': None,
+                'swipe_action': action,
+                'device_type': 'unknown',
+                'session_id': 'interaction',
+                'source': label,
+            })
+
+    rows.sort(key=lambda item: item['timestamp'], reverse=True)
+    return rows[:limit], total, sources
+
+
+def _interaction_ranking_metrics(request=None, *, start_dt=None, end_dt=None, date_from=None, date_to=None):
+    like_qs = Like.objects.all()
+    pass_qs = Pass.objects.all()
+    if request is not None and (start_dt is None and end_dt is None):
+        start_dt, end_dt, date_from, date_to = _parse_admin_date_window(request, default_to_today=True)
+    if start_dt:
+        like_qs = like_qs.filter(created_at__gte=start_dt)
+        pass_qs = pass_qs.filter(created_at__gte=start_dt)
+    if end_dt:
+        like_qs = like_qs.filter(created_at__lt=end_dt)
+        pass_qs = pass_qs.filter(created_at__lt=end_dt)
+
+    likes_by_profile = {
+        row['to_user_id']: row['count']
+        for row in like_qs.values('to_user_id').annotate(count=Count('id'))
+    }
+    passes_by_profile = {
+        row['to_user_id']: row['count']
+        for row in pass_qs.values('to_user_id').annotate(count=Count('id'))
+    }
+
+    profile_ids = set(likes_by_profile) | set(passes_by_profile)
+    total_likes = sum(likes_by_profile.values())
+    total_passes = sum(passes_by_profile.values())
+    total_events = total_likes + total_passes
+    if total_events == 0:
+        return None
+
+    users_by_id = User.objects.in_bulk(profile_ids)
+    top_profiles = []
+    for profile_id in profile_ids:
+        likes = likes_by_profile.get(profile_id, 0)
+        passes = passes_by_profile.get(profile_id, 0)
+        total = likes + passes
+        user = users_by_id.get(profile_id)
+        top_profiles.append({
+            'user_id': profile_id,
+            'user_email': user.email if user else 'Deleted user',
+            'impressions': total,
+            'likes': likes,
+            'like_rate': round((likes / total) * 100, 1) if total else 0,
+            'avg_position': None,
+        })
+
+    top_profiles.sort(key=lambda item: (item['likes'], item['impressions']), reverse=True)
+
+    return {
+        'total_impressions': total_events,
+        'total_likes_from_impressions': total_likes,
+        'total_passes_from_impressions': total_passes,
+        'impression_conversion_rate': round((total_likes / total_events) * 100, 1),
+        'avg_ranking_score': 0.0,
+        'position1_like_rate': 0.0,
+        'top_performing_profiles': top_profiles[:10],
+        'position_performance': [],
+        'generated_at': timezone.now(),
+        'date_from': date_from.isoformat() if date_from else None,
+        'date_to': date_to.isoformat() if date_to else None,
+        'source': 'interactions_fallback',
+        'warning': 'No profile impression rows were found for this live window. Showing like/pass interaction analytics for the same date window.',
+    }
+
+
+def _profile_impression_metrics(request=None):
+    try:
+        start_dt, end_dt, date_from, date_to = _parse_admin_date_window(request, default_to_today=True)
+        impression_qs = ProfileImpression.objects.all()
+        if start_dt:
+            impression_qs = impression_qs.filter(timestamp__gte=start_dt)
+        if end_dt:
+            impression_qs = impression_qs.filter(timestamp__lt=end_dt)
+
+        total_impressions = impression_qs.count()
+        if total_impressions == 0:
+            fallback_metrics = _interaction_ranking_metrics(
+                request,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                date_from=date_from,
+                date_to=date_to,
+            )
+            if fallback_metrics:
+                return fallback_metrics
+
+        total_likes_from_impressions = impression_qs.filter(swipe_action='like').count()
+        total_passes_from_impressions = impression_qs.filter(swipe_action='pass').count()
+
+        impression_conversion_rate = (
+            round((total_likes_from_impressions / total_impressions) * 100, 1)
+            if total_impressions > 0 else 0
+        )
+        avg_ranking_score = impression_qs.aggregate(avg=Avg('ranking_score'))['avg'] or 0
+
+        pos1_impressions = impression_qs.filter(feed_position=0).count()
+        pos1_likes = impression_qs.filter(feed_position=0, swipe_action='like').count()
+        position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
+
+        top_profiles = []
+        profile_stats = impression_qs.values('viewed__email', 'viewed__id').annotate(
+            total_impressions=Count('id'),
+            likes=Count('id', filter=Q(swipe_action='like')),
+            avg_position=Avg('feed_position'),
+        ).filter(total_impressions__gte=1).order_by('-likes', '-total_impressions')[:10]
+
+        for stat in profile_stats:
+            total = stat['total_impressions'] or 0
+            likes = stat['likes'] or 0
+            top_profiles.append({
+                'user_id': stat['viewed__id'],
+                'user_email': stat['viewed__email'] or 'Deleted user',
+                'impressions': total,
+                'likes': likes,
+                'like_rate': round((likes / total) * 100, 1) if total else 0,
+                'avg_position': stat['avg_position'],
+            })
+
+        position_performance = []
+        for pos in range(15):
+            pos_imp = impression_qs.filter(feed_position=pos)
+            pos_total = pos_imp.count()
+            if pos_total > 0:
+                pos_likes = pos_imp.filter(swipe_action='like').count()
+                pos_passes = pos_imp.filter(swipe_action='pass').count()
+                position_performance.append({
+                    'position': pos,
+                    'impressions': pos_total,
+                    'likes': pos_likes,
+                    'passes': pos_passes,
+                    'like_rate': round((pos_likes / pos_total) * 100, 1),
+                    'pass_rate': round((pos_passes / pos_total) * 100, 1),
+                })
+
+        return {
+            'total_impressions': total_impressions,
+            'total_likes_from_impressions': total_likes_from_impressions,
+            'total_passes_from_impressions': total_passes_from_impressions,
+            'impression_conversion_rate': impression_conversion_rate,
+            'avg_ranking_score': round(avg_ranking_score, 1),
+            'position1_like_rate': position1_like_rate,
+            'top_performing_profiles': top_profiles,
+            'position_performance': position_performance,
+            'generated_at': timezone.now(),
+            'date_from': date_from.isoformat() if date_from else None,
+            'date_to': date_to.isoformat() if date_to else None,
+            'source': 'profile_impressions',
+        }
+    except Exception as exc:
+        logger.exception("Profile impression metric aggregation failed: %s", exc)
+        fallback = _admin_dashboard_fallback_payload()
+        return {
+            'total_impressions': fallback['total_impressions'],
+            'total_likes_from_impressions': fallback['total_likes_from_impressions'],
+            'total_passes_from_impressions': fallback['total_passes_from_impressions'],
+            'impression_conversion_rate': fallback['impression_conversion_rate'],
+            'avg_ranking_score': fallback['avg_ranking_score'],
+            'position1_like_rate': fallback['position1_like_rate'],
+            'top_performing_profiles': fallback['top_performing_profiles'],
+            'position_performance': fallback['position_performance'],
+            'generated_at': timezone.now(),
+            'degraded': True,
+            'warning': 'Temporary database issue while loading profile impression metrics.',
+        }
+
+
+def _admin_dashboard_fallback_payload():
+    return {
+        'total_users': 0,
+        'active_today': 0,
+        'likes_today': 0,
+        'passes_today': 0,
+        'matches_today': 0,
+        'match_rate': 0.0,
+        'recent_blocks': [],
+        'total_impressions': 0,
+        'total_likes_from_impressions': 0,
+        'total_passes_from_impressions': 0,
+        'impression_conversion_rate': 0,
+        'avg_ranking_score': 0.0,
+        'position1_like_rate': 0,
+        'top_performing_profiles': [],
+        'position_performance': [],
+        'dau': 0,
+        'wau': 0,
+        'mau': 0,
+        'stickiness': 0.0,
+        'avg_user_score': 0.0,
+        'avg_engagement_score': 0.0,
+        'avg_quality_score': 0.0,
+        'avg_trust_score': 0.0,
+        'avg_points': 0.0,
+        'high_scoring_users': 0,
+        'top_scored_users': [],
+        'zero_match_users_count': 0,
+        'avg_matches_per_user': 0.0,
+        'degraded': True,
+        'warning': 'Temporary issue while loading dashboard analytics.',
+    }
+
+
+def _notification_email_template_fallback_rows():
+    fallback_rows = []
+    for index, (event_type, defaults) in enumerate(DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.items(), start=1):
+        template = NotificationEmailTemplate(
+            id=-index,
+            event_type=event_type,
+            name=defaults.get('name', ''),
+            is_enabled=True,
+            subject_template=defaults.get('subject_template', ''),
+            html_template=defaults.get('html_template', ''),
+            text_template=defaults.get('text_template', ''),
+            sample_payload=defaults.get('sample_payload') or {},
+            from_name=defaults.get('from_name') or 'NouMatch',
+            reply_to=defaults.get('reply_to') or '',
+            version=1,
+        )
+        fallback_rows.append(NotificationEmailTemplateSerializer(template).data)
+    return fallback_rows
 
 
 def _paginate_queryset(request, queryset, serializer_class):
@@ -313,11 +780,16 @@ class AdminUsersListView(APIView):
             }
 
             data = []
+            now = timezone.now()
             for user in paginated_users:
                 matches_count = matches_count_by_user.get(user.id, 0)
                 reports_received_count = reports_count_by_user.get(user.id, 0)
                 risk = 'risky' if reports_received_count >= 5 else 'watch' if reports_received_count >= 2 else 'safe'
                 scorecard = scorecards.get(user.id)
+                minutes_since_join = (
+                    int(max(0, (now - user.date_joined).total_seconds()) // 60)
+                    if user.date_joined else None
+                )
 
                 data.append({
                     'id': user.id,
@@ -338,6 +810,7 @@ class AdminUsersListView(APIView):
                     'reports_received_count': reports_received_count,
                     'risk_status': risk,
                     'date_joined': user.date_joined,
+                    'minutes_since_join': minutes_since_join,
                 })
 
             return Response({
@@ -446,8 +919,43 @@ class AdminUsersManagementView(APIView):
         user = get_object_or_404(User, id=user_id)
         if user.id == request.user.id:
             return Response({'error': 'You cannot delete your own account'}, status=400)
-        user.delete()
-        return Response({'success': True})
+        if user.is_superuser and not request.user.is_superuser:
+            return Response({'error': 'Only a super admin can delete another super admin account'}, status=403)
+
+        user_email = user.email
+        try:
+            deleted_count, deleted_by_model = _delete_user_account_graph(user)
+        except ProtectedError as exc:
+            logger.warning("Admin user delete blocked for user_id=%s: %s", user_id, exc)
+            return Response({
+                'error': 'This user is linked to protected records and cannot be deleted safely.',
+                'code': 'protected_records',
+            }, status=status.HTTP_409_CONFLICT)
+        except (OperationalError, ProgrammingError) as exc:
+            logger.exception("Admin user delete schema/database readiness failure for user_id=%s: %s", user_id, exc)
+            return Response({
+                'error': 'User deletion could not run because the database schema is not ready. Run the latest migrations and retry.',
+                'code': 'database_schema_not_ready',
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except (IntegrityError, DatabaseError) as exc:
+            logger.exception("Admin user delete database failure for user_id=%s: %s", user_id, exc)
+            return Response({
+                'error': 'User deletion failed because related database records could not be removed safely. Nothing was deleted.',
+                'code': 'database_delete_failed',
+            }, status=status.HTTP_409_CONFLICT)
+        except Exception as exc:
+            logger.exception("Admin user delete unexpected failure for user_id=%s: %s", user_id, exc)
+            return Response({
+                'error': 'User deletion failed unexpectedly. The server logged the details for review.',
+                'code': 'delete_failed',
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            'success': True,
+            'deleted_email': user_email,
+            'deleted_count': deleted_count,
+            'deleted_by_model': deleted_by_model,
+        })
 
 
 # ---------- Dashboard ----------
@@ -487,53 +995,7 @@ class AdminDashboardView(APIView):
                     'created_at': block.created_at,
                 })
 
-            total_impressions = ProfileImpression.objects.count()
-            total_likes_from_impressions = ProfileImpression.objects.filter(swipe_action='like').count()
-            total_passes_from_impressions = ProfileImpression.objects.filter(swipe_action='pass').count()
-            impression_conversion_rate = round((total_likes_from_impressions / total_impressions) * 100, 1) if total_impressions > 0 else 0
-            avg_ranking_score = ProfileImpression.objects.aggregate(avg=Avg('ranking_score'))['avg'] or 0
-
-            pos1_impressions = ProfileImpression.objects.filter(feed_position=0).count()
-            pos1_likes = ProfileImpression.objects.filter(feed_position=0, swipe_action='like').count()
-            position1_like_rate = round((pos1_likes / pos1_impressions) * 100, 1) if pos1_impressions > 0 else 0
-
-            seven_days_ago = timezone.now() - timedelta(days=7)
-            top_profiles = []
-            profile_stats = ProfileImpression.objects.filter(
-                timestamp__gte=seven_days_ago,
-                was_swiped=True
-            ).values('viewed__email', 'viewed__id').annotate(
-                total_impressions=Count('id'),
-                likes=Count('id', filter=Q(swipe_action='like')),
-                avg_position=Avg('feed_position')
-            ).filter(total_impressions__gte=5).order_by('-likes')[:10]
-
-            for stat in profile_stats:
-                like_rate = round((stat['likes'] / stat['total_impressions']) * 100, 1)
-                top_profiles.append({
-                    'user_id': stat['viewed__id'],
-                    'user_email': stat['viewed__email'],
-                    'impressions': stat['total_impressions'],
-                    'likes': stat['likes'],
-                    'like_rate': like_rate,
-                    'avg_position': stat['avg_position'],
-                })
-
-            position_performance = []
-            for pos in range(15):
-                pos_imp = ProfileImpression.objects.filter(feed_position=pos)
-                pos_total = pos_imp.count()
-                if pos_total > 0:
-                    pos_likes = pos_imp.filter(swipe_action='like').count()
-                    pos_passes = pos_imp.filter(swipe_action='pass').count()
-                    position_performance.append({
-                        'position': pos,
-                        'impressions': pos_total,
-                        'likes': pos_likes,
-                        'passes': pos_passes,
-                        'like_rate': round((pos_likes / pos_total) * 100, 1),
-                        'pass_rate': round((pos_passes / pos_total) * 100, 1),
-                    })
+            impression_metrics = _profile_impression_metrics()
 
             score_qs = UserEngagementScore.objects.select_related('user')
             score_aggregates = score_qs.aggregate(
@@ -574,14 +1036,14 @@ class AdminDashboardView(APIView):
                 'matches_today': matches_today,
                 'match_rate': match_rate,
                 'recent_blocks': blocks_data,
-                'total_impressions': total_impressions,
-                'total_likes_from_impressions': total_likes_from_impressions,
-                'total_passes_from_impressions': total_passes_from_impressions,
-                'impression_conversion_rate': impression_conversion_rate,
-                'avg_ranking_score': round(avg_ranking_score, 1),
-                'position1_like_rate': position1_like_rate,
-                'top_performing_profiles': top_profiles,
-                'position_performance': position_performance,
+                'total_impressions': impression_metrics['total_impressions'],
+                'total_likes_from_impressions': impression_metrics['total_likes_from_impressions'],
+                'total_passes_from_impressions': impression_metrics['total_passes_from_impressions'],
+                'impression_conversion_rate': impression_metrics['impression_conversion_rate'],
+                'avg_ranking_score': impression_metrics['avg_ranking_score'],
+                'position1_like_rate': impression_metrics['position1_like_rate'],
+                'top_performing_profiles': impression_metrics['top_performing_profiles'],
+                'position_performance': impression_metrics['position_performance'],
                 'dau': dau,
                 'wau': wau,
                 'mau': mau,
@@ -598,38 +1060,7 @@ class AdminDashboardView(APIView):
             })
         except Exception as exc:
             logger.exception("AdminDashboardView failed; returning fallback payload: %s", exc)
-            return Response({
-                'total_users': 0,
-                'active_today': 0,
-                'likes_today': 0,
-                'passes_today': 0,
-                'matches_today': 0,
-                'match_rate': 0.0,
-                'recent_blocks': [],
-                'total_impressions': 0,
-                'total_likes_from_impressions': 0,
-                'total_passes_from_impressions': 0,
-                'impression_conversion_rate': 0,
-                'avg_ranking_score': 0.0,
-                'position1_like_rate': 0.0,
-                'top_performing_profiles': [],
-                'position_performance': [],
-                'dau': 0,
-                'wau': 0,
-                'mau': 0,
-                'stickiness': 0.0,
-                'avg_user_score': 0.0,
-                'avg_engagement_score': 0.0,
-                'avg_quality_score': 0.0,
-                'avg_trust_score': 0.0,
-                'avg_points': 0.0,
-                'high_scoring_users': 0,
-                'top_scored_users': [],
-                'zero_match_users_count': 0,
-                'avg_matches_per_user': 0.0,
-                'degraded': True,
-                'warning': 'Temporary issue while loading dashboard analytics.',
-            }, status=status.HTTP_200_OK)
+            return Response(_admin_dashboard_fallback_payload(), status=status.HTTP_200_OK)
 
 
 class AdminActiveUsersMetricsView(APIView):
@@ -902,6 +1333,13 @@ class AdminUserScoringRefreshView(APIView):
             'refreshed': refreshed,
             'message': 'User scores recalculated successfully.',
         })
+
+
+class AdminAnalyticsRankingView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        return Response(_profile_impression_metrics(request))
 
 
 def _probe_public_url(url, timeout_seconds=8):
@@ -1894,75 +2332,169 @@ class AdminNotificationEmailTemplatesView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        ensure_notification_email_templates()
-        queryset = NotificationEmailTemplate.objects.select_related('updated_by').order_by('event_type')
-        serializer = NotificationEmailTemplateSerializer(queryset, many=True)
-        logs = NotificationEmailLog.objects.all()
-        today = timezone.now().date()
-        return Response({
-            'templates': serializer.data,
-            'overview': {
-                'total_logs': logs.count(),
-                'sent_today': logs.filter(status='sent', created_at__date=today).count(),
-                'failed_today': logs.filter(status='failed', created_at__date=today).count(),
-                'pending_total': logs.filter(status='pending').count(),
-                'skipped_total': logs.filter(status='skipped').count(),
-                'by_event': {
-                    event_type: {
-                        'sent': logs.filter(event_type=event_type, status='sent').count(),
-                        'failed': logs.filter(event_type=event_type, status='failed').count(),
-                        'pending': logs.filter(event_type=event_type, status='pending').count(),
-                        'skipped': logs.filter(event_type=event_type, status='skipped').count(),
-                    }
-                    for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+        if not notification_email_tables_ready():
+            return Response({
+                'templates': _notification_email_template_fallback_rows(),
+                'overview': {
+                    'total_logs': 0,
+                    'sent_today': 0,
+                    'failed_today': 0,
+                    'pending_total': 0,
+                    'skipped_total': 0,
+                    'by_event': {
+                        event_type: {'sent': 0, 'failed': 0, 'pending': 0, 'skipped': 0}
+                        for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                    },
                 },
-            },
-        })
+                'degraded': True,
+                'warning': 'Notification email tables are not available yet. Run the latest admin_dashboard migrations.',
+            }, status=status.HTTP_200_OK)
+
+        try:
+            ensure_notification_email_templates()
+            queryset = NotificationEmailTemplate.objects.select_related('updated_by').order_by('event_type')
+            if not queryset.exists():
+                return Response({
+                    'templates': _notification_email_template_fallback_rows(),
+                    'overview': {
+                        'total_logs': 0,
+                        'sent_today': 0,
+                        'failed_today': 0,
+                        'pending_total': 0,
+                        'skipped_total': 0,
+                        'by_event': {
+                            event_type: {'sent': 0, 'failed': 0, 'pending': 0, 'skipped': 0}
+                            for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                        },
+                    },
+                    'degraded': True,
+                    'warning': 'Default notification email templates were loaded because no saved templates were found yet.',
+                }, status=status.HTTP_200_OK)
+            serializer = NotificationEmailTemplateSerializer(queryset, many=True)
+            logs = NotificationEmailLog.objects.all()
+            today = timezone.now().date()
+            return Response({
+                'templates': serializer.data,
+                'overview': {
+                    'total_logs': logs.count(),
+                    'sent_today': logs.filter(status='sent', created_at__date=today).count(),
+                    'failed_today': logs.filter(status='failed', created_at__date=today).count(),
+                    'pending_total': logs.filter(status='pending').count(),
+                    'skipped_total': logs.filter(status='skipped').count(),
+                    'by_event': {
+                        event_type: {
+                            'sent': logs.filter(event_type=event_type, status='sent').count(),
+                            'failed': logs.filter(event_type=event_type, status='failed').count(),
+                            'pending': logs.filter(event_type=event_type, status='pending').count(),
+                            'skipped': logs.filter(event_type=event_type, status='skipped').count(),
+                        }
+                        for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                    },
+                },
+            })
+        except (ProgrammingError, OperationalError) as exc:
+            logger.exception("Admin notification email templates unavailable; returning fallback payload: %s", exc)
+            return Response({
+                'templates': _notification_email_template_fallback_rows(),
+                'overview': {
+                    'total_logs': 0,
+                    'sent_today': 0,
+                    'failed_today': 0,
+                    'pending_total': 0,
+                    'skipped_total': 0,
+                    'by_event': {
+                        event_type: {'sent': 0, 'failed': 0, 'pending': 0, 'skipped': 0}
+                        for event_type in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.keys()
+                    },
+                },
+                'degraded': True,
+                'warning': 'Notification email data is temporarily unavailable. Run the latest admin_dashboard migrations if this persists.',
+            }, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.exception("AdminNotificationEmailTemplatesView failed: %s", exc)
+            return Response({'error': 'Failed to load notification email templates.'}, status=500)
 
 
 class AdminNotificationEmailTemplateDetailView(APIView):
     permission_classes = [IsAdminUser]
 
     def patch(self, request, template_id):
-        ensure_notification_email_templates()
-        template = get_object_or_404(NotificationEmailTemplate, id=template_id)
-        serializer = NotificationEmailTemplateSerializer(template, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        updated = serializer.save(updated_by=request.user, version=template.version + 1)
-        return Response(NotificationEmailTemplateSerializer(updated).data)
+        if not notification_email_tables_ready():
+            return Response({'error': 'Notification email tables are not available yet. Run the latest admin_dashboard migrations.'}, status=503)
+
+        try:
+            ensure_notification_email_templates()
+            event_type = (request.data.get('event_type') or '').strip()
+            if template_id > 0:
+                template = get_object_or_404(NotificationEmailTemplate, id=template_id)
+            else:
+                if event_type not in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES:
+                    return Response({'error': 'Valid event_type is required.'}, status=400)
+                template, _ = NotificationEmailTemplate.objects.get_or_create(
+                    event_type=event_type,
+                    defaults=DEFAULT_NOTIFICATION_EMAIL_TEMPLATES[event_type],
+                )
+            serializer = NotificationEmailTemplateSerializer(template, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            updated = serializer.save(updated_by=request.user, version=template.version + 1)
+            return Response(NotificationEmailTemplateSerializer(updated).data)
+        except (ProgrammingError, OperationalError) as exc:
+            logger.exception("Admin notification email template update unavailable: %s", exc)
+            return Response({'error': 'Notification email templates are temporarily unavailable.'}, status=503)
 
 
 class AdminNotificationEmailLogsView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
-        page = max(1, int(request.GET.get('page', 1) or 1))
-        limit = min(100, max(10, int(request.GET.get('limit', 20) or 20)))
-        event_type = (request.GET.get('event_type') or '').strip()
-        status_filter = (request.GET.get('status') or '').strip()
-        search = (request.GET.get('search') or '').strip()
+        if not notification_email_tables_ready():
+            return Response({
+                'results': [],
+                'total': 0,
+                'page': 1,
+                'pages': 0,
+                'degraded': True,
+                'warning': 'Notification email tables are not available yet. Run the latest admin_dashboard migrations.',
+            }, status=status.HTTP_200_OK)
 
-        queryset = NotificationEmailLog.objects.select_related('recipient').all()
-        if event_type:
-            queryset = queryset.filter(event_type=event_type)
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        if search:
-            queryset = queryset.filter(
-                Q(recipient_email__icontains=search) |
-                Q(subject_rendered__icontains=search)
-            )
+        try:
+            page = max(1, int(request.GET.get('page', 1) or 1))
+            limit = min(100, max(10, int(request.GET.get('limit', 20) or 20)))
+            event_type = (request.GET.get('event_type') or '').strip()
+            status_filter = (request.GET.get('status') or '').strip()
+            search = (request.GET.get('search') or '').strip()
 
-        total = queryset.count()
-        start = (page - 1) * limit
-        rows = queryset[start:start + limit]
-        serializer = NotificationEmailLogSerializer(rows, many=True)
-        return Response({
-            'results': serializer.data,
-            'total': total,
-            'page': page,
-            'pages': ceil(total / limit) if limit > 0 else 1,
-        })
+            queryset = NotificationEmailLog.objects.select_related('recipient').all()
+            if event_type:
+                queryset = queryset.filter(event_type=event_type)
+            if status_filter:
+                queryset = queryset.filter(status=status_filter)
+            if search:
+                queryset = queryset.filter(
+                    Q(recipient_email__icontains=search) |
+                    Q(subject_rendered__icontains=search)
+                )
+
+            total = queryset.count()
+            start = (page - 1) * limit
+            rows = queryset[start:start + limit]
+            serializer = NotificationEmailLogSerializer(rows, many=True)
+            return Response({
+                'results': serializer.data,
+                'total': total,
+                'page': page,
+                'pages': ceil(total / limit) if limit > 0 else 1,
+            })
+        except (ProgrammingError, OperationalError) as exc:
+            logger.exception("Admin notification email logs unavailable; returning empty payload: %s", exc)
+            return Response({
+                'results': [],
+                'total': 0,
+                'page': 1,
+                'pages': 0,
+                'degraded': True,
+                'warning': 'Notification email logs are temporarily unavailable. Run the latest admin_dashboard migrations if this persists.',
+            }, status=status.HTTP_200_OK)
 
 
 class AdminNotificationEmailTestSendView(APIView):
@@ -2068,6 +2600,7 @@ class AdminAnalyticsImpressionsView(APIView):
     def get(self, request):
         try:
             queryset = ProfileImpression.objects.select_related('viewer', 'viewed').all().order_by('-timestamp')
+            start_dt, end_dt, date_from, date_to = _parse_admin_date_window(request, default_to_today=True)
         
             viewer_search = request.GET.get('viewer_email')
             if viewer_search:
@@ -2080,15 +2613,13 @@ class AdminAnalyticsImpressionsView(APIView):
             swipe_action = request.GET.get('swipe_action')
             if swipe_action and swipe_action != '':
                 queryset = queryset.filter(swipe_action=swipe_action)
+
+            if start_dt:
+                queryset = queryset.filter(timestamp__gte=start_dt)
+            if end_dt:
+                queryset = queryset.filter(timestamp__lt=end_dt)
         
-            date_from = request.GET.get('date_from')
-            if date_from:
-                queryset = queryset.filter(timestamp__date__gte=date_from)
-        
-            date_to = request.GET.get('date_to')
-            if date_to:
-                queryset = queryset.filter(timestamp__date__lte=date_to)
-        
+            total_matching = queryset.count()
             queryset = queryset[:500]
         
             data = []
@@ -2117,10 +2648,39 @@ class AdminAnalyticsImpressionsView(APIView):
                     'session_id': imp.session_id[:8] if imp.session_id else '',
                 })
         
-            return Response(data)
+            payload = {
+                'data': data,
+                'total': total_matching,
+                'limited_to': 500,
+                'generated_at': timezone.now(),
+                'date_from': date_from.isoformat() if date_from else None,
+                'date_to': date_to.isoformat() if date_to else None,
+                'source': 'profile_impressions',
+            }
+            if not data:
+                fallback_rows, fallback_total, fallback_sources = _interaction_impression_rows(request)
+                if fallback_rows:
+                    data = fallback_rows
+                    total_matching = fallback_total
+                    payload['data'] = data
+                    payload['total'] = total_matching
+                    payload['source'] = 'interactions_fallback'
+                    payload['sources'] = fallback_sources
+                    payload['warning'] = 'No matching profile impression rows were found for this live window. Showing like/pass interaction records for the same date window.'
+
+            if total_matching > 500 and 'warning' not in payload:
+                payload['warning'] = 'Showing the latest 500 impressions. Use filters to narrow the result.'
+            return Response(payload)
         except Exception as exc:
-            logger.exception("AdminAnalyticsImpressionsView failed; returning empty list: %s", exc)
-            return Response([], status=status.HTTP_200_OK)
+            logger.exception("AdminAnalyticsImpressionsView failed; returning degraded payload: %s", exc)
+            return Response({
+                'data': [],
+                'total': 0,
+                'limited_to': 500,
+                'generated_at': timezone.now(),
+                'degraded': True,
+                'warning': 'Temporary database issue while loading profile impressions.',
+            }, status=status.HTTP_200_OK)
 
 
 # ==================== WAITLIST ADMIN VIEWS (with inline serializers) ====================

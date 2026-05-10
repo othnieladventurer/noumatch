@@ -30,6 +30,16 @@ export const getAdminApiBase = () => {
 
 export const getAdminAuthToken = () => localStorage.getItem("admin_access");
 
+export const persistAdminAccessToken = (token) => {
+  if (typeof token === "string" && token.includes(".")) {
+    localStorage.setItem("admin_access", token);
+    return token;
+  }
+
+  localStorage.removeItem("admin_access");
+  return null;
+};
+
 export const getAdminAuthHeaders = () => {
   const token = getAdminAuthToken();
   return token && token.includes(".")
@@ -45,8 +55,7 @@ export const refreshAdminAccessToken = async () => {
   if (!nextAccess) {
     throw new Error("Invalid refresh response");
   }
-  localStorage.setItem("admin_access", nextAccess);
-  return nextAccess;
+  return persistAdminAccessToken(nextAccess);
 };
 
 export const adminRequest = async (config) => {

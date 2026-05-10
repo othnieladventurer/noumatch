@@ -215,6 +215,17 @@ export default function AdminUserDetail() {
     return value.charAt(0).toUpperCase() + value.slice(1);
   };
 
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100">
+        <div className="spinner-border text-danger" role="status" />
+      </div>
+    );
+  }
+
+  if (error) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="alert alert-danger">{error}</div></div>;
+  if (!user) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="alert alert-warning">User details are unavailable.</div></div>;
+
   const accountStateLabel = user.is_active ? 'Active' : 'Restricted';
   const joinedLabel = user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'N/A';
   const lastActiveLabel = user.last_activity ? new Date(user.last_activity).toLocaleString() : 'Never';
@@ -227,9 +238,6 @@ export default function AdminUserDetail() {
     { icon: 'fas fa-comment-dots', tone: 'text-primary', label: 'Messages Sent', value: user.stats?.total_messages_sent || 0 },
     { icon: 'fas fa-flag', tone: 'text-danger', label: 'Reports Received', value: user.stats?.total_reports_received || 0 },
   ];
-
-  if (error) return <div className="d-flex justify-content-center align-items-center vh-100"><div className="alert alert-danger">{error}</div></div>;
-  if (!user) return null;
 
   return (
     <div className={`admin-dashboard ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>

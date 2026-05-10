@@ -6,17 +6,35 @@ import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
-import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
-const IMPRESSIONS_CACHE_KEY = 'admin_impressions_v1';
+const TODAY = new Date().toISOString().slice(0, 10);
+
+const emptyFilters = {
+  viewer_email: '',
+  viewed_email: '',
+  swipe_action: '',
+  date_from: TODAY,
+  date_to: TODAY
+};
+
+const normalizeImpressionsPayload = (payload) => {
+  if (Array.isArray(payload)) {
+    return { data: payload, warning: '' };
+  }
+
+  return {
+    data: Array.isArray(payload?.data) ? payload.data : [],
+    warning: payload?.warning || '',
+  };
+};
 
 export default function AdminAnalyticsImpressions() {
   const navigate = useNavigate();
-  const cachedImpressions = readFreshCache(IMPRESSIONS_CACHE_KEY, 120000);
-  const [impressions, setImpressions] = useState(cachedImpressions || []);
-  const [loading, setLoading] = useState(!cachedImpressions);
+  const [impressions, setImpressions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('analytics-impressions');
@@ -25,13 +43,7 @@ export default function AdminAnalyticsImpressions() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   
-  const [filters, setFilters] = useState({
-    viewer_email: '',
-    viewed_email: '',
-    swipe_action: '',
-    date_from: '',
-    date_to: ''
-  });
+  const [filters, setFilters] = useState(emptyFilters);
 
   useEffect(() => {
     if (darkMode) {
@@ -49,9 +61,7 @@ export default function AdminAnalyticsImpressions() {
       navigate('/admin/login');
       return;
     }
-    if (!cachedImpressions) {
-      fetchImpressions(false);
-    }
+    fetchImpressions(false);
 
     const handleRefresh = () => {
       fetchImpressions(false);
@@ -60,7 +70,7 @@ export default function AdminAnalyticsImpressions() {
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, []);
 
-  const fetchImpressions = async (silent = false) => {
+  const fetchImpressions = async (silent = false, nextFilters = filters) => {
     const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
@@ -72,16 +82,17 @@ export default function AdminAnalyticsImpressions() {
         setLoading(true);
       }
       const params = new URLSearchParams();
-      if (filters.viewer_email) params.append('viewer_email', filters.viewer_email);
-      if (filters.viewed_email) params.append('viewed_email', filters.viewed_email);
-      if (filters.swipe_action) params.append('swipe_action', filters.swipe_action);
-      if (filters.date_from) params.append('date_from', filters.date_from);
-      if (filters.date_to) params.append('date_to', filters.date_to);
+      if (nextFilters.viewer_email) params.append('viewer_email', nextFilters.viewer_email);
+      if (nextFilters.viewed_email) params.append('viewed_email', nextFilters.viewed_email);
+      if (nextFilters.swipe_action) params.append('swipe_action', nextFilters.swipe_action);
+      if (nextFilters.date_from) params.append('date_from', nextFilters.date_from);
+      if (nextFilters.date_to) params.append('date_to', nextFilters.date_to);
       
       const url = `${API_BASE}/analytics/impressions/`;
       const response = await adminRequest({ method: 'get', url, params });
-      setImpressions(response.data);
-      writeCache(IMPRESSIONS_CACHE_KEY, response.data);
+      const normalized = normalizeImpressionsPayload(response.data);
+      setImpressions(normalized.data);
+      setWarning(normalized.warning);
       setCurrentPage(1); // Reset to first page when new data loads
       setError('');
     } catch (err) {
@@ -92,6 +103,7 @@ export default function AdminAnalyticsImpressions() {
         navigate('/admin/login');
       } else {
         setError(err.response?.data?.error || 'Failed to load impressions');
+        setWarning('');
       }
     } finally {
       setLoading(false);
@@ -108,18 +120,12 @@ export default function AdminAnalyticsImpressions() {
   };
 
   const applyFilters = () => {
-    fetchImpressions();
+    fetchImpressions(false, filters);
   };
 
   const clearFilters = () => {
-    setFilters({
-      viewer_email: '',
-      viewed_email: '',
-      swipe_action: '',
-      date_from: '',
-      date_to: ''
-    });
-    setTimeout(() => fetchImpressions(), 100);
+    setFilters(emptyFilters);
+    fetchImpressions(false, emptyFilters);
   };
 
   // Pagination calculations
@@ -194,7 +200,8 @@ export default function AdminAnalyticsImpressions() {
       'Feed Position',
       'Ranking Score',
       'Swipe Action',
-      'Device Type'
+      'Device Type',
+      'Source'
     ];
 
     const rows = impressions.map(imp => [
@@ -205,10 +212,11 @@ export default function AdminAnalyticsImpressions() {
       imp.viewed_name || '',
       imp.viewed_email || '',
       imp.viewed_location || '',
-      imp.feed_position + 1,
-      imp.ranking_score,
+      imp.feed_position == null ? 'N/A' : imp.feed_position + 1,
+      imp.ranking_score ?? 'N/A',
       imp.swipe_action === 'like' ? 'Like' : imp.swipe_action === 'pass' ? 'Pass' : 'Pending',
-      imp.device_type || 'unknown'
+      imp.device_type || 'unknown',
+      imp.source || 'profile_impression'
     ]);
 
     const csvContent = [
@@ -366,6 +374,7 @@ export default function AdminAnalyticsImpressions() {
           <div className="card shadow-sm">
             <div className="card-body">
               {error && <div className="alert alert-danger">{error}</div>}
+              {warning && <div className="alert alert-warning">{warning}</div>}
               <div className="table-responsive">
                 <table className="table table-hover">
                   <thead className="table-light">
@@ -377,12 +386,13 @@ export default function AdminAnalyticsImpressions() {
                       <th>Score</th>
                       <th>Swipe</th>
                       <th>Device</th>
+                      <th>Source</th>
                     </tr>
                   </thead>
                   <tbody>
                     {currentItems.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="text-center py-5">
+                        <td colSpan="8" className="text-center py-5">
                           {loading ? (
                             <AdminPageSpinner label="Loading impression records..." />
                           ) : (
@@ -420,11 +430,13 @@ export default function AdminAnalyticsImpressions() {
                             )}
                             </td>
                           <td className="text-center">
-                            <span className="badge bg-secondary">#{imp.feed_position + 1}</span>
+                            <span className="badge bg-secondary">
+                              {imp.feed_position == null ? 'N/A' : `#${imp.feed_position + 1}`}
+                            </span>
                             </td>
                           <td>
-                            <span className={`badge ${imp.ranking_score >= 70 ? 'bg-success' : imp.ranking_score >= 40 ? 'bg-warning' : 'bg-danger'}`}>
-                              {imp.ranking_score}
+                            <span className={`badge ${imp.ranking_score == null ? 'bg-secondary' : imp.ranking_score >= 70 ? 'bg-success' : imp.ranking_score >= 40 ? 'bg-warning' : 'bg-danger'}`}>
+                              {imp.ranking_score ?? 'N/A'}
                             </span>
                             </td>
                           <td>
@@ -436,6 +448,11 @@ export default function AdminAnalyticsImpressions() {
                             <i className={`fas ${imp.device_type === 'mobile' ? 'fa-mobile-alt' : 'fa-desktop'} me-1`}></i>
                             {imp.device_type}
                             </td>
+                          <td>
+                            <span className={`badge ${imp.source ? 'bg-info' : 'bg-primary'}`}>
+                              {imp.source ? 'Interaction' : 'Impression'}
+                            </span>
+                          </td>
                         </tr>
                       ))
                     )}

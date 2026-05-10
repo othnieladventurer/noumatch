@@ -4,13 +4,21 @@ import logging
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
-from django.db import transaction
+from django.db import connection, OperationalError, ProgrammingError, transaction
 from django.utils import timezone
 import requests
 
 from admin_dashboard.models import NotificationEmailTemplate, NotificationEmailLog
 
 logger = logging.getLogger(__name__)
+
+PREMIUM_NOTIFICATION_TIERS = {"premium", "gold", "god_mode"}
+
+PRIVATE_ACTOR_LABELS = {
+    "new_like": "Someone",
+    "new_match": "someone",
+    "new_message": "Someone",
+}
 
 
 DEFAULT_NOTIFICATION_EMAIL_TEMPLATES = {
@@ -79,14 +87,43 @@ DEFAULT_NOTIFICATION_EMAIL_TEMPLATES = {
 }
 
 
+def notification_email_tables_ready():
+    try:
+        table_names = set(connection.introspection.table_names())
+    except Exception as exc:
+        logger.exception("Unable to inspect notification email tables: %s", exc)
+        return False
+
+    required_tables = {
+        NotificationEmailTemplate._meta.db_table,
+        NotificationEmailLog._meta.db_table,
+    }
+    return required_tables.issubset(table_names)
+
+
 def ensure_notification_email_templates():
+    if not notification_email_tables_ready():
+        logger.warning("Notification email tables are not ready yet; skipping template bootstrap.")
+        return []
+
     templates = []
     for event_type, defaults in DEFAULT_NOTIFICATION_EMAIL_TEMPLATES.items():
-        template, _ = NotificationEmailTemplate.objects.get_or_create(
-            event_type=event_type,
-            defaults=defaults,
-        )
-        templates.append(template)
+        try:
+            template = NotificationEmailTemplate.objects.filter(event_type=event_type).first()
+            if template is None:
+                template = NotificationEmailTemplate.objects.create(
+                    event_type=event_type,
+                    **defaults,
+                )
+            templates.append(template)
+        except (ProgrammingError, OperationalError) as exc:
+            logger.exception(
+                "Notification email template for %s is unavailable in the current database state: %s",
+                event_type,
+                exc,
+            )
+        except Exception as exc:
+            logger.exception("Failed ensuring notification email template for %s: %s", event_type, exc)
     return templates
 
 
@@ -110,6 +147,30 @@ def _default_text_from_html(html):
         .replace("\">", ": ")
         .replace("</a>", "")
     )
+
+
+def _can_reveal_actor_name(recipient, context_data=None):
+    account_type = (
+        (context_data or {}).get("recipient_account_type")
+        or getattr(recipient, "account_type", None)
+        or "free"
+    )
+    return str(account_type).lower() in PREMIUM_NOTIFICATION_TIERS
+
+
+def _apply_actor_privacy(event_type, recipient, context):
+    if "actor_name" not in context:
+        return context
+    if _can_reveal_actor_name(recipient, context):
+        context["actor_name_hidden"] = False
+        return context
+
+    return {
+        **context,
+        "actor_name": PRIVATE_ACTOR_LABELS.get(event_type, "Someone"),
+        "actor_name_hidden": True,
+        "actor_privacy_note": "Upgrade to see who interacted with you.",
+    }
 
 
 def _sender_email_address():
@@ -160,6 +221,10 @@ def _send_via_brevo(subject, html_body, text_body, recipient_email, recipient_na
 
 
 def _create_log(template, recipient, recipient_email, event_type, subject, html_body, text_body, status, metadata, related_object=None, error_message=""):
+    if not notification_email_tables_ready():
+        logger.warning("Notification email log table is not ready; skipping log creation for %s.", event_type)
+        return None
+
     return NotificationEmailLog.objects.create(
         recipient=recipient,
         recipient_email=recipient_email,
@@ -188,6 +253,7 @@ def _send_notification_email_with_template(template, event_type, recipient=None,
         ),
         **(context_data or {}),
     }
+    context = _apply_actor_privacy(event_type, recipient, context)
 
     if not template or not template.is_enabled:
         return _create_log(
@@ -204,7 +270,7 @@ def _send_notification_email_with_template(template, event_type, recipient=None,
             error_message="Template missing or disabled.",
         )
 
-    if event_type == "new_message":
+    if event_type == "new_message" and notification_email_tables_ready():
         conversation_id = (metadata or {}).get("conversation_id")
         cooldown_minutes = int(getattr(settings, "NOTIFICATION_EMAIL_MESSAGE_COOLDOWN_MINUTES", 15) or 15)
         cooldown_start = timezone.now() - timedelta(minutes=cooldown_minutes)
@@ -292,6 +358,9 @@ def _send_notification_email_with_template(template, event_type, recipient=None,
 
 
 def send_event_notification_email(event_type, recipient, context_data, *, related_object=None, metadata=None):
+    if not notification_email_tables_ready():
+        logger.warning("Notification email tables are not ready; skipping event email send for %s.", event_type)
+        return None
     ensure_notification_email_templates()
     template = NotificationEmailTemplate.objects.filter(event_type=event_type).first()
     return _send_notification_email_with_template(
@@ -305,6 +374,8 @@ def send_event_notification_email(event_type, recipient, context_data, *, relate
 
 
 def send_test_notification_email(event_type, recipient_email, context_data, *, template_overrides=None, metadata=None):
+    if not notification_email_tables_ready():
+        raise RuntimeError("Notification email tables are not available yet. Run the latest admin_dashboard migrations.")
     ensure_notification_email_templates()
     base_template = NotificationEmailTemplate.objects.filter(event_type=event_type).first()
     if not base_template:

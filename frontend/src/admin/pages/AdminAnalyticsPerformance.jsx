@@ -5,12 +5,10 @@ import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
-import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
-const ACTIVE_USERS_CACHE_KEY = 'admin_active_users_metrics_v2';
 const TODAY = new Date().toISOString().slice(0, 10);
-const DEFAULT_FROM = new Date(Date.now() - (13 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+const DEFAULT_FROM = TODAY;
 
 const EVENT_OPTIONS = [
   { key: 'login', label: 'Login' },
@@ -128,17 +126,16 @@ function TrendChart({ series }) {
 
 export default function AdminAnalyticsPerformance() {
   const navigate = useNavigate();
-  const [cachedMetrics] = useState(() => readFreshCache(ACTIVE_USERS_CACHE_KEY, 180000));
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('analytics-performance');
-  const [metrics, setMetrics] = useState(cachedMetrics);
-  const [loading, setLoading] = useState(!cachedMetrics);
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [dateFrom, setDateFrom] = useState(cachedMetrics?.date_from || DEFAULT_FROM);
-  const [dateTo, setDateTo] = useState(cachedMetrics?.date_to || TODAY);
-  const [actions, setActions] = useState(cachedMetrics?.actions || EVENT_OPTIONS.map((event) => event.key));
+  const [dateFrom, setDateFrom] = useState(DEFAULT_FROM);
+  const [dateTo, setDateTo] = useState(TODAY);
+  const [actions, setActions] = useState(EVENT_OPTIONS.map((event) => event.key));
   const [seoMetrics, setSeoMetrics] = useState(null);
   const [seoLoading, setSeoLoading] = useState(false);
   const [seoError, setSeoError] = useState('');
@@ -193,7 +190,6 @@ export default function AdminAnalyticsPerformance() {
         } catch (compatErr) {
           if (compatErr.response?.status !== 404) throw compatErr;
           const dash = await adminRequest({ method: 'get', url: `${API_BASE}/dashboard/` });
-          const previousSeries = cachedMetrics?.series || metrics?.series || [];
           payload = {
             dau: dash.data?.dau || 0,
             wau: dash.data?.wau || 0,
@@ -204,14 +200,13 @@ export default function AdminAnalyticsPerformance() {
             actions: selectedActions,
             date_from: selectedDateFrom,
             date_to: selectedDateTo,
-            series: buildSeriesFromCache(previousSeries, dash.data),
+            series: buildSeriesFromCache([], dash.data),
           };
-          setError('Active-users endpoint not found on backend yet. Showing dashboard fallback and cached history.');
+          setError('Active-users endpoint not found on backend yet. Showing live dashboard fallback for the selected date.');
         }
       }
 
       setMetrics(payload);
-      writeCache(ACTIVE_USERS_CACHE_KEY, payload);
       if (!payload?.series?.length) {
         setError('No historical data returned for this filter range.');
       } else if (!error || error.includes('No historical data')) {
@@ -233,9 +228,7 @@ export default function AdminAnalyticsPerformance() {
   };
 
   useEffect(() => {
-    if (!cachedMetrics) {
-      fetchMetrics({ silent: false });
-    }
+    fetchMetrics({ silent: false });
 
     const handleRefresh = () => {
       fetchMetrics({ silent: false });
@@ -262,9 +255,7 @@ export default function AdminAnalyticsPerformance() {
   };
 
   useEffect(() => {
-    if (!cachedMetrics) {
-      fetchSeoMetrics();
-    }
+    fetchSeoMetrics();
   }, []);
 
   const handleMenuClick = (menu, path) => {

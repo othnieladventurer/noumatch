@@ -211,6 +211,7 @@ export default function AdminEmailNotifications() {
         method: 'patch',
         url: `${API_BASE}/notifications/email/templates/${selectedTemplate.id}/`,
         data: {
+          event_type: selectedTemplate.event_type,
           name: draft.name,
           is_enabled: draft.is_enabled,
           subject_template: draft.subject_template,

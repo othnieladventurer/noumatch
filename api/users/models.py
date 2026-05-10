@@ -443,6 +443,8 @@ class UserPhoto(models.Model):
 
 
 class OTP(models.Model):
+    VALIDITY_SECONDS = 600
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='otp')
     code = models.CharField(max_length=4)  # Changed to 4 digits
     created_at = models.DateTimeField(auto_now_add=True)
@@ -451,14 +453,18 @@ class OTP(models.Model):
     max_attempts = models.IntegerField(default=5)  # 5 attempts maximum
 
     def is_valid(self):
-        """Check if OTP is still valid (not used and within 5 minutes)"""
+        """Check if OTP is still valid."""
         if self.is_used:
             return False
-        now = timezone.now()
-        # 5 minutes = 300 seconds
-        if (now - self.created_at).total_seconds() > 300:
+        if (timezone.now() - self.created_at).total_seconds() > self.VALIDITY_SECONDS:
             return False
         return True
+
+    def seconds_remaining(self):
+        if self.is_used:
+            return 0
+        elapsed = (timezone.now() - self.created_at).total_seconds()
+        return max(0, int(self.VALIDITY_SECONDS - elapsed))
 
     def can_attempt(self):
         """Check if user can still attempt verification"""
@@ -474,6 +480,8 @@ class OTP(models.Model):
 
 
 class PendingRegistration(models.Model):
+    VALIDITY_SECONDS = 600
+
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30, blank=True)
@@ -489,13 +497,21 @@ class PendingRegistration(models.Model):
     is_used = models.BooleanField(default=False)
     attempts = models.IntegerField(default=0)
     max_attempts = models.IntegerField(default=5)
+    otp_sent_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def is_valid(self):
         if self.is_used:
             return False
-        return (timezone.now() - self.created_at).total_seconds() <= 300
+        return self.seconds_remaining() > 0
+
+    def seconds_remaining(self):
+        if self.is_used:
+            return 0
+        issued_at = self.otp_sent_at or self.updated_at or self.created_at
+        elapsed = (timezone.now() - issued_at).total_seconds()
+        return max(0, int(self.VALIDITY_SECONDS - elapsed))
 
     def can_attempt(self):
         return self.attempts < self.max_attempts
@@ -508,7 +524,8 @@ class PendingRegistration(models.Model):
         self.code = code
         self.is_used = False
         self.attempts = 0
-        self.save(update_fields=["code", "is_used", "attempts", "updated_at"])
+        self.otp_sent_at = timezone.now()
+        self.save(update_fields=["code", "is_used", "attempts", "otp_sent_at", "updated_at"])
 
     def consume_profile_photo(self):
         if not self.profile_photo:

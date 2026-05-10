@@ -9,9 +9,8 @@ export const AuthProvider = ({ children }) => {
 
   // 🔹 Check if in admin mode
   const isAdminMode = useCallback(() => {
-    const hasAdminToken = !!localStorage.getItem('admin_access');
     const isAdminPath = window.location.pathname.startsWith('/admin');
-    return hasAdminToken || isAdminPath;
+    return isAdminPath;
   }, []);
 
   // 🔹 Fetch current user
@@ -46,9 +45,16 @@ export const AuthProvider = ({ children }) => {
       throw new Error("Please logout from admin panel first");
     }
 
+    localStorage.removeItem("admin_access");
+    localStorage.removeItem("admin_refresh");
+    localStorage.removeItem("admin_email");
+
     const response = await API.post("users/login/", { email, password });
     if (response.data?.access) {
       localStorage.setItem("access", response.data.access);
+    }
+    if (response.data?.refresh) {
+      localStorage.setItem("refresh", response.data.refresh);
     }
     sessionStorage.setItem("nm_user_session", "1");
     await fetchUser(); // immediately fetch user object
@@ -96,6 +102,10 @@ export const AuthProvider = ({ children }) => {
   // 🔹 Admin login (separate method)
   const adminLogin = async (email, password) => {
     try {
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      sessionStorage.removeItem("nm_user_session");
+
       const response = await API.post("noumatch-admin/admin_login/", { email, password });
       if (response.data?.access) {
         localStorage.setItem("admin_access", response.data.access);

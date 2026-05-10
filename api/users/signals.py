@@ -27,6 +27,27 @@ def _refresh_by_user_ids(user_ids):
         _safe_refresh_user_score(user)
 
 
+def _message_related_user_ids(instance):
+    user_ids = []
+    if instance.sender_id:
+        user_ids.append(instance.sender_id)
+
+    if instance.conversation_id:
+        try:
+            match_user_ids = (
+                Match.objects.filter(conversation__id=instance.conversation_id)
+                .values_list("user1_id", "user2_id")
+                .first()
+            )
+            if match_user_ids:
+                user_ids.extend(match_user_ids)
+        except Exception:
+            # During cascade deletes the conversation/match may already be gone.
+            pass
+
+    return user_ids
+
+
 @receiver(user_logged_out)
 def set_user_offline(sender, request, user, **kwargs):
     if user:
@@ -79,24 +100,12 @@ def score_on_match_deleted(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Message)
 def score_on_message_saved(sender, instance, created, **kwargs):
-    user_ids = []
-    if instance.sender_id:
-        user_ids.append(instance.sender_id)
-    if instance.conversation_id:
-        conv = instance.conversation
-        user_ids.extend([conv.match.user1_id, conv.match.user2_id])
-    _refresh_by_user_ids(user_ids)
+    _refresh_by_user_ids(_message_related_user_ids(instance))
 
 
 @receiver(post_delete, sender=Message)
 def score_on_message_deleted(sender, instance, **kwargs):
-    user_ids = []
-    if instance.sender_id:
-        user_ids.append(instance.sender_id)
-    if instance.conversation_id:
-        conv = instance.conversation
-        user_ids.extend([conv.match.user1_id, conv.match.user2_id])
-    _refresh_by_user_ids(user_ids)
+    _refresh_by_user_ids(_message_related_user_ids(instance))
 
 
 @receiver(post_save, sender=Block)

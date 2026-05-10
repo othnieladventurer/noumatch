@@ -571,23 +571,15 @@ export default function Dashboard() {
       if (lastLoggedImpressionId.current !== currentProfile.id) {
         lastLoggedImpressionId.current = currentProfile.id;
         
-        fetch('/api/noumatch-admin/analytics/impression/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
+        API.post("noumatch-admin/analytics/impression/", {
             viewed_user_id: currentProfile.id,
             feed_position: profileIndex,
             ranking_score: currentProfile.ranking_score || 50,
             session_id: sessionId,
             device_type: window.innerWidth < 992 ? 'mobile' : 'desktop'
           })
-        })
-        .then(res => res.json())
         .then(data => {
-          if (data.id) {
+          if (data.data?.id) {
           }
         })
         .catch(err => console.error('❌ Failed to log impression:', err));
@@ -620,18 +612,11 @@ export default function Dashboard() {
     likeInProgress.current = true;
     triggerSlide("right");
     
-    fetch('/api/noumatch-admin/analytics/impression/update/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
+    API.post("noumatch-admin/analytics/impression/update/", {
         viewed_user_id: currentProfile.id,
         swipe_action: 'like',
         session_id: sessionId
-      })
-    }).catch(err => console.error('Failed to update impression:', err));
+      }).catch(err => console.error('Failed to update impression:', err));
     
     setTimeout(async () => {
       try {
@@ -660,18 +645,11 @@ export default function Dashboard() {
     passInProgress.current = true;
     triggerSlide("left");
     
-    fetch('/api/noumatch-admin/analytics/impression/update/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({
+    API.post("noumatch-admin/analytics/impression/update/", {
         viewed_user_id: currentProfile.id,
         swipe_action: 'pass',
         session_id: sessionId
-      })
-    }).catch(err => console.error('Failed to update impression:', err));
+      }).catch(err => console.error('Failed to update impression:', err));
     
     setTimeout(() => {
       trackPass(currentProfile.id);
