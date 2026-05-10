@@ -1057,7 +1057,7 @@ export default function Dashboard() {
         );
       default:
         return (
-          <div style={{ height: '100%', overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ height: '100%', overflow: 'hidden', minHeight: 0, background: '#000' }}>
             <CenterBlock
               profilesLoading={profilesLoading}
               apiError={apiError}
@@ -1175,8 +1175,8 @@ export default function Dashboard() {
             </div>
             
             {/* Mobile Layout */}
-            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px - env(safe-area-inset-bottom, 0px))`, overflow: 'hidden', minHeight: 0 }}>
+            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, background: activeMobileTab === 'center' ? '#000' : 'transparent' }}>
+              <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px - env(safe-area-inset-bottom, 0px))`, overflow: 'hidden', minHeight: 0, background: activeMobileTab === 'center' ? '#000' : 'transparent' }}>
                 {renderMobileContent()}
               </div>
             </div>

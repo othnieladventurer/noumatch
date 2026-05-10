@@ -1,4 +1,5 @@
 import logging
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics, permissions, status
@@ -47,6 +48,29 @@ def _get_like_limit_context(user):
         "is_unlimited": False,
         "is_new_user_boost": False,
     }
+
+
+def _get_pass_expiry_timestamp():
+    expiry_hours = getattr(settings, "PASS_EXPIRY_HOURS", 48)
+    return timezone.now() + timedelta(hours=float(expiry_hours))
+
+
+def _record_or_refresh_pass(from_user, to_user_id):
+    now = timezone.now()
+    pass_obj = Pass.objects.filter(from_user=from_user, to_user_id=to_user_id).first()
+    active_before = bool(pass_obj and pass_obj.expires_at and pass_obj.expires_at > now)
+
+    if pass_obj:
+        pass_obj.expires_at = _get_pass_expiry_timestamp()
+        pass_obj.save(update_fields=["expires_at"])
+        return pass_obj, False, active_before
+
+    pass_obj = Pass.objects.create(
+        from_user=from_user,
+        to_user_id=to_user_id,
+        expires_at=_get_pass_expiry_timestamp(),
+    )
+    return pass_obj, True, False
 
 
 class LikeCreateView(APIView):
@@ -214,6 +238,21 @@ class CreatePassView(generics.CreateAPIView):
         context['request'] = self.request
         return context
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        to_user_id = serializer.validated_data["to_user_id"]
+        pass_obj, created, active_before = _record_or_refresh_pass(request.user, to_user_id)
+
+        if created or not active_before:
+            DailySwipe.increment_swipe(request.user, 'pass')
+
+        response_serializer = self.get_serializer(pass_obj)
+        return Response(
+            response_serializer.data,
+            status=status.HTTP_201_CREATED if created or not active_before else status.HTTP_200_OK,
+        )
+
 
 class BulkCreatePassView(APIView):
     """Create multiple passes at once"""
@@ -233,7 +272,8 @@ class BulkCreatePassView(APIView):
                 to_user = User.objects.get(id=user_id)
                 
                 # Check if already passed
-                if Pass.objects.filter(from_user=request.user, to_user=to_user).exists():
+                existing_pass = Pass.objects.filter(from_user=request.user, to_user=to_user).first()
+                if existing_pass and existing_pass.expires_at and existing_pass.expires_at > timezone.now():
                     errors.append({f"user_{user_id}": "Already passed on this user"})
                     continue
                 
@@ -243,10 +283,8 @@ class BulkCreatePassView(APIView):
                     continue
 
                 # Create pass
-                pass_obj = Pass.objects.create(
-                    from_user=request.user,
-                    to_user=to_user
-                )
+                pass_obj, _, _ = _record_or_refresh_pass(request.user, to_user.id)
+                DailySwipe.increment_swipe(request.user, 'pass')
                 created_passes.append(pass_obj)
                 
             except User.DoesNotExist:
@@ -482,12 +520,8 @@ class IncrementPassView(APIView):
             return Response({"error": "Cannot pass on yourself"}, status=400)
 
         try:
-            # Check if pass already exists
-            pass_obj, created = Pass.objects.get_or_create(
-                from_user=user,
-                to_user_id=to_user_id
-            )
-            if created:
+            pass_obj, created, active_before = _record_or_refresh_pass(user, to_user_id)
+            if created or not active_before:
                 DailySwipe.increment_swipe(user, 'pass')
                 return Response({"success": True, "message": "Pass recorded"}, status=201)
             else:

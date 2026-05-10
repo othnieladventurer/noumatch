@@ -78,8 +78,12 @@ class PassSerializer(serializers.ModelSerializer):
         if value == request.user.id:
             raise serializers.ValidationError("You cannot pass on yourself.")
 
-        # Check if already passed
-        if Pass.objects.filter(from_user=request.user, to_user_id=value).exists():
+        active_pass = Pass.objects.filter(
+            from_user=request.user,
+            to_user_id=value,
+            expires_at__gt=timezone.now(),
+        ).exists()
+        if active_pass:
             raise serializers.ValidationError("You have already passed on this user.")
 
         # Optional: Check if liked (can't pass on someone you liked)
