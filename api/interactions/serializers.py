@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.conf import settings
+from django.db.models import Q
 from django.contrib.auth import get_user_model
 from .models import Like, Pass, DailySwipe
 from datetime import date, timedelta
@@ -78,10 +80,13 @@ class PassSerializer(serializers.ModelSerializer):
         if value == request.user.id:
             raise serializers.ValidationError("You cannot pass on yourself.")
 
+        now = timezone.now()
+        pass_cutoff = now - timedelta(hours=float(getattr(settings, "PASS_EXPIRY_HOURS", 48)))
         active_pass = Pass.objects.filter(
             from_user=request.user,
             to_user_id=value,
-            expires_at__gt=timezone.now(),
+        ).filter(
+            Q(expires_at__gt=now) | Q(created_at__gte=pass_cutoff)
         ).exists()
         if active_pass:
             raise serializers.ValidationError("You have already passed on this user.")

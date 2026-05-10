@@ -1,5 +1,6 @@
 ﻿import logging
 import threading
+from datetime import timedelta
 from pathlib import Path
 from django.conf import settings
 from django.core.cache import cache
@@ -24,6 +25,7 @@ from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
 from django.db import DatabaseError, IntegrityError, OperationalError, ProgrammingError, transaction
 from django.db.models.deletion import ProtectedError
+from django.db.models import Q
 
 from .models import User, UserPhoto, OTP, FeedVisibilityBoost, PendingRegistration
 from interactions.models import Like, Pass
@@ -794,7 +796,10 @@ class UserProfileListView(generics.ListAPIView):
             matches_as_user2 = Match.objects.filter(user2=user).values_list('user1_id', flat=True)
             matched_ids = list(matches_as_user1) + list(matches_as_user2)
             blocked_ids = Block.objects.filter(blocker=user).values_list('blocked_id', flat=True)
-            active_pass_ids = Pass.objects.filter(from_user=user, expires_at__gt=now).values_list('to_user_id', flat=True)
+            pass_cutoff = now - timedelta(hours=float(getattr(settings, 'PASS_EXPIRY_HOURS', 48)))
+            active_pass_ids = Pass.objects.filter(from_user=user).filter(
+                Q(expires_at__gt=now) | Q(created_at__gte=pass_cutoff)
+            ).values_list('to_user_id', flat=True)
             
             base_exclusions = set(liked_ids) | set(matched_ids) | set(blocked_ids) | set(active_pass_ids)
             base_exclusions.add(user.id)

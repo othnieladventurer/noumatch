@@ -55,10 +55,19 @@ def _get_pass_expiry_timestamp():
     return timezone.now() + timedelta(hours=float(expiry_hours))
 
 
+def _is_pass_still_active(pass_obj, now=None):
+    if not pass_obj:
+        return False
+    current_time = now or timezone.now()
+    minimum_active_until = pass_obj.created_at + timedelta(hours=float(getattr(settings, "PASS_EXPIRY_HOURS", 48)))
+    expires_at = pass_obj.expires_at or minimum_active_until
+    return max(expires_at, minimum_active_until) > current_time
+
+
 def _record_or_refresh_pass(from_user, to_user_id):
     now = timezone.now()
     pass_obj = Pass.objects.filter(from_user=from_user, to_user_id=to_user_id).first()
-    active_before = bool(pass_obj and pass_obj.expires_at and pass_obj.expires_at > now)
+    active_before = _is_pass_still_active(pass_obj, now=now)
 
     if pass_obj:
         pass_obj.expires_at = _get_pass_expiry_timestamp()
@@ -273,7 +282,7 @@ class BulkCreatePassView(APIView):
                 
                 # Check if already passed
                 existing_pass = Pass.objects.filter(from_user=request.user, to_user=to_user).first()
-                if existing_pass and existing_pass.expires_at and existing_pass.expires_at > timezone.now():
+                if _is_pass_still_active(existing_pass):
                     errors.append({f"user_{user_id}": "Already passed on this user"})
                     continue
                 
@@ -316,9 +325,10 @@ class CheckPassView(APIView):
                 to_user=to_user
             ).first()
             
+            is_active_pass = _is_pass_still_active(pass_obj)
             data = {
-                'has_passed': pass_obj is not None,
-                'passed_at': pass_obj.created_at if pass_obj else None
+                'has_passed': is_active_pass,
+                'passed_at': pass_obj.created_at if is_active_pass else None
             }
             serializer = PassCheckSerializer(data)
             return Response(serializer.data)
