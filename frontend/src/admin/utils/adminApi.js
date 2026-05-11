@@ -63,15 +63,9 @@ export const getAdminAuthHeaders = () => {
     ? {
         Authorization: `Bearer ${token}`,
         "X-Requested-With": "XMLHttpRequest",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
       }
     : {
         "X-Requested-With": "XMLHttpRequest",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        Pragma: "no-cache",
-        Expires: "0",
       };
 };
 
