@@ -120,6 +120,7 @@ export default function DashboardNavbar({ user, navRef = null }) {
       }
 
       const response = await API.get("/chat/conversations/");
+      const supportResponse = await API.get("/chat/support/");
       
       const formattedMessages = response.data.map((conv) => {
         const otherUser = conv.other_user;
@@ -128,6 +129,7 @@ export default function DashboardNavbar({ user, navRef = null }) {
         return {
           id: conv.id,
           conversation_id: conv.id,
+          thread_type: "conversation",
           text: lastMessage?.content || "Démarrer une conversation",
           sender: otherUser?.full_name || "Utilisateur",
           sender_id: otherUser?.id,
@@ -142,7 +144,27 @@ export default function DashboardNavbar({ user, navRef = null }) {
         };
       });
 
-      setMessages(formattedMessages);
+      const formattedSupportMessages = (supportResponse.data || []).map((conv) => ({
+        id: `support-${conv.id}`,
+        conversation_id: conv.id,
+        thread_type: "support",
+        text: conv.last_message?.content || "Ouvrir le support client",
+        sender: "NouMatch Support",
+        sender_id: 0,
+        read: conv.last_message?.sender_type !== "admin",
+        time: conv.last_message?.created_at || conv.updated_at || conv.created_at || "",
+        other_user: null,
+        unread_count: conv.unread_count || 0,
+        match_id: null,
+        is_online: true,
+        online_status: "online",
+        profile_photo: null
+      }));
+
+      setMessages(
+        [...formattedSupportMessages, ...formattedMessages]
+          .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+      );
     } catch (error) {
       console.error("Erreur lors de la récupération des conversations:", error);
       if (error.response?.status === 401) {
@@ -229,7 +251,11 @@ export default function DashboardNavbar({ user, navRef = null }) {
     return "Hors ligne";
   };
 
-  const handleMessageClick = (conversationId) => {
+  const handleMessageClick = (conversationId, threadType = "conversation") => {
+    if (threadType === "support") {
+      navigate(`/messages?support=${conversationId}`);
+      return;
+    }
     navigate(`/messages?conversation=${conversationId}`);
   };
 
@@ -559,7 +585,7 @@ export default function DashboardNavbar({ user, navRef = null }) {
                     messages.map((msg) => (
                       <button
                         key={msg.id}
-                        onClick={() => handleMessageClick(msg.conversation_id)}
+                        onClick={() => handleMessageClick(msg.conversation_id, msg.thread_type)}
                         className={`dropdown-item d-flex align-items-start gap-2 py-2 px-3 ${
                           msg.unread_count > 0 ? "bg-light" : ""
                         }`}
@@ -567,14 +593,23 @@ export default function DashboardNavbar({ user, navRef = null }) {
                         type="button"
                       >
                         <div className="position-relative flex-shrink-0">
-                          <img
-                            src={getProfilePhotoUrl(msg.profile_photo || msg.other_user?.profile_photo_url)}
-                            alt={msg.sender}
-                            className="rounded-circle"
-                            width="32"
-                            height="32"
-                            style={{ objectFit: "cover" }}
-                          />
+                          {msg.thread_type === "support" ? (
+                            <div
+                              className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                              style={{ width: "32px", height: "32px", background: "linear-gradient(135deg,#ff4d6d,#2563eb)" }}
+                            >
+                              N
+                            </div>
+                          ) : (
+                            <img
+                              src={getProfilePhotoUrl(msg.profile_photo || msg.other_user?.profile_photo_url)}
+                              alt={msg.sender}
+                              className="rounded-circle"
+                              width="32"
+                              height="32"
+                              style={{ objectFit: "cover" }}
+                            />
+                          )}
                           <span
                             className="position-absolute bottom-0 end-0 rounded-circle border border-2 border-white"
                             style={{
@@ -718,6 +753,15 @@ export default function DashboardNavbar({ user, navRef = null }) {
                     onClick={() => document.body.click()}
                   >
                     Mon profil
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    className="dropdown-item"
+                    to="/messages?support=open"
+                    onClick={() => document.body.click()}
+                  >
+                    Support client
                   </Link>
                 </li>
                 

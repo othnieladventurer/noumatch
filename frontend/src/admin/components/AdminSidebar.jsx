@@ -8,7 +8,7 @@ const getMenuFromPath = (path) => {
   if (path.includes('/admin/reports')) return 'reports';
   if (path.includes('/admin/swipe-stats')) return 'swipe-stats';
   if (path.includes('/admin/messages')) return 'messages';
-  if (path.includes('/admin/notifications/email')) return 'email-notifications';
+  if (path.includes('/admin/notifications/email')) return 'messages';
   if (path.includes('/admin/waitlist')) return 'waitlist';
   if (path.includes('/admin/analytics/impressions')) return 'analytics-impressions';
   if (path.includes('/admin/analytics/ranking')) return 'analytics-ranking';
@@ -44,8 +44,7 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     { key: 'waitlist', label: 'Waitlist', icon: 'fas fa-clipboard-list', path: '/admin/waitlist' }, // NEW
     { key: 'reports', label: 'Reports Desk', icon: 'fas fa-flag', path: '/admin/reports' },
     { key: 'swipe-stats', label: 'Swipe Stats', icon: 'fas fa-chart-line', path: '/admin/swipe-stats' },
-    { key: 'messages', label: 'Messages', icon: 'fas fa-comment-dots', path: '/admin/messages' },
-    { key: 'email-notifications', label: 'Email Notifications', icon: 'fas fa-envelope-open-text', path: '/admin/notifications/email' },
+    { key: 'messages', label: 'Message Center', icon: 'fas fa-comment-dots', path: '/admin/messages' },
     { key: 'analytics-impressions', label: 'Profile Impressions', icon: 'fas fa-eye', path: '/admin/analytics/impressions' },
     { key: 'analytics-ranking', label: 'Ranking Analytics', icon: 'fas fa-chart-bar', path: '/admin/analytics/ranking' },
     { key: 'analytics-performance', label: 'Performance Metrics', icon: 'fas fa-trophy', path: '/admin/analytics/performance' },

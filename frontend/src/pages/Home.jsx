@@ -1,33 +1,50 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { FaHeart, FaUser, FaLock } from "react-icons/fa";
+import { FaUser, FaCheckCircle, FaHeart, FaComments } from "react-icons/fa";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import FeaturesSection from "../components/FeaturesSection";
 import TestimonialsCarousel from "../components/TestimonialsCarousel";
 import Faq from "../components/Faq";
 import Contact from "../components/Contact";
-
 import AOS from "aos";
 import "aos/dist/aos.css";
+import "../styles/public-redesign.css";
 
-import createProfile from "../assets/createprofile.png";
-import verifyEmail from "../assets/emailverify.png";
-import swipeImage from "../assets/nmswipe.png";
-import conversationImage from "../assets/conversation.png";
+const STEPS = [
+  {
+    num: "01",
+    icon: <FaUser />,
+    title: "Créez votre profil",
+    desc: "Renseignez vos infos, ajoutez vos photos et partagez vos centres d'intérêt. Un profil complet attire les bonnes personnes.",
+  },
+  {
+    num: "02",
+    icon: <FaCheckCircle />,
+    title: "Vérifiez votre identité",
+    desc: "Confirmez votre email pour garantir l'authenticité de votre profil. Une communauté vérifiée, c'est plus de confiance.",
+  },
+  {
+    num: "03",
+    icon: <FaHeart />,
+    title: "Swipez & matchez",
+    desc: "Parcourez les profils près de vous, likez ceux qui vous intéressent. Quand vous matchez, c'est le début d'une belle histoire !",
+  },
+  {
+    num: "04",
+    icon: <FaComments />,
+    title: "Discutez librement",
+    desc: "Une fois le match confirmé, lancez-vous ! Discutez, apprenez à vous connaître et laissez la magie opérer.",
+  },
+];
 
 export default function Home() {
   useEffect(() => {
-    AOS.init({
-      duration: 1000,
-      once: true,
-      easing: "ease-in-out",
-    });
+    AOS.init({ duration: 900, once: true, easing: "ease-out-cubic" });
   }, []);
 
   return (
     <>
-      {/* Force body to scroll – override any global overflow:hidden */}
       <style>{`
         html, body, #root {
           height: auto !important;
@@ -36,220 +53,163 @@ export default function Home() {
           overflow-y: auto !important;
           position: relative !important;
         }
-        .overflow-hidden {
-          overflow: visible !important;
-        }
+        .overflow-hidden { overflow: visible !important; }
       `}</style>
 
-      <div className="overflow-hidden">
-        {/* HERO SECTION */}
-        <section 
-          className="d-flex align-items-center text-white text-center"
-          data-aos="fade-down"
-          style={{
-            minHeight: "90vh",
-            backgroundImage: "url('https://images.pexels.com/photos/6579000/pexels-photo-6579000.jpeg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            position: "relative",
-          }}
-        >
-          <div className="position-absolute w-100 h-100 bg-dark opacity-50"></div>
-          <div className="container position-relative px-3">
-            <h1 className="display-5 fw-bold">
-              NouMatch : Rencontrez des hommes et femmes<br />
-              
-            </h1>
-            <p className="lead mt-3 mb-4">
-              Un espace pour trouver des rencontres vraies, fun et sincères!
-            </p>
-            <Link to="/login" className="btn btn-danger btn-lg px-4">Créer Mon Compte</Link>
-          </div>
-        </section>
-
-        {/* WHO WE ARE */}
-        <section id="who" data-aos="fade-up" className="py-5 bg-light">
-          <div className="container px-3">
-            <div className="row align-items-center g-4">
-              <div className="col-lg-6">
-                <h2 className="fw-bold mb-3">NouMatch</h2>
-                <p>NouMatch crée un espace où les rencontres se font avec sincérité et respect.</p>
-                <p>Chaque rencontre compte et chaque échange peut devenir une véritable connexion.</p>
-                <p>Notre mission : rendre les rencontres en ligne authentiques, humaines et enrichissantes.</p>
+      {/* ── HERO ── */}
+      <section className="nm-hero-v2">
+        <div className="container">
+          <div className="row align-items-center g-5">
+            <div className="col-lg-6" data-aos="fade-right">
+              <div className="nm-hero-tag">
+                <span className="nm-hero-tag-dot" />
+                Rencontres authentiques
               </div>
-              <div className="col-lg-6">
-                <img
-                  src="https://img.freepik.com/premium-photo/happy-love-relax-couple-walking-city-date-together-their-getaway-break-summer-travel-smile-with-young-black-man-woman-holding-hands-street-their-vacation-trip_590464-81239.jpg?w=360"
-                  alt="Deux amis discutant"
-                  className="img-fluid rounded shadow w-100"
-                  style={{ maxHeight: "400px", objectFit: "cover" }}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* FEATURES */}
-        <section id="features" className="py-5" style={{ backgroundColor: "#f3e8ff" }}>
-          <div className="container px-3">
-            {/* Section Title */}
-            <div className="text-center mb-5" data-aos="fade-up">
-              <h2 className="fw-bold display-6">Comment ça marche</h2>
-              <p className="text-muted mx-auto" style={{ maxWidth: "650px" }}>
-                Découvrez les étapes simples qui rendent l'expérience NouMatch fluide, sécurisée et authentique.
+              <h1>
+                Des rencontres<br />
+                <span className="nm-accent">vraies.</span> Pour<br />
+                des gens vrais.
+              </h1>
+              <p className="nm-hero-subtitle">
+                Un espace sincère pour trouver des connexions qui durent.
+                Discutez, découvrez, créez des liens naturellement.
               </p>
-            </div>
-
-            {/* Step 1 - Créer son profil */}
-            <div className="row align-items-center mb-4 g-4">
-              <div className="col-lg-6 d-flex justify-content-center" data-aos="fade-right">
-                <img
-                  src={createProfile}
-                  alt="Créer son profil"
-                  className="img-fluid rounded-4 shadow"
-                  style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
-                />
+              <div className="nm-hero-actions">
+                <Link to="/register" className="nm-btn nm-btn-primary">Créer mon compte</Link>
+                <Link to="/login" className="nm-btn nm-btn-secondary">Se connecter</Link>
               </div>
-              <div className="col-lg-6 d-flex" data-aos="fade-left">
-                <div className="bg-white rounded-4 shadow p-4 w-100 d-flex flex-column justify-content-center" style={{ minHeight: "350px" }}>
-                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: "50px", height: "50px" }}>
-                    <span className="text-white fw-bold fs-5">1</span>
-                  </div>
-                  <h4 className="fw-bold">Créez votre profil</h4>
-                  <p className="text-muted mb-0">
-                    Renseignez vos informations, ajoutez vos photos et partagez vos centres d'intérêt. Un profil complet attire des personnes qui vous correspondent vraiment.
-                  </p>
+              <div className="nm-hero-stats">
+                <div>
+                  <span className="nm-hero-stat-value">2 400+</span>
+                  <span className="nm-hero-stat-label">Membres actifs</span>
+                </div>
+                <div>
+                  <span className="nm-hero-stat-value">100%</span>
+                  <span className="nm-hero-stat-label">Profils vérifiés</span>
+                </div>
+                <div>
+                  <span className="nm-hero-stat-value">Gratuit</span>
+                  <span className="nm-hero-stat-label">Pour commencer</span>
                 </div>
               </div>
             </div>
-
-            {/* Step 2 - Vérifier son profil */}
-            <div className="row align-items-center mb-4 g-4 flex-lg-row-reverse">
-              <div className="col-lg-6 d-flex justify-content-center" data-aos="fade-left">
+            <div className="col-lg-6 d-none d-lg-block" data-aos="fade-left">
+              <div className="nm-hero-media">
                 <img
-                  src={verifyEmail}
-                  alt="Vérifier son profil"
-                  className="img-fluid rounded-4 shadow"
-                  style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
+                  className="nm-hero-img"
+                  src="https://images.pexels.com/photos/7741585/pexels-photo-7741585.jpeg?auto=compress&cs=tinysrgb&w=1600"
+                  alt="Couple heureux sur NouMatch"
                 />
-              </div>
-              <div className="col-lg-6 d-flex" data-aos="fade-right">
-                <div className="bg-white rounded-4 shadow p-4 w-100 d-flex flex-column justify-content-center" style={{ minHeight: "350px" }}>
-                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: "50px", height: "50px" }}>
-                    <span className="text-white fw-bold fs-5">2</span>
-                  </div>
-                  <h4 className="fw-bold">Vérifiez votre profil</h4>
-                  <p className="text-muted mb-0">
-                    Confirmez votre email pour garantir l'authenticité de votre profil. Une communauté vérifiée, c'est plus de confiance et de rencontres sincères.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 3 - Swiper, liker, matcher */}
-            <div className="row align-items-center mb-4 g-4">
-              <div className="col-lg-6 d-flex justify-content-center" data-aos="fade-right">
-                <img
-                  src={swipeImage}
-                  alt="Swiper et liker"
-                  className="img-fluid rounded-4 shadow"
-                  style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
-                />
-              </div>
-              <div className="col-lg-6 d-flex" data-aos="fade-left">
-                <div className="bg-white rounded-4 shadow p-4 w-100 d-flex flex-column justify-content-center" style={{ minHeight: "350px" }}>
-                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: "50px", height: "50px" }}>
-                    <span className="text-white fw-bold fs-5">3</span>
-                  </div>
-                  <h4 className="fw-bold">Swipez, likez et matchez</h4>
-                  <p className="text-muted mb-0">
-                    Parcourez les profils près de vous, likez ceux qui vous intéressent. Quand vous matchez, c'est le début d'une belle histoire !
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Step 4 - Commencer la conversation */}
-            <div className="row align-items-center g-4 flex-lg-row-reverse">
-              <div className="col-lg-6 d-flex justify-content-center" data-aos="fade-left">
-                <img
-                  src={conversationImage}
-                  alt="Commencer la conversation"
-                  className="img-fluid rounded-4 shadow"
-                  style={{ width: "100%", maxHeight: "350px", objectFit: "cover" }}
-                />
-              </div>
-              <div className="col-lg-6 d-flex" data-aos="fade-right">
-                <div className="bg-white rounded-4 shadow p-4 w-100 d-flex flex-column justify-content-center" style={{ minHeight: "350px" }}>
-                  <div className="bg-primary rounded-circle d-flex align-items-center justify-content-center mb-3" style={{ width: "50px", height: "50px" }}>
-                    <span className="text-white fw-bold fs-5">4</span>
-                  </div>
-                  <h4 className="fw-bold">Commencez la conversation</h4>
-                  <p className="text-muted mb-0">
-                    Une fois le match confirmé, lancez-vous ! Discutez, apprenez à vous connaître et laissez la magie opérer.
-                  </p>
-                </div>
               </div>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* NOUMATCH SPIRIT – THIS COMPONENT NOW HAS AOS ON ITS TITLE & PARAGRAPH */}
-        <FeaturesSection />
-
-        {/* ENGAGE IN PERSON */}
-        <section className="py-5 bg-light" data-aos="fade-right">
-          <div className="container px-3">
-            <div className="row align-items-center g-4">
-              <div className="col-lg-6 d-flex justify-content-center">
-                <img
-                  src="https://img.freepik.com/premium-photo/love-phone-social-media-with-black-couple-sofa-home-living-room-together-relax-app-happy-smile-with-man-woman-apartment-streaming-with-bonding-online-shopping_590464-495126.jpg?semt=ais_hybrid&w=740&q=80"
-                  alt="Rencontres en personne"
-                  className="img-fluid rounded-4 shadow"
-                  style={{ maxHeight: "400px", objectFit: "cover", width: "100%" }}
-                />
-              </div>
-              <div className="col-lg-6">
-                <h3 className="fw-bold mb-3">Passez du virtuel au réel</h3>
-                <p className="text-muted mb-4">
-                  Rencontrez des personnes qui partagent vos centres d'intérêt, vos valeurs et votre énergie. Discutez, riez, créez des liens et laissez la rencontre se faire naturellement.
-                </p>
-                <Link to="/login" className="btn btn-danger btn-lg px-4">Engage la conversation</Link>
-              </div>
+      {/* ── WHO WE ARE ── */}
+      <section id="who" className="nm-section nm-section-white">
+        <div className="container">
+          <div className="row align-items-center g-5">
+            <div className="col-lg-6" data-aos="fade-right">
+              <img
+                src="https://img.freepik.com/premium-photo/happy-love-relax-couple-walking-city-date-together-their-getaway-break-summer-travel-smile-with-young-black-man-woman-holding-hands-street-their-vacation-trip_590464-81239.jpg?w=360"
+                alt="Rencontres sincères"
+                className="nm-split-img"
+              />
+            </div>
+            <div className="col-lg-6" data-aos="fade-left">
+              <span className="nm-section-tag">Qui sommes-nous</span>
+              <h2 className="nm-section-title">NouMatch</h2>
+              <p style={{ color: "#475569", lineHeight: "1.75", marginBottom: "1rem" }}>
+                NouMatch crée un espace où les rencontres se font avec sincérité et respect.
+              </p>
+              <p style={{ color: "#475569", lineHeight: "1.75", marginBottom: "1rem" }}>
+                Chaque rencontre compte et chaque échange peut devenir une véritable connexion.
+              </p>
+              <p style={{ color: "#475569", lineHeight: "1.75", marginBottom: "2rem" }}>
+                Notre mission : rendre les rencontres en ligne authentiques, humaines et enrichissantes.
+              </p>
+              <Link to="/register" className="nm-btn nm-btn-primary">Rejoindre la communauté</Link>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* LOGIN CTA */}
-        <section
-          className="py-5 text-white position-relative d-flex align-items-center"
-          data-aos="fade-up"
-          style={{
-            minHeight: "60vh",
-            backgroundImage: "url('https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51941.jpg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        >
-          <div className="position-absolute w-100 h-100" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}></div>
-          <div className="container position-relative text-center px-3">
-            <h3 className="fw-bold display-6 mb-3">Bienvenue sur NouMatch</h3>
-            <p className="mb-4 text-light mx-auto" style={{ maxWidth: "700px" }}>
-              Connectez-vous pour continuer votre parcours vers des connexions authentiques et significatives. Accédez à votre profil et découvrez vos matchs dès maintenant.
+      {/* ── HOW IT WORKS ── */}
+      <section id="features" className="nm-section nm-section-cream">
+        <div className="container">
+          <div className="text-center mb-5" data-aos="fade-up">
+            <span className="nm-section-tag">Comment ça marche</span>
+            <h2 className="nm-section-title">Simple. Sincère. Naturel.</h2>
+            <p className="nm-section-desc">
+              Quatre étapes simples pour trouver des connexions authentiques sur NouMatch.
             </p>
-            <Link to="/login" className="btn btn-light btn-lg text-danger fw-semibold px-4">Se connecter</Link>
           </div>
-        </section>
+          <div className="row g-4">
+            {STEPS.map((step, i) => (
+              <div className="col-sm-6 col-lg-3" key={i} data-aos="fade-up" data-aos-delay={i * 100}>
+                <div className="nm-step-card">
+                  <span className="nm-step-num">{step.num}</span>
+                  <div className="nm-step-icon">{step.icon}</div>
+                  <h4>{step.title}</h4>
+                  <p>{step.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-        {/* TESTIMONIALS */}
-        <TestimonialsCarousel />
+      {/* ── NOUMATCH SPIRIT ── */}
+      <FeaturesSection />
 
-        {/* FAQ */}
-        <Faq />
+      {/* ── CTA SPLIT ── */}
+      <section className="nm-section nm-section-white" data-aos="fade-up">
+        <div className="container">
+          <div className="row align-items-center g-5 flex-lg-row-reverse">
+            <div className="col-lg-6">
+              <img
+                src="https://img.freepik.com/premium-photo/love-phone-social-media-with-black-couple-sofa-home-living-room-together-relax-app-happy-smile-with-man-woman-apartment-streaming-with-bonding-online-shopping_590464-495126.jpg?semt=ais_hybrid&w=740&q=80"
+                alt="Passez au réel"
+                className="nm-split-img"
+              />
+            </div>
+            <div className="col-lg-6">
+              <span className="nm-section-tag">L'expérience NouMatch</span>
+              <h2 className="nm-section-title">Passez du virtuel au réel</h2>
+              <p style={{ color: "#64748b", lineHeight: "1.75", marginBottom: "2rem" }}>
+                Rencontrez des personnes qui partagent vos valeurs, vos centres d'intérêt et votre énergie.
+                Discutez, riez, créez des liens et laissez la rencontre se faire naturellement.
+              </p>
+              <Link to="/register" className="nm-btn nm-btn-primary">Engage la conversation</Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        {/* CONTACT */}
-        <Contact />
-      </div>
+      {/* ── DARK CTA BAND ── */}
+      <section className="nm-dark-cta">
+        <div className="nm-dark-cta-overlay" />
+        <div className="container">
+          <div className="nm-dark-cta-inner" data-aos="fade-up">
+            <h2>Bienvenue sur NouMatch</h2>
+            <p>
+              Connectez-vous pour continuer votre parcours vers des connexions authentiques et significatives.
+              Accédez à votre profil et découvrez vos matchs dès maintenant.
+            </p>
+            <Link to="/login" className="nm-btn nm-btn-light">Se connecter</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <TestimonialsCarousel />
+
+      {/* ── FAQ ── */}
+      <Faq />
+
+      {/* ── CONTACT ── */}
+      <Contact />
     </>
   );
 }

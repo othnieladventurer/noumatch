@@ -1,28 +1,20 @@
+/* Fallback auth wrapper — matches the new Editorial Light shell */
+
 .auth-wrapper {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-image: url("https://img.freepik.com/free-photo/romantic-black-couple-sitting-restaurant-wearing-elegant-clothes_1157-51961.jpg");
-  background-size: cover;
-  background-position: center;
-  position: relative;
-  padding: 1rem;
-}
-
-.auth-wrapper::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: #faf5ef;
+  padding: 2rem 1.5rem;
 }
 
 .auth-card {
-  position: relative;
-  background: white;
-  padding: 2rem;
+  background: #fff;
+  border: 1px solid #e2d9ce;
+  border-radius: 24px;
+  padding: 2.5rem 2rem;
   width: 100%;
-  max-width: 450px;
-  border-radius: 1rem;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  max-width: 460px;
+  box-shadow: 0 4px 32px rgba(15, 23, 42, 0.06);
 }

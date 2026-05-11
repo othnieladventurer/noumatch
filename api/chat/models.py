@@ -133,6 +133,10 @@ class Message(models.Model):
             conv.last_message_at = self.created_at
             conv.updated_at = timezone.now()
             conv.save(update_fields=['first_message_at', 'last_message_at', 'updated_at'])
+        elif is_new and self.support_conversation:
+            conv = self.support_conversation
+            conv.updated_at = timezone.now()
+            conv.save(update_fields=['updated_at'])
 
 
 

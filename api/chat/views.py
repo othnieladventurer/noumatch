@@ -6,13 +6,14 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Conversation, Message
+from .models import Conversation, Message, SupportConversation
 from .serializers import (
     ConversationListSerializer,
     ConversationDetailSerializer,
     MessageSerializer,
     CreateConversationSerializer,
     MarkMessagesReadSerializer,
+    SupportConversationSerializer,
     UserChatSerializer,
 )
 from .utils import send_realtime_chat_event
@@ -131,6 +132,97 @@ class GetMessagesView(generics.ListAPIView):
         return Response(serializer.data)
 
 
+class SupportConversationListCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        conversations = (
+            SupportConversation.objects
+            .filter(user=request.user)
+            .select_related("user", "assigned_admin")
+            .prefetch_related("messages")
+            .order_by("-updated_at")
+        )
+        serializer = SupportConversationSerializer(conversations, many=True, context={"request": request})
+        return Response(serializer.data)
+
+    def post(self, request):
+        content = (request.data.get("content") or "").strip()
+        conversation = (
+            SupportConversation.objects
+            .filter(user=request.user, status__in=["open", "pending"])
+            .order_by("-updated_at")
+            .first()
+        )
+        created = False
+        if not conversation:
+            conversation = SupportConversation.objects.create(user=request.user, status="open")
+            created = True
+
+        if content:
+            Message.objects.create(
+                support_conversation=conversation,
+                sender=request.user,
+                sender_type="user",
+                content=content,
+            )
+            if conversation.status != "open":
+                conversation.status = "open"
+                conversation.save(update_fields=["status"])
+
+        serializer = SupportConversationSerializer(conversation, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+class SupportConversationDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk):
+        conversation = get_object_or_404(
+            SupportConversation.objects.select_related("user", "assigned_admin").prefetch_related("messages"),
+            pk=pk,
+            user=request.user,
+        )
+        conversation.messages.exclude(sender=request.user).filter(read=False).update(read=True)
+        serializer = SupportConversationSerializer(conversation, context={"request": request})
+        return Response(serializer.data)
+
+
+class SupportMessagesView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, conversation_id):
+        conversation = get_object_or_404(SupportConversation, pk=conversation_id, user=request.user)
+        queryset = conversation.messages.all().order_by("created_at")
+        queryset.exclude(sender=request.user).filter(read=False).update(read=True)
+        serializer = MessageSerializer(queryset, many=True, context={"request": request})
+        return Response(serializer.data)
+
+
+class SendSupportMessageView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ChatSendMessageThrottle]
+
+    def post(self, request, conversation_id):
+        conversation = get_object_or_404(SupportConversation, pk=conversation_id, user=request.user)
+        content = (request.data.get("content") or "").strip()
+        if not content:
+            return Response({"error": "Message content required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        message = Message.objects.create(
+            support_conversation=conversation,
+            sender=request.user,
+            sender_type="user",
+            content=content,
+        )
+        if conversation.status != "open":
+            conversation.status = "open"
+            conversation.save(update_fields=["status"])
+
+        serializer = MessageSerializer(message, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
 class MarkMessagesReadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -165,6 +257,7 @@ class UnreadCountView(APIView):
         conversations = Conversation.objects.filter(
             Q(match__user1=request.user) | Q(match__user2=request.user)
         )
+        support_conversations = SupportConversation.objects.filter(user=request.user)
 
         total_unread = 0
         conversations_with_unread = []
@@ -180,6 +273,26 @@ class UnreadCountView(APIView):
                         "match_id": conversation.match.id,
                         "unread_count": unread,
                         "other_user": other_user_data,
+                    }
+                )
+
+        for conversation in support_conversations:
+            unread = conversation.messages.exclude(sender=request.user).filter(read=False).count()
+            if unread > 0:
+                total_unread += unread
+                conversations_with_unread.append(
+                    {
+                        "conversation_id": conversation.id,
+                        "match_id": None,
+                        "unread_count": unread,
+                        "other_user": {
+                            "id": 0,
+                            "full_name": "NouMatch Support",
+                            "profile_photo_url": None,
+                            "is_online": True,
+                            "online_status": "online",
+                        },
+                        "thread_type": "support",
                     }
                 )
         return Response({"total_unread": total_unread, "conversations": conversations_with_unread})

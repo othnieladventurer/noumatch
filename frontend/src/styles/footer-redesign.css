@@ -1,54 +1,85 @@
+/* NouMatch Footer — Editorial Light */
+
 .nm-footer {
   position: relative;
   background: radial-gradient(circle at top right, #374151 0%, #0f172a 48%, #020617 100%);
   color: #f8fafc;
-  padding: 52px 0 28px;
+  padding: 56px 0 28px;
 }
 
 .nm-footer-cta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
-  border-radius: 8px;
-  padding: 18px;
-  margin-bottom: 26px;
-  background: rgba(15, 23, 42, 0.5);
+  gap: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 20px;
+  padding: 24px 28px;
+  margin-bottom: 32px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .nm-footer-cta h4 {
   margin: 0;
   font-size: 1.2rem;
   font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .nm-footer-cta p {
-  margin: 4px 0 0;
-  color: #cbd5e1;
-  font-size: 0.95rem;
+  margin: 6px 0 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
 }
 
 .nm-footer-cta-actions {
   display: flex;
   gap: 10px;
+  flex-shrink: 0;
   flex-wrap: wrap;
 }
 
+.nm-footer-cta-actions .btn-danger {
+  background: #dc2626 !important;
+  border: none !important;
+  border-radius: 999px !important;
+  padding: 0.5rem 1.25rem !important;
+  font-weight: 700 !important;
+  font-size: 0.88rem !important;
+}
+
+.nm-footer-cta-actions .btn-outline-light {
+  border-radius: 999px !important;
+  padding: 0.5rem 1.25rem !important;
+  font-weight: 600 !important;
+  font-size: 0.88rem !important;
+  border-color: rgba(255,255,255,0.35) !important;
+}
+
+.nm-footer-cta-actions .btn-outline-light:hover {
+  background: rgba(255,255,255,0.08) !important;
+}
+
 .nm-footer h5 {
-  margin-bottom: 10px;
-  font-size: 1.25rem;
+  margin-bottom: 12px;
+  font-size: 1.15rem;
   font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .nm-footer h6 {
-  margin-bottom: 10px;
-  font-size: 1rem;
+  margin-bottom: 12px;
+  font-size: 0.88rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
 }
 
 .nm-footer-muted {
-  color: #94a3b8;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.65;
 }
 
 .nm-footer-list {
@@ -56,12 +87,14 @@
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .nm-footer-list a {
-  color: #e2e8f0;
+  color: #cbd5e1;
   text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.18s;
 }
 
 .nm-footer-list a:hover {
@@ -74,30 +107,32 @@
 }
 
 .nm-footer-socials a {
-  width: 38px;
-  height: 38px;
-  border-radius: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #f8fafc;
   text-decoration: none;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s, background 0.2s, border-color 0.2s;
+  font-size: 0.95rem;
 }
 
 .nm-footer-socials a:hover {
   transform: translateY(-2px);
-  background: rgba(220, 38, 38, 0.3);
+  background: rgba(220, 38, 38, 0.25);
+  border-color: rgba(220, 38, 38, 0.5);
 }
 
 .nm-footer-bottom {
-  margin-top: 22px;
-  border-top: 1px solid rgba(148, 163, 184, 0.22);
-  padding-top: 14px;
+  margin-top: 28px;
+  border-top: 1px solid rgba(148, 163, 184, 0.15);
+  padding-top: 16px;
   text-align: center;
-  color: #94a3b8;
-  font-size: 0.85rem;
+  color: #475569;
+  font-size: 0.83rem;
 }
 
 .nm-scroll-top {
@@ -106,7 +141,7 @@
   bottom: 20px;
   width: 46px;
   height: 46px;
-  border-radius: 8px;
+  border-radius: 999px;
   border: 0;
   display: flex;
   align-items: center;
@@ -114,12 +149,28 @@
   z-index: 9999;
   background: #dc2626;
   color: #fff;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 8px 20px rgba(220, 38, 38, 0.35);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+
+.nm-scroll-top:hover {
+  background: #b91c1c;
+  transform: translateY(-2px);
 }
 
 @media (max-width: 991px) {
   .nm-footer-cta {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .nm-footer-cta-actions {
+    width: 100%;
+  }
+
+  .nm-footer-cta-actions .btn {
+    flex: 1;
+    text-align: center;
   }
 }

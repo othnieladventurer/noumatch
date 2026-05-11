@@ -278,11 +278,34 @@ class MarkMessagesReadSerializer(serializers.Serializer):
 
 class SupportConversationSerializer(serializers.ModelSerializer):
     user_email = serializers.EmailField(source='user.email', read_only=True)
+    user_name = serializers.SerializerMethodField()
+    user_profile_photo_url = serializers.SerializerMethodField()
+    assigned_admin_email = serializers.EmailField(source='assigned_admin.email', read_only=True)
     last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
 
     class Meta:
         model = SupportConversation
-        fields = ['id', 'user', 'user_email', 'assigned_admin', 'status', 'created_at', 'updated_at', 'last_message']
+        fields = [
+            'id',
+            'user',
+            'user_email',
+            'user_name',
+            'user_profile_photo_url',
+            'assigned_admin',
+            'assigned_admin_email',
+            'status',
+            'created_at',
+            'updated_at',
+            'last_message',
+            'unread_count',
+        ]
+
+    def get_user_name(self, obj):
+        return UserChatSerializer(obj.user, context=self.context).data.get('full_name') if obj.user_id else None
+
+    def get_user_profile_photo_url(self, obj):
+        return UserChatSerializer(obj.user, context=self.context).data.get('profile_photo_url') if obj.user_id else None
 
     def get_last_message(self, obj):
         msg = obj.last_message()
@@ -292,7 +315,14 @@ class SupportConversationSerializer(serializers.ModelSerializer):
             'content': msg.content,
             'created_at': msg.created_at,
             'sender_type': msg.sender_type,
+            'sender_email': msg.sender.email if msg.sender_id else None,
         }
+
+    def get_unread_count(self, obj):
+        request = self.context.get('request')
+        if not request or not request.user:
+            return 0
+        return obj.messages.exclude(sender=request.user).filter(read=False).count()
 
 
 class MessageFlagSerializer(serializers.ModelSerializer):

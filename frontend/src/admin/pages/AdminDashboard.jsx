@@ -486,7 +486,7 @@ export default function AdminDashboard() {
   const quickActions = [
     { label: 'Users', helper: 'Profiles, moderation, access', icon: 'fas fa-user-group', onClick: () => navigate('/admin/users') },
     { label: 'Reports', helper: 'Escalations and case triage', icon: 'fas fa-flag', onClick: () => navigate('/admin/reports') },
-    { label: 'Messages', helper: 'Support and user conversations', icon: 'fas fa-comments', onClick: () => navigate('/admin/messages') },
+    { label: 'Message Center', helper: 'Support, chats, and email delivery', icon: 'fas fa-comments', onClick: () => navigate('/admin/messages') },
     { label: 'Waitlist', helper: 'Invites and contact campaigns', icon: 'fas fa-clipboard-list', onClick: () => navigate('/admin/waitlist') },
   ];
 

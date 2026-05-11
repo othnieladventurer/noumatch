@@ -22,7 +22,9 @@ export default function Messages() {
 
   const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
+  const [supportConversations, setSupportConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
+  const [activeSupportConversation, setActiveSupportConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [attachmentFile, setAttachmentFile] = useState(null);
@@ -32,6 +34,8 @@ export default function Messages() {
   const [error, setError] = useState("");
 
   const activeConversationId = activeConversation?.id;
+  const activeSupportConversationId = activeSupportConversation?.id;
+  const activeThreadId = activeConversationId || activeSupportConversationId;
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId || null;
@@ -54,6 +58,7 @@ export default function Messages() {
   };
 
   const otherUser = activeConversation?.other_user;
+  const supportActive = Boolean(activeSupportConversationId);
 
   const mediaPreview = useMemo(() => {
     if (!attachmentFile) return null;
@@ -82,6 +87,27 @@ export default function Messages() {
       const next = prev.map((conv) =>
         conv.id === conversationId
           ? { ...conv, last_message: message, updated_at: message.created_at, unread_count: conv.id === activeConversationId ? 0 : (conv.unread_count || 0) + (message.is_from_me ? 0 : 1) }
+          : conv
+      );
+      return next.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+    });
+  };
+
+  const updateSupportLastMessage = (conversationId, message) => {
+    setSupportConversations((prev) => {
+      const next = prev.map((conv) =>
+        conv.id === conversationId
+          ? {
+              ...conv,
+              last_message: {
+                content: message.content,
+                created_at: message.created_at,
+                sender_type: message.sender_type,
+                sender_email: message.sender_email,
+              },
+              updated_at: message.created_at,
+              unread_count: message.is_from_me ? (conv.unread_count || 0) : (conv.unread_count || 0) + 1,
+            }
           : conv
       );
       return next.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
@@ -176,8 +202,29 @@ export default function Messages() {
     return sorted;
   };
 
+  const fetchSupportConversations = async () => {
+    const response = await API.get("/chat/support/");
+    const sorted = [...response.data].sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+    setSupportConversations(sorted);
+    return sorted;
+  };
+
+  const ensureSupportConversation = async () => {
+    const response = await API.post("/chat/support/", {});
+    const conversation = response.data;
+    setSupportConversations((prev) => {
+      const exists = prev.some((item) => item.id === conversation.id);
+      const next = exists ? prev.map((item) => (item.id === conversation.id ? conversation : item)) : [conversation, ...prev];
+      return next.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+    });
+    return conversation;
+  };
+
   const openConversation = async (conversation) => {
     setActiveConversation(conversation);
+    setActiveSupportConversation(null);
+    setAttachmentFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     navigate(`/messages?conversation=${conversation.id}`, { replace: true });
 
     const detail = await API.get(`/chat/conversations/${conversation.id}/`);
@@ -191,6 +238,26 @@ export default function Messages() {
     setTimeout(scrollToBottom, 50);
   };
 
+  const openSupportConversation = async (conversation) => {
+    setActiveSupportConversation(conversation);
+    setActiveConversation(null);
+    setIcebreakers([]);
+    setAttachmentFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    navigate(`/messages?support=${conversation.id}`, { replace: true });
+
+    if (wsRef.current) {
+      wsRef.current.close(1000, "switch to support");
+      wsRef.current = null;
+    }
+    clearSocketArtifacts();
+
+    const response = await API.get(`/chat/support/${conversation.id}/messages/`);
+    setMessages(response.data || []);
+    setSupportConversations((prev) => prev.map((item) => (item.id === conversation.id ? { ...item, unread_count: 0 } : item)));
+    setTimeout(scrollToBottom, 50);
+  };
+
   const initialize = async () => {
     try {
       const token = localStorage.getItem("access");
@@ -200,10 +267,40 @@ export default function Messages() {
       }
       const me = await API.get("/users/me/");
       setUser(me.data);
-      const convs = await fetchConversations();
+      const [conversationsResult, supportResult] = await Promise.allSettled([
+        fetchConversations(),
+        fetchSupportConversations(),
+      ]);
+      const convs = conversationsResult.status === "fulfilled" ? conversationsResult.value : [];
+      const supportConvs = supportResult.status === "fulfilled" ? supportResult.value : [];
       const params = new URLSearchParams(location.search);
       const matchId = Number(params.get("match"));
       const selectedId = Number(params.get("conversation"));
+      const supportParam = params.get("support");
+
+      if (supportParam) {
+        if (supportResult.status !== "fulfilled") {
+          throw supportResult.reason;
+        }
+        const supportId = Number(supportParam);
+        let selectedSupport = supportConvs.find((c) => c.id === supportId);
+
+        if (supportParam === "open" || supportParam === "new" || !selectedSupport) {
+          const createdSupport = await ensureSupportConversation();
+          const refreshedSupport = await fetchSupportConversations();
+          selectedSupport = refreshedSupport.find((c) => c.id === createdSupport.id) || createdSupport;
+        }
+
+        if (selectedSupport) {
+          await openSupportConversation(selectedSupport);
+          return;
+        }
+      }
+
+      if (conversationsResult.status !== "fulfilled" && supportResult.status !== "fulfilled") {
+        throw conversationsResult.reason || supportResult.reason || new Error(t("messages.unableToLoad"));
+      }
+
       let selected = convs.find((c) => c.id === selectedId) || convs[0];
 
       if (!selected && matchId) {
@@ -216,6 +313,9 @@ export default function Messages() {
         }
       }
       if (selected) await openConversation(selected);
+      if (!selected && supportConvs[0]) {
+        await openSupportConversation(supportConvs[0]);
+      }
     } catch (e) {
       setError(e.response?.data?.error || e.message || t("messages.unableToLoad"));
       if (e.response?.status === 401) {
@@ -242,10 +342,10 @@ export default function Messages() {
   }, [messages]);
 
   useEffect(() => {
-    if (activeConversationId && (!messages || messages.length === 0)) {
+    if (activeThreadId && (!messages || messages.length === 0)) {
       messageInputRef.current?.focus();
     }
-  }, [activeConversationId, messages]);
+  }, [activeThreadId, messages]);
 
   const onSelectFile = (event) => {
     const file = event.target.files?.[0];
@@ -266,10 +366,46 @@ export default function Messages() {
 
   const sendMessage = async (event) => {
     event.preventDefault();
-    if (!activeConversationId || sending) return;
+    if (!activeThreadId || sending) return;
     if (!text.trim() && !attachmentFile) return;
+    if (activeSupportConversationId && attachmentFile) {
+      setError("Support messages are text-only for now.");
+      return;
+    }
     setSending(true);
     setError("");
+
+    if (activeSupportConversationId) {
+      const tempId = `temp-support-${Date.now()}`;
+      const tempMessage = {
+        id: tempId,
+        content: text.trim(),
+        message_type: "text",
+        is_from_me: true,
+        read: false,
+        created_at: new Date().toISOString(),
+        sender_type: "user",
+        sender: { id: user?.id, full_name: "You", profile_photo_url: user?.profile_photo },
+      };
+
+      setMessages((prev) => [...prev, tempMessage]);
+      setText("");
+      scrollToBottom();
+
+      try {
+        const response = await API.post(`/chat/support/${activeSupportConversationId}/send/`, { content: tempMessage.content });
+        const sent = response.data;
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
+        updateSupportLastMessage(activeSupportConversationId, sent);
+        fetchSupportConversations();
+      } catch (e) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setError(e.response?.data?.error || t("messages.failedToSend"));
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
 
     const form = new FormData();
     if (text.trim()) form.append("content", text.trim());
@@ -340,7 +476,65 @@ export default function Messages() {
                 <h5 className="mb-0">{t("messages.title")}</h5>
               </div>
               <div className="card-body pt-2" style={{ maxHeight: "74vh", overflowY: "auto" }}>
-                {conversations.length === 0 && <p className="text-secondary small mb-0">{t("messages.noConversations")}</p>}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const support = activeSupportConversation || supportConversations[0] || await ensureSupportConversation();
+                      await openSupportConversation(support);
+                    } catch (e) {
+                      setError(e.response?.data?.error || t("messages.unableToLoad"));
+                    }
+                  }}
+                  className={`w-100 text-start border-0 rounded-4 p-2 mb-2 ${supportActive ? "bg-danger-subtle" : "bg-light"}`}
+                >
+                  <div className="d-flex align-items-center gap-2">
+                    <div
+                      className="d-flex align-items-center justify-content-center text-white fw-bold"
+                      style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#ff4d6d,#2563eb)" }}
+                    >
+                      N
+                    </div>
+                    <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                      <div className="d-flex justify-content-between">
+                        <span className="fw-semibold text-truncate">NouMatch Support</span>
+                        <small className="text-muted">{formatTime(supportConversations[0]?.last_message?.created_at || supportConversations[0]?.updated_at)}</small>
+                      </div>
+                      <small className="text-muted text-truncate d-block">
+                        {supportConversations[0]?.last_message?.content || "Ask support for help with your account."}
+                      </small>
+                    </div>
+                    {!!supportConversations[0]?.unread_count && <span className="badge rounded-pill bg-danger">{supportConversations[0].unread_count}</span>}
+                  </div>
+                </button>
+
+                {supportConversations.slice(1).map((conv) => (
+                  <button
+                    key={`support-${conv.id}`}
+                    type="button"
+                    onClick={() => openSupportConversation(conv)}
+                    className={`w-100 text-start border-0 rounded-4 p-2 mb-2 ${activeSupportConversationId === conv.id ? "bg-danger-subtle" : "bg-light"}`}
+                  >
+                    <div className="d-flex align-items-center gap-2">
+                      <div
+                        className="d-flex align-items-center justify-content-center text-white fw-bold"
+                        style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#ff4d6d,#2563eb)" }}
+                      >
+                        N
+                      </div>
+                      <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                        <div className="d-flex justify-content-between">
+                          <span className="fw-semibold text-truncate">NouMatch Support</span>
+                          <small className="text-muted">{formatTime(conv.last_message?.created_at || conv.updated_at)}</small>
+                        </div>
+                        <small className="text-muted text-truncate d-block">{conv.last_message?.content || "Support conversation"}</small>
+                      </div>
+                      {!!conv.unread_count && <span className="badge rounded-pill bg-danger">{conv.unread_count}</span>}
+                    </div>
+                  </button>
+                ))}
+
+                {conversations.length === 0 && supportConversations.length === 0 && <p className="text-secondary small mb-0">{t("messages.noConversations")}</p>}
                 {conversations.map((conv) => (
                   <button
                     key={conv.id}
@@ -374,7 +568,20 @@ export default function Messages() {
           <div className="col-lg-8">
             <div className="card border-0 shadow-sm rounded-4">
               <div className="card-header bg-white border-0 pt-3 d-flex align-items-center gap-2">
-                {otherUser ? (
+                {supportActive ? (
+                  <>
+                    <div
+                      className="d-flex align-items-center justify-content-center text-white fw-bold"
+                      style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(135deg,#ff4d6d,#2563eb)" }}
+                    >
+                      N
+                    </div>
+                    <div>
+                      <div className="fw-semibold">NouMatch Support</div>
+                      <small className="text-muted">Customer support</small>
+                    </div>
+                  </>
+                ) : otherUser ? (
                   <>
                     <img src={getPhotoUrl(otherUser.profile_photo_url)} alt={otherUser.full_name} style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover" }} />
                     <div>
@@ -409,6 +616,11 @@ export default function Messages() {
                         className={`p-2 px-3 rounded-4 ${mine ? "text-white" : "bg-white border"}`}
                         style={{ maxWidth: "72%", background: mine ? "linear-gradient(135deg,#ff4d6d,#ff8fa3)" : undefined }}
                       >
+                        {supportActive && (
+                          <div className={`small fw-semibold mb-1 ${mine ? "text-white-50" : "text-danger"}`}>
+                            {mine ? "You" : "NouMatch Support"}
+                          </div>
+                        )}
                         {msg.content ? <div className="small">{msg.content}</div> : null}
                         {msg.attachment_url ? (
                           msg.message_type === "video" ? (
@@ -449,7 +661,13 @@ export default function Messages() {
                   </div>
                 )}
                 <form onSubmit={sendMessage} className="d-flex gap-2 align-items-center">
-                  <button type="button" className="btn btn-light rounded-circle" onClick={() => fileInputRef.current?.click()} title={t("messages.attachTitle")}>
+                  <button
+                    type="button"
+                    className="btn btn-light rounded-circle"
+                    onClick={() => fileInputRef.current?.click()}
+                    title={supportActive ? "Attachments are available in match chats" : t("messages.attachTitle")}
+                    disabled={supportActive || !activeConversationId || sending}
+                  >
                     <i className="fas fa-paperclip" />
                   </button>
                   <input
@@ -466,9 +684,9 @@ export default function Messages() {
                     placeholder={t("messages.typePlaceholder")}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
-                    disabled={!activeConversationId || sending}
+                    disabled={!activeThreadId || sending}
                   />
-                  <button className="btn btn-danger rounded-pill px-3" disabled={sending || (!text.trim() && !attachmentFile) || !activeConversationId}>
+                  <button className="btn btn-danger rounded-pill px-3" disabled={sending || (!text.trim() && !attachmentFile) || !activeThreadId}>
                     {sending ? "..." : t("messages.send")}
                   </button>
                 </form>
