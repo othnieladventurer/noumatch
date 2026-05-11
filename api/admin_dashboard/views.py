@@ -39,6 +39,7 @@ from admin_dashboard.models import (
     ProfileImpression,
     ReportCase,
     CaseAssignment,
+    CaseActivityLog,
     NotificationEmailTemplate,
     NotificationEmailLog,
 )
@@ -2115,6 +2116,183 @@ class AdminDeactivateUserView(APIView):
         return Response({'message': f'User {user.email} deactivated'})
 
 
+def _coerce_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+    return bool(value)
+
+
+def _admin_actor_name(user):
+    if not user:
+        return 'System'
+    return f"{user.first_name} {user.last_name}".strip() or user.email
+
+
+def _append_case_activity(case, event_type, title, *, actor=None, detail='', metadata=None):
+    CaseActivityLog.objects.create(
+        case=case,
+        actor=actor,
+        event_type=event_type,
+        title=title[:180],
+        detail=(detail or '').strip(),
+        metadata=metadata or {},
+    )
+
+
+def _sync_report_status_from_case(case):
+    report = case.report
+    target_status = None
+
+    if case.status in {'open', 'in_progress'} and report.status != 'dismissed':
+        target_status = 'investigating'
+    elif case.status in {'resolved', 'closed'} and report.status != 'dismissed':
+        target_status = 'resolved'
+
+    if target_status and report.status != target_status:
+        report.status = target_status
+        report.save(update_fields=['status', 'updated_at'])
+
+
+def _serialize_case_owner(assignment):
+    if not assignment:
+        return None
+    return {
+        'id': assignment.staff_user_id,
+        'email': assignment.staff_user.email,
+        'name': f"{assignment.staff_user.first_name} {assignment.staff_user.last_name}".strip() or assignment.staff_user.email,
+        'assigned_at': assignment.assigned_at,
+    }
+
+
+def _serialize_report_summary(report):
+    cases = list(report.cases.all())
+    active_case = next((case for case in cases if case.status in {'open', 'in_progress'}), None)
+    latest_case = cases[0] if cases else None
+    reference_case = active_case or latest_case
+    active_assignments = []
+    current_owner = None
+
+    if reference_case:
+        active_assignments = [assignment for assignment in list(reference_case.assignments.all()) if assignment.active]
+        current_owner = _serialize_case_owner(active_assignments[0]) if active_assignments else None
+
+    archived = active_case is None and (
+        (reference_case and reference_case.status in {'resolved', 'closed'})
+        or report.status in {'resolved', 'dismissed'}
+    )
+
+    return {
+        'id': report.id,
+        'reporter_email': report.reporter.email,
+        'reporter_name': f"{report.reporter.first_name} {report.reporter.last_name}".strip() or report.reporter.email,
+        'reported_user_email': report.reported_user.email,
+        'reported_user_name': f"{report.reported_user.first_name} {report.reported_user.last_name}".strip() or report.reported_user.email,
+        'reason': report.get_reason_display(),
+        'reason_code': report.reason,
+        'status': report.status,
+        'status_label': report.get_status_display(),
+        'created_at': report.created_at,
+        'description': report.description,
+        'admin_notes': report.admin_notes,
+        'action_taken': report.action_taken,
+        'has_case': bool(cases),
+        'case_count': len(cases),
+        'case_id': reference_case.id if reference_case else None,
+        'active_case_id': active_case.id if active_case else None,
+        'latest_case_status': latest_case.status if latest_case else None,
+        'active_case_status': active_case.status if active_case else None,
+        'current_owner': current_owner,
+        'has_active_case': bool(active_case),
+        'requires_case': report.status in {'pending', 'investigating'} and active_case is None,
+        'is_new': report.status == 'pending' and not cases,
+        'archived': archived,
+    }
+
+
+def _serialize_case_activity_item(activity):
+    return {
+        'id': activity.id,
+        'event_type': activity.event_type,
+        'title': activity.title,
+        'detail': activity.detail,
+        'metadata': activity.metadata or {},
+        'actor_id': activity.actor_id,
+        'actor_name': _admin_actor_name(activity.actor),
+        'created_at': activity.created_at,
+    }
+
+
+def _build_case_activity_timeline(case):
+    stored_activity = list(case.activity_logs.select_related('actor').all())
+    if stored_activity:
+        return [_serialize_case_activity_item(activity) for activity in stored_activity]
+
+    synthetic_items = [{
+        'id': f"fallback-open-{case.id}",
+        'event_type': 'case_opened',
+        'title': 'Case opened',
+        'detail': case.title or '',
+        'metadata': {},
+        'actor_id': case.created_by_id,
+        'actor_name': _admin_actor_name(case.created_by),
+        'created_at': case.created_at,
+    }]
+
+    for assignment in sorted(case.assignments.all(), key=lambda row: row.assigned_at, reverse=True):
+        synthetic_items.append({
+            'id': f"fallback-assignment-{assignment.id}",
+            'event_type': 'owner_assigned' if assignment.active else 'owner_released',
+            'title': f"Assigned to {assignment.staff_user.email}" if assignment.active else f"Released from {assignment.staff_user.email}",
+            'detail': assignment.notes or '',
+            'metadata': {},
+            'actor_id': assignment.assigned_by_id,
+            'actor_name': _admin_actor_name(assignment.assigned_by),
+            'created_at': assignment.assigned_at,
+        })
+
+    if case.action_taken:
+        synthetic_items.append({
+            'id': f"fallback-action-{case.id}",
+            'event_type': 'action_recorded',
+            'title': 'Action recorded',
+            'detail': case.action_taken,
+            'metadata': {},
+            'actor_id': case.created_by_id,
+            'actor_name': _admin_actor_name(case.created_by),
+            'created_at': case.updated_at,
+        })
+
+    if case.final_note:
+        synthetic_items.append({
+            'id': f"fallback-note-{case.id}",
+            'event_type': 'notes_updated',
+            'title': 'Final note added',
+            'detail': case.final_note,
+            'metadata': {},
+            'actor_id': case.created_by_id,
+            'actor_name': _admin_actor_name(case.created_by),
+            'created_at': case.updated_at,
+        })
+
+    if case.closed_at:
+        synthetic_items.append({
+            'id': f"fallback-close-{case.id}",
+            'event_type': 'case_closed',
+            'title': 'Case closed',
+            'detail': case.close_summary or '',
+            'metadata': {},
+            'actor_id': case.created_by_id,
+            'actor_name': _admin_actor_name(case.created_by),
+            'created_at': case.closed_at,
+        })
+
+    return sorted(synthetic_items, key=lambda item: item['created_at'], reverse=True)
+
+
 class AdminReportResolveView(APIView):
     permission_classes = [IsAdminUser]
     def post(self, request):
@@ -2140,7 +2318,16 @@ class AdminReportsListView(APIView):
                 limit = 20
             limit = min(max(limit, 1), 100)
 
-            queryset = Report.objects.select_related('reporter', 'reported_user').order_by('-created_at')
+            case_prefetch = models.Prefetch(
+                'cases',
+                queryset=ReportCase.objects.select_related(
+                    'created_by',
+                ).prefetch_related(
+                    'assignments__staff_user',
+                    'assignments__assigned_by',
+                ).order_by('-created_at'),
+            )
+            queryset = Report.objects.select_related('reporter', 'reported_user').prefetch_related(case_prefetch).order_by('-created_at')
             if not request.user.is_superuser:
                 queryset = queryset.filter(
                     cases__assignments__staff_user=request.user,
@@ -2154,21 +2341,7 @@ class AdminReportsListView(APIView):
             end = start + limit
             reports = queryset[start:end]
 
-            data = []
-            for r in reports:
-                data.append({
-                    'id': r.id,
-                    'reporter_email': r.reporter.email,
-                    'reporter_name': f"{r.reporter.first_name} {r.reporter.last_name}".strip() or r.reporter.email,
-                    'reported_user_email': r.reported_user.email,
-                    'reported_user_name': f"{r.reported_user.first_name} {r.reported_user.last_name}".strip() or r.reported_user.email,
-                    'reason': r.get_reason_display(),
-                    'status': r.status,
-                    'created_at': r.created_at,
-                    'description': r.description,
-                    'admin_notes': r.admin_notes,
-                    'action_taken': r.action_taken,
-                })
+            data = [_serialize_report_summary(report) for report in reports]
 
             return Response({'data': data, 'total': total, 'page': page, 'pages': (total + limit - 1) // limit})
         except DatabaseError as exc:
@@ -2182,12 +2355,57 @@ class AdminReportsListView(APIView):
                 'warning': 'Temporary database connectivity issue while loading reports.',
             }, status=status.HTTP_200_OK)
 
+    def post(self, request):
+        try:
+            reported_user_id = request.data.get('reported_user_id')
+            reason = (request.data.get('reason') or '').strip()
+            description = (request.data.get('description') or '').strip()
+            if not reported_user_id or not reason:
+                return Response({'error': 'reported_user_id and reason are required'}, status=400)
+
+            reported_user = get_object_or_404(User, id=reported_user_id)
+            reporter_id = request.data.get('reporter_id')
+            if reporter_id and request.user.is_superuser:
+                reporter = get_object_or_404(User, id=reporter_id)
+            else:
+                reporter = request.user
+
+            if reason not in dict(Report.REPORT_REASONS):
+                return Response({'error': 'Invalid report reason'}, status=400)
+
+            report = Report.objects.create(
+                reporter=reporter,
+                reported_user=reported_user,
+                match_id=request.data.get('match_id') or None,
+                reason=reason,
+                description=description,
+                status=(request.data.get('status') or 'pending').strip() or 'pending',
+                admin_notes=(request.data.get('admin_notes') or '').strip(),
+                action_taken=(request.data.get('action_taken') or '').strip(),
+            )
+            return Response({'success': True, 'report': _serialize_report_summary(report)}, status=201)
+        except DatabaseError as exc:
+            logger.exception("AdminReportsListView create database error: %s", exc)
+            return Response({'error': 'Temporary database issue while creating report.'}, status=503)
+
 
 class AdminReportDetailView(APIView):
     permission_classes = [IsAdminUser]
     def get(self, request, pk):
         try:
-            report = get_object_or_404(Report.objects.select_related('reporter', 'reported_user'), pk=pk)
+            case_prefetch = models.Prefetch(
+                'cases',
+                queryset=ReportCase.objects.select_related(
+                    'created_by',
+                ).prefetch_related(
+                    'assignments__staff_user',
+                    'assignments__assigned_by',
+                ).order_by('-created_at'),
+            )
+            report = get_object_or_404(
+                Report.objects.select_related('reporter', 'reported_user').prefetch_related(case_prefetch),
+                pk=pk,
+            )
             if not request.user.is_superuser:
                 has_access = CaseAssignment.objects.filter(
                     case__report=report,
@@ -2196,24 +2414,77 @@ class AdminReportDetailView(APIView):
                 ).exists()
                 if not has_access:
                     return Response({'error': 'Not allowed for this report'}, status=403)
-            return Response({
-                'id': report.id,
-                'reporter_email': report.reporter.email,
-                'reporter_name': f"{report.reporter.first_name} {report.reporter.last_name}".strip() or report.reporter.email,
-                'reported_user_email': report.reported_user.email,
-                'reported_user_name': f"{report.reported_user.first_name} {report.reported_user.last_name}".strip() or report.reported_user.email,
-                'reason': report.get_reason_display(),
-                'status': report.status,
-                'created_at': report.created_at,
-                'description': report.description,
-                'admin_notes': report.admin_notes,
-                'action_taken': report.action_taken,
+            summary = _serialize_report_summary(report)
+            summary.update({
                 'screenshot': report.screenshot.url if report.screenshot else None,
                 'match_id': report.match_id,
             })
+            return Response(summary)
         except DatabaseError as exc:
             logger.exception("AdminReportDetailView database error: %s", exc)
             return Response({'error': 'Temporary database issue while loading report detail.'}, status=503)
+
+    def patch(self, request, pk):
+        try:
+            report = get_object_or_404(Report, pk=pk)
+            payload = request.data
+
+            if 'reported_user_id' in payload:
+                report.reported_user = get_object_or_404(User, id=payload.get('reported_user_id'))
+            if 'reporter_id' in payload and request.user.is_superuser:
+                report.reporter = get_object_or_404(User, id=payload.get('reporter_id'))
+
+            if 'reason' in payload:
+                next_reason = (payload.get('reason') or '').strip()
+                if next_reason not in dict(Report.REPORT_REASONS):
+                    return Response({'error': 'Invalid report reason'}, status=400)
+                report.reason = next_reason
+
+            if 'description' in payload:
+                report.description = (payload.get('description') or '').strip()
+            if 'admin_notes' in payload:
+                report.admin_notes = (payload.get('admin_notes') or '').strip()
+            if 'action_taken' in payload:
+                report.action_taken = (payload.get('action_taken') or '').strip()
+            if 'status' in payload:
+                next_status = (payload.get('status') or '').strip()
+                if next_status not in dict(Report.REPORT_STATUS):
+                    return Response({'error': 'Invalid report status'}, status=400)
+                report.status = next_status
+
+            report.save()
+            refreshed = Report.objects.select_related('reporter', 'reported_user').prefetch_related(
+                models.Prefetch(
+                    'cases',
+                    queryset=ReportCase.objects.select_related('created_by').prefetch_related(
+                        'assignments__staff_user',
+                        'assignments__assigned_by',
+                    ).order_by('-created_at'),
+                )
+            ).get(id=report.id)
+            summary = _serialize_report_summary(refreshed)
+            summary.update({
+                'screenshot': refreshed.screenshot.url if refreshed.screenshot else None,
+                'match_id': refreshed.match_id,
+            })
+            return Response({'success': True, 'report': summary})
+        except DatabaseError as exc:
+            logger.exception("AdminReportDetailView update database error: %s", exc)
+            return Response({'error': 'Temporary database issue while updating report.'}, status=503)
+
+    def delete(self, request, pk):
+        try:
+            report = get_object_or_404(Report, pk=pk)
+            linked_case_ids = list(ReportCase.objects.filter(report=report).values_list('id', flat=True))
+            if linked_case_ids:
+                CaseActivityLog.objects.filter(case_id__in=linked_case_ids).delete()
+                CaseAssignment.objects.filter(case_id__in=linked_case_ids).delete()
+                ReportCase.objects.filter(id__in=linked_case_ids).delete()
+            report.delete()
+            return Response({'success': True})
+        except DatabaseError as exc:
+            logger.exception("AdminReportDetailView delete database error: %s", exc)
+            return Response({'error': 'Temporary database issue while deleting report.'}, status=503)
 
 
 class AdminUpdateReportStatusView(APIView):
@@ -2262,6 +2533,7 @@ def _serialize_report_case(case):
         assignment for assignment in list(case.assignments.all())
         if assignment.active
     ]
+    current_owner = _serialize_case_owner(active_assignments[0]) if active_assignments else None
     return {
         'id': case.id,
         'report_id': case.report_id,
@@ -2287,6 +2559,9 @@ def _serialize_report_case(case):
         'created_at': case.created_at,
         'updated_at': case.updated_at,
         'assignments_count': len(active_assignments),
+        'current_owner': current_owner,
+        'report_status': case.report.status if case.report_id else None,
+        'archived': case.status in {'resolved', 'closed'} or (case.report.status in {'resolved', 'dismissed'} if case.report_id else False),
         'assigned_staff': [
             {
                 'id': assignment.staff_user_id,
@@ -2304,9 +2579,12 @@ class AdminReportCasesView(APIView):
     def get(self, request):
         try:
             report_id = request.GET.get('report_id')
+            status_filter = (request.GET.get('status') or '').strip().lower()
             qs = _report_case_queryset_for_user(request.user)
             if report_id:
                 qs = qs.filter(report_id=report_id)
+            if status_filter and status_filter != 'all':
+                qs = qs.filter(status=status_filter)
             data = [_serialize_report_case(case) for case in qs[:200]]
             return Response({'data': data})
         except DatabaseError as exc:
@@ -2318,27 +2596,105 @@ class AdminReportCasesView(APIView):
             }, status=status.HTTP_200_OK)
 
     def post(self, request):
-        if not request.user.is_superuser:
-            return Response({'error': 'Only superuser can create cases'}, status=403)
         try:
             report_id = request.data.get('report_id')
             title = (request.data.get('title') or '').strip()
             if not report_id or not title:
                 return Response({'error': 'report_id and title are required'}, status=400)
             report = get_object_or_404(Report, id=report_id)
-            case = ReportCase.objects.create(
-                report=report,
-                title=title,
-                description=(request.data.get('description') or '').strip(),
-                status=(request.data.get('status') or 'open').strip(),
-                priority=(request.data.get('priority') or 'medium').strip(),
-                department=(request.data.get('department') or 'safety').strip(),
-                final_note=(request.data.get('final_note') or '').strip(),
-                action_taken=(request.data.get('action_taken') or '').strip(),
-                close_summary=(request.data.get('close_summary') or '').strip(),
-                created_by=request.user,
-                due_at=request.data.get('due_at') or None,
-            )
+            existing_active_case = ReportCase.objects.filter(report=report, status__in={'open', 'in_progress'}).order_by('-created_at').first()
+            if existing_active_case:
+                return Response({'error': 'This report already has an active case.'}, status=400)
+
+            status_value = (request.data.get('status') or 'open').strip() or 'open'
+            closed_at = timezone.now() if status_value in {'resolved', 'closed'} else None
+            staff_user_id = request.data.get('staff_user_id')
+            assignment_notes = (request.data.get('assignment_notes') or '').strip()
+
+            if request.user.is_superuser:
+                owner_user = get_object_or_404(User, id=staff_user_id, is_staff=True) if staff_user_id else request.user
+            else:
+                owner_user = request.user
+
+            with transaction.atomic():
+                case = ReportCase.objects.create(
+                    report=report,
+                    title=title,
+                    description=(request.data.get('description') or '').strip(),
+                    status=status_value,
+                    priority=(request.data.get('priority') or 'medium').strip(),
+                    department=(request.data.get('department') or 'safety').strip(),
+                    final_note=(request.data.get('final_note') or '').strip(),
+                    action_taken=(request.data.get('action_taken') or '').strip(),
+                    close_summary=(request.data.get('close_summary') or '').strip(),
+                    created_by=request.user,
+                    due_at=request.data.get('due_at') or None,
+                    closed_at=closed_at,
+                )
+                _append_case_activity(
+                    case,
+                    'case_opened',
+                    f"Case opened for report #{report.id}",
+                    actor=request.user,
+                    detail=case.description or case.title,
+                )
+
+                if owner_user:
+                    assignment = CaseAssignment.objects.create(
+                        case=case,
+                        staff_user=owner_user,
+                        assigned_by=request.user,
+                        notes=assignment_notes,
+                        active=True,
+                    )
+                    _append_case_activity(
+                        case,
+                        'owner_assigned',
+                        f"Assigned to {_admin_actor_name(owner_user)}",
+                        actor=request.user,
+                        detail=assignment.notes,
+                        metadata={'assignment_id': assignment.id, 'staff_user_id': owner_user.id},
+                    )
+
+                if case.action_taken:
+                    _append_case_activity(
+                        case,
+                        'action_recorded',
+                        'Action recorded',
+                        actor=request.user,
+                        detail=case.action_taken,
+                    )
+
+                if case.final_note:
+                    _append_case_activity(
+                        case,
+                        'notes_updated',
+                        'Final note added',
+                        actor=request.user,
+                        detail=case.final_note,
+                    )
+
+                if case.close_summary:
+                    _append_case_activity(
+                        case,
+                        'closure_updated',
+                        'Closure summary added',
+                        actor=request.user,
+                        detail=case.close_summary,
+                    )
+
+                if case.status in {'resolved', 'closed'}:
+                    _append_case_activity(
+                        case,
+                        'case_closed',
+                        f"Case moved to {case.get_status_display()}",
+                        actor=request.user,
+                        detail=case.close_summary or case.final_note,
+                    )
+
+                _sync_report_status_from_case(case)
+
+            case = _report_case_queryset_for_user(request.user).get(id=case.id)
             return Response({'success': True, 'id': case.id, 'case': _serialize_report_case(case)}, status=201)
         except DatabaseError as exc:
             logger.exception("AdminReportCasesView create database error: %s", exc)
@@ -2350,32 +2706,138 @@ class AdminReportCaseDetailView(APIView):
 
     def patch(self, request, case_id):
         try:
-            case = get_object_or_404(ReportCase, id=case_id)
+            case = get_object_or_404(
+                ReportCase.objects.select_related('report', 'created_by'),
+                id=case_id,
+            )
             if not request.user.is_superuser and not CaseAssignment.objects.filter(case=case, staff_user=request.user, active=True).exists():
                 return Response({'error': 'Not allowed for this case'}, status=403)
             payload = request.data
+            field_changes = {}
+
             for field in ['title', 'description', 'status', 'priority', 'department']:
                 if field in payload:
-                    setattr(case, field, (payload.get(field) or '').strip())
+                    next_value = (payload.get(field) or '').strip()
+                    if getattr(case, field) != next_value:
+                        field_changes[field] = (getattr(case, field), next_value)
+                        setattr(case, field, next_value)
             for field in ['final_note', 'action_taken', 'close_summary']:
                 if field in payload:
-                    setattr(case, field, (payload.get(field) or '').strip())
+                    next_value = (payload.get(field) or '').strip()
+                    if getattr(case, field) != next_value:
+                        field_changes[field] = (getattr(case, field), next_value)
+                        setattr(case, field, next_value)
             if 'due_at' in payload:
-                case.due_at = payload.get('due_at') or None
+                next_due_at = payload.get('due_at') or None
+                if case.due_at != next_due_at:
+                    field_changes['due_at'] = (case.due_at, next_due_at)
+                    case.due_at = next_due_at
+
             if case.status in {'resolved', 'closed'} and case.closed_at is None:
                 case.closed_at = timezone.now()
             if case.status not in {'resolved', 'closed'}:
                 case.closed_at = None
-            case.save()
+
+            with transaction.atomic():
+                case.save()
+
+                if 'status' in field_changes:
+                    old_status, new_status = field_changes['status']
+                    if old_status in {'resolved', 'closed'} and new_status not in {'resolved', 'closed'}:
+                        _append_case_activity(
+                            case,
+                            'case_reopened',
+                            f"Reopened as {case.get_status_display()}",
+                            actor=request.user,
+                        )
+                    elif new_status in {'resolved', 'closed'}:
+                        _append_case_activity(
+                            case,
+                            'case_closed',
+                            f"Case moved to {case.get_status_display()}",
+                            actor=request.user,
+                            detail=case.close_summary or case.final_note,
+                        )
+                    else:
+                        previous_label = dict(ReportCase.STATUS_CHOICES).get(old_status, old_status)
+                        _append_case_activity(
+                            case,
+                            'status_changed',
+                            f"Status changed to {case.get_status_display()}",
+                            actor=request.user,
+                            detail=f"From {previous_label}",
+                        )
+
+                if 'description' in field_changes and case.description:
+                    _append_case_activity(
+                        case,
+                        'notes_updated',
+                        'Investigation notes updated',
+                        actor=request.user,
+                        detail=case.description,
+                    )
+
+                if 'final_note' in field_changes and case.final_note:
+                    _append_case_activity(
+                        case,
+                        'notes_updated',
+                        'Final note updated',
+                        actor=request.user,
+                        detail=case.final_note,
+                    )
+
+                if 'action_taken' in field_changes and case.action_taken:
+                    _append_case_activity(
+                        case,
+                        'action_recorded',
+                        'Action updated',
+                        actor=request.user,
+                        detail=case.action_taken,
+                    )
+
+                if 'close_summary' in field_changes and case.close_summary:
+                    _append_case_activity(
+                        case,
+                        'closure_updated',
+                        'Closure summary updated',
+                        actor=request.user,
+                        detail=case.close_summary,
+                    )
+
+                if any(field in field_changes for field in ['priority', 'department', 'title', 'due_at']):
+                    detail_parts = []
+                    if 'priority' in field_changes:
+                        detail_parts.append(f"Priority: {field_changes['priority'][0]} -> {field_changes['priority'][1]}")
+                    if 'department' in field_changes:
+                        detail_parts.append(f"Department: {field_changes['department'][0]} -> {field_changes['department'][1]}")
+                    if 'title' in field_changes:
+                        detail_parts.append('Case title updated')
+                    if 'due_at' in field_changes:
+                        detail_parts.append('Due date updated')
+                    _append_case_activity(
+                        case,
+                        'notes_updated',
+                        'Case details updated',
+                        actor=request.user,
+                        detail=' | '.join(detail_parts),
+                    )
+
+                _sync_report_status_from_case(case)
+
+            case = _report_case_queryset_for_user(request.user).get(id=case.id)
             return Response({'success': True, 'case': _serialize_report_case(case)})
         except DatabaseError as exc:
             logger.exception("AdminReportCaseDetailView update database error: %s", exc)
             return Response({'error': 'Temporary database issue while updating case.'}, status=503)
 
     def delete(self, request, case_id):
-        if not request.user.is_superuser:
-            return Response({'error': 'Only superuser can delete cases'}, status=403)
         case = get_object_or_404(ReportCase, id=case_id)
+        if not request.user.is_superuser:
+          allowed = case.created_by_id == request.user.id or CaseAssignment.objects.filter(case=case, staff_user=request.user, active=True).exists()
+          if not allowed:
+              return Response({'error': 'Not allowed for this case'}, status=403)
+        CaseActivityLog.objects.filter(case=case).delete()
+        CaseAssignment.objects.filter(case=case).delete()
         case.delete()
         return Response({'success': True})
 
@@ -2410,18 +2872,42 @@ class AdminCaseAssignmentsView(APIView):
     def post(self, request, case_id):
         if not request.user.is_superuser:
             return Response({'error': 'Only superuser can assign cases'}, status=403)
-        case = get_object_or_404(ReportCase, id=case_id)
+        case = get_object_or_404(ReportCase.objects.select_related('report'), id=case_id)
         staff_user_id = request.data.get('staff_user_id')
         if not staff_user_id:
             return Response({'error': 'staff_user_id is required'}, status=400)
         staff_user = get_object_or_404(User, id=staff_user_id, is_staff=True)
-        assignment = CaseAssignment.objects.create(
-            case=case,
-            staff_user=staff_user,
-            assigned_by=request.user,
-            notes=(request.data.get('notes') or '').strip(),
-            active=bool(request.data.get('active', True)),
-        )
+        assignment_active = _coerce_bool(request.data.get('active'), True)
+        assignment_notes = (request.data.get('notes') or '').strip()
+
+        with transaction.atomic():
+            previous_active_assignments = list(
+                CaseAssignment.objects.filter(case=case, active=True).select_related('staff_user')
+            )
+            if assignment_active:
+                CaseAssignment.objects.filter(case=case, active=True).update(active=False)
+            assignment = CaseAssignment.objects.create(
+                case=case,
+                staff_user=staff_user,
+                assigned_by=request.user,
+                notes=assignment_notes,
+                active=assignment_active,
+            )
+
+            if assignment_active:
+                previous_active_owner = previous_active_assignments[0] if previous_active_assignments else None
+                event_type = 'owner_reassigned' if previous_active_owner and previous_active_owner.staff_user_id != staff_user.id else 'owner_assigned'
+                title = f"Assigned to {_admin_actor_name(staff_user)}"
+                if event_type == 'owner_reassigned':
+                    title = f"Reassigned to {_admin_actor_name(staff_user)}"
+                _append_case_activity(
+                    case,
+                    event_type,
+                    title,
+                    actor=request.user,
+                    detail=assignment.notes,
+                    metadata={'assignment_id': assignment.id, 'staff_user_id': staff_user.id},
+                )
         return Response({'success': True, 'id': assignment.id}, status=201)
 
 
@@ -2429,28 +2915,98 @@ class AdminCaseAssignmentDetailView(APIView):
     permission_classes = [IsAdminUser]
 
     def patch(self, request, assignment_id):
-        assignment = get_object_or_404(CaseAssignment, id=assignment_id)
+        assignment = get_object_or_404(CaseAssignment.objects.select_related('case', 'staff_user'), id=assignment_id)
         if not request.user.is_superuser and assignment.staff_user_id != request.user.id:
             return Response({'error': 'Not allowed for this assignment'}, status=403)
         payload = request.data
+        previous_staff = assignment.staff_user
+        previous_active = assignment.active
+        previous_notes = assignment.notes
         if 'notes' in payload:
             assignment.notes = (payload.get('notes') or '').strip()
         if 'active' in payload:
-            assignment.active = bool(payload.get('active'))
+            assignment.active = _coerce_bool(payload.get('active'))
         if 'staff_user_id' in payload:
             if not request.user.is_superuser:
                 return Response({'error': 'Only superuser can reassign'}, status=403)
             reassigned = get_object_or_404(User, id=payload.get('staff_user_id'), is_staff=True)
             assignment.staff_user = reassigned
-        assignment.save()
+        with transaction.atomic():
+            if assignment.active:
+                CaseAssignment.objects.filter(case=assignment.case, active=True).exclude(id=assignment.id).update(active=False)
+            assignment.save()
+
+            if previous_staff.id != assignment.staff_user_id or (not previous_active and assignment.active):
+                event_type = 'owner_reassigned' if previous_staff.id != assignment.staff_user_id else 'owner_assigned'
+                title = f"Assigned to {_admin_actor_name(assignment.staff_user)}"
+                if event_type == 'owner_reassigned':
+                    title = f"Reassigned to {_admin_actor_name(assignment.staff_user)}"
+                _append_case_activity(
+                    assignment.case,
+                    event_type,
+                    title,
+                    actor=request.user,
+                    detail=assignment.notes,
+                    metadata={'assignment_id': assignment.id, 'staff_user_id': assignment.staff_user_id},
+                )
+            elif previous_active and not assignment.active:
+                _append_case_activity(
+                    assignment.case,
+                    'owner_released',
+                    f"Released {_admin_actor_name(previous_staff)}",
+                    actor=request.user,
+                    detail=assignment.notes,
+                    metadata={'assignment_id': assignment.id, 'staff_user_id': previous_staff.id},
+                )
+            elif previous_notes != assignment.notes and assignment.notes:
+                _append_case_activity(
+                    assignment.case,
+                    'notes_updated',
+                    'Assignment note updated',
+                    actor=request.user,
+                    detail=assignment.notes,
+                    metadata={'assignment_id': assignment.id, 'staff_user_id': assignment.staff_user_id},
+                )
         return Response({'success': True})
 
     def delete(self, request, assignment_id):
         if not request.user.is_superuser:
             return Response({'error': 'Only superuser can delete assignments'}, status=403)
-        assignment = get_object_or_404(CaseAssignment, id=assignment_id)
+        assignment = get_object_or_404(CaseAssignment.objects.select_related('case', 'staff_user'), id=assignment_id)
+        _append_case_activity(
+            assignment.case,
+            'owner_released',
+            f"Removed {_admin_actor_name(assignment.staff_user)}",
+            actor=request.user,
+            detail=assignment.notes,
+            metadata={'assignment_id': assignment.id, 'staff_user_id': assignment.staff_user_id},
+        )
         assignment.delete()
         return Response({'success': True})
+
+
+class AdminCaseActivityView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, case_id):
+        try:
+            case = get_object_or_404(
+                ReportCase.objects.select_related('created_by').prefetch_related(
+                    'assignments__staff_user',
+                    'assignments__assigned_by',
+                    'activity_logs__actor',
+                ),
+                id=case_id,
+            )
+            if not request.user.is_superuser and not CaseAssignment.objects.filter(case=case, staff_user=request.user, active=True).exists():
+                return Response({'error': 'Not allowed for this case'}, status=403)
+            return Response({'data': _build_case_activity_timeline(case)})
+        except DatabaseError as exc:
+            logger.exception("AdminCaseActivityView database error: %s", exc)
+            return Response({
+                'data': [],
+                'warning': 'Temporary database issue while loading case activity.',
+            }, status=status.HTTP_200_OK)
 
 
 # ---------- Support & Messaging ----------

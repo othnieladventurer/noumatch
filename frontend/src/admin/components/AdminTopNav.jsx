@@ -57,8 +57,8 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
     const path = location.pathname;
     if (path.includes('/admin/users/detail/')) return 'User Detail';
     if (path.includes('/admin/users')) return 'User Management';
-    if (path.includes('/admin/reports/cases')) return 'Case Management';
-    if (path.includes('/admin/reports')) return 'Reports';
+    if (path.includes('/admin/reports/cases')) return 'Reports Workspace';
+    if (path.includes('/admin/reports')) return 'Reports Workspace';
     if (path.includes('/admin/swipe-stats')) return 'Swipe Analytics';
     if (path.includes('/admin/messages/support/')) return 'Support Conversation';
     if (path.includes('/admin/messages/user/')) return 'User Conversation';

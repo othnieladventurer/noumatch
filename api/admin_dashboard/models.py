@@ -107,6 +107,45 @@ class CaseAssignment(models.Model):
         return f"Assignment #{self.id} case #{self.case_id} -> {self.staff_user_id}"
 
 
+class CaseActivityLog(models.Model):
+    EVENT_CHOICES = [
+        ("case_opened", "Case Opened"),
+        ("owner_assigned", "Owner Assigned"),
+        ("owner_reassigned", "Owner Reassigned"),
+        ("owner_released", "Owner Released"),
+        ("status_changed", "Status Changed"),
+        ("notes_updated", "Notes Updated"),
+        ("action_recorded", "Action Recorded"),
+        ("closure_updated", "Closure Updated"),
+        ("case_closed", "Case Closed"),
+        ("case_reopened", "Case Reopened"),
+    ]
+
+    case = models.ForeignKey(ReportCase, on_delete=models.CASCADE, related_name="activity_logs")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="case_activity_logs",
+    )
+    event_type = models.CharField(max_length=40, choices=EVENT_CHOICES)
+    title = models.CharField(max_length=180)
+    detail = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["case", "-created_at"], name="adm_case_act_idx"),
+            models.Index(fields=["event_type", "-created_at"], name="adm_case_evt_idx"),
+        ]
+
+    def __str__(self):
+        return f"Case activity #{self.id} for case #{self.case_id}"
+
+
 class NotificationEmailTemplate(models.Model):
     EVENT_CHOICES = [
         ("new_like", "New Like"),

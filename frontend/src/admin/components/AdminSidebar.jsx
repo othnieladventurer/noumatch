@@ -5,7 +5,6 @@ import BrandLogo from '../../components/BrandLogo';
 
 const getMenuFromPath = (path) => {
   if (path.includes('/admin/users')) return 'users';
-  if (path.includes('/admin/reports/cases')) return 'report-cases';
   if (path.includes('/admin/reports')) return 'reports';
   if (path.includes('/admin/swipe-stats')) return 'swipe-stats';
   if (path.includes('/admin/messages')) return 'messages';
@@ -43,8 +42,7 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     { key: 'dashboard', label: 'Dashboard', icon: 'fas fa-tachometer-alt', path: '/admin/dashboard' },
     { key: 'users', label: 'User Management', icon: 'fas fa-users', path: '/admin/users' },
     { key: 'waitlist', label: 'Waitlist', icon: 'fas fa-clipboard-list', path: '/admin/waitlist' }, // NEW
-    { key: 'reports', label: 'Reports', icon: 'fas fa-flag', path: '/admin/reports' },
-    { key: 'report-cases', label: 'Cases', icon: 'fas fa-briefcase', path: '/admin/reports/cases' },
+    { key: 'reports', label: 'Reports Desk', icon: 'fas fa-flag', path: '/admin/reports' },
     { key: 'swipe-stats', label: 'Swipe Stats', icon: 'fas fa-chart-line', path: '/admin/swipe-stats' },
     { key: 'messages', label: 'Messages', icon: 'fas fa-comment-dots', path: '/admin/messages' },
     { key: 'email-notifications', label: 'Email Notifications', icon: 'fas fa-envelope-open-text', path: '/admin/notifications/email' },
