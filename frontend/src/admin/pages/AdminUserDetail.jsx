@@ -317,14 +317,51 @@ export default function AdminUserDetail() {
       helper: safeUser.photo_review_required ? 'Photo blocked' : 'Ready',
     },
   ];
+  const profileFactItems = [
+    { label: 'Gender', value: formatGender(safeUser.gender) },
+    { label: 'Age', value: safeUser.age || 'N/A' },
+    { label: 'Type', value: safeUser.account_type || 'free', capitalize: true },
+    { label: 'Joined', value: joinedLabel },
+    { label: 'Last active', value: lastActiveLabel },
+    { label: 'Location', value: profileLocation, wide: true },
+  ];
+  const scoreDetailItems = [
+    { label: 'Overall', value: safeUser.score?.overall_score || 0, helper: 'Composite' },
+    { label: 'Trust', value: safeUser.score?.trust_score || 0, helper: 'Safety' },
+    { label: 'Engagement', value: safeUser.score?.engagement_score || 0, helper: 'Interest' },
+    { label: 'Completion', value: `${safeUser.score?.profile_completion_percent || 0}%`, helper: 'Profile' },
+    { label: 'Onboarding', value: safeUser.score?.onboarding_points || 0, helper: 'Start' },
+    { label: 'Activity', value: safeUser.score?.activity_points || 0, helper: 'Actions' },
+    { label: 'Quality', value: safeUser.score?.quality_points || 0, helper: 'Signals' },
+    { label: 'Penalties', value: safeUser.score?.penalty_points || 0, helper: 'Flags' },
+  ];
+  const activitySnapshotItems = [
+    { label: 'Likes', value: safeUser.stats?.total_likes_given || 0, tone: 'rose' },
+    { label: 'Matches', value: safeUser.stats?.total_matches || 0, tone: 'teal' },
+    { label: 'Sent', value: safeUser.stats?.total_messages_sent || 0, tone: 'blue' },
+    { label: 'Received', value: safeUser.stats?.total_messages_received || 0, tone: 'sky' },
+    { label: 'Reports', value: safeUser.stats?.total_reports_received || 0, tone: 'amber' },
+  ];
+  const behaviorSnapshotFacts = [
+    { label: 'Active matches', value: safeUser.stats?.active_matches || 0 },
+    { label: 'Blocks received', value: safeUser.stats?.total_blocks_received || 0 },
+    { label: 'Reports filed', value: safeUser.stats?.total_reports_filed || 0 },
+    { label: 'Account age', value: `${safeUser.stats?.account_age_days || 0}d` },
+  ];
+  const maxActivitySnapshotValue = Math.max(1, ...activitySnapshotItems.map((item) => Number(item.value) || 0));
   const bioPresent = Boolean((safeUser.bio || '').trim());
   const bioNeedsReview = Boolean(safeUser.bio_review_required);
+  const mediaPhotos = safeUser.photos?.length
+    ? safeUser.photos
+    : safeUser.profile_photo_url
+      ? [{ id: 'main', image_url: safeUser.profile_photo_url }]
+      : [];
   const profileRequestItems = [
     {
       title: safeUser.photo_review_required ? 'Photo requirement is active' : 'Request a new profile photo',
       description: safeUser.photo_review_required
         ? `Triggered ${safeUser.photo_review_trigger_count || 1} time(s).`
-        : 'Ask for a new photo.',
+        : 'Request replacement.',
       actionLabel: safeUser.photo_review_required ? (photoReviewLoading ? 'Updating...' : 'Clear photo requirement') : (photoReviewLoading ? 'Updating...' : 'Request photo update'),
       actionTone: safeUser.photo_review_required ? 'btn-success' : 'btn-warning',
       icon: safeUser.photo_review_required ? 'fas fa-camera-retro' : 'fas fa-camera',
@@ -336,8 +373,8 @@ export default function AdminUserDetail() {
       description: bioNeedsReview
         ? `Triggered ${safeUser.bio_review_trigger_count || 1} time(s).`
         : bioPresent
-          ? 'Ask for a clearer bio.'
-          : 'Ask the user to add a bio.',
+          ? 'Request rewrite.'
+          : 'Request missing bio.',
       actionLabel: bioNeedsReview ? (bioReviewLoading ? 'Updating...' : 'Clear bio requirement') : (bioReviewLoading ? 'Updating...' : 'Request bio update'),
       actionTone: bioNeedsReview ? 'btn-success' : 'btn-outline-secondary',
       icon: 'fas fa-pen-to-square',
@@ -348,7 +385,7 @@ export default function AdminUserDetail() {
   const reachControlItems = [
     {
       title: 'Boost visibility',
-      description: 'Increase reach.',
+      description: 'Raise reach.',
       actionLabel: 'Boost now',
       actionTone: 'btn-outline-success',
       icon: 'fas fa-rocket',
@@ -449,22 +486,6 @@ export default function AdminUserDetail() {
       },
     ],
   }), [safeUser.score?.engagement_score, safeUser.score?.quality_score, safeUser.score?.trust_score]);
-  const activityBarData = useMemo(() => ({
-    labels: ['Likes', 'Matches', 'Sent', 'Received', 'Reports'],
-    datasets: [
-      {
-        data: [
-          safeUser.stats?.total_likes_given || 0,
-          safeUser.stats?.total_matches || 0,
-          safeUser.stats?.total_messages_sent || 0,
-          safeUser.stats?.total_messages_received || 0,
-          safeUser.stats?.total_reports_received || 0,
-        ],
-        backgroundColor: ['#f43f5e', '#14b8a6', '#2563eb', '#0ea5e9', '#f59e0b'],
-        borderRadius: 10,
-      },
-    ],
-  }), [safeUser.stats]);
   const scoreRingOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -495,26 +516,13 @@ export default function AdminUserDetail() {
       },
     },
   }), [chartGridColor, chartTextColor]);
-  const activityBarOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: { enabled: true },
-    },
-    scales: {
-      x: {
-        grid: { display: false },
-        ticks: { color: chartTextColor },
-      },
-      y: {
-        beginAtZero: true,
-        grid: { color: chartGridColor },
-        ticks: { color: chartTextColor, precision: 0 },
-      },
-    },
-  }), [chartGridColor, chartTextColor]);
-
+  const renderSectionEmptyState = (title, copy) => (
+    <div className="user-ops-empty user-ops-empty-state">
+      <i className="fas fa-inbox"></i>
+      <strong>{title}</strong>
+      <p>{copy}</p>
+    </div>
+  );
   if (loading) {
     return (
       <div className="d-flex justify-content-center align-items-center vh-100">
@@ -557,6 +565,15 @@ export default function AdminUserDetail() {
                   {user.is_verified ? <span className="badge bg-info px-3 py-2">Verified</span> : <span className="badge bg-warning text-dark px-3 py-2">Unverified</span>}
                   <span className={`badge ${user.is_active ? 'bg-success' : 'bg-secondary'} px-3 py-2`}>{accountStateLabel}</span>
                 </div>
+                <div className="user-ops-status-strip">
+                  {reviewHighlights.map((item) => (
+                    <div key={item.label} className="user-ops-status-chip">
+                      <span>{item.label}</span>
+                      <strong>{item.value}</strong>
+                      <small>{item.helper}</small>
+                    </div>
+                  ))}
+                </div>
                 {user.photo_review_required && (
                   <div className="user-ops-inline-alert">
                     Photo update required #{user.photo_review_trigger_count || 1}
@@ -567,27 +584,11 @@ export default function AdminUserDetail() {
                     Bio update required #{user.bio_review_trigger_count || 1}
                   </div>
                 )}
-                <div className="user-ops-facts">
-                  <div><span>Gender</span><strong>{formatGender(user.gender)}</strong></div>
-                  <div><span>Age</span><strong>{user.age || 'N/A'}</strong></div>
-                  <div><span>Account type</span><strong className="text-capitalize">{user.account_type || 'free'}</strong></div>
-                  <div><span>Joined</span><strong>{joinedLabel}</strong></div>
-                  <div><span>Last active</span><strong>{lastActiveLabel}</strong></div>
-                  <div><span>Location</span><strong>{profileLocation}</strong></div>
-                </div>
-              </div>
-
-              <div className="user-ops-panel">
-                <div className="user-ops-section-head">
-                  <span className="user-ops-kicker">Quick status</span>
-                  <h3>At a glance</h3>
-                </div>
-                <div className="user-ops-summary-list">
-                  {reviewHighlights.map((item) => (
-                    <div key={item.label} className="user-ops-summary-item">
+                <div className="user-ops-fact-grid">
+                  {profileFactItems.map((item) => (
+                    <div key={item.label} className={`user-ops-fact-card ${item.wide ? 'wide' : ''}`}>
                       <span>{item.label}</span>
-                      <strong>{item.value}</strong>
-                      <p>{item.helper}</p>
+                      <strong className={item.capitalize ? 'text-capitalize' : ''}>{item.value}</strong>
                     </div>
                   ))}
                 </div>
@@ -647,24 +648,28 @@ export default function AdminUserDetail() {
               <div className="user-ops-panel">
                 <div className="user-ops-section-head">
                   <span className="user-ops-kicker">Profile</span>
-                  <h3>Identity and media</h3>
+                  <h3>Profile overview</h3>
                 </div>
                 <div className="user-ops-detail-grid">
                   <div className="user-ops-detail-card">
-                    <h4>Profile details</h4>
-                    <div className="user-ops-definition-grid">
+                    <div className="user-ops-detail-head">
+                      <h4>Profile</h4>
+                      <span className="user-ops-detail-badge subtle">{user.profile_score !== undefined ? `${user.profile_score}% score` : 'No score'}</span>
+                    </div>
+                    <div className="user-ops-definition-grid compact">
                       <div><span>Full name</span><strong>{user.full_name}</strong></div>
                       <div><span>Email</span><strong>{maskEmail(user.email)}</strong></div>
-                      <div><span>Profile score</span><strong>{user.profile_score !== undefined ? `${user.profile_score}%` : 'N/A'}</strong></div>
+                      <div><span>Username</span><strong>{user.username || 'N/A'}</strong></div>
                       <div><span>Location</span><strong>{profileLocation}</strong></div>
                     </div>
-                    <div className="user-ops-bio-card">
+                    <div className="user-ops-bio-card compact">
                       <span>Bio</span>
                       <p>{user.bio || 'No bio on file for this user yet.'}</p>
                     </div>
                     {user.bio_review_reason && (
-                      <div className="alert alert-secondary mt-3 mb-0">
-                        <strong>Bio review reason:</strong> {user.bio_review_reason}
+                      <div className="user-ops-note-card tone-info">
+                        <span>Bio review note</span>
+                        <p>{user.bio_review_reason}</p>
                       </div>
                     )}
                     {user.latitude && user.longitude && (
@@ -681,7 +686,7 @@ export default function AdminUserDetail() {
                         </div>
                         <div className="d-flex gap-2 mt-3 flex-wrap">
                           <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setActiveTab('location')}>
-                            <i className="fas fa-shield-halved me-1"></i>Open protected location
+                            Open protected location
                           </button>
                           <a
                             href={`https://www.google.com/maps?q=${user.latitude},${user.longitude}`}
@@ -689,17 +694,20 @@ export default function AdminUserDetail() {
                             rel="noopener noreferrer"
                             className="btn btn-sm btn-outline-primary"
                           >
-                            <i className="fas fa-location-arrow me-1"></i>Open map
+                            Open map
                           </a>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  <div className="user-ops-detail-card">
-                    <h4>Profile media and trust notes</h4>
-                    <div className="user-ops-photo-grid">
-                      {(user.photos?.length ? user.photos : user.profile_photo_url ? [{ id: 'main', image_url: user.profile_photo_url }] : []).map((photo, index) => (
+                  <div className="user-ops-detail-card user-ops-media-card">
+                    <div className="user-ops-detail-head">
+                      <h4>Media and notes</h4>
+                      <span className="user-ops-detail-badge subtle">{mediaPhotos.length} photo{mediaPhotos.length === 1 ? '' : 's'}</span>
+                    </div>
+                    <div className={`user-ops-photo-grid ${mediaPhotos.length <= 1 ? 'single' : ''}`}>
+                      {mediaPhotos.map((photo, index) => (
                         <button
                           key={photo.id || index}
                           type="button"
@@ -714,12 +722,11 @@ export default function AdminUserDetail() {
                         </button>
                       ))}
                     </div>
-                    {(!user.photos || user.photos.length === 0) && !user.profile_photo_url && (
-                      <div className="user-ops-empty">No profile photos available for this user.</div>
-                    )}
+                    {mediaPhotos.length === 0 && renderSectionEmptyState('No media yet', 'This user does not have profile photos on file.')}
                     {user.photo_review_reason && (
-                      <div className="alert alert-warning mt-3 mb-0">
-                        <strong>Review reason:</strong> {user.photo_review_reason}
+                      <div className="user-ops-note-card tone-warn">
+                        <span>Photo review note</span>
+                        <p>{user.photo_review_reason}</p>
                       </div>
                     )}
                   </div>
@@ -727,35 +734,65 @@ export default function AdminUserDetail() {
               </div>
 
               <div className="user-ops-panel">
-                <div className="user-ops-section-head">
+                <div className="user-ops-section-head compact">
                   <span className="user-ops-kicker">Activity</span>
                   <h3>Behavior snapshot</h3>
                 </div>
-                <div className="user-ops-activity-grid">
-                  <div className="user-ops-detail-card">
-                    <h4>Score details</h4>
-                    <div className="user-ops-definition-grid compact">
-                      <div><span>Engagement</span><strong>{user.score?.engagement_score || 0}</strong></div>
-                      <div><span>Quality</span><strong>{user.score?.quality_score || 0}</strong></div>
-                      <div><span>Trust</span><strong>{user.score?.trust_score || 0}</strong></div>
-                      <div><span>Profile completion</span><strong>{user.score?.profile_completion_percent || 0}%</strong></div>
-                      <div><span>Onboarding points</span><strong>{user.score?.onboarding_points || 0}</strong></div>
-                      <div><span>Activity points</span><strong>{user.score?.activity_points || 0}</strong></div>
-                      <div><span>Quality points</span><strong>{user.score?.quality_points || 0}</strong></div>
-                      <div><span>Penalty points</span><strong>{user.score?.penalty_points || 0}</strong></div>
+                <div className="user-ops-activity-grid user-ops-behavior-grid">
+                  <div className="user-ops-detail-card user-ops-behavior-card">
+                    <div className="user-ops-detail-head">
+                      <h4>Score details</h4>
+                      <span className="user-ops-detail-badge">Overall {safeUser.score?.overall_score || 0}</span>
+                    </div>
+                    <div className="user-ops-score-grid">
+                      {scoreDetailItems.map((item) => (
+                        <div key={item.label} className="user-ops-score-tile">
+                          <span>{item.label}</span>
+                          <strong>{item.value}</strong>
+                          <small>{item.helper}</small>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="user-ops-detail-card user-ops-bar-card">
-                    <h4>Activity chart</h4>
-                    <div className="user-ops-bar-wrap">
-                      <Bar data={activityBarData} options={activityBarOptions} />
+                  <div className="user-ops-detail-card user-ops-behavior-card">
+                    <div className="user-ops-detail-head">
+                      <h4>Activity mix</h4>
+                      <span className="user-ops-detail-badge subtle">
+                        {maxActivitySnapshotValue === 1 && activitySnapshotItems.every((item) => Number(item.value) === 0)
+                          ? 'Low volume'
+                          : `Peak ${maxActivitySnapshotValue}`}
+                      </span>
                     </div>
-                    <div className="user-ops-definition-grid compact mt-3">
-                      <div><span>Active matches</span><strong>{user.stats?.active_matches || 0}</strong></div>
-                      <div><span>Account age</span><strong>{user.stats?.account_age_days || 0} days</strong></div>
-                      <div><span>Blocks received</span><strong>{user.stats?.total_blocks_received || 0}</strong></div>
-                      <div><span>Reports filed</span><strong>{user.stats?.total_reports_filed || 0}</strong></div>
+                    <div className="user-ops-activity-list">
+                      {activitySnapshotItems.map((item) => {
+                        const numericValue = Number(item.value) || 0;
+                        const fillWidth = numericValue <= 0
+                          ? '0%'
+                          : `${Math.max(10, Math.round((numericValue / maxActivitySnapshotValue) * 100))}%`;
+                        return (
+                          <div key={item.label} className="user-ops-activity-line">
+                            <div className="user-ops-activity-top">
+                              <span>{item.label}</span>
+                              <strong>{numericValue}</strong>
+                            </div>
+                            <div className="user-ops-activity-track">
+                              <div
+                                className={`user-ops-activity-fill tone-${item.tone}`}
+                                style={{ width: fillWidth }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="user-ops-snapshot-strip">
+                      {behaviorSnapshotFacts.map((fact) => (
+                        <div key={fact.label} className="user-ops-snapshot-chip">
+                          <span>{fact.label}</span>
+                          <strong>{fact.value}</strong>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -776,7 +813,7 @@ export default function AdminUserDetail() {
                         <p>{item.description}</p>
                       </div>
                       <button className={`btn ${item.actionTone}`} onClick={item.onClick} disabled={item.disabled}>
-                        <i className={`${item.icon} me-2`}></i>{item.actionLabel}
+                        {item.actionLabel}
                       </button>
                     </div>
                   ))}
@@ -796,7 +833,7 @@ export default function AdminUserDetail() {
                         <p>{item.description}</p>
                       </div>
                       <button className={`btn ${item.actionTone}`} onClick={item.onClick} disabled={item.disabled}>
-                        <i className={`${item.icon} me-2`}></i>{item.actionLabel}
+                        {item.actionLabel}
                       </button>
                     </div>
                   ))}
@@ -816,7 +853,7 @@ export default function AdminUserDetail() {
                         <p>{item.description}</p>
                       </div>
                       <button className={`btn ${item.actionTone}`} onClick={item.onClick}>
-                        <i className={`${item.icon} me-2`}></i>{item.actionLabel}
+                        {item.actionLabel}
                       </button>
                     </div>
                   ))}
@@ -839,75 +876,89 @@ export default function AdminUserDetail() {
             </div>
             <div className="card-body">
               {activeTab === 'all_matches' && (
-                <div className="table-responsive">
-                  <table className="table table-sm">
-                    <thead><tr><th>Matched With</th><th>Date</th></tr></thead>
-                    <tbody>
-                      {user.all_matches?.map(m => <tr key={m.id}><td>{m.with_user}</td><td>{new Date(m.created_at).toLocaleString()}</td></tr>)}
-                    </tbody>
-                  </table>
-                </div>
+                (user.all_matches?.length ? (
+                  <div className="table-responsive">
+                    <table className="table table-sm">
+                      <thead><tr><th>Matched With</th><th>Date</th></tr></thead>
+                      <tbody>
+                        {user.all_matches?.map(m => <tr key={m.id}><td>{m.with_user}</td><td>{new Date(m.created_at).toLocaleString()}</td></tr>)}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : renderSectionEmptyState('No matches yet', 'This user does not have active match history to review.'))
               )}
 
               {activeTab === 'blocks_full' && (
-                <div className="row">
-                  <div className="col-md-6">
-                    <h6>Blocks Sent</h6>
-                    <ul className="list-group">
-                      {user.blocks_sent?.map(b => <li key={b.id} className="list-group-item d-flex justify-content-between"><span>{b.blocked_email}</span><small>{new Date(b.created_at).toLocaleDateString()}</small></li>)}
-                    </ul>
+                (user.blocks_sent?.length || user.blocks_received?.length) ? (
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <h6>Blocks sent</h6>
+                      {user.blocks_sent?.length ? (
+                        <ul className="list-group">
+                          {user.blocks_sent?.map(b => <li key={b.id} className="list-group-item d-flex justify-content-between"><span>{b.blocked_email}</span><small>{new Date(b.created_at).toLocaleDateString()}</small></li>)}
+                        </ul>
+                      ) : renderSectionEmptyState('No blocks sent', 'This user has not blocked other accounts.')}
+                    </div>
+                    <div className="col-md-6">
+                      <h6>Blocks received</h6>
+                      {user.blocks_received?.length ? (
+                        <ul className="list-group">
+                          {user.blocks_received?.map(b => <li key={b.id} className="list-group-item d-flex justify-content-between"><span>{b.blocker_email}</span><small>{new Date(b.created_at).toLocaleDateString()}</small></li>)}
+                        </ul>
+                      ) : renderSectionEmptyState('No blocks received', 'No one has blocked this user.')}
+                    </div>
                   </div>
-                  <div className="col-md-6">
-                    <h6>Blocks Received</h6>
-                    <ul className="list-group">
-                      {user.blocks_received?.map(b => <li key={b.id} className="list-group-item d-flex justify-content-between"><span>{b.blocker_email}</span><small>{new Date(b.created_at).toLocaleDateString()}</small></li>)}
-                    </ul>
-                  </div>
-                </div>
+                ) : renderSectionEmptyState('No block history', 'There are no block records attached to this account.')
               )}
 
               {activeTab === 'conversations' && (
-                <div className="list-group">
-                  {user.conversations?.map(conv => (
-                    <div key={conv.id} className="list-group-item">
-                      <div className="d-flex justify-content-between align-items-center">
-                        <strong>With: {conv.other_participant}</strong>
-                        <button className="btn btn-sm btn-outline-primary" onClick={() => { setSelectedConversation(conv); setShowMessagesModal(true); }}>View Messages ({conv.messages?.length})</button>
+                (user.conversations?.length ? (
+                  <div className="list-group">
+                    {user.conversations?.map(conv => (
+                      <div key={conv.id} className="list-group-item">
+                        <div className="d-flex justify-content-between align-items-center">
+                          <strong>With: {conv.other_participant}</strong>
+                          <button className="btn btn-sm btn-outline-primary" onClick={() => { setSelectedConversation(conv); setShowMessagesModal(true); }}>View Messages ({conv.messages?.length})</button>
+                        </div>
+                        <div className="text-muted small">Last message: {conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : 'No messages'}</div>
                       </div>
-                      <div className="text-muted small">Last message: {conv.last_message_at ? new Date(conv.last_message_at).toLocaleString() : 'No messages'}</div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : renderSectionEmptyState('No conversations yet', 'This user does not have conversation history to inspect.'))
               )}
 
               {activeTab === 'all_reports' && (
-                <div className="table-responsive">
-                  <table className="table table-sm">
-                    <thead><tr><th>Reporter</th><th>Reason</th><th>Status</th><th>Date</th></tr></thead>
-                    <tbody>
-                      {user.all_reports_received?.map(r => (
-                        <tr key={r.id}>
-                          <td>{r.reporter_email}</td>
-                          <td>{r.reason}</td>
-                          <td>{r.status}</td>
-                          <td>{new Date(r.created_at).toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                (user.all_reports_received?.length ? (
+                  <div className="table-responsive">
+                    <table className="table table-sm">
+                      <thead><tr><th>Reporter</th><th>Reason</th><th>Status</th><th>Date</th></tr></thead>
+                      <tbody>
+                        {user.all_reports_received?.map(r => (
+                          <tr key={r.id}>
+                            <td>{r.reporter_email}</td>
+                            <td>{r.reason}</td>
+                            <td>{r.status}</td>
+                            <td>{new Date(r.created_at).toLocaleDateString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : renderSectionEmptyState('No reports yet', 'No report history is attached to this user.'))
               )}
 
               {activeTab === 'notifications' && (
-                <div className="list-group">
-                  {user.all_notifications?.map(n => (
-                    <div key={n.id} className="list-group-item">
-                      <div className="d-flex justify-content-between"><strong>{n.title}</strong><small>{new Date(n.created_at).toLocaleString()}</small></div>
-                      <p className="mb-1">{n.message}</p>
-                      <span className={`badge bg-${n.is_read ? 'secondary' : 'primary'}`}>{n.is_read ? 'Read' : 'Unread'}</span>
-                    </div>
-                  ))}
-                </div>
+                (user.all_notifications?.length ? (
+                  <div className="list-group">
+                    {user.all_notifications?.map(n => (
+                      <div key={n.id} className="list-group-item">
+                        <div className="d-flex justify-content-between"><strong>{n.title}</strong><small>{new Date(n.created_at).toLocaleString()}</small></div>
+                        <p className="mb-1">{n.message}</p>
+                        <span className={`badge bg-${n.is_read ? 'secondary' : 'primary'}`}>{n.is_read ? 'Read' : 'Unread'}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : renderSectionEmptyState('No notifications yet', 'There are no notification records for this user.'))
               )}
 
               {activeTab === 'location' && (
@@ -942,10 +993,10 @@ export default function AdminUserDetail() {
                         </div>
                         <div className="d-flex gap-2 flex-wrap mt-3">
                           <a href={`https://www.openstreetmap.org/?mlat=${user.latitude}&mlon=${user.longitude}#map=15/${user.latitude}/${user.longitude}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
-                            <i className="fas fa-map me-1"></i>OpenStreetMap
+                            OpenStreetMap
                           </a>
                           <a href={`https://www.google.com/maps?q=${user.latitude},${user.longitude}`} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-danger">
-                            <i className="fab fa-google me-1"></i>Google Maps
+                            Google Maps
                           </a>
                         </div>
                       </div>

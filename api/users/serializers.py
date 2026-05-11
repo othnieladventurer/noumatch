@@ -1,5 +1,6 @@
 import logging
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import authenticate
 from .models import PendingRegistration, User, UserPhoto
 from django.utils import timezone
@@ -305,18 +306,19 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        email = attrs.get("email")
+        email = (attrs.get("email") or "").strip().lower()
         password = attrs.get("password")
 
         if email and password:
-            user = authenticate(username=email, password=password)
+            user = authenticate(self.context.get("request"), username=email, password=password)
             if not user:
-                raise serializers.ValidationError("Invalid email or password.")
+                raise AuthenticationFailed("Invalid email or password.")
             if not user.is_active:
-                raise serializers.ValidationError("User account is disabled.")
+                raise AuthenticationFailed("User account is disabled.")
         else:
             raise serializers.ValidationError("Both email and password are required.")
 
+        attrs["email"] = email
         attrs["user"] = user
         return attrs
 

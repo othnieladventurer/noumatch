@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Q, Count, Avg, Sum, OuterRef, Subquery
+from django.db.models import Q, Count, Avg, Sum, OuterRef, Subquery, Max
 from django.db.models.functions import Lower
 from django.utils import timezone
 from datetime import timedelta, datetime
@@ -64,6 +64,13 @@ except Exception:  # pragma: no cover - token blacklist may be disabled in some 
 from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
 
 logger = logging.getLogger(__name__)
+
+
+def _display_user_name(user):
+    if not user:
+        return None
+    full_name = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
+    return full_name or user.username or user.email
 
 
 def _model_has_fields(model, field_names):
@@ -739,7 +746,7 @@ class AdminLoginView(APIView):
         if not email or not password:
             return Response({'error': 'Email and password required'}, status=400)
 
-        user = authenticate(request, email=email, password=password)
+        user = authenticate(request, username=email.strip().lower(), password=password)
         if not user:
             return Response({'error': 'Invalid credentials'}, status=401)
         if not user.is_active:
@@ -3012,13 +3019,19 @@ class AdminCaseActivityView(APIView):
 # ---------- Support & Messaging ----------
 class AdminSupportConversationListView(APIView):
     permission_classes = [IsAdminUser]
+
     def get(self, request):
         try:
-            status = request.GET.get('status')
-            qs = SupportConversation.objects.select_related('user', 'assigned_admin').order_by('-updated_at')
-            if status:
-                qs = qs.filter(status=status)
-            qs = list(qs[:100])
+            status_filter = request.GET.get('status')
+            qs = (
+                SupportConversation.objects
+                .select_related('user', 'assigned_admin')
+                .annotate(latest_message_at=Max('messages__created_at'))
+                .order_by('-latest_message_at', '-updated_at', '-created_at')
+            )
+            if status_filter:
+                qs = qs.filter(status=status_filter)
+            qs = list(qs[:250])
             conversation_ids = [conv.id for conv in qs]
             latest_messages = {}
             for msg in Message.objects.filter(support_conversation_id__in=conversation_ids).order_by('support_conversation_id', '-created_at'):
@@ -3030,14 +3043,20 @@ class AdminSupportConversationListView(APIView):
                     'id': conv.id,
                     'user': conv.user_id,
                     'user_email': conv.user.email if conv.user_id else None,
+                    'user_name': _display_user_name(conv.user) if conv.user_id else None,
+                    'user_profile_photo_url': request.build_absolute_uri(conv.user.profile_photo.url) if conv.user_id and conv.user.profile_photo else None,
                     'assigned_admin': conv.assigned_admin_id,
+                    'assigned_admin_email': conv.assigned_admin.email if conv.assigned_admin_id else None,
                     'status': conv.status,
                     'created_at': conv.created_at,
                     'updated_at': conv.updated_at,
+                    'latest_activity_at': getattr(conv, 'latest_message_at', None) or conv.updated_at or conv.created_at,
+                    'unread_count': conv.messages.filter(sender_type='user', read=False).count(),
                     'last_message': None if not last_msg else {
                         'content': last_msg.content,
                         'created_at': last_msg.created_at,
                         'sender_type': last_msg.sender_type,
+                        'sender_email': last_msg.sender.email if last_msg.sender_id else None,
                     },
                 })
             return Response(data)
@@ -3045,12 +3064,60 @@ class AdminSupportConversationListView(APIView):
             logger.exception("AdminSupportConversationListView failed; returning empty list: %s", exc)
             return Response([], status=status.HTTP_200_OK)
 
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        content = (request.data.get('content') or '').strip()
+        if not user_id:
+            return Response({'error': 'user_id is required'}, status=400)
+
+        user = get_object_or_404(User, id=user_id)
+        conversation = (
+            SupportConversation.objects
+            .filter(user=user, status__in=['open', 'pending'])
+            .order_by('-updated_at')
+            .first()
+        )
+        created = False
+        if not conversation:
+            conversation = SupportConversation.objects.create(
+                user=user,
+                assigned_admin=request.user,
+                status='pending',
+            )
+            created = True
+        else:
+            conversation.assigned_admin = request.user
+            conversation.status = 'pending'
+            conversation.save(update_fields=['assigned_admin', 'status'])
+
+        if content:
+            Message.objects.create(
+                support_conversation=conversation,
+                sender=request.user,
+                sender_type='admin',
+                content=content,
+            )
+
+        serializer = SupportConversationSerializer(conversation, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
 
 class AdminSupportConversationDetailView(APIView):
     permission_classes = [IsAdminUser]
     def get(self, request, pk):
         conv = get_object_or_404(SupportConversation, pk=pk)
-        serializer = SupportConversationSerializer(conv)
+        serializer = SupportConversationSerializer(conv, context={'request': request})
+        return Response(serializer.data)
+
+
+class AdminSupportConversationMessagesView(APIView):
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, pk):
+        conv = get_object_or_404(SupportConversation, pk=pk)
+        messages = conv.messages.all().order_by('created_at')
+        messages.filter(sender_type='user', read=False).update(read=True)
+        serializer = MessageSerializer(messages, many=True, context={'request': request})
         return Response(serializer.data)
 
 
@@ -3062,10 +3129,10 @@ class AdminReplyToSupportView(APIView):
         if not content:
             return Response({'error': 'Message content required'}, status=400)
         msg = Message.objects.create(support_conversation=conv, sender=request.user, sender_type='admin', content=content)
-        if conv.status == 'closed':
-            conv.status = 'open'
-            conv.save()
-        serializer = MessageSerializer(msg)
+        conv.assigned_admin = request.user
+        conv.status = 'pending'
+        conv.save(update_fields=['assigned_admin', 'status'])
+        serializer = MessageSerializer(msg, context={'request': request})
         return Response(serializer.data)
 
 

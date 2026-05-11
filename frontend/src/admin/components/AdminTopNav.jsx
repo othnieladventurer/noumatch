@@ -62,10 +62,10 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
     if (path.includes('/admin/swipe-stats')) return 'Swipe Analytics';
     if (path.includes('/admin/messages/support/')) return 'Support Conversation';
     if (path.includes('/admin/messages/user/')) return 'User Conversation';
-    if (path.includes('/admin/messages')) return 'Messages';
+    if (path.includes('/admin/messages')) return 'Message Center';
     if (path.includes('/admin/flagged-messages')) return 'Flagged Messages';
     if (path.includes('/admin/waitlist')) return 'Waitlist';
-    if (path.includes('/admin/notifications/email')) return 'Email Notifications';
+    if (path.includes('/admin/notifications/email')) return 'Message Center';
     if (path.includes('/admin/analytics/impressions')) return 'Profile Impressions';
     if (path.includes('/admin/analytics/ranking')) return 'Ranking Analytics';
     if (path.includes('/admin/analytics/performance')) return 'Performance Metrics';

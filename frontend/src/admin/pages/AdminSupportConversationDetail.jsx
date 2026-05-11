@@ -80,7 +80,7 @@ export default function AdminSupportConversationDetail() {
           <div className="admin-chat-header">
             <div>
               <h2>Support Conversation</h2>
-              <p>With {conversation?.user?.email || `User #${conversation?.user_id}`}</p>
+              <p>With {conversation?.user_email || `User #${conversation?.user}`}</p>
             </div>
             <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/admin/messages')}>
               <i className="fas fa-arrow-left me-1"></i> Back
@@ -93,7 +93,7 @@ export default function AdminSupportConversationDetail() {
               {messages.map((msg) => (
                 <div key={msg.id} className={`mb-2 d-flex ${msg.sender_type === 'admin' ? 'justify-content-end' : 'justify-content-start'}`}>
                   <div className={`admin-chat-bubble ${msg.sender_type === 'admin' ? 'is-admin' : 'is-user'}`}>
-                    <small className="admin-chat-meta">{msg.sender_type === 'admin' ? 'Admin' : msg.sender_email}</small>
+                    <small className="admin-chat-meta">{msg.sender_type === 'admin' ? 'NouMatch Support' : msg.sender_email}</small>
                     <div>{msg.content}</div>
                     <small className="text-muted">{new Date(msg.created_at).toLocaleString()}</small>
                   </div>

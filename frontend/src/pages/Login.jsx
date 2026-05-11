@@ -34,17 +34,24 @@ export default function Login() {
       }
 
       localStorage.setItem("access", accessToken);
-      if (response.data?.refresh) {
-        localStorage.setItem("refresh", response.data.refresh);
-      }
+      if (response.data?.refresh) localStorage.setItem("refresh", response.data.refresh);
       localStorage.setItem("nm_has_session", "1");
       sessionStorage.setItem("nm_user_session", "1");
       navigate("/dashboard");
     } catch (error) {
       if (error.response?.status === 401 || error.response?.status === 404) {
-        setErrorMessage(t("login.errorInvalidCredentials"));
+        setErrorMessage(
+          error.response?.data?.detail ||
+          error.response?.data?.error ||
+          error.response?.data?.non_field_errors?.[0] ||
+          t("login.errorInvalidCredentials")
+        );
       } else if (error.response?.data?.detail) {
         setErrorMessage(error.response.data.detail);
+      } else if (error.response?.data?.error) {
+        setErrorMessage(error.response.data.error);
+      } else if (error.response?.data?.non_field_errors?.[0]) {
+        setErrorMessage(error.response.data.non_field_errors[0]);
       } else if (error.message) {
         setErrorMessage(error.message);
       } else {
@@ -56,57 +63,83 @@ export default function Login() {
   };
 
   return (
-    <div className="auth-shell auth-shell-login">
-      <div className="auth-panel">
-        <div className="auth-brand">
-          <div className="d-flex justify-content-center mb-2">
-            <BrandLogo height={42} />
-          </div>
-          <p>{t("login.subtitle")}</p>
+    <div className="auth-page">
+      {/* ── Photo Panel ── */}
+      <div className="auth-photo-panel">
+        <img
+          className="auth-photo-bg"
+          src="https://images.pexels.com/photos/2993031/pexels-photo-2993031.jpeg?auto=compress&cs=tinysrgb&w=1920"
+          alt=""
+        />
+        <div className="auth-photo-overlay" />
+        <div className="auth-photo-top">
+          <BrandLogo height={34} style={{ filter: "brightness(0) invert(1)" }} />
         </div>
+        <div className="auth-photo-bottom">
+          <blockquote>"Chaque grande histoire commence par un premier message."</blockquote>
+          <cite>— L'esprit NouMatch</cite>
+        </div>
+      </div>
 
-        {errorMessage && <div className="alert alert-danger">{errorMessage}</div>}
+      {/* ── Form Panel ── */}
+      <div className="auth-form-panel">
+        <div className="auth-form-inner">
+          <Link to="/" className="auth-form-logo">
+            <BrandLogo height={40} />
+          </Link>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="form-label">{t("login.email")}</label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="form-control form-control-lg"
-              placeholder="email@example.com"
-              required
-            />
+          <h1 className="auth-form-title">Bon retour.</h1>
+          <p className="auth-form-subtitle">Retrouvez vos connexions et continuez votre parcours.</p>
+
+          {errorMessage && <div className="auth-alert error">{errorMessage}</div>}
+
+          <form onSubmit={handleSubmit}>
+            <div className="auth-field">
+              <label className="auth-label">{t("login.email")}</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className="auth-input"
+                placeholder="email@example.com"
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <div className="auth-label-row">
+                <span>{t("login.password")}</span>
+                <Link to="/forgot-password" className="auth-label-link">
+                  {t("login.forgotPassword")}
+                </Link>
+              </div>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                className="auth-input"
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            <div style={{ marginTop: "1.75rem" }}>
+              <button
+                type="submit"
+                className="nm-btn-primary"
+                disabled={loading}
+              >
+                {loading ? t("login.submitting") : t("login.submit")}
+              </button>
+            </div>
+          </form>
+
+          <div className="text-center mt-4" style={{ color: "#64748b", fontSize: "0.9rem" }}>
+            {t("login.noAccount")}{" "}
+            <Link to="/register" className="auth-link">{t("login.register")}</Link>
           </div>
-
-          <div className="mb-2">
-            <label className="form-label">{t("login.password")}</label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              className="form-control form-control-lg"
-              placeholder={t("login.password")}
-              required
-            />
-          </div>
-
-          <div className="text-end mb-3">
-            <Link to="/forgot-password" className="auth-link">
-              {t("login.forgotPassword")}
-            </Link>
-          </div>
-
-          <button type="submit" className="btn btn-danger btn-lg w-100 auth-btn" disabled={loading}>
-            {loading ? t("login.submitting") : t("login.submit")}
-          </button>
-        </form>
-
-        <div className="text-center mt-3 text-muted">
-          {t("login.noAccount")} <Link to="/register" className="auth-link">{t("login.register")}</Link>
         </div>
       </div>
     </div>

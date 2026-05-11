@@ -31,6 +31,23 @@ urlpatterns = [
     path('conversations/<int:conversation_id>/icebreakers/',
          views.IcebreakerListView.as_view(),
          name='conversation-icebreakers'),
+
+    # Customer support endpoints
+    path('support/',
+         views.SupportConversationListCreateView.as_view(),
+         name='support-conversation-list-create'),
+
+    path('support/<int:pk>/',
+         views.SupportConversationDetailView.as_view(),
+         name='support-conversation-detail'),
+
+    path('support/<int:conversation_id>/messages/',
+         views.SupportMessagesView.as_view(),
+         name='support-conversation-messages'),
+
+    path('support/<int:conversation_id>/send/',
+         views.SendSupportMessageView.as_view(),
+         name='support-send-message'),
     
     # Unread count
     path('unread-count/', 

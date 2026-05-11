@@ -1,3 +1,4 @@
+import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import API from '@/api/axios';
@@ -33,29 +34,20 @@ export default function Register() {
   const [step2Valid, setStep2Valid] = useState(false);
   const [step3Valid, setStep3Valid] = useState(false);
 
-  // Email check states
   const [emailError, setEmailError] = useState("");
   const [emailSuccessMessage, setEmailSuccessMessage] = useState("");
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [emailAvailable, setEmailAvailable] = useState(false);
   const [shakeEmail, setShakeEmail] = useState(false);
   const emailTimeoutRef = useRef(null);
-  
-  // Registration pacing states
+
   const [canRegister, setCanRegister] = useState(false);
   const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [showEligibilityModal, setShowEligibilityModal] = useState(false);
   const [eligibilityMessage, setEligibilityMessage] = useState("");
 
   useEffect(() => {
-    const {
-      first_name,
-      last_name,
-      email,
-      birth_date,
-      password,
-      password2,
-    } = formData;
+    const { first_name, last_name, email, birth_date, password, password2 } = formData;
     const age = calculateAge(birth_date);
     const isEmailValidFormat = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email);
     const isValid =
@@ -80,40 +72,26 @@ export default function Register() {
     setStep3Valid(formData.profile_photo !== null);
   }, [formData.profile_photo]);
 
-  // Check email availability first. Gender pacing is checked separately.
   useEffect(() => {
     if (emailTimeoutRef.current) clearTimeout(emailTimeoutRef.current);
-
     const email = formData.email.trim();
-    
-    // If email is empty
+
     if (email === "") {
-      setEmailError("");
-      setEmailSuccessMessage("");
-      setEmailAvailable(false);
-      setCanRegister(false);
-      setIsCheckingEmail(false);
-      setCheckingEligibility(false);
+      setEmailError(""); setEmailSuccessMessage(""); setEmailAvailable(false);
+      setCanRegister(false); setIsCheckingEmail(false); setCheckingEligibility(false);
       return;
     }
 
-    // If email format is invalid
     if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email)) {
-      setEmailError(t("register.errorInvalidEmail"));
-      setEmailSuccessMessage("");
-      setEmailAvailable(false);
-      setCanRegister(false);
-      setIsCheckingEmail(false);
-      setCheckingEligibility(false);
-      setShakeEmail(true);
+      setEmailError(t("register.errorInvalidEmail")); setEmailSuccessMessage("");
+      setEmailAvailable(false); setCanRegister(false); setIsCheckingEmail(false);
+      setCheckingEligibility(false); setShakeEmail(true);
       setTimeout(() => setShakeEmail(false), 400);
       return;
     }
 
-    setCheckingEligibility(true);
-    setIsCheckingEmail(true);
-    setEmailError("");
-    setEmailSuccessMessage("");
+    setCheckingEligibility(true); setIsCheckingEmail(true);
+    setEmailError(""); setEmailSuccessMessage("");
 
     emailTimeoutRef.current = setTimeout(async () => {
       try {
@@ -121,32 +99,21 @@ export default function Register() {
         const { exists, email_available, message } = checkResponse.data || {};
 
         if (exists) {
-          setEmailError(t("register.errorEmailExists"));
-          setEmailSuccessMessage("");
-          setEmailAvailable(false);
-          setCanRegister(false);
-          setShakeEmail(true);
-          setTimeout(() => setShakeEmail(false), 400);
+          setEmailError(t("register.errorEmailExists")); setEmailSuccessMessage("");
+          setEmailAvailable(false); setCanRegister(false);
+          setShakeEmail(true); setTimeout(() => setShakeEmail(false), 400);
           return;
         }
 
-        setEmailAvailable(Boolean(email_available));
-        setCanRegister(false);
-        setEmailError("");
-        setEmailSuccessMessage(message || t("register.emailVerified"));
+        setEmailAvailable(Boolean(email_available)); setCanRegister(false);
+        setEmailError(""); setEmailSuccessMessage(message || t("register.emailVerified"));
         setEligibilityMessage(message || "");
       } catch (err) {
-        if (err.response?.status === 400) {
-          setEmailError(t("register.errorEmailRequired"));
-        } else {
-          setEmailError(t("register.errorCheckUnavailable"));
-        }
-        setEmailSuccessMessage("");
-        setEmailAvailable(false);
-        setCanRegister(false);
+        if (err.response?.status === 400) setEmailError(t("register.errorEmailRequired"));
+        else setEmailError(t("register.errorCheckUnavailable"));
+        setEmailSuccessMessage(""); setEmailAvailable(false); setCanRegister(false);
       } finally {
-        setCheckingEligibility(false);
-        setIsCheckingEmail(false);
+        setCheckingEligibility(false); setIsCheckingEmail(false);
       }
     }, 300);
   }, [formData.email]);
@@ -155,10 +122,7 @@ export default function Register() {
     const email = formData.email.trim();
     const gender = formData.gender;
 
-    if (!emailAvailable || !gender) {
-      setCanRegister(false);
-      return;
-    }
+    if (!emailAvailable || !gender) { setCanRegister(false); return; }
 
     let cancelled = false;
     setCheckingEligibility(true);
@@ -169,7 +133,6 @@ export default function Register() {
           `/users/check-can-register/?email=${encodeURIComponent(email)}&gender=${encodeURIComponent(gender)}`
         );
         if (cancelled) return;
-
         const allowed = Boolean(response.data?.can_register);
         setCanRegister(allowed);
         if (!allowed) {
@@ -184,16 +147,12 @@ export default function Register() {
         setEligibilityMessage(err.response?.data?.error || t("register.errorCheckUnavailable"));
         setShowEligibilityModal(true);
       } finally {
-        if (!cancelled) {
-          setCheckingEligibility(false);
-        }
+        if (!cancelled) setCheckingEligibility(false);
       }
     };
 
     checkGenderAvailability();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [emailAvailable, formData.gender]);
 
   const calculateAge = (birthDate) => {
@@ -208,52 +167,28 @@ export default function Register() {
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
-    if (files) {
-      setFormData({ ...formData, [name]: files[0] });
-    } else {
-      setFormData({ ...formData, [name]: value });
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (step < 3 && ((step === 1 && step1Valid) || (step === 2 && step2Valid))) {
-        nextStep();
-      }
-    }
+    if (files) setFormData({ ...formData, [name]: files[0] });
+    else setFormData({ ...formData, [name]: value });
   };
 
   const nextStep = () => {
     setErrorMessage("");
-    if (step === 1 && !step1Valid) {
-      setErrorMessage(t("register.errorFillFields"));
-      return;
-    }
+    if (step === 1 && !step1Valid) { setErrorMessage(t("register.errorFillFields")); return; }
     if (step === 2 && !step2Valid) {
       setErrorMessage(formData.gender ? (eligibilityMessage || t("register.menPauseMessage")) : t("register.errorSelectGender"));
       return;
     }
-    if (step === 3 && !step3Valid) {
-      setErrorMessage(t("register.errorPhotoRequired"));
-      return;
-    }
+    if (step === 3 && !step3Valid) { setErrorMessage(t("register.errorPhotoRequired")); return; }
     setStep(step + 1);
   };
 
-  const prevStep = () => {
-    setStep(step - 1);
-    setErrorMessage("");
-  };
+  const prevStep = () => { setStep(step - 1); setErrorMessage(""); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (step !== 3) return;
     setErrorMessage("");
-    if (!formData.profile_photo) {
-      setErrorMessage(t("register.errorPhotoRequired"));
-      return;
-    }
+    if (!formData.profile_photo) { setErrorMessage(t("register.errorPhotoRequired")); return; }
 
     const data = new FormData();
     data.append("first_name", formData.first_name);
@@ -280,191 +215,160 @@ export default function Register() {
       });
     } catch (error) {
       let message = t("register.errorGeneric");
-      
       if (error.response) {
         if (error.response.status === 403) {
           message = error.response.data?.error || t("register.menPauseMessage");
-          setEligibilityMessage(message);
-          setShowEligibilityModal(true);
+          setEligibilityMessage(message); setShowEligibilityModal(true);
         } else if (error.response.data.error) {
           message = error.response.data.error;
-          setEmailError(message);
-          setShakeEmail(true);
+          setEmailError(message); setShakeEmail(true);
           setTimeout(() => setShakeEmail(false), 400);
         } else if (typeof error.response.data === "object") {
           const errors = Object.values(error.response.data).flat();
           if (errors.length > 0 && (errors[0].toLowerCase().includes("waitlist") || errors[0].toLowerCase().includes("inscriptions hommes"))) {
-            message = t("register.menPauseMessage");
-            setShowEligibilityModal(true);
-          } else {
-            message = errors.join("\n");
-          }
-        } else {
-          message = error.response.data;
-        }
-      } else if (error.request) {
-        message = t("register.errorNetwork");
-      }
+            message = t("register.menPauseMessage"); setShowEligibilityModal(true);
+          } else { message = errors.join("\n"); }
+        } else { message = error.response.data; }
+      } else if (error.request) { message = t("register.errorNetwork"); }
       setErrorMessage(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const progressWidth = `${(step / 3) * 100}%`;
+  const STEP_LABELS = [
+    t("register.stepInfo"),
+    t("register.stepGender"),
+    t("register.stepPhoto"),
+  ];
+
+  const quoteByStep = {
+    1: "« Commence par te présenter, laisse ta personnalité briller. »",
+    2: "« Sois toi-même. Les vraies connexions naissent de l'authenticité. »",
+    3: "« Montre ton vrai visage. C'est là que la magie commence. »",
+  };
 
   return (
     <>
-      <div className="auth-shell auth-shell-register">
+      <div className="auth-page">
+        {/* ── Photo Panel ── */}
+        <div className="auth-photo-panel">
+          <img
+            className="auth-photo-bg"
+            src="https://images.pexels.com/photos/6870277/pexels-photo-6870277.jpeg?auto=compress&cs=tinysrgb&w=1920"
+            alt=""
+          />
+          <div className="auth-photo-overlay" />
+          <div className="auth-photo-top">
+            <BrandLogo height={34} style={{ filter: "brightness(0) invert(1)" }} />
+          </div>
+          <div className="auth-photo-bottom">
+            <blockquote>{quoteByStep[step]}</blockquote>
+            <cite>— L'esprit NouMatch</cite>
+          </div>
+        </div>
 
-        <div
-          className="auth-panel"
-          style={{
-            width: "100%",
-            maxWidth: "500px",
-            maxHeight: "calc(100vh - 2.4rem)",
-          }}
-        >
-          <div
-            className="card-body"
-            style={{
-              minHeight: "100%",
-              overflowY: "auto",
-              padding: "1.5rem",
-              borderRadius: "24px",
-            }}
-          >
-            <div className="text-center mb-4">
-              <div className="d-flex justify-content-center mb-2">
-                <BrandLogo height={42} />
-              </div>
-              <p className="text-muted mb-0">{t("register.createAccount")}</p>
-            </div>
+        {/* ── Form Panel ── */}
+        <div className="auth-form-panel">
+          <div className="auth-form-inner" style={{ maxWidth: "500px" }}>
+            <Link to="/" className="auth-form-logo">
+              <BrandLogo height={40} />
+            </Link>
 
-            <div className="progress mb-4" style={{ height: "8px", borderRadius: "20px" }}>
-              <div className="progress-bar bg-danger" role="progressbar" style={{ width: progressWidth, borderRadius: "20px", transition: "width 0.3s ease" }}></div>
-            </div>
+            <h1 className="auth-form-title">{t("register.createAccount")}</h1>
+            <p className="auth-form-subtitle">Rejoignez la communauté NouMatch.</p>
 
-            <div className="d-flex justify-content-between mb-4">
-              <div className={`text-center ${step >= 1 ? 'text-danger' : 'text-muted'}`}>
-                <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 1 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>1</div>
-                <small>{t("register.stepInfo")}</small>
-              </div>
-              <div className={`text-center ${step >= 2 ? 'text-danger' : 'text-muted'}`}>
-                <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 2 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>2</div>
-                <small>{t("register.stepGender")}</small>
-              </div>
-              <div className={`text-center ${step >= 3 ? 'text-danger' : 'text-muted'}`}>
-                <div className={`rounded-circle d-flex align-items-center justify-content-center mx-auto mb-1 ${step >= 3 ? 'bg-danger text-white' : 'bg-light'}`} style={{ width: "30px", height: "30px", borderRadius: "50% !important" }}>3</div>
-                <small>{t("register.stepPhoto")}</small>
-              </div>
+            {/* Step Progress */}
+            <div className="auth-steps">
+              {STEP_LABELS.map((label, i) => (
+                <React.Fragment key={i}>
+                  <div className="auth-step">
+                    <div className={`auth-step-circle ${step > i + 1 ? "done" : step === i + 1 ? "active" : "pending"}`}>
+                      {step > i + 1 ? "✓" : i + 1}
+                    </div>
+                    <span className={`auth-step-label ${step > i + 1 ? "done" : step === i + 1 ? "active" : ""}`}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < 2 && (
+                    <div className={`auth-step-connector ${step > i + 1 ? "done" : ""}`} />
+                  )}
+                </React.Fragment>
+              ))}
             </div>
 
             {errorMessage && (
-              <div className="alert alert-danger white-space-pre-wrap" style={{ borderRadius: "16px" }}>
-                {errorMessage}
-              </div>
+              <div className="auth-alert error" style={{ whiteSpace: "pre-wrap" }}>{errorMessage}</div>
             )}
 
             <form onSubmit={handleSubmit}>
+              {/* ── Step 1: Info ── */}
               {step === 1 && (
-                <div className="row">
-                  <div className="col-12 col-md-6 mb-3">
-                    <label className="form-label">{t("register.firstName")}</label>
-                    <input type="text" name="first_name" className="form-control form-control-lg" placeholder={t("register.firstNamePlaceholder")} required value={formData.first_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                <div className="row g-3">
+                  <div className="col-12 col-md-6">
+                    <label className="auth-label">{t("register.firstName")}</label>
+                    <input type="text" name="first_name" className="auth-input" placeholder={t("register.firstNamePlaceholder")} required value={formData.first_name} onChange={handleChange} />
                   </div>
-                  <div className="col-12 col-md-6 mb-3">
-                    <label className="form-label">{t("register.lastName")}</label>
-                    <input type="text" name="last_name" className="form-control form-control-lg" placeholder={t("register.lastNamePlaceholder")} required value={formData.last_name} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                  <div className="col-12 col-md-6">
+                    <label className="auth-label">{t("register.lastName")}</label>
+                    <input type="text" name="last_name" className="auth-input" placeholder={t("register.lastNamePlaceholder")} required value={formData.last_name} onChange={handleChange} />
                   </div>
-                  <div className="col-12 mb-3">
-                    <label className="form-label">{t("register.email")}</label>
+                  <div className="col-12">
+                    <label className="auth-label">{t("register.email")}</label>
                     <input
                       type="email"
                       name="email"
-                      className={`form-control form-control-lg ${shakeEmail ? 'shake' : ''}`}
+                      className={`auth-input ${shakeEmail ? "shake" : ""} ${emailError ? "has-error" : emailAvailable ? "has-success" : ""}`}
                       placeholder={t("register.emailPlaceholder")}
                       required
                       value={formData.email}
                       onChange={handleChange}
-                      style={{ 
-                        borderRadius: "16px",
-                        borderColor: emailError ? "#dc3545" : (emailAvailable ? "#28a745" : "#ced4da")
-                      }}
                     />
-                    {emailError && (
-                      <div className="text-danger small mt-1" style={{ fontSize: "0.75rem" }}>
-                        {emailError}
-                      </div>
-                    )}
+                    {emailError && <span className="auth-field-hint error">{emailError}</span>}
                     {!emailError && emailAvailable && !checkingEligibility && (
-                      <div className="text-success small mt-1" style={{ fontSize: "0.75rem" }}>
-                        {emailSuccessMessage || t("register.emailVerified")}
-                      </div>
+                      <span className="auth-field-hint success">{emailSuccessMessage || t("register.emailVerified")}</span>
                     )}
                     {(checkingEligibility || isCheckingEmail) && (
-                      <div className="text-secondary small mt-1" style={{ fontSize: "0.7rem" }}>
-                        <i className="fas fa-spinner fa-spin me-1"></i> {t("register.checkingEligibility")}
-                      </div>
+                      <span className="auth-field-hint muted">{t("register.checkingEligibility")}</span>
                     )}
                   </div>
-                  <div className="col-12 mb-3">
-                    <label className="form-label">{t("register.country")}</label>
-                    <div
-                      className="d-flex align-items-center gap-3 px-3 py-2"
-                      style={{
-                        borderRadius: "16px",
-                        border: "1px solid #dee2e6",
-                        backgroundColor: "#fff",
-                        minHeight: "58px",
-                      }}
-                    >
-                      {countryCode ? (
-                        <img
-                          src={`https://flagcdn.com/w40/${countryCode}.png`}
-                          width="30"
-                          height="22.5"
-                          alt={formData.country}
-                          style={{ borderRadius: "4px", objectFit: "cover", flexShrink: 0 }}
-                          onError={(e) => (e.target.style.display = "none")}
-                        />
-                      ) : null}
-                      <div className="flex-grow-1">
-                        <div className="fw-semibold">
-                          {formData.country || ""}
-                        </div>
-                      </div>
+                  <div className="col-12">
+                    <label className="auth-label">{t("register.country")}</label>
+                    <div className="auth-country-field">
+                      {countryCode && (
+                        <img src={`https://flagcdn.com/w40/${countryCode}.png`} width="28" height="21" alt={formData.country} style={{ objectFit: "cover" }} onError={(e) => (e.target.style.display = "none")} />
+                      )}
+                      <span className="auth-country-name">{formData.country}</span>
                     </div>
                   </div>
-                  <div className="col-12 mb-3">
-                    <label className="form-label">{t("register.birthDate")}</label>
-                    <input type="date" name="birth_date" className="form-control form-control-lg" required value={formData.birth_date} onChange={handleChange} style={{ borderRadius: "16px" }} />
-                    <small className="text-muted">{t("register.mustBeAdult")}</small>
+                  <div className="col-12">
+                    <label className="auth-label">{t("register.birthDate")}</label>
+                    <input type="date" name="birth_date" className="auth-input" required value={formData.birth_date} onChange={handleChange} />
+                    <span className="auth-field-hint muted">{t("register.mustBeAdult")}</span>
                   </div>
                   <input type="hidden" name="city" value={formData.city} />
                   <input type="hidden" name="latitude" value={formData.latitude} />
                   <input type="hidden" name="longitude" value={formData.longitude} />
-                  <div className="col-12 col-md-6 mb-3">
-                    <label className="form-label">{t("register.password")}</label>
-                    <input type="password" name="password" className="form-control form-control-lg" placeholder={t("register.passwordPlaceholder")} required value={formData.password} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                  <div className="col-12 col-md-6">
+                    <label className="auth-label">{t("register.password")}</label>
+                    <input type="password" name="password" className="auth-input" placeholder={t("register.passwordPlaceholder")} required value={formData.password} onChange={handleChange} />
                   </div>
-                  <div className="col-12 col-md-6 mb-3">
-                    <label className="form-label">{t("register.confirm")}</label>
-                    <input type="password" name="password2" className="form-control form-control-lg" placeholder={t("register.confirmPlaceholder")} required value={formData.password2} onChange={handleChange} style={{ borderRadius: "16px" }} />
+                  <div className="col-12 col-md-6">
+                    <label className="auth-label">{t("register.confirm")}</label>
+                    <input type="password" name="password2" className="auth-input" placeholder={t("register.confirmPlaceholder")} required value={formData.password2} onChange={handleChange} />
                   </div>
                 </div>
               )}
 
+              {/* ── Step 2: Gender ── */}
               {step === 2 && (
-                <div className="row">
-                  <div className="col-12 mb-3">
-                    <label className="form-label">{t("register.gender")}</label>
-                    <select name="gender" className="form-control form-control-lg" required onChange={handleChange} value={formData.gender} style={{ borderRadius: "16px" }}>
-                      <option value="" disabled>{t("register.selectGender")}</option>
-                      <option value="male">{t("register.male")}</option>
-                      <option value="female">{t("register.female")}</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="auth-label">{t("register.gender")}</label>
+                  <select name="gender" className="auth-input" required onChange={handleChange} value={formData.gender}>
+                    <option value="" disabled>{t("register.selectGender")}</option>
+                    <option value="male">{t("register.male")}</option>
+                    <option value="female">{t("register.female")}</option>
+                  </select>
                   <input type="hidden" name="country" value={formData.country} />
                   <input type="hidden" name="city" value={formData.city} />
                   <input type="hidden" name="latitude" value={formData.latitude} />
@@ -472,23 +376,37 @@ export default function Register() {
                 </div>
               )}
 
+              {/* ── Step 3: Photo ── */}
               {step === 3 && (
-                <div className="row">
-                  <div className="col-12 mb-3">
-                    <label className="form-label">{t("register.profilePhoto")} <span className="text-danger">*</span></label>
-                    <input type="file" name="profile_photo" className="form-control form-control-lg" accept="image/*" onChange={handleChange} required style={{ borderRadius: "16px", borderColor: formData.profile_photo ? "#28a745" : "#e9ecef" }} />
-                    <small className="text-muted">{t("register.photoHint")}</small>
-                    {formData.profile_photo ? (
-                      <div className="mt-2 text-success"><i className="fas fa-check-circle me-1"></i> {t("register.photoSelected")}: {formData.profile_photo.name}</div>
-                    ) : (
-                      <div className="mt-2 text-danger"><i className="fas fa-exclamation-circle me-1"></i> {t("register.errorPhotoRequired")}</div>
-                    )}
-                    {formData.profile_photo && (
-                      <div className="mt-3 text-center">
-                        <img src={URL.createObjectURL(formData.profile_photo)} alt={t("register.preview")} className="rounded-circle" style={{ width: "100px", height: "100px", objectFit: "cover", border: "3px solid #ff4d6d" }} />
-                      </div>
-                    )}
-                  </div>
+                <div>
+                  <label className="auth-label">
+                    {t("register.profilePhoto")} <span style={{ color: "#dc2626" }}>*</span>
+                  </label>
+                  <input
+                    type="file"
+                    name="profile_photo"
+                    className={`auth-input ${formData.profile_photo ? "has-success" : ""}`}
+                    accept="image/*"
+                    onChange={handleChange}
+                    required
+                  />
+                  <span className="auth-field-hint muted">{t("register.photoHint")}</span>
+                  {formData.profile_photo ? (
+                    <span className="auth-field-hint success">
+                      ✓ {t("register.photoSelected")}: {formData.profile_photo.name}
+                    </span>
+                  ) : (
+                    <span className="auth-field-hint error">{t("register.errorPhotoRequired")}</span>
+                  )}
+                  {formData.profile_photo && (
+                    <div className="mt-3 text-center">
+                      <img
+                        src={URL.createObjectURL(formData.profile_photo)}
+                        alt={t("register.preview")}
+                        style={{ width: "96px", height: "96px", borderRadius: "50%", objectFit: "cover", border: "3px solid #dc2626" }}
+                      />
+                    </div>
+                  )}
                   <input type="hidden" name="country" value={formData.country} />
                   <input type="hidden" name="city" value={formData.city} />
                   <input type="hidden" name="latitude" value={formData.latitude} />
@@ -496,26 +414,29 @@ export default function Register() {
                 </div>
               )}
 
-              <div className="d-flex gap-2 mt-4">
+              {/* ── Navigation buttons ── */}
+              <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.75rem" }}>
                 {step > 1 && (
-                  <button type="button" onClick={prevStep} className="btn btn-outline-secondary w-50" disabled={loading} style={{ borderRadius: "16px" }}>{t("register.back")}</button>
+                  <button type="button" onClick={prevStep} className="nm-btn-ghost" style={{ flex: 1 }} disabled={loading}>
+                    {t("register.back")}
+                  </button>
                 )}
                 {step < 3 ? (
                   <button
                     type="button"
                     onClick={nextStep}
-                    className={`btn btn-danger ${step > 1 ? 'w-50' : 'w-100'}`}
+                    className="nm-btn-primary"
+                    style={{ flex: 1 }}
                     disabled={loading || (step === 1 && !step1Valid) || (step === 2 && !step2Valid)}
-                    style={{ borderRadius: "16px" }}
                   >
                     {t("register.continue")}
                   </button>
                 ) : (
                   <button
                     type="submit"
-                    className="btn btn-danger w-100 btn-lg"
+                    className="nm-btn-primary"
+                    style={{ flex: 1 }}
                     disabled={loading || !step3Valid}
-                    style={{ borderRadius: "16px" }}
                   >
                     {loading ? t("register.submitting") : t("register.submit")}
                   </button>
@@ -523,59 +444,34 @@ export default function Register() {
               </div>
             </form>
 
-            <div className="text-center mt-3">
-              <small className="text-muted">{t("register.haveAccount")} <Link to="/login" className="text-danger text-decoration-none fw-semibold">{t("register.login")}</Link></small>
+            <div className="text-center mt-3" style={{ color: "#64748b", fontSize: "0.88rem" }}>
+              {t("register.haveAccount")}{" "}
+              <Link to="/login" className="auth-link">{t("register.login")}</Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Eligibility Modal */}
+      {/* ── Eligibility Modal ── */}
       {showEligibilityModal && (
-        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 9999 }}>
-          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "450px" }}>
-            <div className="modal-content rounded-4 shadow-lg">
-              <div className="modal-header border-0 pb-0">
-                <div className="text-center w-100">
-                  <div className="mb-3">
-                    <div className="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center mx-auto" style={{ width: "70px", height: "70px" }}>
-                      <i className="fas fa-user-clock text-warning fs-1"></i>
-                    </div>
-                  </div>
-                  <h5 className="modal-title fw-bold">{t("register.balanceModalTitle")}</h5>
-                </div>
-              </div>
-              <div className="modal-body text-center pt-0">
-                <p className="text-muted mb-3">
-                  {eligibilityMessage || t("register.menPauseMessage")}
-                </p>
-                <div className="alert alert-info bg-light rounded-3 p-3 mb-0">
-                  <i className="fas fa-heart text-primary me-2"></i>
-                  <small className="text-dark">
-                    {t("register.balancePrompt")}
-                  </small>
-                </div>
-              </div>
-              <div className="modal-footer border-0 justify-content-center pt-0">
-                <button 
-                  type="button" 
-                  className="btn btn-danger px-4 rounded-pill" 
-                  onClick={() => setShowEligibilityModal(false)}
-                >
-                  {t("register.tryLater")}
-                </button>
-              </div>
+        <div className="nm-modal-overlay">
+          <div className="nm-modal-card">
+            <div className="nm-modal-icon">⏳</div>
+            <h5>{t("register.balanceModalTitle")}</h5>
+            <p>{eligibilityMessage || t("register.menPauseMessage")}</p>
+            <div className="nm-modal-info">
+              ♥ {t("register.balancePrompt")}
             </div>
+            <button
+              type="button"
+              className="nm-btn-primary"
+              onClick={() => setShowEligibilityModal(false)}
+            >
+              {t("register.tryLater")}
+            </button>
           </div>
         </div>
       )}
     </>
   );
 }
-
-
-
-
-
-
-

@@ -45,7 +45,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-light bg-white shadow fixed-top">
+    <nav className="navbar navbar-expand-lg navbar-light bg-white fixed-top">
       <div className="container">
         <Link className="navbar-brand d-flex align-items-center" to="/">
           <BrandLogo className="navbar-brand-logo" height={36} />

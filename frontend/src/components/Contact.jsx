@@ -1,12 +1,8 @@
-// src/components/Contact.jsx
 import React, { useState } from "react";
+import "../styles/public-redesign.css";
 
 export default function Contact() {
-  const [formData, setFormData] = useState({
-    email: "",
-    subject: "",
-    message: "",
-  });
+  const [formData, setFormData] = useState({ email: "", subject: "", message: "" });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -20,31 +16,51 @@ export default function Contact() {
   };
 
   return (
-    <section
-      id="contact"
-      className="py-5"
-      style={{ backgroundColor: "#f3e8ff" }} // light purple
-    >
+    <section id="contact" className="nm-section nm-section-cream">
       <div className="container">
+
+        {/* Section header */}
         <div className="text-center mb-5" data-aos="fade-up">
-          <h2 className="fw-bold">Contactez-nous</h2>
-          <p className="text-muted mx-auto" style={{ maxWidth: "600px" }}>
-            Vous avez des questions ou des suggestions ? Envoyez-nous un message et nous vous répondrons rapidement.
+          <span className="nm-section-tag">Contact</span>
+          <h2 className="nm-section-title">Contactez-nous</h2>
+          <p className="nm-section-desc">
+            Vous avez des questions ou des suggestions ?<br className="d-none d-md-inline" />
+            Envoyez-nous un message et nous vous répondrons rapidement.
           </p>
         </div>
 
-        <div className="row justify-content-center">
-          <div className="col-lg-6" data-aos="fade-up" data-aos-delay="100">
-            <div className="bg-white rounded-4 shadow-lg p-5">
+        {/* Two-column layout */}
+        <div className="row g-4 g-lg-5 align-items-start justify-content-center">
+
+          {/* Left: contact info */}
+          <div className="col-12 col-lg-4" data-aos="fade-right">
+            <div className="nm-contact-info-box">
+              <div className="nm-contact-info-item">
+                <div className="nm-contact-info-icon">✉</div>
+                <div>
+                  <p className="nm-contact-info-label">Email</p>
+                  <p className="nm-contact-info-value">support@noumatch.com</p>
+                </div>
+              </div>
+              <div className="nm-contact-info-item">
+                <div className="nm-contact-info-icon">📱</div>
+                <div>
+                  <p className="nm-contact-info-label">Réseaux sociaux</p>
+                  <p className="nm-contact-info-value">Instagram · TikTok · Facebook</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: form */}
+          <div className="col-12 col-lg-7" data-aos="fade-left">
+            <div className="nm-contact-form-card">
               <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label htmlFor="email" className="form-label fw-semibold">
-                    Email
-                  </label>
+                <div className="nm-form-field">
+                  <label className="nm-label">Adresse email</label>
                   <input
                     type="email"
-                    className="form-control form-control-lg"
-                    id="email"
+                    className="nm-input"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
@@ -53,14 +69,11 @@ export default function Contact() {
                   />
                 </div>
 
-                <div className="mb-4">
-                  <label htmlFor="subject" className="form-label fw-semibold">
-                    Sujet
-                  </label>
+                <div className="nm-form-field">
+                  <label className="nm-label">Sujet</label>
                   <input
                     type="text"
-                    className="form-control form-control-lg"
-                    id="subject"
+                    className="nm-input"
                     name="subject"
                     value={formData.subject}
                     onChange={handleChange}
@@ -69,39 +82,29 @@ export default function Contact() {
                   />
                 </div>
 
-                <div className="mb-4">
-                  <label htmlFor="message" className="form-label fw-semibold">
-                    Message
-                  </label>
+                <div className="nm-form-field">
+                  <label className="nm-label">Message</label>
                   <textarea
-                    className="form-control form-control-lg"
-                    id="message"
+                    className="nm-input"
                     name="message"
-                    rows="6"
+                    rows="5"
                     value={formData.message}
                     onChange={handleChange}
-                    placeholder="Votre message..."
+                    placeholder="Votre message…"
                     required
-                  ></textarea>
+                    style={{ resize: "vertical" }}
+                  />
                 </div>
 
-                <div className="text-center">
-                  <button
-                    type="submit"
-                    className="btn btn-danger btn-lg px-5"
-                    style={{ transition: "0.3s" }}
-                    onMouseOver={(e) => e.currentTarget.style.transform = "scale(1.05)"}
-                    onMouseOut={(e) => e.currentTarget.style.transform = "scale(1)"}
-                  >
-                    Envoyer
-                  </button>
-                </div>
+                <button type="submit" className="nm-btn nm-btn-primary" style={{ width: "100%" }}>
+                  Envoyer le message
+                </button>
               </form>
             </div>
           </div>
+
         </div>
       </div>
     </section>
   );
 }
-

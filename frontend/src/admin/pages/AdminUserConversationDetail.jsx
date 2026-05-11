@@ -61,6 +61,9 @@ export default function AdminUserConversationDetail() {
     navigate(path);
   };
 
+  const participants = conversation?.participants || [];
+  const userB = participants[1] || '';
+
   if (error) return <div className="alert alert-danger m-4">{error}</div>;
 
   return (
@@ -82,15 +85,19 @@ export default function AdminUserConversationDetail() {
         <div className="recent-blocks-card admin-chat-card">
           <div className="card-body p-3">
             <div className="chat-messages">
-              {messages.map((msg) => (
-                <div key={msg.id} className={`mb-2 d-flex ${msg.sender_type === 'admin' ? 'justify-content-end' : 'justify-content-start'}`}>
-                  <div className={`admin-chat-bubble ${msg.sender_type === 'admin' ? 'is-admin' : 'is-user'}`}>
-                    <small className="admin-chat-meta">{msg.sender_email}</small>
-                    <div>{msg.content}</div>
-                    <small className="text-muted">{new Date(msg.created_at).toLocaleString()}</small>
+              {messages.map((msg) => {
+                const sender = msg.sender_email || msg.sender?.email || 'Unknown sender';
+                const isSecondUser = sender === userB;
+                return (
+                  <div key={msg.id} className={`mb-2 d-flex ${isSecondUser ? 'justify-content-end' : 'justify-content-start'}`}>
+                    <div className={`admin-chat-bubble ${isSecondUser ? 'is-admin' : 'is-user'}`}>
+                      <small className="admin-chat-meta">{sender}</small>
+                      <div>{msg.content || `[${msg.message_type || 'media'}]`}</div>
+                      <small className="text-muted">{new Date(msg.created_at).toLocaleString()}</small>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="text-muted text-center">Admin cannot reply directly to user chats. Use support conversations for staff responses.</div>
           </div>
