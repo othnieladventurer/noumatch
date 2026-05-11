@@ -1,6 +1,7 @@
 // src/components/AdminTopNav.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { persistAdminThemePreference } from '../utils/adminTheme';
 
 const formatToday = () =>
   new Date().toLocaleDateString('en-US', {
@@ -24,6 +25,12 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
     localStorage.removeItem('admin_refresh');
     localStorage.removeItem('admin_email');
     navigate('/admin/login');
+  };
+
+  const handleThemeToggle = () => {
+    const nextDarkMode = !darkMode;
+    persistAdminThemePreference(nextDarkMode, adminEmail);
+    setDarkMode(nextDarkMode);
   };
 
   const handleRefreshPage = () => {
@@ -50,8 +57,8 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
     const path = location.pathname;
     if (path.includes('/admin/users/detail/')) return 'User Detail';
     if (path.includes('/admin/users')) return 'User Management';
-    if (path.includes('/admin/reports/cases')) return 'Case Management';
-    if (path.includes('/admin/reports')) return 'Reports';
+    if (path.includes('/admin/reports/cases')) return 'Reports Workspace';
+    if (path.includes('/admin/reports')) return 'Reports Workspace';
     if (path.includes('/admin/swipe-stats')) return 'Swipe Analytics';
     if (path.includes('/admin/messages/support/')) return 'Support Conversation';
     if (path.includes('/admin/messages/user/')) return 'User Conversation';
@@ -78,7 +85,7 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
         </span>
         <button
           className="theme-toggle"
-          onClick={() => setDarkMode(!darkMode)}
+          onClick={handleThemeToggle}
           aria-label="Toggle dark mode"
         >
           <i className={`fas ${darkMode ? 'fa-sun' : 'fa-moon'}`}></i>
@@ -96,10 +103,9 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
           className="admin-avatar"
           ref={avatarRef}
           onClick={() => setDropdownOpen((prev) => !prev)}
-          onMouseEnter={() => setDropdownOpen(true)}
-          onMouseLeave={() => setDropdownOpen(false)}
           role="button"
           tabIndex={0}
+          aria-expanded={dropdownOpen}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
@@ -113,8 +119,7 @@ export default function AdminTopNav({ darkMode, setDarkMode, pageTitle = "Dashbo
             <div 
               className="avatar-dropdown"
               ref={dropdownRef}
-              onMouseEnter={() => setDropdownOpen(true)}
-              onMouseLeave={() => setDropdownOpen(false)}
+              onClick={(event) => event.stopPropagation()}
             >
               <button className="dropdown-item" onClick={handleLogout}>
                 <i className="fas fa-sign-out-alt me-2"></i> Logout

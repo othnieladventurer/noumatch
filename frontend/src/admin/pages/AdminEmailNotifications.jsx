@@ -5,12 +5,8 @@ import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
-import { readFreshCache, writeCache } from '../utils/adminCache';
 
 const API_BASE = getAdminApiBase();
-const TEMPLATE_CACHE_KEY = 'admin_email_notification_templates_v1';
-const LOG_CACHE_KEY = 'admin_email_notification_logs_v1';
-const CACHE_TTL = 120000;
 
 const emptyDraft = {
   name: '',
@@ -34,19 +30,17 @@ export default function AdminEmailNotifications() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('email-notifications');
-  const [cachedTemplatePayload] = useState(() => readFreshCache(TEMPLATE_CACHE_KEY, CACHE_TTL));
-  const [cachedLogsPayload] = useState(() => readFreshCache(LOG_CACHE_KEY, CACHE_TTL));
-  const [loading, setLoading] = useState(!cachedTemplatePayload);
-  const [logLoading, setLogLoading] = useState(!cachedLogsPayload);
+  const [loading, setLoading] = useState(true);
+  const [logLoading, setLogLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [templates, setTemplates] = useState(cachedTemplatePayload?.templates || []);
-  const [overview, setOverview] = useState(cachedTemplatePayload?.overview || null);
-  const [logs, setLogs] = useState(cachedLogsPayload?.results || []);
-  const [logsPage, setLogsPage] = useState(cachedLogsPayload?.page || 1);
-  const [logsPages, setLogsPages] = useState(cachedLogsPayload?.pages || 1);
-  const [logsTotal, setLogsTotal] = useState(cachedLogsPayload?.total || 0);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(cachedTemplatePayload?.templates?.[0]?.id || null);
+  const [templates, setTemplates] = useState([]);
+  const [overview, setOverview] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [logsPage, setLogsPage] = useState(1);
+  const [logsPages, setLogsPages] = useState(1);
+  const [logsTotal, setLogsTotal] = useState(0);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [draft, setDraft] = useState(emptyDraft);
   const [testState, setTestState] = useState(emptyTestState);
   const [logFilters, setLogFilters] = useState({
@@ -85,19 +79,10 @@ export default function AdminEmailNotifications() {
     }
   }, [selectedTemplate]);
 
-  const fetchTemplates = async (force = false) => {
+  const fetchTemplates = async () => {
     const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
-      return;
-    }
-
-    const cached = readFreshCache(TEMPLATE_CACHE_KEY, CACHE_TTL);
-    if (cached && !force) {
-      setTemplates(cached.templates || []);
-      setOverview(cached.overview || null);
-      setSelectedTemplateId((prev) => prev || cached.templates?.[0]?.id || null);
-      setLoading(false);
       return;
     }
 
@@ -107,7 +92,6 @@ export default function AdminEmailNotifications() {
       setTemplates(res.data.templates || []);
       setOverview(res.data.overview || null);
       setSelectedTemplateId((prev) => prev || res.data.templates?.[0]?.id || null);
-      writeCache(TEMPLATE_CACHE_KEY, res.data);
       setError('');
     } catch (err) {
       if (err?.authExpired || err.response?.status === 401 || err.response?.status === 403) {
@@ -123,21 +107,10 @@ export default function AdminEmailNotifications() {
     }
   };
 
-  const fetchLogs = async (page = 1, force = false) => {
+  const fetchLogs = async (page = 1) => {
     const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
-      return;
-    }
-
-    const cacheKey = `${LOG_CACHE_KEY}:${page}:${logFilters.event_type || 'all'}:${logFilters.status || 'all'}:${logFilters.search || 'all'}`;
-    const cached = readFreshCache(cacheKey, CACHE_TTL);
-    if (cached && !force) {
-      setLogs(cached.results || []);
-      setLogsPage(cached.page || 1);
-      setLogsPages(cached.pages || 1);
-      setLogsTotal(cached.total || 0);
-      setLogLoading(false);
       return;
     }
 
@@ -157,7 +130,6 @@ export default function AdminEmailNotifications() {
       setLogsPage(res.data.page || 1);
       setLogsPages(res.data.pages || 1);
       setLogsTotal(res.data.total || 0);
-      writeCache(cacheKey, res.data);
     } catch (err) {
       if (err?.authExpired || err.response?.status === 401 || err.response?.status === 403) {
         localStorage.removeItem('admin_access');
@@ -182,8 +154,8 @@ export default function AdminEmailNotifications() {
 
   useEffect(() => {
     const handleRefresh = () => {
-      fetchTemplates(true);
-      fetchLogs(logsPage, true);
+      fetchTemplates();
+      fetchLogs(logsPage);
     };
     window.addEventListener('admin:refresh-page', handleRefresh);
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
@@ -223,9 +195,7 @@ export default function AdminEmailNotifications() {
         },
       });
       const nextTemplates = templates.map((item) => (item.id === res.data.id ? res.data : item));
-      const nextPayload = { templates: nextTemplates, overview };
       setTemplates(nextTemplates);
-      writeCache(TEMPLATE_CACHE_KEY, nextPayload);
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save email template');
@@ -278,8 +248,8 @@ export default function AdminEmailNotifications() {
           ? `${res.data?.message || 'Test email processed'} (${res.data.error_message})`
           : (res.data?.message || `Test email finished with status: ${res.data?.status || 'unknown'}`),
       }));
-      fetchLogs(1, true);
-      fetchTemplates(true);
+      fetchLogs(1);
+      fetchTemplates();
       setError('');
     } catch (err) {
       setTestState((prev) => ({ ...prev, sending: false }));

@@ -17,7 +17,6 @@ import {
 } from 'chart.js';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
-import { readFreshCache, writeCache } from '../utils/adminCache';
 
 ChartJS.register(
   CategoryScale,
@@ -31,9 +30,6 @@ ChartJS.register(
 );
 
 const API_BASE = getAdminApiBase();
-const DASHBOARD_CACHE_KEY = 'admin_dashboard_metrics_v2';
-const getActiveUsersCacheKey = ({ dateFrom, dateTo, actions }) =>
-  `admin_dashboard_active_users_v1:${dateFrom}:${dateTo}:${actions.slice().sort().join('|')}`;
 const ACTIVE_ACTIONS = ['login', 'view', 'like', 'message'];
 
 const formatDateInput = (date) => {
@@ -48,9 +44,7 @@ const formatPercentValue = (value, decimals = 1) => `${Number(value || 0).toFixe
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [cachedDashboard] = useState(() => readFreshCache(DASHBOARD_CACHE_KEY, 120000));
-
-  const [metrics, setMetrics] = useState(cachedDashboard);
+  const [metrics, setMetrics] = useState(null);
   const [registrationBalance, setRegistrationBalance] = useState({
     women_registered_count: 0,
     men_registered_count: 0,
@@ -58,7 +52,7 @@ export default function AdminDashboard() {
     women_registered_ratio: 0,
     men_registered_ratio: 0,
   });
-  const [loading, setLoading] = useState(!cachedDashboard);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
@@ -100,7 +94,6 @@ export default function AdminDashboard() {
           url: `${API_BASE}/dashboard/`,
         });
         setMetrics(res.data);
-        writeCache(DASHBOARD_CACHE_KEY, res.data);
         setError('');
       } catch (err) {
         if (err?.authExpired || err.response?.status === 401 || err.response?.status === 403) {
@@ -116,16 +109,14 @@ export default function AdminDashboard() {
       }
     };
 
-    if (!cachedDashboard) {
-      fetchDashboard();
-    }
+    fetchDashboard();
 
     const handleRefresh = () => {
       fetchDashboard();
     };
     window.addEventListener('admin:refresh-page', handleRefresh);
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
-  }, [cachedDashboard, navigate]);
+  }, [navigate]);
 
   useEffect(() => {
     const token = getAdminAuthToken();
@@ -233,20 +224,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    const fetchActiveUsersMetrics = async (force = false) => {
-      const cacheKey = getActiveUsersCacheKey({
-        dateFrom: activeUserFilters.dateFrom,
-        dateTo: activeUserFilters.dateTo,
-        actions: activeUserFilters.actions,
-      });
-      const cachedActiveUsers = readFreshCache(cacheKey, 180000);
-      if (cachedActiveUsers) {
-        setActiveUsersMetrics(cachedActiveUsers);
-        setActiveUsersError('');
-        if (!force) {
-          return;
-        }
-      }
+    const fetchActiveUsersMetrics = async () => {
       try {
         setActiveUsersLoading(true);
         const actionsParam = activeUserFilters.actions.length === ACTIVE_ACTIONS.length
@@ -262,7 +240,6 @@ export default function AdminDashboard() {
           },
         });
         setActiveUsersMetrics(res.data);
-        writeCache(cacheKey, res.data);
         setActiveUsersError('');
       } catch (err) {
         if (err?.authExpired || err.response?.status === 401 || err.response?.status === 403) {

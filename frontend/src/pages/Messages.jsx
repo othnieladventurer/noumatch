@@ -319,7 +319,10 @@ export default function Messages() {
     return (
       <>
         <DashboardNavbar user={user} />
-        <div className="container py-5 text-center">
+        <div
+          className="container d-flex justify-content-center align-items-center"
+          style={{ minHeight: "calc(100dvh - 72px)" }}
+        >
           <div className="spinner-border text-danger" role="status" />
         </div>
       </>

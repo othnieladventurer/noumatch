@@ -37,6 +37,7 @@ export default function Login() {
       if (response.data?.refresh) {
         localStorage.setItem("refresh", response.data.refresh);
       }
+      localStorage.setItem("nm_has_session", "1");
       sessionStorage.setItem("nm_user_session", "1");
       navigate("/dashboard");
     } catch (error) {

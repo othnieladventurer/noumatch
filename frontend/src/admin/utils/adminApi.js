@@ -1,5 +1,9 @@
 import axios from "axios";
 let adminAxiosInterceptorInitialized = false;
+const ADMIN_API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 0);
+const looksLikeJwt = (value) => typeof value === "string" && value.split(".").length === 3;
+const hasStoredAdminAccess = () => looksLikeJwt(localStorage.getItem("admin_access"));
+const hasStoredAdminRefresh = () => looksLikeJwt(localStorage.getItem("admin_refresh"));
 
 export const getAdminApiBase = () => {
   const host = window.location.hostname;
@@ -28,42 +32,89 @@ export const getAdminApiBase = () => {
   return "/api/noumatch-admin";
 };
 
-export const getAdminAuthToken = () => localStorage.getItem("admin_access");
+export const hasAdminSessionHint = () =>
+  hasStoredAdminAccess() ||
+  hasStoredAdminRefresh() ||
+  Boolean(localStorage.getItem("admin_email"));
+
+export const getAdminAuthToken = () => {
+  const token = localStorage.getItem("admin_access");
+  if (looksLikeJwt(token)) {
+    return token;
+  }
+  if (hasStoredAdminRefresh()) {
+    return localStorage.getItem("admin_refresh");
+  }
+  return localStorage.getItem("admin_email") || null;
+};
 
 export const persistAdminAccessToken = (token) => {
-  if (typeof token === "string" && token.includes(".")) {
+  if (looksLikeJwt(token)) {
     localStorage.setItem("admin_access", token);
     return token;
   }
-
   localStorage.removeItem("admin_access");
   return null;
 };
 
 export const getAdminAuthHeaders = () => {
-  const token = getAdminAuthToken();
-  return token && token.includes(".")
-    ? { Authorization: `Bearer ${token}`, "X-Requested-With": "XMLHttpRequest" }
-    : { "X-Requested-With": "XMLHttpRequest" };
+  const token = localStorage.getItem("admin_access");
+  return looksLikeJwt(token)
+    ? {
+        Authorization: `Bearer ${token}`,
+        "X-Requested-With": "XMLHttpRequest",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      }
+    : {
+        "X-Requested-With": "XMLHttpRequest",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      };
 };
 
 export const refreshAdminAccessToken = async () => {
-  const res = await axios.post(`${getAdminApiBase()}/token/refresh/`, {}, {
+  const storedRefresh = localStorage.getItem("admin_refresh");
+  const payload = looksLikeJwt(storedRefresh) ? { refresh: storedRefresh } : {};
+  const res = await axios.post(`${getAdminApiBase()}/token/refresh/`, payload, {
     withCredentials: true,
+    timeout: ADMIN_API_TIMEOUT_MS,
+    headers: { "X-Requested-With": "XMLHttpRequest" },
   });
-  const nextAccess = res.data?.access;
-  if (!nextAccess) {
-    throw new Error("Invalid refresh response");
+  if (!res.data?.access) {
+    throw new Error("Invalid admin refresh response");
   }
-  return persistAdminAccessToken(nextAccess);
+  const nextAccess = persistAdminAccessToken(res.data.access);
+  if (looksLikeJwt(res.data?.refresh)) {
+    localStorage.setItem("admin_refresh", res.data.refresh);
+  }
+  return nextAccess;
+};
+
+export const ensureAdminAccessToken = async () => {
+  const accessToken = localStorage.getItem("admin_access");
+  if (looksLikeJwt(accessToken)) {
+    return accessToken;
+  }
+
+  if (!hasAdminSessionHint()) {
+    return null;
+  }
+
+  return refreshAdminAccessToken();
 };
 
 export const adminRequest = async (config) => {
   const timeout =
-    typeof config.timeout === "number" && config.timeout > 0
+    typeof config.timeout === "number"
       ? config.timeout
-      : undefined;
-  const withToken = {
+      : ADMIN_API_TIMEOUT_MS > 0
+        ? ADMIN_API_TIMEOUT_MS
+        : undefined;
+
+  const requestConfig = {
     withCredentials: true,
     ...config,
     headers: {
@@ -72,11 +123,11 @@ export const adminRequest = async (config) => {
     },
   };
   if (timeout !== undefined) {
-    withToken.timeout = timeout;
+    requestConfig.timeout = timeout;
   }
 
   try {
-    return await axios(withToken);
+    return await axios(requestConfig);
   } catch (error) {
     if (error?.response?.status !== 401) {
       throw error;
@@ -89,7 +140,7 @@ export const adminRequest = async (config) => {
         headers: {
           ...(config.headers || {}),
           "X-Requested-With": "XMLHttpRequest",
-          Authorization: `Bearer ${newAccess}`,
+          ...(newAccess ? { Authorization: `Bearer ${newAccess}` } : {}),
         },
       };
       if (timeout !== undefined) {
@@ -98,6 +149,7 @@ export const adminRequest = async (config) => {
       return await axios(retryConfig);
     } catch (refreshErr) {
       localStorage.removeItem("admin_access");
+      localStorage.removeItem("admin_refresh");
       localStorage.removeItem("admin_email");
       refreshErr.authExpired = true;
       throw refreshErr;
@@ -130,7 +182,7 @@ export const setupAdminAxiosInterceptor = () => {
         originalRequest.headers = {
           ...(originalRequest.headers || {}),
           "X-Requested-With": "XMLHttpRequest",
-          Authorization: `Bearer ${nextAccess}`,
+          ...(nextAccess ? { Authorization: `Bearer ${nextAccess}` } : {}),
         };
         return axios(originalRequest);
       } catch (refreshErr) {

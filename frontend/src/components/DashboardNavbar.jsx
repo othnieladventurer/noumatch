@@ -8,7 +8,7 @@ import { useNotifications } from '../context/NotificationContext';
 import API from '../api/axios.js';
 import { getRuntimeApiBase, resolveMediaUrl } from '../utils/apiBase';
 
-export default function DashboardNavbar({ user }) {
+export default function DashboardNavbar({ user, navRef = null }) {
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState({
@@ -287,7 +287,7 @@ export default function DashboardNavbar({ user }) {
           }
         `}</style>
         
-        <nav className="navbar navbar-expand-lg nm-navbar">
+        <nav ref={navRef} className="navbar navbar-expand-lg nm-navbar">
           <div className="container">
             <Link className="navbar-brand d-flex align-items-center" to="/admin/dashboard">
               <BrandLogo className="nm-brand-logo" height={32} />
@@ -373,7 +373,7 @@ export default function DashboardNavbar({ user }) {
   // Regular user navbar (existing code)
   if (!isInitialized || !user) {
     return (
-      <nav className="navbar navbar-expand-lg nm-navbar">
+      <nav ref={navRef} className="navbar navbar-expand-lg nm-navbar">
         <div className="container">
           <Link className="navbar-brand d-flex align-items-center" to="/dashboard">
             <BrandLogo className="nm-brand-logo" height={32} />
@@ -509,7 +509,7 @@ export default function DashboardNavbar({ user }) {
         }
       `}</style>
 
-      <nav className="navbar navbar-expand-lg nm-navbar">
+      <nav ref={navRef} className="navbar navbar-expand-lg nm-navbar">
         <div className="container">
           <Link className="navbar-brand d-flex align-items-center" to="/dashboard">
             <BrandLogo className="nm-brand-logo" height={32} />

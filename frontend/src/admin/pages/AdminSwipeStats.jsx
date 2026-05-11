@@ -17,29 +17,25 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
-import { adminRequest, getAdminApiBase } from '../utils/adminApi';
-import { readFreshCache, writeCache } from '../utils/adminCache';
+import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
 
 const API_BASE = getAdminApiBase();
 const DAYS_PER_PAGE = 10;
-const SWIPE_STATS_CACHE_TTL = 300000;
-const getSwipeStatsCacheKey = (page) => `admin_swipe_stats_v1:${page}`;
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
 export default function AdminSwipeStats() {
-  const cachedPayload = readFreshCache(getSwipeStatsCacheKey(1), SWIPE_STATS_CACHE_TTL);
   const [stats, setStats] = useState({
-    total_likes: cachedPayload?.total_likes || 0,
-    total_passes: cachedPayload?.total_passes || 0,
-    today_likes: cachedPayload?.today_likes || 0,
-    today_passes: cachedPayload?.today_passes || 0,
-    top_users: cachedPayload?.top_users || [],
+    total_likes: 0,
+    total_passes: 0,
+    today_likes: 0,
+    today_passes: 0,
+    top_users: [],
   });
-  const [dailyData, setDailyData] = useState(cachedPayload?.daily_data || []);
-  const [currentPage, setCurrentPage] = useState(cachedPayload?.page || 1);
-  const [totalPages, setTotalPages] = useState(cachedPayload?.pages || 1);
-  const [loading, setLoading] = useState(!cachedPayload);
+  const [dailyData, setDailyData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
@@ -56,33 +52,14 @@ export default function AdminSwipeStats() {
     }
   }, [darkMode]);
 
-  const fetchStats = async (page = 1, force = false) => {
-    const token = localStorage.getItem('admin_access');
+  const fetchStats = async (page = 1) => {
+    const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
       return;
     }
 
-    const cacheKey = getSwipeStatsCacheKey(page);
-    const pageCache = readFreshCache(cacheKey, SWIPE_STATS_CACHE_TTL);
-    if (pageCache) {
-      setStats({
-        total_likes: pageCache.total_likes || 0,
-        total_passes: pageCache.total_passes || 0,
-        today_likes: pageCache.today_likes || 0,
-        today_passes: pageCache.today_passes || 0,
-        top_users: pageCache.top_users || [],
-      });
-      setDailyData(pageCache.daily_data || []);
-      setTotalPages(pageCache.pages || 1);
-      setLoading(false);
-      if (!force) {
-        return;
-      }
-    } else {
-      setLoading(true);
-    }
-
+    setLoading(true);
     setError('');
     try {
       const res = await adminRequest({
@@ -100,7 +77,6 @@ export default function AdminSwipeStats() {
       setDailyData(res.data.daily_data || []);
       setCurrentPage(res.data.page || 1);
       setTotalPages(res.data.pages || 1);
-      writeCache(cacheKey, res.data);
     } catch (err) {
       console.error('Failed to fetch swipe analytics:', err);
       if (err.authExpired || err.response?.status === 401) {
@@ -122,7 +98,7 @@ export default function AdminSwipeStats() {
 
   useEffect(() => {
     const handleRefresh = () => {
-      fetchStats(currentPage, true);
+      fetchStats(currentPage);
     };
     window.addEventListener('admin:refresh-page', handleRefresh);
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);

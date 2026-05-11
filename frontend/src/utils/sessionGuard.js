@@ -10,34 +10,17 @@ const USER_PROTECTED_PREFIXES = [
 const ADMIN_LOGIN_PATH = '/admin/login';
 const USER_LOGIN_PATH = '/login';
 
-const decodeJwtPayload = (token) => {
-  if (!token || token.split('.').length !== 3) return null;
-  try {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-    return JSON.parse(window.atob(padded));
-  } catch {
-    return null;
-  }
-};
+const looksLikeJwt = (value) => typeof value === 'string' && value.split('.').length === 3;
 
-const isExpiredJwt = (token, skewSeconds = 60) => {
-  const payload = decodeJwtPayload(token);
-  if (!payload?.exp) return true;
-  return payload.exp * 1000 <= Date.now() + skewSeconds * 1000;
-};
+const hasAdminSessionHint = () =>
+  looksLikeJwt(localStorage.getItem('admin_access')) ||
+  looksLikeJwt(localStorage.getItem('admin_refresh')) ||
+  Boolean(localStorage.getItem('admin_email'));
 
-export const clearAdminSession = () => {
-  localStorage.removeItem('admin_access');
-  localStorage.removeItem('admin_refresh');
-  localStorage.removeItem('admin_email');
-};
-
-export const clearUserSession = () => {
-  localStorage.removeItem('access');
-  localStorage.removeItem('refresh');
-  sessionStorage.removeItem('nm_user_session');
-};
+const hasUserSessionHint = () =>
+  looksLikeJwt(localStorage.getItem('access')) ||
+  looksLikeJwt(localStorage.getItem('refresh')) ||
+  Boolean(localStorage.getItem('nm_has_session'));
 
 const redirectIfNeeded = (path) => {
   if (window.location.pathname !== path) {
@@ -45,17 +28,30 @@ const redirectIfNeeded = (path) => {
   }
 };
 
+// Clear the non-sensitive admin session hint from localStorage.
+export const clearAdminSession = () => {
+  localStorage.removeItem('admin_email');
+};
+
+// Clear the non-sensitive user session hints.
+export const clearUserSession = () => {
+  localStorage.removeItem('nm_has_session');
+  sessionStorage.removeItem('nm_user_session');
+};
+
 export const enforceSessionForCurrentRoute = async () => {
   const path = window.location.pathname;
 
   if (path.startsWith('/admin') && path !== ADMIN_LOGIN_PATH) {
-    const adminToken = localStorage.getItem('admin_access');
-    if (!adminToken || isExpiredJwt(adminToken)) {
+    const adminAccess = localStorage.getItem('admin_access');
+    if (!looksLikeJwt(adminAccess)) {
+      if (!hasAdminSessionHint()) {
+        redirectIfNeeded(ADMIN_LOGIN_PATH);
+        return true;
+      }
       try {
         await refreshAdminAccessToken();
-        return false;
       } catch {
-        clearAdminSession();
         redirectIfNeeded(ADMIN_LOGIN_PATH);
         return true;
       }
@@ -65,13 +61,15 @@ export const enforceSessionForCurrentRoute = async () => {
 
   const isUserProtectedRoute = USER_PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix));
   if (isUserProtectedRoute) {
-    const userToken = localStorage.getItem('access');
-    if (!userToken || isExpiredJwt(userToken)) {
+    const accessToken = localStorage.getItem('access');
+    if (!looksLikeJwt(accessToken)) {
+      if (!hasUserSessionHint()) {
+        redirectIfNeeded(USER_LOGIN_PATH);
+        return true;
+      }
       try {
         await refreshUserAccessToken();
-        return false;
       } catch {
-        clearUserSession();
         redirectIfNeeded(USER_LOGIN_PATH);
         return true;
       }
@@ -88,20 +86,7 @@ export const startSessionExpiryGuard = () => {
 
   run();
 
-  const interval = window.setInterval(run, 30000);
-  const onFocus = run;
-  const onStorage = (event) => {
-    if (['access', 'admin_access'].includes(event.key)) {
-      run();
-    }
-  };
-
-  window.addEventListener('focus', onFocus);
-  window.addEventListener('storage', onStorage);
-
-  return () => {
-    window.clearInterval(interval);
-    window.removeEventListener('focus', onFocus);
-    window.removeEventListener('storage', onStorage);
-  };
+  // Re-check when the tab regains focus (user returns from another tab or app).
+  window.addEventListener('focus', run);
+  return () => window.removeEventListener('focus', run);
 };

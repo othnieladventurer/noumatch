@@ -1,6 +1,6 @@
 // src/pages/Dashboard.jsx - Complete redesigned version (with user passed to CenterBlock)
 
-import React, { useEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import LeftBlock from "../components/LeftBlock";
@@ -27,6 +27,12 @@ export default function Dashboard() {
   const [crashError, setCrashError] = useState(null);
   const [activeMobileTab, setActiveMobileTab] = useState('center');
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const [mobileLayout, setMobileLayout] = useState({
+    containerHeight: null,
+    contentHeight: null,
+  });
+  const dashboardNavbarRef = useRef(null);
+  const mobileBottomNavRef = useRef(null);
   
   // Session tracking for analytics
   const [sessionId] = useState(() => {
@@ -46,6 +52,10 @@ export default function Dashboard() {
   const [hasMoreProfiles, setHasMoreProfiles] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const requiresProfileCompletionBlock =
+    Boolean(user?.photo_review_required) ||
+    Boolean(user?.bio_review_required) ||
+    !String(user?.bio || "").trim();
   
   // Animation states
   const [slideDirection, setSlideDirection] = useState(null);
@@ -132,6 +142,70 @@ export default function Dashboard() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const syncMobileLayout = useCallback(() => {
+    if (typeof window === "undefined" || window.innerWidth >= 992) {
+      return;
+    }
+
+    const viewportHeight = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+    const topNavHeight = Math.round(
+      dashboardNavbarRef.current?.offsetHeight ||
+      document.querySelector(".nm-navbar")?.offsetHeight ||
+      64
+    );
+    const bottomNavHeight = Math.round(
+      mobileBottomNavRef.current?.offsetHeight ||
+      document.querySelector(".mobile-bottom-nav")?.offsetHeight ||
+      MOBILE_BOTTOM_NAV_HEIGHT
+    );
+
+    const containerHeight = Math.max(0, viewportHeight - topNavHeight);
+    const contentHeight = Math.max(0, containerHeight - bottomNavHeight);
+
+    setMobileLayout((prev) => (
+      prev.containerHeight === containerHeight && prev.contentHeight === contentHeight
+        ? prev
+        : { containerHeight, contentHeight }
+    ));
+  }, []);
+
+  useEffect(() => {
+    if (windowWidth < 992 && requiresProfileCompletionBlock && !['center', 'profile'].includes(activeMobileTab)) {
+      setActiveMobileTab('center');
+    }
+  }, [windowWidth, requiresProfileCompletionBlock, activeMobileTab]);
+
+  useLayoutEffect(() => {
+    if (windowWidth >= 992) {
+      return undefined;
+    }
+
+    syncMobileLayout();
+
+    const handleResize = () => syncMobileLayout();
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    window.visualViewport?.addEventListener("resize", handleResize);
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(handleResize);
+      if (dashboardNavbarRef.current) {
+        resizeObserver.observe(dashboardNavbarRef.current);
+      }
+      if (mobileBottomNavRef.current) {
+        resizeObserver.observe(mobileBottomNavRef.current);
+      }
+    }
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+      window.visualViewport?.removeEventListener("resize", handleResize);
+      resizeObserver?.disconnect();
+    };
+  }, [windowWidth, activeMobileTab, requiresProfileCompletionBlock, syncMobileLayout]);
   
   // Error handler
   useEffect(() => {
@@ -1105,8 +1179,19 @@ export default function Dashboard() {
   
   return (
     <>
-      <DashboardNavbar user={user} />
-      <div className="dashboard-container" style={{ height: 'calc(100dvh - 72px)', overflow: 'hidden', position: 'relative', margin: 0, padding: 0 }}>
+      <DashboardNavbar user={user} navRef={dashboardNavbarRef} />
+      <div
+        className="dashboard-container"
+        style={{
+          height: windowWidth < 992
+            ? (mobileLayout.containerHeight ? `${mobileLayout.containerHeight}px` : 'calc(100dvh - 64px)')
+            : 'calc(100dvh - 72px)',
+          overflow: 'hidden',
+          position: 'relative',
+          margin: 0,
+          padding: 0,
+        }}
+      >
         {user ? (
           <>
             {/* Desktop Layout */}
@@ -1176,11 +1261,18 @@ export default function Dashboard() {
             
             {/* Mobile Layout */}
             <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, background: activeMobileTab === 'center' ? '#000' : 'transparent' }}>
-              <div style={{ height: `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px - env(safe-area-inset-bottom, 0px))`, overflow: 'hidden', minHeight: 0, background: activeMobileTab === 'center' ? '#000' : 'transparent' }}>
+              <div
+                style={{
+                  height: mobileLayout.contentHeight ? `${mobileLayout.contentHeight}px` : `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px - env(safe-area-inset-bottom, 0px))`,
+                  overflow: 'hidden',
+                  minHeight: 0,
+                  background: activeMobileTab === 'center' ? '#000' : 'transparent',
+                }}
+              >
                 {renderMobileContent()}
               </div>
             </div>
-            {windowWidth < 992 && <MobileBottomNav user={user} activeMobileTab={activeMobileTab} setActiveMobileTab={setActiveMobileTab} likesList={likesList} matchesList={matchesList} getProfilePhotoUrl={getProfilePhotoUrl} t={t} />}
+            {windowWidth < 992 && <MobileBottomNav navRef={mobileBottomNavRef} user={user} activeMobileTab={activeMobileTab} setActiveMobileTab={setActiveMobileTab} likesList={likesList} matchesList={matchesList} getProfilePhotoUrl={getProfilePhotoUrl} t={t} requiresProfileCompletionBlock={requiresProfileCompletionBlock} />}
             
             <Modals
               user={user}
@@ -1425,10 +1517,25 @@ export default function Dashboard() {
 }
 
 // Internal components for mobile bottom nav
-const MobileBottomNav = ({ user, activeMobileTab, setActiveMobileTab, likesList, matchesList, getProfilePhotoUrl, t }) => {
+const MobileBottomNav = ({ navRef, user, activeMobileTab, setActiveMobileTab, likesList, matchesList, getProfilePhotoUrl, t, requiresProfileCompletionBlock }) => {
   const canViewLikes = canSeeWhoLiked(user);
+  if (requiresProfileCompletionBlock) {
+    return (
+      <div ref={navRef} className="mobile-bottom-nav">
+        <button onClick={() => setActiveMobileTab('center')} className={`nav-item ${activeMobileTab === 'center' ? 'active' : ''}`}>
+          <i className="fas fa-compass nav-icon"></i>
+          <span>{t("dashboard.nav.discover")}</span>
+        </button>
+        <button onClick={() => setActiveMobileTab('profile')} className={`nav-item ${activeMobileTab === 'profile' ? 'active' : ''}`}>
+          <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '24px', height: '24px', objectFit: 'cover' }} />
+          <span>{t("dashboard.nav.profile")}</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="mobile-bottom-nav">
+    <div ref={navRef} className="mobile-bottom-nav">
       <button onClick={() => setActiveMobileTab('center')} className={`nav-item ${activeMobileTab === 'center' ? 'active' : ''}`}>
         <i className="fas fa-compass nav-icon"></i>
         <span>{t("dashboard.nav.discover")}</span>

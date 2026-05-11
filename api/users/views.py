@@ -93,90 +93,6 @@ class UserListView(generics.ListAPIView):
 
 
 
-class RegisterView(generics.CreateAPIView):
-    serializer_class = RegisterSerializer
-    permission_classes = [AllowAny]
-    throttle_classes = [AuthRegisterThrottle]
-
-    def create(self, request, *args, **kwargs):
-        email = request.data.get('email', '').strip().lower()
-
-        # FIRST CHECK: Is this email already registered?
-        if User.objects.filter(email=email).exists():
-            return Response(
-                {"error": "Votre email est dÃ©jÃ  enregistrÃ©. Retournez sur connexion."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # SECOND CHECK: Is this email in the waitlist and contacted?
-        from waitlist.models import WaitlistEntry, ContactedArchive
-        
-        # Check in active waitlist first
-        waitlist_entry = WaitlistEntry.objects.filter(email=email, contacted=True).first()
-        
-        # If not found in active waitlist, check in contacted archive
-        if not waitlist_entry:
-            archived_entry = ContactedArchive.objects.filter(email=email).first()
-            if archived_entry:
-                # They were contacted and archived - allowed to register
-                pass
-            else:
-                return Response(
-                    {"error": "AccÃ¨s non autorisÃ©. Vous devez d'abord rejoindre la liste d'attente et Ãªtre contactÃ© par notre Ã©quipe pour vous inscrire."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-        # If found in waitlist but not contacted
-        if waitlist_entry and not waitlist_entry.contacted:
-            return Response(
-                {"error": "Votre inscription sur la liste d'attente est en cours de traitement. Vous recevrez un email de confirmation avant de pouvoir crÃ©er votre compte."},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # User is authorized to register
-        serializer = self.get_serializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        try:
-            inject_new_user_visibility(user, limit=20)
-        except Exception:
-            logging.exception("new-user visibility injection failed for user_id=%s", user.id)
-
-        # Mark waitlist entry as used (optional - to prevent re-registration)
-        if waitlist_entry:
-            # Optionally move to archive or mark as registered
-            pass
-
-        # Generate 4-digit OTP
-        otp_code = generate_otp()
-        
-        # Delete any existing OTP and create new one
-        OTP.objects.filter(user=user).delete()
-        OTP.objects.create(
-            user=user,
-            code=otp_code,
-            is_used=False,
-            attempts=0
-        )
-        
-        def send_email_background():
-            try:
-                send_otp_via_api(user, otp_code)
-            except Exception as e:
-                logging.info(f"Background email failed: {e}")
-        
-        thread = threading.Thread(target=send_email_background)
-        thread.daemon = True
-        thread.start()
-        
-        logging.info("Registration successful for user_id=%s", user.id)
-        
-
-        return Response({
-            "message": "Registration successful. Please verify your email with the 4-digit code sent.",
-            "user_id": user.id,
-        }, status=status.HTTP_201_CREATED)
-
 
 
 
@@ -956,6 +872,7 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', True)
         instance = self.get_object()
+        previous_bio = instance.bio or ""
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         
         try:
@@ -967,6 +884,11 @@ class ProfileUpdateView(generics.RetrieveUpdateAPIView):
         self.perform_update(serializer)
         if 'profile_photo' in request.data and request.data.get('profile_photo'):
             instance.clear_photo_review_requirement()
+        if 'bio' in request.data:
+            refreshed_bio = (instance.bio or '').strip()
+            previous_bio_clean = previous_bio.strip()
+            if refreshed_bio and refreshed_bio != previous_bio_clean:
+                instance.clear_bio_review_requirement()
         
         return Response(serializer.data, status=status.HTTP_200_OK)
 

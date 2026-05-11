@@ -22,12 +22,11 @@ const getFrontendUrl = () => {
 };
 
 const FRONTEND_URL = getFrontendUrl();
+const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 0);
 
-const isAdminMode = () => {
-  return window.location.pathname.startsWith("/admin");
-};
-
+const isAdminMode = () => window.location.pathname.startsWith("/admin");
 const looksLikeJwt = (value) => typeof value === "string" && value.split(".").length === 3;
+
 let userRefreshPromise = null;
 let adminRefreshPromise = null;
 
@@ -53,44 +52,36 @@ const applyDefaultSecurityHeaders = (config) => {
   return config;
 };
 
-const clearUserAuthTokens = () => {
+// Non-sensitive session hints stored in localStorage (no tokens, no secrets).
+const markUserSession = () => localStorage.setItem("nm_has_session", "1");
+const clearUserSessionHint = () => localStorage.removeItem("nm_has_session");
+const clearAdminSessionHint = () => localStorage.removeItem("admin_email");
+
+export const clearUserSession = () => {
   localStorage.removeItem("access");
   localStorage.removeItem("refresh");
-};
-
-const clearAdminAuthTokens = () => {
-  localStorage.removeItem("admin_access");
-  localStorage.removeItem("admin_refresh");
-  localStorage.removeItem("admin_email");
-};
-
-const persistAdminAccessToken = (token) => {
-  if (looksLikeJwt(token)) {
-    localStorage.setItem("admin_access", token);
-    return token;
-  }
-
-  localStorage.removeItem("admin_access");
-  return null;
-};
-
-const clearAdminSession = () => {
-  clearAdminAuthTokens();
-};
-
-const clearUserSession = () => {
-  clearUserAuthTokens();
+  clearUserSessionHint();
   sessionStorage.removeItem("nm_user_session");
 };
 
+export const clearAdminSession = () => {
+  localStorage.removeItem("admin_access");
+  localStorage.removeItem("admin_refresh");
+  clearAdminSessionHint();
+};
+
+// Refresh the user access token via the HttpOnly refresh cookie.
+// The server reads the cookie, rotates tokens, and sets new HttpOnly cookies.
+// Nothing sensitive is stored in localStorage.
 export const refreshUserAccessToken = async () => {
   if (userRefreshPromise) return userRefreshPromise;
 
   userRefreshPromise = (async () => {
     const storedRefresh = localStorage.getItem("refresh");
-    const payload = storedRefresh ? { refresh: storedRefresh } : {};
+    const payload = looksLikeJwt(storedRefresh) ? { refresh: storedRefresh } : {};
     const res = await axios.post(`${BASE_URL}/api/users/token/refresh/`, payload, {
       withCredentials: true,
+      timeout: API_TIMEOUT_MS,
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -98,17 +89,17 @@ export const refreshUserAccessToken = async () => {
       },
     });
 
-    const nextAccess = res.data?.access;
-    if (!looksLikeJwt(nextAccess)) {
+    if (!res.data?.access) {
       throw new Error("Invalid user refresh response");
     }
 
-    localStorage.setItem("access", nextAccess);
-    if (res.data?.refresh) {
+    localStorage.setItem("access", res.data.access);
+    if (looksLikeJwt(res.data?.refresh)) {
       localStorage.setItem("refresh", res.data.refresh);
     }
+    markUserSession();
     sessionStorage.setItem("nm_user_session", "1");
-    return nextAccess;
+    return res.data.access;
   })().finally(() => {
     userRefreshPromise = null;
   });
@@ -116,14 +107,16 @@ export const refreshUserAccessToken = async () => {
   return userRefreshPromise;
 };
 
+// Refresh the admin access token via the HttpOnly admin refresh cookie.
 export const refreshAdminAccessToken = async () => {
   if (adminRefreshPromise) return adminRefreshPromise;
 
   adminRefreshPromise = (async () => {
     const storedRefresh = localStorage.getItem("admin_refresh");
-    const payload = storedRefresh ? { refresh: storedRefresh } : {};
+    const payload = looksLikeJwt(storedRefresh) ? { refresh: storedRefresh } : {};
     const res = await axios.post(`${BASE_URL}/api/noumatch-admin/token/refresh/`, payload, {
       withCredentials: true,
+      timeout: API_TIMEOUT_MS,
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -131,14 +124,15 @@ export const refreshAdminAccessToken = async () => {
       },
     });
 
-    const nextAccess = persistAdminAccessToken(res.data?.access);
-    if (!nextAccess) {
+    if (!res.data?.access) {
       throw new Error("Invalid admin refresh response");
     }
-    if (res.data?.refresh) {
+
+    localStorage.setItem("admin_access", res.data.access);
+    if (looksLikeJwt(res.data?.refresh)) {
       localStorage.setItem("admin_refresh", res.data.refresh);
     }
-    return nextAccess;
+    return res.data.access;
   })().finally(() => {
     adminRefreshPromise = null;
   });
@@ -156,13 +150,14 @@ const isAuthenticationEndpoint = (url = "") =>
 
 const API = axios.create({
   baseURL: `${BASE_URL}/api/`,
-  timeout: 15000,
+  timeout: API_TIMEOUT_MS,
   withCredentials: true,
 });
 
+// Auth is carried exclusively by HttpOnly cookies sent via withCredentials: true.
+// No Authorization header is set — the backend reads the cookie directly.
 API.interceptors.request.use((config) => {
   applyDefaultSecurityHeaders(config);
-
   if (!isTrustedApiRequest(config)) {
     return config;
   }
@@ -214,7 +209,7 @@ API.interceptors.response.use(
           const nextAccess = await refreshAdminAccessToken();
           originalRequest.headers = {
             ...(originalRequest.headers || {}),
-            Authorization: `Bearer ${nextAccess}`,
+            ...(nextAccess ? { Authorization: `Bearer ${nextAccess}` } : {}),
           };
           return API(originalRequest);
         } catch (err) {
@@ -228,7 +223,7 @@ API.interceptors.response.use(
         const nextAccess = await refreshUserAccessToken();
         originalRequest.headers = {
           ...(originalRequest.headers || {}),
-          Authorization: `Bearer ${nextAccess}`,
+          ...(nextAccess ? { Authorization: `Bearer ${nextAccess}` } : {}),
         };
         return API(originalRequest);
       } catch (err) {
@@ -244,17 +239,15 @@ API.interceptors.response.use(
 
 export const adminAPI = axios.create({
   baseURL: `${BASE_URL}/api/noumatch-admin/`,
-  timeout: 15000,
+  timeout: API_TIMEOUT_MS,
   withCredentials: true,
 });
 
 adminAPI.interceptors.request.use((config) => {
   applyDefaultSecurityHeaders(config);
-
   if (!isTrustedApiRequest(config)) {
     return config;
   }
-
   const token = localStorage.getItem("admin_access");
   if (looksLikeJwt(token)) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -275,7 +268,7 @@ adminAPI.interceptors.response.use(
         const nextAccess = await refreshAdminAccessToken();
         originalRequest.headers = {
           ...(originalRequest.headers || {}),
-          Authorization: `Bearer ${nextAccess}`,
+          ...(nextAccess ? { Authorization: `Bearer ${nextAccess}` } : {}),
         };
         return adminAPI(originalRequest);
       } catch (err) {
