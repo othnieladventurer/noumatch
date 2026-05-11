@@ -95,6 +95,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     photo_review_trigger_count = models.PositiveIntegerField(default=0)
     photo_review_required_at = models.DateTimeField(null=True, blank=True)
     photo_review_reason = models.CharField(max_length=255, blank=True)
+    bio_review_required = models.BooleanField(default=False)
+    bio_review_trigger_count = models.PositiveIntegerField(default=0)
+    bio_review_required_at = models.DateTimeField(null=True, blank=True)
+    bio_review_reason = models.CharField(max_length=255, blank=True)
 
     # Activity
     last_activity = models.DateTimeField(null=True, blank=True)
@@ -255,6 +259,32 @@ class User(AbstractBaseUser, PermissionsMixin):
             'photo_review_required',
             'photo_review_required_at',
             'photo_review_reason',
+        ])
+        return True
+
+    def trigger_bio_review_requirement(self, reason=""):
+        cleaned_reason = (reason or "").strip()[:255]
+        self.bio_review_required = True
+        self.bio_review_trigger_count = int(self.bio_review_trigger_count or 0) + 1
+        self.bio_review_required_at = timezone.now()
+        self.bio_review_reason = cleaned_reason
+        self.save(update_fields=[
+            'bio_review_required',
+            'bio_review_trigger_count',
+            'bio_review_required_at',
+            'bio_review_reason',
+        ])
+
+    def clear_bio_review_requirement(self):
+        if not (self.bio_review_required or self.bio_review_required_at or self.bio_review_reason):
+            return False
+        self.bio_review_required = False
+        self.bio_review_required_at = None
+        self.bio_review_reason = ""
+        self.save(update_fields=[
+            'bio_review_required',
+            'bio_review_required_at',
+            'bio_review_reason',
         ])
         return True
 

@@ -27,11 +27,6 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("❌ [AUTH] Failed to fetch user:", error);
       setUser(null);
-      
-      // Only clear tokens if it's an auth error and not in admin mode
-      if (error.response?.status === 401 && !isAdminMode()) {
-        localStorage.removeItem("access");
-              }
     } finally {
       setLoading(false);
     }
@@ -45,8 +40,6 @@ export const AuthProvider = ({ children }) => {
       throw new Error("Please logout from admin panel first");
     }
 
-    localStorage.removeItem("admin_access");
-    localStorage.removeItem("admin_refresh");
     localStorage.removeItem("admin_email");
 
     const response = await API.post("users/login/", { email, password });
@@ -56,6 +49,8 @@ export const AuthProvider = ({ children }) => {
     if (response.data?.refresh) {
       localStorage.setItem("refresh", response.data.refresh);
     }
+    // Tokens are set as HttpOnly cookies by the server — nothing stored in localStorage.
+    localStorage.setItem("nm_has_session", "1");
     sessionStorage.setItem("nm_user_session", "1");
     await fetchUser(); // immediately fetch user object
     return response.data;
@@ -79,8 +74,6 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     // Handle admin logout if in admin mode
     if (isAdminMode()) {
-      localStorage.removeItem("admin_access");
-      localStorage.removeItem("admin_refresh");
       localStorage.removeItem("admin_email");
       setUser(null);
       window.location.href = '/admin/login';
@@ -93,8 +86,8 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("❌ [AUTH] Logout error:", error);
     } finally {
-      localStorage.removeItem("access");
-            sessionStorage.removeItem("nm_user_session");
+      localStorage.removeItem("nm_has_session");
+      sessionStorage.removeItem("nm_user_session");
       setUser(null);
     }
   };
@@ -102,14 +95,17 @@ export const AuthProvider = ({ children }) => {
   // 🔹 Admin login (separate method)
   const adminLogin = async (email, password) => {
     try {
-      localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
+      localStorage.removeItem("nm_has_session");
       sessionStorage.removeItem("nm_user_session");
 
       const response = await API.post("noumatch-admin/admin_login/", { email, password });
       if (response.data?.access) {
         localStorage.setItem("admin_access", response.data.access);
       }
+      if (response.data?.refresh) {
+        localStorage.setItem("admin_refresh", response.data.refresh);
+      }
+      // Tokens are set as HttpOnly cookies by the server — nothing stored in localStorage.
       localStorage.setItem("admin_email", email);
       return response.data;
     } catch (error) {
@@ -125,39 +121,28 @@ export const AuthProvider = ({ children }) => {
 
   // 🔹 On app load
   useEffect(() => {
-    const token = localStorage.getItem("access");
-    const adminToken = localStorage.getItem("admin_access");
     const isAdminPath = window.location.pathname.startsWith('/admin');
-    // If we're on admin path but have no admin token, don't fetch user
-    if (isAdminPath && !adminToken) {
+    if (isAdminPath) {
+      // Admin auth is handled by the admin login page; skip regular user fetch.
       setLoading(false);
       return;
     }
-    
-    // If we have admin token, don't fetch regular user
-    if (adminToken) {
-      setLoading(false);
-      return;
-    }
-    
-    // Regular user flow
-    if (token) {
+
+    // Use the non-sensitive session hint to decide whether to attempt a user fetch.
+    // The actual auth is carried by the HttpOnly cookie, not by any localStorage token.
+    const hasSession = localStorage.getItem("nm_has_session");
+    if (hasSession) {
       fetchUser();
     } else {
       setLoading(false);
     }
   }, [fetchUser]);
 
-  // 🔹 Clear user when path changes to admin
+  // 🔹 Clear regular user data when navigating into admin paths
   useEffect(() => {
     const isAdminPath = window.location.pathname.startsWith('/admin');
-    const adminToken = localStorage.getItem('admin_access');
-    
-    if (isAdminPath && adminToken) {
-      // Clear regular user data when in admin mode
-      if (user) {
-        setUser(null);
-      }
+    if (isAdminPath && user) {
+      setUser(null);
     }
   }, [window.location.pathname, user]);
 

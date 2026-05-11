@@ -104,11 +104,25 @@ export default function CenterBlock(props) {
   };
 
   const requiresPhotoRefresh = Boolean(user?.photo_review_required);
-  const requiresBio = !String(user?.bio || "").trim();
+  const requiresBioReview = Boolean(user?.bio_review_required);
+  const requiresBio = requiresBioReview || !String(user?.bio || "").trim();
   const photoReviewMessage = String(user?.photo_review_reason || "").trim() || DEFAULT_PHOTO_REVIEW_MESSAGE;
+  const bioReviewMessage = String(user?.bio_review_reason || "").trim() || "Merci de mettre a jour votre bio pour continuer a swiper et garder un profil clair et conforme sur NouMatch.";
   const requiresProfileCompletionBlock = requiresPhotoRefresh || requiresBio;
+  const profileBlockTitleSize = isMobile ? "1.15rem" : "1.35rem";
+  const profileBlockCopySize = isMobile ? "0.84rem" : "0.92rem";
+  const profileBlockLabelSize = isMobile ? "0.9rem" : "0.95rem";
 
-  if (profilesLoading && !currentProfile) return <div className="vh-100 d-flex align-items-center justify-content-center bg-black"><div className="spinner-border text-danger" /></div>;
+  if (profilesLoading && !currentProfile) {
+    return (
+      <div
+        className="d-flex align-items-center justify-content-center"
+        style={{ width: "100%", height: "100%", minHeight: "100%", background: "#000" }}
+      >
+        <div className="spinner-border text-danger" />
+      </div>
+    );
+  }
   if (requiresProfileCompletionBlock) {
     return (
       <div
@@ -116,7 +130,7 @@ export default function CenterBlock(props) {
         style={{
           width: "100%",
           height: "100%",
-          minHeight: isMobile ? "100dvh" : "100%",
+          minHeight: "100%",
           background: "#000",
           color: "#fff",
         }}
@@ -135,36 +149,42 @@ export default function CenterBlock(props) {
           <div
             className="mx-auto mb-3 d-flex align-items-center justify-content-center"
             style={{
-              width: "78px",
-              height: "78px",
+              width: isMobile ? "68px" : "78px",
+              height: isMobile ? "68px" : "78px",
               borderRadius: "50%",
               background: "rgba(255, 77, 109, 0.12)",
               color: "#ff4d6d",
-              fontSize: "30px",
+              fontSize: isMobile ? "26px" : "30px",
             }}
           >
-            <i className={`fas ${requiresPhotoRefresh ? "fa-camera-retro" : "fa-pen-fancy"}`} />
+            <i className="fas fa-triangle-exclamation" />
           </div>
-          <h3 className="fw-bold mb-2">
+          <h3 className="fw-bold mb-2" style={{ fontSize: profileBlockTitleSize, lineHeight: 1.25 }}>
             {requiresPhotoRefresh && requiresBio
               ? "Veuillez completer votre profil avant de continuer"
               : requiresPhotoRefresh
                 ? "Veuillez mettre a jour votre photo de profil"
                 : "Veuillez ajouter une bio avant de continuer"}
           </h3>
-          <div className="mb-4 d-flex flex-column gap-3" style={{ color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>
+          <div
+            className="mb-4 d-flex flex-column gap-3"
+            style={{ color: "rgba(255,255,255,0.75)", lineHeight: 1.45, fontSize: profileBlockCopySize }}
+          >
             {requiresPhotoRefresh && (
               <div
                 style={{
                   border: "1px solid rgba(255,255,255,0.1)",
                   borderRadius: "18px",
                   background: "rgba(255,255,255,0.04)",
-                  padding: "14px 16px",
+                  padding: isMobile ? "12px 14px" : "14px 16px",
                   textAlign: "left",
                 }}
               >
-                <div className="fw-semibold mb-2 text-white">
-                  <i className="fas fa-camera me-2" />
+                <div
+                  className="fw-semibold mb-2 text-white d-flex align-items-center gap-2"
+                  style={{ fontSize: profileBlockLabelSize }}
+                >
+                  <i className="fas fa-triangle-exclamation" />
                   Photo de profil
                 </div>
                 <div>{photoReviewMessage}</div>
@@ -176,15 +196,22 @@ export default function CenterBlock(props) {
                   border: "1px solid rgba(255,255,255,0.1)",
                   borderRadius: "18px",
                   background: "rgba(255,255,255,0.04)",
-                  padding: "14px 16px",
+                  padding: isMobile ? "12px 14px" : "14px 16px",
                   textAlign: "left",
                 }}
               >
-                <div className="fw-semibold mb-2 text-white">
-                  <i className="fas fa-pen-fancy me-2" />
+                <div
+                  className="fw-semibold mb-2 text-white d-flex align-items-center gap-2"
+                  style={{ fontSize: profileBlockLabelSize }}
+                >
+                  <i className="fas fa-triangle-exclamation" />
                   Bio
                 </div>
-                <div>Votre bio aide les autres a mieux vous decouvrir avant un like ou un match. Ajoutez quelques lignes pour acceder au fil.</div>
+                <div>
+                  {requiresBioReview
+                    ? bioReviewMessage
+                    : "Votre bio aide les autres a mieux vous decouvrir avant un like ou un match. Ajoutez quelques lignes pour acceder au fil."}
+                </div>
               </div>
             )}
           </div>
@@ -198,9 +225,9 @@ export default function CenterBlock(props) {
                   background: "linear-gradient(145deg, #ff4d6d, #ff3355)",
                   border: "none",
                   color: "#fff",
+                  fontSize: isMobile ? "0.92rem" : "1rem",
                 }}
               >
-                <i className="fas fa-camera me-2" />
                 Mettre a jour ma photo
               </button>
             )}
@@ -213,9 +240,9 @@ export default function CenterBlock(props) {
                   background: requiresPhotoRefresh ? "transparent" : "linear-gradient(145deg, #ff4d6d, #ff3355)",
                   border: requiresPhotoRefresh ? "1px solid rgba(255,255,255,0.18)" : "none",
                   color: "#fff",
+                  fontSize: isMobile ? "0.92rem" : "1rem",
                 }}
               >
-                <i className="fas fa-user-edit me-2" />
                 Ajouter ma bio
               </button>
             )}
@@ -231,15 +258,22 @@ export default function CenterBlock(props) {
         style={{
           width: '100%',
           height: '100%',
-          minHeight: isMobile ? '100dvh' : '100%',
+          minHeight: '100%',
           background: '#000',
           color: '#fff',
         }}
       >
-        <div className="mb-4">
+        <div
+          className="d-flex flex-column align-items-center"
+          style={{
+            width: "100%",
+            maxWidth: "440px",
+            padding: isMobile ? "8px 4px" : 0,
+          }}
+        >
           <i className="fas fa-users fa-3x mb-3" style={{ color: '#ff4d6d' }}></i>
           <h4 className="mb-3">{t("center.noProfilesTitle")}</h4>
-          <p className="small opacity-75 mb-4">
+          <p className="small opacity-75 mb-4" style={{ maxWidth: "320px" }}>
             {t("center.noProfilesBody")}<br />
             {t("center.noProfilesInvite")}
           </p>
@@ -250,7 +284,7 @@ export default function CenterBlock(props) {
             <button onClick={reloadProfiles} className="btn btn-outline-light rounded-pill px-4 py-2">
               <i className="fas fa-sync-alt me-2"></i> {t("common.refresh")}
             </button>
-            <small className="text-muted mt-2">({t("common.comingBackSoon")})</small>
+            <small className="mt-2" style={{ color: "rgba(255,255,255,0.62)" }}>({t("common.comingBackSoon")})</small>
           </div>
         </div>
       </div>
@@ -260,9 +294,20 @@ export default function CenterBlock(props) {
   const photos = getCurrentProfilePhotos();
   const locationDisplay = currentProfile.location?.trim() || null;
   const currentImageUrl = getCurrentPhotoUrl();
+  const mobileContentPadding = isMobile ? "12px 16px 14px" : undefined;
+  const secondaryActionSize = isMobile ? 52 : 56;
+  const primaryActionSize = isMobile ? 68 : 76;
 
   const containerStyle = isMobile 
-    ? { ...centerCardStyle, background: '#000', boxShadow: 'none', touchAction: 'pan-y' }
+    ? {
+        ...centerCardStyle,
+        background: '#000',
+        boxShadow: 'none',
+        touchAction: 'pan-y',
+        display: 'grid',
+        gridTemplateRows: 'minmax(0, 1fr) auto',
+        minHeight: 0,
+      }
     : { ...centerCardStyle, height: '100%', touchAction: 'pan-y' };
 
   return (
@@ -283,13 +328,17 @@ export default function CenterBlock(props) {
       }}
     >
       {/* PHOTO AREA */}
-      <div className="position-relative flex-grow-1 overflow-hidden" onClick={() => openPhotoModal(currentImageUrl, currentProfile.id)}>
+      <div
+        className="position-relative flex-grow-1 overflow-hidden"
+        style={{ minHeight: 0 }}
+        onClick={() => openPhotoModal(currentImageUrl, currentProfile.id)}
+      >
         <div style={{ position: 'absolute', width: '100%', height: '100%', background: '#1a1a1a' }} />
         <img 
           src={currentImageUrl} 
           alt={formatName(currentProfile)} 
           className="w-100 h-100" 
-          style={{ objectFit: 'cover', position: 'absolute' }}
+          style={{ objectFit: 'cover', objectPosition: 'center top', position: 'absolute' }}
           fetchPriority="high"
           decoding="async"
         />
@@ -314,7 +363,10 @@ export default function CenterBlock(props) {
       </div>
 
       {/* CONTENT AREA */}
-      <div className="px-3 pb-3 pt-2 text-white" style={{ background: '#000', flexShrink: 0 }}>
+      <div
+        className="px-3 pb-3 pt-2 text-white"
+        style={{ background: '#000', flexShrink: 0, padding: mobileContentPadding }}
+      >
         <div className="d-flex justify-content-between align-items-center mb-1">
           <h2 className="fw-bold m-0 text-truncate" style={{ fontSize: '1.4rem' }}>
             {formatName(currentProfile)}{currentProfile.age ? `, ${currentProfile.age}` : ''}
@@ -327,7 +379,7 @@ export default function CenterBlock(props) {
           {isLiked(currentProfile.id) && !isMatched(currentProfile.id) && <span className="badge rounded-pill bg-warning text-dark me-2">Aimé</span>}
         </div>
 
-        <p className="small mb-3 opacity-75" style={{ display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.4em' }}>
+        <p className="small mb-3 opacity-75" style={{ display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: isMobile ? '2.2em' : '2.4em' }}>
           {currentProfile.bio || "Pas encore de bio"}
         </p>
 
@@ -340,15 +392,15 @@ export default function CenterBlock(props) {
             </>
           ) : (
             <>
-              <button onClick={onPass} className="btn border-2 rounded-circle d-flex align-items-center justify-content-center" style={{ width: 56, height: 56, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}>
+              <button onClick={onPass} className="btn border-2 rounded-circle d-flex align-items-center justify-content-center" style={{ width: secondaryActionSize, height: secondaryActionSize, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}>
                 <i className="fas fa-times fs-4"/>
               </button>
               
-              <button onClick={onLike} disabled={!localCanLike} className="btn rounded-circle shadow-lg d-flex align-items-center justify-content-center" style={{ width: 76, height: 76, background: 'linear-gradient(145deg, #ff4d6d, #ff3355)', border: 'none', opacity: localCanLike ? 1 : 0.5 }}>
+              <button onClick={onLike} disabled={!localCanLike} className="btn rounded-circle shadow-lg d-flex align-items-center justify-content-center" style={{ width: primaryActionSize, height: primaryActionSize, background: 'linear-gradient(145deg, #ff4d6d, #ff3355)', border: 'none', opacity: localCanLike ? 1 : 0.5 }}>
                 <i className="fas fa-heart text-white fs-2"/>
               </button>
 
-              <button onClick={() => goToProfile(currentProfile.id)} className="btn border-2 rounded-circle d-flex align-items-center justify-content-center" style={{ width: 56, height: 56, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}>
+              <button onClick={() => goToProfile(currentProfile.id)} className="btn border-2 rounded-circle d-flex align-items-center justify-content-center" style={{ width: secondaryActionSize, height: secondaryActionSize, borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}>
                 <i className="fas fa-user fs-4"/>
               </button>
             </>

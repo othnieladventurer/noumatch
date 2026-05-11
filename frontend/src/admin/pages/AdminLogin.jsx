@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import BrandLogo from '../../components/BrandLogo';
 import { getAdminApiBase, persistAdminAccessToken } from '../../admin/utils/adminApi';
+import { getStoredAdminTheme, hydrateAdminThemeForUser, persistAdminThemePreference } from '../../admin/utils/adminTheme';
 import './AdminLogin.css';
 
 const API_BASE = getAdminApiBase();
@@ -13,10 +14,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('admin_theme');
-    return saved === 'dark';
-  });
+  const [darkMode, setDarkMode] = useState(() => getStoredAdminTheme() === 'dark');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,7 +37,12 @@ export default function AdminLogin() {
       const url = `${API_BASE}/admin_login/`;
       const res = await axios.post(url, { email, password }, { withCredentials: true });
       persistAdminAccessToken(res.data?.access);
+      if (res.data?.refresh) {
+        localStorage.setItem('admin_refresh', res.data.refresh);
+      }
       localStorage.setItem('admin_email', res.data.staff_email);
+      const nextTheme = hydrateAdminThemeForUser(res.data.staff_email);
+      document.body.classList.toggle('dark-mode', nextTheme === 'dark');
       navigate('/admin/dashboard');
     } catch (err) {
       console.error('Admin login error:', err.response?.status, err.response?.data);
@@ -57,7 +60,11 @@ export default function AdminLogin() {
     <div className="admin-login">
       <button
         className="login-theme-toggle"
-        onClick={() => setDarkMode(!darkMode)}
+        onClick={() => {
+          const nextDarkMode = !darkMode;
+          persistAdminThemePreference(nextDarkMode, email || localStorage.getItem('admin_email'));
+          setDarkMode(nextDarkMode);
+        }}
         aria-label="Toggle dark mode"
       >
         <i className={`fas ${darkMode ? 'fa-sun' : 'fa-moon'}`}></i>

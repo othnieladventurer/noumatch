@@ -30,7 +30,6 @@ export default function AdminSidebar({ collapsed, setCollapsed, activeMenu, onMe
     localStorage.removeItem('admin_access');
     localStorage.removeItem('admin_refresh');
     localStorage.removeItem('admin_email');
-    localStorage.removeItem('admin_theme');
     navigate('/admin/login');
   };
 

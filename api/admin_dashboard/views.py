@@ -65,22 +65,54 @@ from waitlist.models import WaitlistEntry, WaitlistStats, ContactedArchive
 logger = logging.getLogger(__name__)
 
 
+def _model_has_fields(model, field_names):
+    try:
+        for field_name in field_names:
+            model._meta.get_field(field_name)
+        return True
+    except Exception:
+        return False
+
+
 def _user_photo_review_fields_ready():
+    required = {
+        "photo_review_required",
+        "photo_review_trigger_count",
+        "photo_review_reason",
+        "photo_review_required_at",
+    }
+    if not _model_has_fields(User, required):
+        return False
     try:
         with connection.cursor() as cursor:
             columns = {
                 column.name
                 for column in connection.introspection.get_table_description(cursor, User._meta.db_table)
             }
-        required = {
-            "photo_review_required",
-            "photo_review_trigger_count",
-            "photo_review_reason",
-            "photo_review_required_at",
-        }
         return required.issubset(columns)
     except Exception:
         logger.exception("Could not verify user photo review column readiness.")
+        return False
+
+
+def _user_bio_review_fields_ready():
+    required = {
+        "bio_review_required",
+        "bio_review_trigger_count",
+        "bio_review_reason",
+        "bio_review_required_at",
+    }
+    if not _model_has_fields(User, required):
+        return False
+    try:
+        with connection.cursor() as cursor:
+            columns = {
+                column.name
+                for column in connection.introspection.get_table_description(cursor, User._meta.db_table)
+            }
+        return required.issubset(columns)
+    except Exception:
+        logger.exception("Could not verify user bio review column readiness.")
         return False
 
 
@@ -817,6 +849,7 @@ class AdminUsersListView(APIView):
                 queryset = queryset.order_by('-date_joined')
 
             photo_review_ready = _user_photo_review_fields_ready()
+            bio_review_ready = _user_bio_review_fields_ready()
             user_only_fields = [
                 'id', 'email', 'first_name', 'last_name', 'username', 'gender',
                 'profile_photo', 'is_active', 'is_staff', 'is_superuser',
@@ -824,6 +857,8 @@ class AdminUsersListView(APIView):
             ]
             if photo_review_ready:
                 user_only_fields.extend(['photo_review_required', 'photo_review_trigger_count'])
+            if bio_review_ready:
+                user_only_fields.extend(['bio_review_required', 'bio_review_trigger_count'])
             queryset = queryset.only(*user_only_fields)
 
             total = queryset.count()
@@ -878,6 +913,8 @@ class AdminUsersListView(APIView):
                     'is_verified': user.is_verified,
                     'photo_review_required': user.photo_review_required if photo_review_ready else False,
                     'photo_review_trigger_count': user.photo_review_trigger_count if photo_review_ready else 0,
+                    'bio_review_required': user.bio_review_required if bio_review_ready else False,
+                    'bio_review_trigger_count': user.bio_review_trigger_count if bio_review_ready else 0,
                     'profile_score': user.profile_score,
                     'user_score': scorecard.overall_score if scorecard else 0,
                     'total_points': scorecard.total_points if scorecard else 0,
@@ -1633,6 +1670,7 @@ class AdminUserDetailView(APIView):
 
     def get(self, request, user_id):
         photo_review_ready = _user_photo_review_fields_ready()
+        bio_review_ready = _user_bio_review_fields_ready()
         user_only_fields = [
             'id', 'email', 'first_name', 'last_name', 'profile_photo', 'gender',
             'city', 'country', 'bio', 'account_type', 'profile_score',
@@ -1645,6 +1683,13 @@ class AdminUserDetailView(APIView):
                 'photo_review_trigger_count',
                 'photo_review_reason',
                 'photo_review_required_at',
+            ])
+        if bio_review_ready:
+            user_only_fields.extend([
+                'bio_review_required',
+                'bio_review_trigger_count',
+                'bio_review_reason',
+                'bio_review_required_at',
             ])
         user = get_object_or_404(User.objects.only(*user_only_fields), id=user_id)
         full = request.query_params.get('full') == 'true'
@@ -1672,6 +1717,10 @@ class AdminUserDetailView(APIView):
             'photo_review_trigger_count': user.photo_review_trigger_count if photo_review_ready else 0,
             'photo_review_reason': user.photo_review_reason if photo_review_ready else '',
             'photo_review_required_at': user.photo_review_required_at if photo_review_ready else None,
+            'bio_review_required': user.bio_review_required if bio_review_ready else False,
+            'bio_review_trigger_count': user.bio_review_trigger_count if bio_review_ready else 0,
+            'bio_review_reason': user.bio_review_reason if bio_review_ready else '',
+            'bio_review_required_at': user.bio_review_required_at if bio_review_ready else None,
             'date_joined': user.date_joined,
             'last_activity': user.last_activity,
             'is_online': user.is_online,
@@ -1811,7 +1860,19 @@ class AdminUserActionView(APIView):
             'clear_profile_picture_requirement',
             'clear_profile_photo_requirement',
         }
+        require_bio_review_actions = {
+            'require_bio_review',
+            'require_bio_update',
+            'request_bio_update',
+            'request_new_bio',
+        }
+        clear_bio_review_actions = {
+            'clear_bio_review',
+            'clear_bio_requirement',
+            'clear_bio_update_request',
+        }
         photo_review_ready = _user_photo_review_fields_ready()
+        bio_review_ready = _user_bio_review_fields_ready()
 
         if action == 'ban':
             target.is_active = False
@@ -1852,6 +1913,34 @@ class AdminUserActionView(APIView):
                 'message': f'Photo review requirement cleared for {target.email}',
                 'photo_review_required': False,
                 'photo_review_trigger_count': target.photo_review_trigger_count,
+            })
+        elif action in require_bio_review_actions:
+            if not bio_review_ready:
+                return Response({
+                    'error': 'Bio review moderation fields are not available yet. Run the latest users migrations first.',
+                    'code': 'bio_review_schema_not_ready',
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            user_message = (request.data.get('message') or '').strip()
+            target.trigger_bio_review_requirement(
+                user_message or "Merci de mettre a jour votre bio pour continuer a swiper et garder un profil clair et conforme sur NouMatch."
+            )
+            return Response({
+                'message': f'User {target.email} must update their bio before swiping again',
+                'bio_review_required': True,
+                'bio_review_trigger_count': target.bio_review_trigger_count,
+                'bio_review_reason': target.bio_review_reason,
+            })
+        elif action in clear_bio_review_actions:
+            if not bio_review_ready:
+                return Response({
+                    'error': 'Bio review moderation fields are not available yet. Run the latest users migrations first.',
+                    'code': 'bio_review_schema_not_ready',
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            target.clear_bio_review_requirement()
+            return Response({
+                'message': f'Bio review requirement cleared for {target.email}',
+                'bio_review_required': False,
+                'bio_review_trigger_count': target.bio_review_trigger_count,
             })
         return Response({'error': 'Invalid action'}, status=400)
 

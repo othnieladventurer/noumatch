@@ -5,23 +5,12 @@ import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
-import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
-import { clearCache, clearCacheByPrefix, readFreshCache, writeCache } from '../utils/adminCache';
+import { adminRequest, ensureAdminAccessToken, getAdminApiBase } from '../utils/adminApi';
 import { resolveMediaUrl } from '../../utils/apiBase';
 
 const API_BASE = getAdminApiBase();
 const USERS_PER_PAGE = 10;
 const DEBOUNCE_DELAY = 300;
-const USERS_CACHE_TTL = 300000;
-const LAUNCH_MONITOR_CACHE_KEY = 'admin_launch_monitor_v1';
-
-const getUsersCacheKey = ({ page, search, status, userType, gender, sort }) =>
-  `admin_users_v1:${page}:${search || 'all'}:${status}:${userType}:${gender}:${sort}`;
-
-const clearAdminUsersCaches = () => {
-  clearCacheByPrefix('admin_users_v1:');
-  clearCache(LAUNCH_MONITOR_CACHE_KEY);
-};
 
 const formatJoinedAge = (minutes) => {
   const numericMinutes = Number(minutes);
@@ -52,18 +41,8 @@ const formatDateTime = (value) => {
 };
 
 export default function AdminUsers() {
-  const initialUsersCacheKey = getUsersCacheKey({
-    page: 1,
-    search: '',
-    status: 'all',
-    userType: 'app',
-    gender: 'all',
-    sort: 'newest',
-  });
-  const cachedUsersPayload = readFreshCache(initialUsersCacheKey, USERS_CACHE_TTL);
-  const cachedLaunchMonitor = readFreshCache(LAUNCH_MONITOR_CACHE_KEY, USERS_CACHE_TTL);
-  const [users, setUsers] = useState(cachedUsersPayload?.data || []);
-  const [loading, setLoading] = useState(!cachedUsersPayload);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -75,9 +54,9 @@ export default function AdminUsers() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('admin_theme') === 'dark');
   const [activeMenu, setActiveMenu] = useState('users');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalUsers, setTotalUsers] = useState(cachedUsersPayload?.total || 0);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
-  const [launchMonitor, setLaunchMonitor] = useState(cachedLaunchMonitor);
+  const [launchMonitor, setLaunchMonitor] = useState(null);
   const [launchMonitorError, setLaunchMonitorError] = useState('');
   const [visibilityBusyUserId, setVisibilityBusyUserId] = useState(null);
   const [deletingUserId, setDeletingUserId] = useState(null);
@@ -116,34 +95,14 @@ export default function AdminUsers() {
   }, [darkMode]);
 
   const fetchUsers = useCallback(async (force = false) => {
-    const token = getAdminAuthToken();
+    const token = await ensureAdminAccessToken().catch(() => null);
     if (!token) {
       navigate('/admin/login');
       return;
     }
 
     setIsFetching(true);
-    const cacheKey = getUsersCacheKey({
-      page: currentPage,
-      search: debouncedSearchTerm,
-      status: filterStatus,
-      userType,
-      gender: genderFilter,
-      sort: sortOrder,
-    });
-    const cachedPayload = readFreshCache(cacheKey, USERS_CACHE_TTL);
-
-    if (cachedPayload) {
-      setUsers(cachedPayload.data || []);
-      setTotalUsers(cachedPayload.total || 0);
-      setLoading(false);
-      if (!force) {
-        setIsFetching(false);
-        return;
-      }
-    } else {
-      setLoading(true);
-    }
+    setLoading(true);
 
     try {
       const params = {
@@ -161,22 +120,12 @@ export default function AdminUsers() {
       if (res.data.data && Array.isArray(res.data.data)) {
         setUsers(res.data.data);
         setTotalUsers(res.data.total || 0);
-        writeCache(cacheKey, {
-          data: res.data.data,
-          total: res.data.total || 0,
-          user_type: res.data.user_type || userType,
-        });
         if (res.data.user_type && res.data.user_type !== userType) {
           setUserType(res.data.user_type);
         }
       } else if (Array.isArray(res.data)) {
         setUsers(res.data);
         setTotalUsers(res.data.length);
-        writeCache(cacheKey, {
-          data: res.data,
-          total: res.data.length,
-          user_type: userType,
-        });
       } else {
         setUsers([]);
         setTotalUsers(0);
@@ -202,20 +151,11 @@ export default function AdminUsers() {
   }, [currentPage, debouncedSearchTerm, filterStatus, userType, genderFilter, sortOrder, navigate]);
 
   const fetchLaunchMonitor = useCallback(async (force = false) => {
-    const token = getAdminAuthToken();
+    const token = await ensureAdminAccessToken().catch(() => null);
     if (!token) return;
     try {
-      const cachedPayload = readFreshCache(LAUNCH_MONITOR_CACHE_KEY, USERS_CACHE_TTL);
-      if (cachedPayload) {
-        setLaunchMonitor(cachedPayload);
-        if (!force) {
-          setLaunchMonitorError('');
-          return;
-        }
-      }
       const res = await adminRequest({ method: 'get', url: `${API_BASE}/launch/monitor/` });
       setLaunchMonitor(res.data);
-      writeCache(LAUNCH_MONITOR_CACHE_KEY, res.data);
       setLaunchMonitorError('');
     } catch (err) {
       setLaunchMonitorError(err.response?.data?.error || 'Failed to load launch monitor');
@@ -230,7 +170,6 @@ export default function AdminUsers() {
         url: `${API_BASE}/visibility/action/`,
         data: { user_id: userId, action },
       });
-      clearAdminUsersCaches();
       await Promise.all([fetchUsers(true), fetchLaunchMonitor(true)]);
     } catch (err) {
       alert(err.response?.data?.error || `Failed to ${action} visibility`);
@@ -244,16 +183,8 @@ export default function AdminUsers() {
   }, [fetchUsers]);
 
   useEffect(() => {
-    if (!cachedLaunchMonitor) {
-      fetchLaunchMonitor();
-    }
+    fetchLaunchMonitor();
   }, [fetchLaunchMonitor]);
-
-  useEffect(() => {
-    if (cachedUsersPayload?.data) {
-      setUsers(cachedUsersPayload.data);
-    }
-  }, []);
 
   useEffect(() => {
     const handleRefresh = () => {
@@ -304,7 +235,6 @@ export default function AdminUsers() {
         });
       }
       setShowUserModal(false);
-      clearAdminUsersCaches();
       await Promise.all([fetchUsers(true), fetchLaunchMonitor(true)]);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to save user');
@@ -331,7 +261,6 @@ export default function AdminUsers() {
         method: 'delete',
         url: `${API_BASE}/users/manage/${deleteTarget.id}/`,
       });
-      clearAdminUsersCaches();
       setDeleteTarget(null);
       if (users.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);

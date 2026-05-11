@@ -14,12 +14,13 @@ import { Doughnut, Bar } from 'react-chartjs-2';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 import './AdminDashboard.css';
-import { adminRequest, getAdminApiBase } from '../utils/adminApi';
+import { adminRequest, ensureAdminAccessToken, getAdminApiBase } from '../utils/adminApi';
 import { resolveMediaUrl } from '../../utils/apiBase';
 
 const API_BASE = getAdminApiBase();
 const DEFAULT_PHOTO_REVIEW_MESSAGE = "Merci d'ajouter une photo recente et conforme a nos regles pour continuer a swiper et eviter une suspension de votre compte NouMatch.";
-const BIO_REQUEST_SUPPORTED = false;
+const DEFAULT_BIO_REVIEW_MESSAGE = "Merci de mettre a jour votre bio pour continuer a swiper et garder un profil clair et conforme sur NouMatch.";
+const BIO_REQUEST_SUPPORTED = true;
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -47,6 +48,11 @@ export default function AdminUserDetail() {
   const [photoReviewMode, setPhotoReviewMode] = useState('require');
   const [photoReviewMessage, setPhotoReviewMessage] = useState(DEFAULT_PHOTO_REVIEW_MESSAGE);
   const [photoReviewError, setPhotoReviewError] = useState('');
+  const [bioReviewLoading, setBioReviewLoading] = useState(false);
+  const [showBioReviewModal, setShowBioReviewModal] = useState(false);
+  const [bioReviewMode, setBioReviewMode] = useState('require');
+  const [bioReviewMessage, setBioReviewMessage] = useState(DEFAULT_BIO_REVIEW_MESSAGE);
+  const [bioReviewError, setBioReviewError] = useState('');
 
   useEffect(() => {
     if (darkMode) {
@@ -59,14 +65,13 @@ export default function AdminUserDetail() {
   }, [darkMode]);
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_access');
-    if (!token) {
-      navigate('/admin/login');
-      return;
-    }
-
     const fetchUserDetail = async () => {
       try {
+        const token = await ensureAdminAccessToken().catch(() => null);
+        if (!token) {
+          navigate('/admin/login');
+          return;
+        }
         setLoading(true);
         const res = await adminRequest({ method: 'get', url: `${API_BASE}/users/detail/${id}/?full=true` });
         setUser(res.data);
@@ -94,7 +99,7 @@ export default function AdminUserDetail() {
 
   // Unified action for ban/unban/verify
   const handleUserAction = async (action) => {
-    const token = localStorage.getItem('admin_access');
+    const token = await ensureAdminAccessToken().catch(() => null);
     if (!token) return;
     if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
     try {
@@ -109,7 +114,7 @@ export default function AdminUserDetail() {
   };
 
   const handleBlock = async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = await ensureAdminAccessToken().catch(() => null);
     if (!token) return;
     try {
       await adminRequest({ method: 'post', url: `${API_BASE}/user/block/`, data: { user_id: id, reason: modalReason } });
@@ -123,7 +128,7 @@ export default function AdminUserDetail() {
   };
 
   const handleDeactivate = async () => {
-    const token = localStorage.getItem('admin_access');
+    const token = await ensureAdminAccessToken().catch(() => null);
     if (!token) return;
     try {
       await adminRequest({ method: 'post', url: `${API_BASE}/user/deactivate/`, data: { user_id: id, reason: modalReason } });
@@ -174,6 +179,19 @@ export default function AdminUserDetail() {
     setPhotoReviewError('');
   };
 
+  const openBioReviewModal = (mode) => {
+    setBioReviewMode(mode);
+    setBioReviewError('');
+    setBioReviewMessage(user?.bio_review_reason || DEFAULT_BIO_REVIEW_MESSAGE);
+    setShowBioReviewModal(true);
+  };
+
+  const closeBioReviewModal = () => {
+    if (bioReviewLoading) return;
+    setShowBioReviewModal(false);
+    setBioReviewError('');
+  };
+
   const submitPhotoReviewAction = async () => {
     try {
       setPhotoReviewLoading(true);
@@ -195,6 +213,30 @@ export default function AdminUserDetail() {
       setPhotoReviewError(err.response?.data?.error || 'Failed to update profile photo moderation status');
     } finally {
       setPhotoReviewLoading(false);
+    }
+  };
+
+  const submitBioReviewAction = async () => {
+    try {
+      setBioReviewLoading(true);
+      setBioReviewError('');
+      const action = bioReviewMode === 'clear' ? 'clear_bio_review' : 'require_bio_review';
+      await adminRequest({
+        method: 'post',
+        url: `${API_BASE}/user_action/`,
+        data: {
+          user_id: id,
+          action,
+          message: bioReviewMode === 'require' ? bioReviewMessage : '',
+        },
+      });
+      await refreshUserDetail();
+      setShowBioReviewModal(false);
+    } catch (err) {
+      console.error(err);
+      setBioReviewError(err.response?.data?.error || 'Failed to update bio moderation status');
+    } finally {
+      setBioReviewLoading(false);
     }
   };
 
@@ -236,6 +278,10 @@ export default function AdminUserDetail() {
     profile_score: 0,
     photo_review_required: false,
     photo_review_trigger_count: 0,
+    photo_review_reason: '',
+    bio_review_required: false,
+    bio_review_trigger_count: 0,
+    bio_review_reason: '',
     profile_photo_url: '',
     account_type: '',
     gender: '',
@@ -272,6 +318,7 @@ export default function AdminUserDetail() {
     },
   ];
   const bioPresent = Boolean((safeUser.bio || '').trim());
+  const bioNeedsReview = Boolean(safeUser.bio_review_required);
   const profileRequestItems = [
     {
       title: safeUser.photo_review_required ? 'Photo requirement is active' : 'Request a new profile photo',
@@ -285,15 +332,17 @@ export default function AdminUserDetail() {
       disabled: photoReviewLoading,
     },
     {
-      title: bioPresent ? 'Request a stronger bio' : 'Request a missing bio',
-      description: bioPresent
-        ? 'Reserved action.'
-        : 'Reserved action.',
-      actionLabel: BIO_REQUEST_SUPPORTED ? 'Request bio update' : 'Bio request unavailable',
-      actionTone: 'btn-outline-secondary',
+      title: bioNeedsReview ? 'Bio requirement is active' : bioPresent ? 'Request a stronger bio' : 'Request a missing bio',
+      description: bioNeedsReview
+        ? `Triggered ${safeUser.bio_review_trigger_count || 1} time(s).`
+        : bioPresent
+          ? 'Ask for a clearer bio.'
+          : 'Ask the user to add a bio.',
+      actionLabel: bioNeedsReview ? (bioReviewLoading ? 'Updating...' : 'Clear bio requirement') : (bioReviewLoading ? 'Updating...' : 'Request bio update'),
+      actionTone: bioNeedsReview ? 'btn-success' : 'btn-outline-secondary',
       icon: 'fas fa-pen-to-square',
-      onClick: () => {},
-      disabled: !BIO_REQUEST_SUPPORTED,
+      onClick: () => openBioReviewModal(bioNeedsReview ? 'clear' : 'require'),
+      disabled: bioReviewLoading || !BIO_REQUEST_SUPPORTED,
     },
   ];
   const reachControlItems = [
@@ -513,6 +562,11 @@ export default function AdminUserDetail() {
                     Photo update required #{user.photo_review_trigger_count || 1}
                   </div>
                 )}
+                {user.bio_review_required && (
+                  <div className="user-ops-inline-alert secondary">
+                    Bio update required #{user.bio_review_trigger_count || 1}
+                  </div>
+                )}
                 <div className="user-ops-facts">
                   <div><span>Gender</span><strong>{formatGender(user.gender)}</strong></div>
                   <div><span>Age</span><strong>{user.age || 'N/A'}</strong></div>
@@ -572,7 +626,7 @@ export default function AdminUserDetail() {
                       </div>
                     </div>
                     <div className="user-ops-mini-list">
-                      <div><span>Bio</span><strong>{bioPresent ? 'Present' : 'Missing'}</strong></div>
+                      <div><span>Bio</span><strong>{bioNeedsReview ? 'Review required' : bioPresent ? 'Present' : 'Missing'}</strong></div>
                       <div><span>Photo</span><strong>{user.profile_photo_url ? 'Present' : 'Missing'}</strong></div>
                       <div><span>Verification</span><strong>{user.is_verified ? 'Verified' : 'Pending'}</strong></div>
                     </div>
@@ -608,6 +662,11 @@ export default function AdminUserDetail() {
                       <span>Bio</span>
                       <p>{user.bio || 'No bio on file for this user yet.'}</p>
                     </div>
+                    {user.bio_review_reason && (
+                      <div className="alert alert-secondary mt-3 mb-0">
+                        <strong>Bio review reason:</strong> {user.bio_review_reason}
+                      </div>
+                    )}
                     {user.latitude && user.longitude && (
                       <div className="user-ops-map-preview">
                         <div className="user-ops-location-preview">
@@ -721,11 +780,6 @@ export default function AdminUserDetail() {
                       </button>
                     </div>
                   ))}
-                  {!BIO_REQUEST_SUPPORTED && (
-                    <div className="user-ops-note">
-                      Bio request not wired yet.
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -972,6 +1026,60 @@ export default function AdminUserDetail() {
                 <button className="btn btn-secondary" onClick={closePhotoReviewModal} disabled={photoReviewLoading}>Cancel</button>
                 <button className={`btn ${photoReviewMode === 'require' ? 'btn-warning' : 'btn-success'}`} onClick={submitPhotoReviewAction} disabled={photoReviewLoading || (photoReviewMode === 'require' && !photoReviewMessage.trim())}>
                   {photoReviewLoading ? 'Updating...' : photoReviewMode === 'require' ? 'Trigger Requirement' : 'Clear Requirement'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {showBioReviewModal && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {bioReviewMode === 'require' ? 'Require Bio Update' : 'Clear Bio Requirement'}
+                </h5>
+                <button type="button" className="btn-close" onClick={closeBioReviewModal}></button>
+              </div>
+              <div className="modal-body">
+                {bioReviewMode === 'require' ? (
+                  <>
+                    <p className="mb-3">
+                      This is the message the user will see when the app blocks them and asks for a better bio.
+                    </p>
+                    <label className="form-label fw-semibold">User-facing message</label>
+                    <textarea
+                      className="form-control"
+                      rows="4"
+                      value={bioReviewMessage}
+                      onChange={(e) => setBioReviewMessage(e.target.value)}
+                      placeholder={DEFAULT_BIO_REVIEW_MESSAGE}
+                    />
+                    <div className="mt-4">
+                      <div className="small text-uppercase text-muted mb-2">Center card preview</div>
+                      <div style={{ background: '#111827', color: '#fff', borderRadius: '24px', padding: '22px', boxShadow: '0 20px 50px rgba(15, 23, 42, 0.35)' }}>
+                        <div className="d-flex align-items-center justify-content-center mb-3" style={{ width: '68px', height: '68px', borderRadius: '50%', margin: '0 auto', background: 'rgba(59,130,246,0.16)', color: '#60a5fa', fontSize: '28px' }}>
+                          <i className="fas fa-pen-fancy"></i>
+                        </div>
+                        <h4 className="fw-bold text-center mb-3">Update your bio</h4>
+                        <p className="mb-0 text-center" style={{ color: 'rgba(255,255,255,0.82)', lineHeight: 1.7 }}>
+                          {bioReviewMessage || DEFAULT_BIO_REVIEW_MESSAGE}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="mb-0">
+                    Clear the bio requirement for <strong>{user?.full_name || user?.email}</strong>? The user will be able to swipe again immediately unless another blocker still applies.
+                  </p>
+                )}
+                {bioReviewError && <div className="alert alert-danger mt-3 mb-0">{bioReviewError}</div>}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={closeBioReviewModal} disabled={bioReviewLoading}>Cancel</button>
+                <button className={`btn ${bioReviewMode === 'require' ? 'btn-primary' : 'btn-success'}`} onClick={submitBioReviewAction} disabled={bioReviewLoading || (bioReviewMode === 'require' && !bioReviewMessage.trim())}>
+                  {bioReviewLoading ? 'Updating...' : bioReviewMode === 'require' ? 'Trigger Requirement' : 'Clear Requirement'}
                 </button>
               </div>
             </div>
