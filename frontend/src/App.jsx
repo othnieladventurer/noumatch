@@ -33,6 +33,10 @@ import Notifications from './pages/Notifications';
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import VerifyOtp from "./pages/VerifyOtp";
 import Terms from "./pages/Terms";
+import LandingNoumatchHaiti from "./pages/LandingNoumatchHaiti.jsx";
+import { captureAttributionFromLocation } from "./lib/attribution";
+import { trackGooglePageView } from "./lib/googleAnalytics";
+import { trackPageView } from "./lib/metaPixel";
 
 // Admin Pages
 import AdminLogin from "./admin/pages/AdminLogin.jsx";
@@ -63,6 +67,13 @@ export default function App() {
   useEffect(() => {
     enforceSessionForCurrentRoute();
   }, [location.pathname]);
+
+  useEffect(() => {
+    captureAttributionFromLocation(location.pathname, location.search);
+    const pagePath = `${location.pathname}${location.search || ""}`;
+    trackPageView(pagePath);
+    trackGooglePageView(pagePath);
+  }, [location.pathname, location.search]);
 
   // Routes where public navbar/footer should NOT appear
   const hidePublicLayoutRoutes = [
@@ -111,6 +122,8 @@ export default function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
+            <Route path="/rencontre-haiti" element={<LandingNoumatchHaiti />} />
+            <Route path="/landing/noumatch-haiti" element={<LandingNoumatchHaiti />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/waitlist" element={<Waitlist />} />

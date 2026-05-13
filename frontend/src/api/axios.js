@@ -1,5 +1,6 @@
 import axios from "axios";
 import { getRuntimeApiBase } from "../utils/apiBase";
+import { sanitizePayload } from "../utils/sanitize";
 
 const BASE_URL = getRuntimeApiBase();
 
@@ -158,6 +159,12 @@ const API = axios.create({
 // No Authorization header is set — the backend reads the cookie directly.
 API.interceptors.request.use((config) => {
   applyDefaultSecurityHeaders(config);
+  if (config.params) {
+    config.params = sanitizePayload(config.params);
+  }
+  if (config.data) {
+    config.data = sanitizePayload(config.data);
+  }
   if (!isTrustedApiRequest(config)) {
     return config;
   }
@@ -245,6 +252,12 @@ export const adminAPI = axios.create({
 
 adminAPI.interceptors.request.use((config) => {
   applyDefaultSecurityHeaders(config);
+  if (config.params) {
+    config.params = sanitizePayload(config.params);
+  }
+  if (config.data) {
+    config.data = sanitizePayload(config.data);
+  }
   if (!isTrustedApiRequest(config)) {
     return config;
   }

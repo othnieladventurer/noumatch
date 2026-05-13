@@ -7,6 +7,8 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useI18n } from "../context/I18nContext";
 import { resolveMediaUrl } from "../utils/apiBase";
+import { markFunnelStage } from "../lib/attribution";
+import { trackFirstLike, trackFirstMatch } from "../lib/metaPixel";
 
 export default function ProfileDetail() {
   const { t } = useI18n();
@@ -157,6 +159,8 @@ export default function ProfileDetail() {
     try {
       await API.post("/interactions/like/", { to_user_id: profile.id });
       setIsLiked(true);
+      trackFirstLike(user?.id);
+      markFunnelStage(user?.id, "first_like");
       await checkForMatch();
     } catch (error) {
       console.error("Error liking profile:", error);
@@ -240,6 +244,10 @@ export default function ProfileDetail() {
       if (response.status === 201 || response.status === 200) {
         setIsMatched(true);
         setMatchId(response.data.id);
+        if (response.status === 201) {
+          trackFirstMatch(user?.id);
+          markFunnelStage(user?.id, "first_match");
+        }
       }
     } catch (error) {
       console.error("Error creating match:", error);

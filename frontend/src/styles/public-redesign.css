@@ -6,12 +6,35 @@
 
 .nm-hero-v2 {
   background: #faf5ef;
-  padding-top: 4.5rem;
-  padding-bottom: 0;
-  min-height: 90vh;
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+  min-height: 88vh;
   display: flex;
   align-items: center;
-  overflow: hidden;
+}
+
+@media (max-width: 767px) {
+  .nm-hero-v2 {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+    min-height: auto;
+    align-items: flex-start;
+  }
+
+  .nm-hero-v2 h1 {
+    font-size: 2.1rem;
+    line-height: 1.12;
+  }
+
+  .nm-hero-subtitle {
+    font-size: 0.95rem;
+    line-height: 1.65;
+    margin-bottom: 1.5rem;
+  }
+
+  .nm-hero-actions {
+    margin-bottom: 0;
+  }
 }
 
 .nm-hero-tag {
@@ -88,20 +111,17 @@
 }
 
 .nm-hero-media {
-  position: relative;
-  height: 560px;
+  height: 520px;
+  border-radius: 24px 0 0 24px;
+  overflow: hidden;
 }
 
 .nm-hero-img {
-  position: absolute;
-  top: -80px;
-  right: -48px;
-  bottom: 0;
-  width: calc(100% + 48px);
-  height: calc(100% + 80px);
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   object-position: center top;
-  border-radius: 24px 0 0 24px;
+  display: block;
 }
 
 /* ── 2. GLOBAL SECTIONS ──────────────────────────────────── */
@@ -563,40 +583,135 @@
 
 /* ── 12. RESPONSIVE ──────────────────────────────────────── */
 
+/* Prevent any horizontal overflow across the entire page */
+body {
+  overflow-x: hidden;
+}
+
+/* ─ Large tablets / small desktops (< 992px) ─ */
 @media (max-width: 991px) {
   .nm-hero-v2 {
-    padding-bottom: 2.5rem;
+    padding-top: 3rem;
+    padding-bottom: 3rem;
     min-height: auto;
   }
 
-  .nm-hero-media {
-    height: 300px;
-    margin-top: 2rem;
-  }
-
-  .nm-hero-img {
-    position: relative;
-    top: 0;
-    right: 0;
-    width: 100%;
-    height: 100%;
-    border-radius: 20px;
-  }
-
   .nm-section {
-    padding: 60px 0;
-  }
-
-  .nm-hero-stats {
-    gap: 1.5rem;
-    flex-wrap: wrap;
+    padding: 56px 0;
   }
 
   .nm-split-img {
-    height: 280px;
+    height: 300px;
   }
 
   .nm-dark-cta {
     padding: 72px 0;
+  }
+}
+
+/* ─ Tablets / phablets (< 768px) ─ */
+@media (max-width: 767px) {
+  .nm-hero-v2 {
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+    min-height: auto;
+  }
+
+  .nm-hero-v2 h1 {
+    font-size: 2.25rem;
+  }
+
+  .nm-hero-subtitle {
+    font-size: 0.97rem;
+  }
+
+  .nm-hero-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .nm-hero-actions .nm-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .nm-section {
+    padding: 48px 0;
+  }
+
+  .nm-section-title {
+    font-size: 1.75rem;
+  }
+
+  .nm-split-img {
+    height: 240px;
+    border-radius: 16px;
+  }
+
+  .nm-step-card {
+    padding: 1.35rem;
+  }
+
+  .nm-dark-cta {
+    padding: 56px 0;
+  }
+
+  .nm-dark-cta-inner p {
+    font-size: 0.95rem;
+  }
+
+  .nm-testimonial-card {
+    padding: 1.35rem;
+  }
+
+  .nm-contact-info-box {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .nm-contact-info-item {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 0;
+  }
+}
+
+/* ─ Small phones (< 480px) ─ */
+@media (max-width: 480px) {
+  .nm-hero-v2 h1 {
+    font-size: 1.9rem;
+    letter-spacing: -0.02em;
+  }
+
+  .nm-hero-tag {
+    font-size: 0.68rem;
+  }
+
+  .nm-section {
+    padding: 40px 0;
+  }
+
+  .nm-section-title {
+    font-size: 1.55rem;
+  }
+
+  .nm-split-img {
+    height: 200px;
+  }
+
+  .nm-contact-info-item {
+    flex: 1 1 100%;
+  }
+
+  .nm-dark-cta {
+    padding: 44px 0;
+  }
+
+  .nm-step-num {
+    font-size: 3.5rem;
+  }
+
+  .nm-legal-hero-title {
+    font-size: 1.7rem;
   }
 }

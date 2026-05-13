@@ -2,8 +2,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import API from "@/api/axios";
 import BrandLogo from "../components/BrandLogo";
+import loginMeetingImage from "../assets/marketing/login-meeting.png";
 import "../styles/auth-redesign.css";
 import { useI18n } from "../context/I18nContext";
+import { trackLoginSuccess } from "../lib/metaPixel";
 
 export default function Login() {
   const { t } = useI18n();
@@ -37,6 +39,7 @@ export default function Login() {
       if (response.data?.refresh) localStorage.setItem("refresh", response.data.refresh);
       localStorage.setItem("nm_has_session", "1");
       sessionStorage.setItem("nm_user_session", "1");
+      trackLoginSuccess();
       navigate("/dashboard");
     } catch (error) {
       if (error.response?.status === 401 || error.response?.status === 404) {
@@ -68,7 +71,7 @@ export default function Login() {
       <div className="auth-photo-panel">
         <img
           className="auth-photo-bg"
-          src="https://images.pexels.com/photos/2993031/pexels-photo-2993031.jpeg?auto=compress&cs=tinysrgb&w=1920"
+          src={loginMeetingImage}
           alt=""
         />
         <div className="auth-photo-overlay" />
@@ -76,7 +79,7 @@ export default function Login() {
           <BrandLogo height={34} style={{ filter: "brightness(0) invert(1)" }} />
         </div>
         <div className="auth-photo-bottom">
-          <blockquote>"Chaque grande histoire commence par un premier message."</blockquote>
+          <blockquote>"Chaque échange utile commence par une bonne première impression."</blockquote>
           <cite>— L'esprit NouMatch</cite>
         </div>
       </div>

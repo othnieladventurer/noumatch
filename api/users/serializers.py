@@ -125,6 +125,13 @@ class RegisterSerializer(serializers.ModelSerializer):
     city = serializers.CharField(required=False, allow_blank=True)
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    signup_source = serializers.CharField(required=False, allow_blank=True, max_length=64)
+    utm_source = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    utm_medium = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    utm_campaign = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    utm_content = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    utm_term = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    landing_page = serializers.CharField(required=False, allow_blank=True, max_length=255)
 
     class Meta:
         model = User
@@ -141,6 +148,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             'city',
             'latitude',
             'longitude',
+            'signup_source',
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'utm_content',
+            'utm_term',
+            'landing_page',
         ]
         extra_kwargs = {
             'first_name': {'required': True},
@@ -151,6 +165,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             'city': {'required': False},
             'latitude': {'required': False, 'allow_null': True},
             'longitude': {'required': False, 'allow_null': True},
+            'signup_source': {'required': False},
+            'utm_source': {'required': False},
+            'utm_medium': {'required': False},
+            'utm_campaign': {'required': False},
+            'utm_content': {'required': False},
+            'utm_term': {'required': False},
+            'landing_page': {'required': False},
         }
 
     def validate(self, data):
@@ -275,6 +296,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             city=pending_registration.city,
             latitude=pending_registration.latitude,
             longitude=pending_registration.longitude,
+            signup_source=pending_registration.signup_source,
+            utm_source=pending_registration.utm_source,
+            utm_medium=pending_registration.utm_medium,
+            utm_campaign=pending_registration.utm_campaign,
+            utm_content=pending_registration.utm_content,
+            utm_term=pending_registration.utm_term,
+            landing_page=pending_registration.landing_page,
             is_verified=True,
         )
         user.password = pending_registration.password_hash

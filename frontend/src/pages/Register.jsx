@@ -3,8 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import API from '@/api/axios';
 import BrandLogo from "../components/BrandLogo";
+import registerMeetingImage from "../assets/marketing/register-meeting.png";
 import "../styles/auth-redesign.css";
 import { useI18n } from "../context/I18nContext";
+import { appendAttributionToFormData, markFunnelStage } from "../lib/attribution";
+import { trackCompleteRegistration, trackRegistrationStarted } from "../lib/metaPixel";
 
 export default function Register() {
   const { t } = useI18n();
@@ -45,6 +48,7 @@ export default function Register() {
   const [checkingEligibility, setCheckingEligibility] = useState(false);
   const [showEligibilityModal, setShowEligibilityModal] = useState(false);
   const [eligibilityMessage, setEligibilityMessage] = useState("");
+  const registrationStartedTracked = useRef(false);
 
   useEffect(() => {
     const { first_name, last_name, email, birth_date, password, password2 } = formData;
@@ -179,6 +183,10 @@ export default function Register() {
       return;
     }
     if (step === 3 && !step3Valid) { setErrorMessage(t("register.errorPhotoRequired")); return; }
+    if (step === 1 && !registrationStartedTracked.current) {
+      trackRegistrationStarted();
+      registrationStartedTracked.current = true;
+    }
     setStep(step + 1);
   };
 
@@ -203,13 +211,25 @@ export default function Register() {
     if (formData.latitude) data.append("latitude", formData.latitude);
     if (formData.longitude) data.append("longitude", formData.longitude);
     if (formData.profile_photo) data.append("profile_photo", formData.profile_photo);
+    appendAttributionToFormData(data);
 
     setLoading(true);
     try {
+      if (!registrationStartedTracked.current) {
+        trackRegistrationStarted();
+        registrationStartedTracked.current = true;
+      }
       const response = await API.post("users/register/", data, {
         headers: { "Content-Type": "multipart/form-data" },
         timeout: 0,
       });
+      const pendingRegistrationId = response.data.pending_registration_id || response.data.user_id;
+      if (pendingRegistrationId) {
+        localStorage.setItem("unverified_user_id", String(pendingRegistrationId));
+        markFunnelStage(pendingRegistrationId, "registration_started");
+      }
+      localStorage.setItem("unverified_email", formData.email);
+      trackCompleteRegistration();
       navigate("/verify-otp", {
         state: { userId: response.data.user_id, email: formData.email, expiresIn: response.data?.expires_in }
       });
@@ -255,7 +275,7 @@ export default function Register() {
         <div className="auth-photo-panel">
           <img
             className="auth-photo-bg"
-            src="https://images.pexels.com/photos/6870277/pexels-photo-6870277.jpeg?auto=compress&cs=tinysrgb&w=1920"
+            src={registerMeetingImage}
             alt=""
           />
           <div className="auth-photo-overlay" />
