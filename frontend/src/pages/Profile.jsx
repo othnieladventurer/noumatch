@@ -6,6 +6,8 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { useI18n } from "../context/I18nContext";
 import { resolveMediaUrl } from "../utils/apiBase";
+import { getFunnelState, hasTrackedUserEvent, markFunnelStage, markTrackedUserEvent } from "../lib/attribution";
+import { trackProfileCompleted } from "../lib/metaPixel";
 
 export default function Profile() {
   const { language, setLanguage, t } = useI18n();
@@ -392,6 +394,21 @@ export default function Profile() {
 
       if (response.data.profile_photo) {
         setPhotoPreview(response.data.profile_photo_url || getProfilePhotoUrl(response.data.profile_photo));
+      }
+
+      const profileReadyForDiscovery =
+        Boolean(response.data.profile_photo || photoPreview || user?.profile_photo) &&
+        Boolean(String(response.data.bio ?? formData.bio ?? "").trim()) &&
+        !response.data.photo_review_required &&
+        !response.data.bio_review_required;
+      const funnelState = getFunnelState(user?.id);
+      const shouldTrackFromRegistrationFlow =
+        funnelState.registration_started || funnelState.otp_verified || funnelState.profile_completed;
+
+      if (user?.id && profileReadyForDiscovery && shouldTrackFromRegistrationFlow && !hasTrackedUserEvent(user.id, "profile_completed")) {
+        trackProfileCompleted();
+        markTrackedUserEvent(user.id, "profile_completed");
+        markFunnelStage(user.id, "profile_completed");
       }
 
       setSuccess(true);

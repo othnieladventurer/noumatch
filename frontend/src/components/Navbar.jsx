@@ -5,35 +5,59 @@ import { FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
 import BrandLogo from "./BrandLogo";
 import "./Navbar.css";
 
+const NAV_LINKS = [
+  { label: "À propos",        id: "who" },
+  { label: "Comment ça marche", id: "features" },
+  { label: "Nos valeurs",     id: "noumatchesprit" },
+  { label: "FAQ",             id: "faq" },
+  { label: "Contact",         id: "contact" },
+];
+
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [userLoggedIn, setUserLoggedIn] = useState(false);
+  const [activeSection, setActiveSection] = useState("");
 
   useEffect(() => {
     const accessToken = localStorage.getItem("access");
     setUserLoggedIn(!!accessToken);
   }, []);
 
-  const handleScroll = (id) => (e) => {
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActiveSection(entry.target.id);
+        });
+      },
+      { rootMargin: "-40% 0px -55% 0px" }
+    );
+
+    NAV_LINKS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [location.pathname]);
+
+  const handleNavClick = (id) => (e) => {
     e.preventDefault();
-    
-    // If we're not on the home page, navigate to home first
+    // Close mobile menu
+    const collapse = document.getElementById("navbarNav");
+    if (collapse?.classList.contains("show")) {
+      collapse.classList.remove("show");
+    }
     if (location.pathname !== "/") {
       navigate("/");
-      // Wait for navigation to complete before scrolling
       setTimeout(() => {
-        const section = document.getElementById(id);
-        if (section) {
-          section.scrollIntoView({ behavior: "smooth" });
-        }
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     } else {
-      // Already on home page, just scroll
-      const section = document.getElementById(id);
-      if (section) {
-        section.scrollIntoView({ behavior: "smooth" });
-      }
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     }
   };
 
@@ -45,13 +69,12 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-light bg-white fixed-top">
+    <nav className="navbar navbar-expand-lg navbar-light bg-white sticky-top">
       <div className="container">
         <Link className="navbar-brand d-flex align-items-center" to="/">
           <BrandLogo className="navbar-brand-logo" height={36} />
         </Link>
 
-        {/* Hamburger */}
         <button
           className="navbar-toggler"
           type="button"
@@ -64,60 +87,51 @@ export default function Navbar() {
           <span className="navbar-toggler-icon"></span>
         </button>
 
-        {/* Collapse */}
         <div className="collapse navbar-collapse" id="navbarNav">
           <ul className="navbar-nav ms-auto gap-3 text-center">
-            <li className="nav-item">
-              <a className="nav-link" href="#who" onClick={handleScroll("who")}>
-                Qui sommes-nous
-              </a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="#features" onClick={handleScroll("features")}>
-                Ce que nous faisons
-              </a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="#noumatchesprit" onClick={handleScroll("noumatchesprit")}>
-                L'esprit NouMatch
-              </a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="#faq" onClick={handleScroll("faq")}>
-                FAQ
-              </a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="#contact" onClick={handleScroll("contact")}>
-                Contact
-              </a>
-            </li>
-
-            {/* Conditional buttons */}
-            {!userLoggedIn ? (
-              <li className="nav-item mt-2 mt-lg-0">
-                <Link className="btn btn-danger w-100 w-lg-auto" to="/login">
-                  Se connecter
-                </Link>
+            {NAV_LINKS.map(({ label, id }) => (
+              <li className="nav-item" key={id}>
+                <a
+                  className={`nav-link${activeSection === id ? " nm-nav-active" : ""}`}
+                  href={`#${id}`}
+                  onClick={handleNavClick(id)}
+                >
+                  {label}
+                </a>
               </li>
+            ))}
+
+            {!userLoggedIn ? (
+              <>
+                <li className="nav-item mt-2 mt-lg-0">
+                  <Link className="btn btn-secondary w-100 w-lg-auto" to="/login">
+                    Connexion
+                  </Link>
+                </li>
+                <li className="nav-item mt-2 mt-lg-0">
+                  <Link className="btn btn-danger w-100 w-lg-auto" to="/register">
+                    S'inscrire
+                  </Link>
+                </li>
+              </>
             ) : (
               <>
                 <li className="nav-item mt-2 mt-lg-0">
                   <Link
-                    className="btn btn-danger d-flex justify-content-center align-items-center p-2"
+                    className="btn btn-danger d-flex justify-content-center align-items-center gap-2 px-3"
                     to="/dashboard"
-                    title="Dashboard"
                   >
-                    <FaTachometerAlt size={20} />
+                    <FaTachometerAlt size={14} />
+                    Mon compte
                   </Link>
                 </li>
                 <li className="nav-item mt-2 mt-lg-0">
                   <button
-                    className="btn btn-secondary d-flex justify-content-center align-items-center p-2"
+                    className="btn btn-secondary d-flex justify-content-center align-items-center gap-2 px-3"
                     onClick={handleLogout}
-                    title="Déconnexion"
                   >
-                    <FaSignOutAlt size={20} />
+                    <FaSignOutAlt size={14} />
+                    Se déconnecter
                   </button>
                 </li>
               </>

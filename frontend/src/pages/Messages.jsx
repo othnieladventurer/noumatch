@@ -4,6 +4,7 @@ import DashboardNavbar from "../components/DashboardNavbar";
 import API from "@/api/axios";
 import { useI18n } from "../context/I18nContext";
 import { getRuntimeWsBase, resolveMediaUrl } from "../utils/apiBase";
+import { trackFirstMessageSent } from "../lib/metaPixel";
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
@@ -397,6 +398,7 @@ export default function Messages() {
         const sent = response.data;
         setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
         updateSupportLastMessage(activeSupportConversationId, sent);
+        trackFirstMessageSent(user?.id, { conversation_type: "support", message_type: "text" });
         fetchSupportConversations();
       } catch (e) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -438,6 +440,10 @@ export default function Messages() {
       const sent = response.data;
       setMessages((prev) => prev.map((m) => (m.id === tempId ? sent : m)));
       updateConversationLastMessage(activeConversationId, sent);
+      trackFirstMessageSent(user?.id, {
+        conversation_type: "match",
+        message_type: sent.message_type || tempMessage.message_type,
+      });
       setIcebreakers([]);
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
@@ -501,7 +507,7 @@ export default function Messages() {
                         <small className="text-muted">{formatTime(supportConversations[0]?.last_message?.created_at || supportConversations[0]?.updated_at)}</small>
                       </div>
                       <small className="text-muted text-truncate d-block">
-                        {supportConversations[0]?.last_message?.content || "Ask support for help with your account."}
+                        {supportConversations[0]?.last_message?.content || "Écrivez au support si vous avez besoin d’aide."}
                       </small>
                     </div>
                     {!!supportConversations[0]?.unread_count && <span className="badge rounded-pill bg-danger">{supportConversations[0].unread_count}</span>}
@@ -527,7 +533,7 @@ export default function Messages() {
                           <span className="fw-semibold text-truncate">NouMatch Support</span>
                           <small className="text-muted">{formatTime(conv.last_message?.created_at || conv.updated_at)}</small>
                         </div>
-                        <small className="text-muted text-truncate d-block">{conv.last_message?.content || "Support conversation"}</small>
+                        <small className="text-muted text-truncate d-block">{conv.last_message?.content || "Conversation avec le support"}</small>
                       </div>
                       {!!conv.unread_count && <span className="badge rounded-pill bg-danger">{conv.unread_count}</span>}
                     </div>
@@ -578,7 +584,7 @@ export default function Messages() {
                     </div>
                     <div>
                       <div className="fw-semibold">NouMatch Support</div>
-                      <small className="text-muted">Customer support</small>
+                      <small className="text-muted">Assistance NouMatch</small>
                     </div>
                   </>
                 ) : otherUser ? (

@@ -524,7 +524,7 @@ export default function AdminMessages({ initialTab = 'support' }) {
         <div className="message-panel-head">
           <div>
             <span>Support</span>
-            <h3>Customer support inbox</h3>
+            <h3>Boîte support</h3>
           </div>
           <div className="d-flex gap-2">
             <button className="btn btn-sm btn-outline-secondary" onClick={fetchSupport}>Refresh</button>

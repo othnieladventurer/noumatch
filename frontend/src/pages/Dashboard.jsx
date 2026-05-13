@@ -14,6 +14,13 @@ import API from '@/api/axios';
 import "../styles/Dashboard.css";
 import { v4 as uuidv4 } from 'uuid';
 import { useI18n } from "../context/I18nContext";
+import {
+  getFunnelState,
+  hasTrackedUserEvent,
+  markFunnelStage,
+  markTrackedUserEvent,
+} from "../lib/attribution";
+import { trackFirstLike, trackFirstMatch, trackProfileCompleted } from "../lib/metaPixel";
 
 const MOBILE_BOTTOM_NAV_HEIGHT = 88;
 const PROFILES_PER_PAGE = 15;
@@ -110,6 +117,7 @@ export default function Dashboard() {
   const pendingProfileLoad = useRef(false);
   const lastLoggedImpressionId = useRef(null);
   const waitingForNextAfterLoad = useRef(false);
+  const profileCompletedTrackedRef = useRef(false);
   
   // Helper functions
   const isMatched = useCallback((profileId) => matchesIds.includes(profileId), [matchesIds]);
@@ -455,6 +463,9 @@ export default function Dashboard() {
       const response = await API.get("/interactions/likes/sent/");
       const likedUserIds = response.data.map(like => like.to_user.id);
       setSentLikesIds(likedUserIds);
+      if (user?.id && likedUserIds.length > 0) {
+        markTrackedUserEvent(user.id, "first_like");
+      }
     } catch (error) {
       console.error("Error fetching sent likes:", error);
       if (error.response?.status === 401) {
@@ -463,7 +474,7 @@ export default function Dashboard() {
         navigate("/login");
       }
     }
-  }, [navigate]);
+  }, [navigate, user?.id]);
   
   const fetchMatches = useCallback(async (currentBlockedIds = blockedIds) => {
     if (!user) return;
@@ -486,6 +497,10 @@ export default function Dashboard() {
       const filteredMatches = matches.filter(match => !currentBlockedIds.includes(match.id));
       setMatchesList(filteredMatches);
       setMatchesIds(filteredMatches.map(m => m.id));
+      if (user?.id && filteredMatches.length > 0) {
+        markTrackedUserEvent(user.id, "first_match");
+      }
+      return filteredMatches;
     } catch (error) {
       console.error("Error fetching matches:", error);
       if (error.response?.status === 401) {
@@ -493,6 +508,7 @@ export default function Dashboard() {
         localStorage.removeItem("refresh");
         navigate("/login");
       }
+      return [];
     }
   }, [user, blockedIds, navigate]);
   
@@ -538,10 +554,13 @@ export default function Dashboard() {
         user1_id: user.id,
         user2_id: otherUserId
       });
-      return response.status === 201 || response.status === 200;
+      return {
+        ok: response.status === 201 || response.status === 200,
+        created: response.status === 201,
+      };
     } catch (error) {
       console.error("Error creating match:", error);
-      return false;
+      return { ok: false, created: false };
     }
   }, [user]);
   
@@ -549,10 +568,15 @@ export default function Dashboard() {
     if (isBlocked(likedUserId)) return;
     const theyLikeMe = likesList.some(like => like.id === likedUserId);
     if (theyLikeMe && !matchesIds.includes(likedUserId)) {
-      const matchCreated = await createMatch(likedUserId);
-      if (matchCreated) {
-        await fetchMatches(blockedIds);
+      const hadMatchesBefore = matchesIds.length > 0 || hasTrackedUserEvent(user?.id, "first_match");
+      const matchResult = await createMatch(likedUserId);
+      if (matchResult.ok) {
+        const refreshedMatches = await fetchMatches(blockedIds);
         await fetchConversations();
+        if (!hadMatchesBefore && refreshedMatches.length > 0) {
+          trackFirstMatch(user?.id);
+          markFunnelStage(user?.id, "first_match");
+        }
         const matchedProfileFound = likesList.find(like => like.id === likedUserId);
         if (matchedProfileFound) {
           setMatchedProfile(matchedProfileFound);
@@ -561,7 +585,7 @@ export default function Dashboard() {
         }
       }
     }
-  }, [isBlocked, likesList, matchesIds, createMatch, fetchMatches, fetchConversations, blockedIds]);
+  }, [isBlocked, likesList, matchesIds, createMatch, fetchMatches, fetchConversations, blockedIds, user?.id]);
   
   const goToMessenger = useCallback(async (profileId) => {
     const conversation = conversations.find(conv => conv.other_user?.id === profileId);
@@ -696,6 +720,10 @@ export default function Dashboard() {
       try {
         await API.post("/interactions/like/", { to_user_id: currentProfile.id });
         await API.post("/interactions/swipe/like/", { to_user_id: currentProfile.id }).catch(() => {});
+        if (!sentLikesIds.includes(currentProfile.id)) {
+          trackFirstLike(user?.id);
+          markFunnelStage(user?.id, "first_like");
+        }
         startTransition(() => {
           setSentLikesIds(prev => [...prev, currentProfile.id]);
           fetchSwipeLimits();
@@ -712,7 +740,7 @@ export default function Dashboard() {
         likeInProgress.current = false;
       }
     }, 50);
-  }, [currentProfile, isAnimating, isBlocked, swipeLimits, triggerSlide, navigate, checkForMatch, fetchSwipeLimits, sessionId]);
+  }, [currentProfile, isAnimating, isBlocked, swipeLimits, triggerSlide, navigate, checkForMatch, fetchSwipeLimits, sessionId, sentLikesIds, user?.id]);
   
   const handlePass = useCallback(() => {
     if (!currentProfile || isAnimating || passInProgress.current || isBlocked(currentProfile.id)) return;
@@ -1006,6 +1034,31 @@ export default function Dashboard() {
       fetchProfilesBasedOnUser(1, false);
     }
   }, [user, fetchSwipeLimits, fetchProfilesBasedOnUser]);
+
+  useEffect(() => {
+    if (!user?.id || profileCompletedTrackedRef.current) return;
+
+    const funnelState = getFunnelState(user.id);
+    const shouldConsiderProfileCompletion =
+      funnelState.registration_started || funnelState.otp_verified || funnelState.profile_completed;
+    const isProfileReadyForDiscovery =
+      Boolean(user.profile_photo) &&
+      Boolean(String(user.bio || "").trim()) &&
+      !user.photo_review_required &&
+      !user.bio_review_required;
+
+    if (!shouldConsiderProfileCompletion || !isProfileReadyForDiscovery) {
+      return;
+    }
+
+    if (!hasTrackedUserEvent(user.id, "profile_completed")) {
+      trackProfileCompleted();
+      markTrackedUserEvent(user.id, "profile_completed");
+    }
+
+    markFunnelStage(user.id, "profile_completed");
+    profileCompletedTrackedRef.current = true;
+  }, [user]);
   
   useEffect(() => {
     if (!user || interactionsFetched.current) return;

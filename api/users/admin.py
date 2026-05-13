@@ -87,6 +87,9 @@ class UserAdmin(BaseUserAdmin):
         "photo_review_trigger_count",
         "city",
         "country",
+        "signup_source",
+        "utm_source",
+        "utm_campaign",
         "coordinates_display",
         "is_verified",
         "is_staff",
@@ -95,7 +98,7 @@ class UserAdmin(BaseUserAdmin):
     )
 
     # Add search capability
-    search_fields = ("email", "username", "first_name", "last_name", "city", "country")
+    search_fields = ("email", "username", "first_name", "last_name", "city", "country", "signup_source", "utm_source", "utm_campaign")
 
     # Filters in sidebar
     list_filter = (
@@ -141,6 +144,18 @@ class UserAdmin(BaseUserAdmin):
             ),
             "classes": ("wide",),
             "description": "📍 Geolocation information automatically captured from IP address during registration"
+        }),
+        ("Acquisition Attribution", {
+            "fields": (
+                "signup_source",
+                "utm_source",
+                "utm_medium",
+                "utm_campaign",
+                "utm_content",
+                "utm_term",
+                "landing_page",
+            ),
+            "classes": ("wide",),
         }),
         ("Permissions", {"fields": ("is_verified", "is_staff", "is_active", "is_superuser", "groups", "user_permissions")}),
         ("Important Dates", {"fields": ("last_login", "date_joined")}),

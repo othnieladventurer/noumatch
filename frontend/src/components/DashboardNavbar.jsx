@@ -148,7 +148,7 @@ export default function DashboardNavbar({ user, navRef = null }) {
         id: `support-${conv.id}`,
         conversation_id: conv.id,
         thread_type: "support",
-        text: conv.last_message?.content || "Ouvrir le support client",
+        text: conv.last_message?.content || "Contacter le support",
         sender: "NouMatch Support",
         sender_id: 0,
         read: conv.last_message?.sender_type !== "admin",
@@ -761,7 +761,7 @@ export default function DashboardNavbar({ user, navRef = null }) {
                     to="/messages?support=open"
                     onClick={() => document.body.click()}
                   >
-                    Support client
+                    Contacter le support
                   </Link>
                 </li>
                 

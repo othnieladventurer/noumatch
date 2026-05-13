@@ -7,6 +7,8 @@ import './index.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { BrowserRouter } from 'react-router-dom';
 import { I18nProvider } from './context/I18nContext.jsx';
+import { initMetaPixel } from './lib/metaPixel';
+import { initGoogleAnalytics } from './lib/googleAnalytics';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component {
@@ -62,6 +64,8 @@ const normalizeLegacyHashRoute = () => {
 };
 
 normalizeLegacyHashRoute();
+initMetaPixel();
+initGoogleAnalytics();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

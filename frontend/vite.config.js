@@ -93,6 +93,12 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_APP_ENVIRONMENT': JSON.stringify(
         isDevelopment ? 'development' : (isStaging ? 'staging' : 'production')
       ),
+      'import.meta.env.REACT_APP_META_PIXEL_ID': JSON.stringify(
+        (env.REACT_APP_META_PIXEL_ID || '').trim()
+      ),
+      'import.meta.env.REACT_APP_GA_MEASUREMENT_ID': JSON.stringify(
+        (env.REACT_APP_GA_MEASUREMENT_ID || '').trim()
+      ),
     },
     esbuild: {
       drop: isDevelopment ? [] : ['console', 'debugger'],
