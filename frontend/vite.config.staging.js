@@ -54,6 +54,8 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_APP_ENVIRONMENT': JSON.stringify('staging'),
+    'import.meta.env.REACT_APP_META_PIXEL_ID': JSON.stringify(''),
+    'import.meta.env.REACT_APP_GA_MEASUREMENT_ID': JSON.stringify(''),
   },
   esbuild: {
     drop: ['console', 'debugger'],

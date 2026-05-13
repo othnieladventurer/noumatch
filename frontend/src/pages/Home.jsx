@@ -10,6 +10,8 @@ import Contact from "../components/Contact";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import "../styles/public-redesign.css";
+import heroMeetingImage from "../assets/marketing/hero-meeting.png";
+import virtualToRealImage from "../assets/marketing/virtual-to-real.png";
 
 const STEPS = [
   {
@@ -28,13 +30,13 @@ const STEPS = [
     num: "03",
     icon: <FaHeart />,
     title: "Swipez & matchez",
-    desc: "Parcourez les profils près de vous, likez ceux qui vous intéressent. Quand vous matchez, c'est le début d'une belle histoire !",
+    desc: "Parcourez les profils près de vous et signalez les personnes qui retiennent votre attention. Quand l'intérêt est mutuel, la conversation peut commencer.",
   },
   {
     num: "04",
     icon: <FaComments />,
     title: "Discutez librement",
-    desc: "Une fois le match confirmé, lancez-vous ! Discutez, apprenez à vous connaître et laissez la magie opérer.",
+    desc: "Une fois le match confirmé, échangez librement, apprenez à vous connaître et voyez si le courant passe naturellement.",
   },
 ];
 
@@ -45,21 +47,10 @@ export default function Home() {
 
   return (
     <>
-      <style>{`
-        html, body, #root {
-          height: auto !important;
-          min-height: 100vh !important;
-          overflow: visible !important;
-          overflow-y: auto !important;
-          position: relative !important;
-        }
-        .overflow-hidden { overflow: visible !important; }
-      `}</style>
-
       {/* ── HERO ── */}
       <section className="nm-hero-v2">
         <div className="container">
-          <div className="row align-items-center g-5">
+          <div className="row align-items-center gy-5 gx-lg-5">
             <div className="col-lg-6" data-aos="fade-right">
               <div className="nm-hero-tag">
                 <span className="nm-hero-tag-dot" />
@@ -71,34 +62,20 @@ export default function Home() {
                 des gens vrais.
               </h1>
               <p className="nm-hero-subtitle">
-                Un espace sincère pour trouver des connexions qui durent.
-                Discutez, découvrez, créez des liens naturellement.
+                Un espace sincère pour découvrir des personnes, échanger simplement
+                et faire naître des liens naturels autour de vraies conversations.
               </p>
               <div className="nm-hero-actions">
                 <Link to="/register" className="nm-btn nm-btn-primary">Créer mon compte</Link>
                 <Link to="/login" className="nm-btn nm-btn-secondary">Se connecter</Link>
               </div>
-              <div className="nm-hero-stats">
-                <div>
-                  <span className="nm-hero-stat-value">2 400+</span>
-                  <span className="nm-hero-stat-label">Membres actifs</span>
-                </div>
-                <div>
-                  <span className="nm-hero-stat-value">100%</span>
-                  <span className="nm-hero-stat-label">Profils vérifiés</span>
-                </div>
-                <div>
-                  <span className="nm-hero-stat-value">Gratuit</span>
-                  <span className="nm-hero-stat-label">Pour commencer</span>
-                </div>
-              </div>
             </div>
-            <div className="col-lg-6 d-none d-lg-block" data-aos="fade-left">
-              <div className="nm-hero-media">
+            <div className="col-lg-6 d-none d-lg-flex align-items-stretch" data-aos="fade-left">
+              <div className="nm-hero-media w-100">
                 <img
                   className="nm-hero-img"
-                  src="https://images.pexels.com/photos/7741585/pexels-photo-7741585.jpeg?auto=compress&cs=tinysrgb&w=1600"
-                  alt="Couple heureux sur NouMatch"
+                  src={heroMeetingImage}
+                  alt="Personnes en conversation dans un café"
                 />
               </div>
             </div>
@@ -112,8 +89,8 @@ export default function Home() {
           <div className="row align-items-center g-5">
             <div className="col-lg-6" data-aos="fade-right">
               <img
-                src="https://img.freepik.com/premium-photo/happy-love-relax-couple-walking-city-date-together-their-getaway-break-summer-travel-smile-with-young-black-man-woman-holding-hands-street-their-vacation-trip_590464-81239.jpg?w=360"
-                alt="Rencontres sincères"
+                src="https://images.pexels.com/photos/36765309/pexels-photo-36765309.jpeg?auto=compress&cs=tinysrgb&w=1200"
+                alt="Deux personnes discutent autour d'un café"
                 className="nm-split-img"
               />
             </div>
@@ -169,8 +146,8 @@ export default function Home() {
           <div className="row align-items-center g-5 flex-lg-row-reverse">
             <div className="col-lg-6">
               <img
-                src="https://img.freepik.com/premium-photo/love-phone-social-media-with-black-couple-sofa-home-living-room-together-relax-app-happy-smile-with-man-woman-apartment-streaming-with-bonding-online-shopping_590464-495126.jpg?semt=ais_hybrid&w=740&q=80"
-                alt="Passez au réel"
+                src={virtualToRealImage}
+                alt="Première rencontre dans un cadre convivial"
                 className="nm-split-img"
               />
             </div>
@@ -178,8 +155,8 @@ export default function Home() {
               <span className="nm-section-tag">L'expérience NouMatch</span>
               <h2 className="nm-section-title">Passez du virtuel au réel</h2>
               <p style={{ color: "#64748b", lineHeight: "1.75", marginBottom: "2rem" }}>
-                Rencontrez des personnes qui partagent vos valeurs, vos centres d'intérêt et votre énergie.
-                Discutez, riez, créez des liens et laissez la rencontre se faire naturellement.
+                Rencontrez des personnes qui partagent vos valeurs et vos centres d'intérêt.
+                Discutez, apprenez à vous connaître et laissez l'échange se construire naturellement.
               </p>
               <Link to="/register" className="nm-btn nm-btn-primary">Engage la conversation</Link>
             </div>

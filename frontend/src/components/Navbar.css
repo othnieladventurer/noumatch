@@ -40,9 +40,14 @@
   cursor: pointer;
 }
 
-.nav-link:hover {
+.nav-link:hover,
+.nav-link.nm-nav-active {
   color: #dc2626 !important;
   background: transparent !important;
+}
+
+.nav-link.nm-nav-active {
+  font-weight: 700 !important;
 }
 
 /* Buttons inside navbar */
@@ -137,13 +142,3 @@
   }
 }
 
-/* Offset for fixed navbar */
-body {
-  padding-top: 64px;
-}
-
-@media (max-width: 991px) {
-  body {
-    padding-top: 60px;
-  }
-}
