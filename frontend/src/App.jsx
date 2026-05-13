@@ -8,6 +8,7 @@ import { NotificationProvider } from "./context/NotificationContext";
 // Components
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./components/Footer.jsx";
+import SeoManager from "./components/SeoManager.jsx";
 
 // Pages
 import Home from "./pages/Home.jsx";
@@ -115,6 +116,7 @@ export default function App() {
 
   return (
     <NotificationProvider>
+      <SeoManager />
       <div className="App">
         {!shouldHideLayout && <Navbar />}
 

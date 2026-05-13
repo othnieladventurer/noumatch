@@ -137,7 +137,6 @@ export default function LandingNoumatchHaiti() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    document.title = "Site de rencontres en Ha\u00efti | NouMatch";
     captureAttributionFromLocation(window.location.pathname, window.location.search);
   }, []);
 
@@ -252,9 +251,9 @@ export default function LandingNoumatchHaiti() {
 
           <div className="nm-campaign-split__copy">
             <span className="nm-campaign-pill">{"Confiance et s\u00e9curit\u00e9"}</span>
-            <h2>{"Une premi\u00e8re impression plus s\u00e9rieuse qu'une page d'accueil g\u00e9n\u00e9raliste."}</h2>
+            <h2>{"Des rencontres qui inspirent confiance d\u00e8s le premier regard."}</h2>
             <p>
-              {"Ici, le visiteur comprend tout de suite que NouMatch n'est pas juste une autre app. Les profils, la v\u00e9rification et la mod\u00e9ration sont visibles d\u00e8s l'entr\u00e9e."}
+              {"Profils avec photo, v\u00e9rification email et mod\u00e9ration active posent un cadre plus rassurant pour commencer \u00e0 discuter sereinement."}
             </p>
 
             <div className="nm-campaign-trust">
