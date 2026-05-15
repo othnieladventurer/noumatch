@@ -89,7 +89,7 @@ export default function Home() {
           <div className="row align-items-center g-5">
             <div className="col-lg-6" data-aos="fade-right">
               <img
-                src="https://images.pexels.com/photos/36765309/pexels-photo-36765309.jpeg?auto=compress&cs=tinysrgb&w=1200"
+                src="https://images.pexels.com/photos/18262851/pexels-photo-18262851.jpeg"
                 alt="Deux personnes discutent autour d'un café"
                 className="nm-split-img"
               />

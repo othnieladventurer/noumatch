@@ -10,78 +10,75 @@ import {
   FaShieldAlt,
   FaUserCheck,
 } from "react-icons/fa";
-const PX = (id, w = 900, h = 1200) =>
-  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${w}&h=${h}&fit=crop`;
-
-// Young Black couple embracing with balloons — hero card
-const heroMainImage = PX(6578953, 1200, 900);
-// Young Black couple kissing by window — secondary hero card
-const heroSupportImage = PX(3967023, 800, 1000);
-// Black woman smiling while on phone — Step 1: create profile
-const stepCreateImage = PX(5991144, 700, 900);
-// Young Black man laughing with phone in park — Step 2: discover
-const stepDiscoverImage = PX(6146927, 700, 900);
-// Black couple laughing together with phone on couch — Step 3: match
-const stepMatchImage = PX(6579102, 700, 900);
-// Black woman with tablet on city steps — Step 4: chat
-const stepChatImage = PX(6280728, 700, 900);
-// Young Black woman smiling in hoodie — trust section
-const trustImage = PX(6311486, 900, 1100);
-// Radiant Black woman laughing outdoors — story 1
-const storyMessageImage = PX(1820919, 700, 900);
-// Black man on phone call on street — story 2
-const storyCityImage = PX(3799180, 700, 900);
-// Young Black couple relaxing together at home — story 3
-const storyWalkImage = PX(6578830, 700, 900);
-// Black couple holding hands at a date — final CTA
-const finalCtaImage = PX(6579002, 1200, 800);
 import { captureAttributionFromLocation } from "../lib/attribution";
 import { trackLandingCTA } from "../lib/metaPixel";
 import "../styles/landing-noumatch-haiti.css";
 
-const HAITI_FLAG = "\uD83C\uDDED\uD83C\uDDF9";
+const PX = (id, w = 900, h = 1200) =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${w}&h=${h}&fit=crop`;
+
+const heroMainImage = PX(6578953, 1200, 900);
+const heroSupportImage = PX(3967023, 800, 1000);
+const stepCreateImage = PX(5991144, 700, 900);
+const stepDiscoverImage = PX(6146927, 700, 900);
+const stepMatchImage = PX(6579102, 700, 900);
+const stepChatImage = PX(6280728, 700, 900);
+const trustImage = PX(6311486, 900, 1100);
+const storyMessageImage = PX(1820919, 700, 900);
+const storyCityImage = PX(3799180, 700, 900);
+const storyWalkImage = PX(6578830, 700, 900);
+const finalCtaImage = PX(6579002, 1200, 800);
 
 const proofStats = [
-  { value: "Photo", label: "profils visuels d\u00e8s le d\u00e9part" },
-  { value: "Email", label: "v\u00e9rification avant l'acc\u00e8s complet" },
-  { value: "Actif", label: "mod\u00e9ration et signalement int\u00e9gr\u00e9s" },
+  {
+    value: "Profils réels",
+    label: "Photos et profils plus complets dès l’inscription",
+  },
+  {
+    value: "Matchs mutuels",
+    label: "La discussion s’ouvre uniquement après un intérêt partagé",
+  },
+  {
+    value: "Communauté active",
+    label: "De nouveaux profils rejoignent Noumatch régulièrement",
+  },
 ];
 
 const steps = [
   {
     icon: <FaUserCheck />,
-    title: "Cr\u00e9e ton profil",
-    copy: "Ajoute l'essentiel, une photo claire et une pr\u00e9sence qui donne envie de te d\u00e9couvrir.",
+    title: "Créez votre profil",
+    copy: "Ajoutez vos photos, votre bio et quelques informations pour commencer à découvrir des profils.",
     image: stepCreateImage,
-    alt: "Jeune femme ha\u00eftienne qui pr\u00e9pare son profil de rencontre sur son t\u00e9l\u00e9phone",
-    kicker: "\u00c9tape 1",
+    alt: "Jeune femme haïtienne qui prépare son profil Noumatch sur son téléphone",
+    kicker: "Étape 1",
     position: "center 18%",
   },
   {
     icon: <FaCamera />,
-    title: "D\u00e9couvre des profils",
-    copy: "Parcours des profils pens\u00e9s pour des rencontres en Ha\u00efti avec une vraie mise en confiance.",
+    title: "Découvrez des profils",
+    copy: "Explorez des profils en Haïti et trouvez des personnes qui vous intéressent vraiment.",
     image: stepDiscoverImage,
-    alt: "Jeune homme ha\u00eftien qui regarde des profils sur son t\u00e9l\u00e9phone depuis une terrasse",
-    kicker: "\u00c9tape 2",
+    alt: "Jeune homme haïtien qui découvre des profils sur Noumatch",
+    kicker: "Étape 2",
     position: "center 15%",
   },
   {
     icon: <FaHeart />,
-    title: "Match",
-    copy: "Quand l'int\u00e9r\u00eat est partag\u00e9, le match s'active et la conversation devient naturelle.",
+    title: "Obtenez un Noumatch 💓",
+    copy: "Quand l’intérêt est mutuel, le Noumatch débloque automatiquement la discussion.",
     image: stepMatchImage,
-    alt: "Deux jeunes adultes ha\u00eftiens r\u00e9agissent ensemble \u00e0 un match sur t\u00e9l\u00e9phone",
-    kicker: "\u00c9tape 3",
+    alt: "Deux utilisateurs heureux après un match sur Noumatch",
+    kicker: "Étape 3",
     position: "center 20%",
   },
   {
     icon: <FaComments />,
-    title: "Commence \u00e0 discuter",
-    copy: "Passe du swipe \u00e0 l'\u00e9change r\u00e9el et vois vite si l'\u00e9nergie est l\u00e0.",
+    title: "Commencez à discuter",
+    copy: "Faites connaissance naturellement et voyez où la conversation vous mène.",
     image: stepChatImage,
-    alt: "Jeune femme ha\u00eftienne qui marche en regardant une conversation sur son t\u00e9l\u00e9phone",
-    kicker: "\u00c9tape 4",
+    alt: "Jeune femme haïtienne qui échange sur Noumatch",
+    kicker: "Étape 4",
     position: "center 12%",
   },
 ];
@@ -90,45 +87,45 @@ const trustItems = [
   {
     icon: <FaCamera />,
     title: "Profils avec photo",
-    copy: "La premi\u00e8re impression compte. NouMatch pousse un profil plus complet d\u00e8s le d\u00e9part.",
+    copy: "Ajoutez une vraie photo pour rendre les échanges plus authentiques.",
   },
   {
     icon: <FaEnvelopeOpenText />,
-    title: "V\u00e9rification email",
-    copy: "La v\u00e9rification r\u00e9duit le bruit et aide \u00e0 garder une communaut\u00e9 plus s\u00e9rieuse.",
+    title: "Vérification email",
+    copy: "La vérification aide à protéger la qualité de la communauté.",
   },
   {
     icon: <FaShieldAlt />,
     title: "Blocage et signalement",
-    copy: "Si quelque chose ne te convient pas, les outils de protection sont d\u00e9j\u00e0 l\u00e0.",
+    copy: "Gardez le contrôle de votre expérience à tout moment.",
   },
   {
     icon: <FaCheckCircle />,
-    title: "Mod\u00e9ration active",
-    copy: "Le cadre reste surveill\u00e9 pour prot\u00e9ger la qualit\u00e9 des \u00e9changes et des profils.",
+    title: "Modération active",
+    copy: "Nous surveillons les profils et activités pour garder Noumatch agréable et sécurisé.",
   },
 ];
 
 const storyCards = [
   {
-    title: "Des conversations qui d\u00e9marrent sans lourdeur",
-    copy: "La communaut\u00e9 NouMatch grandit en Ha\u00efti. Des matchs et conversations commencent d\u00e9j\u00e0.",
+    title: "Des conversations qui commencent naturellement",
+    copy: "Des utilisateurs en Haïti commencent déjà à discuter et créer de nouvelles connexions sur Noumatch.",
     image: storyMessageImage,
-    alt: "Portrait d'une femme ha\u00eftienne souriante qui lit un message sur son t\u00e9l\u00e9phone",
+    alt: "Femme haïtienne souriante lisant un message sur Noumatch",
     position: "center 10%",
   },
   {
-    title: "Une ambiance plus claire d\u00e8s la premi\u00e8re visite",
-    copy: "Le mix entre profils, visuels et v\u00e9rification cr\u00e9e une impression plus s\u00e9rieuse qu'une simple page g\u00e9n\u00e9rique.",
+    title: "Une expérience plus claire et moderne",
+    copy: "Noumatch offre une interface simple, rapide et pensée pour de vraies rencontres.",
     image: storyCityImage,
-    alt: "Jeune homme ha\u00eftien qui consulte son t\u00e9l\u00e9phone avec un cadre urbain en arri\u00e8re-plan",
+    alt: "Jeune homme haïtien utilisant Noumatch en ville",
     position: "center 15%",
   },
   {
-    title: "Du virtuel \u00e0 la vraie rencontre",
-    copy: "L'objectif n'est pas juste de swiper. La page pr\u00e9pare d\u00e9j\u00e0 l'id\u00e9e d'une vraie rencontre ensuite.",
+    title: "Plus qu’un simple swipe",
+    copy: "L’objectif est de créer de vraies connexions entre personnes qui souhaitent réellement échanger.",
     image: storyWalkImage,
-    alt: "Couple ha\u00eftien qui marche ensemble apr\u00e8s une belle premi\u00e8re rencontre",
+    alt: "Couple haïtien après une belle rencontre grâce à Noumatch",
     position: "center 25%",
   },
 ];
@@ -137,7 +134,10 @@ export default function LandingNoumatchHaiti() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    captureAttributionFromLocation(window.location.pathname, window.location.search);
+    captureAttributionFromLocation(
+      window.location.pathname,
+      window.location.search
+    );
   }, []);
 
   const handlePrimaryCta = () => {
@@ -151,29 +151,48 @@ export default function LandingNoumatchHaiti() {
         <div className="nm-campaign-container">
           <div className="nm-campaign-hero__grid">
             <div className="nm-campaign-hero__copy">
-              <span className="nm-campaign-pill">{"Rencontres en Ha\u00efti"}</span>
-              <span className="nm-campaign-eyebrow">{"Une landing page pens\u00e9e pour Facebook et Instagram"}</span>
-              <h1>{`Site de rencontres en Ha\u00efti ${HAITI_FLAG}`}</h1>
+              <span className="nm-campaign-pill">
+                Disponible en Haïti 🇭🇹
+              </span>
+
+              <span className="nm-campaign-eyebrow">
+                Rencontres • Matchs • Conversations
+              </span>
+
+              <h1>Rencontrez de nouvelles personnes sur Noumatch 💓</h1>
+
               <p className="nm-campaign-subheadline">
-                {"Des utilisateurs matchent d\u00e9j\u00e0 et commencent \u00e0 discuter sur NouMatch."}
+                Des hommes et femmes en Haïti matchent déjà et commencent à
+                discuter sur Noumatch.
               </p>
+
               <p className="nm-campaign-supporting">
-                {"Une exp\u00e9rience mobile-first, plus claire et plus rassurante pour transformer un clic publicitaire en vraie inscription."}
+                Créez votre profil gratuitement, découvrez des profils près de
+                vous et commencez à faire des rencontres dans une expérience
+                simple et sécurisée.
               </p>
 
               <div className="nm-campaign-hero__actions">
-                <button type="button" className="nm-campaign-btn nm-campaign-btn--primary" onClick={handlePrimaryCta}>
-                  {"Cr\u00e9er mon profil gratuitement"}
+                <button
+                  type="button"
+                  className="nm-campaign-btn nm-campaign-btn--primary"
+                  onClick={handlePrimaryCta}
+                >
+                  Commencer gratuitement
                 </button>
-                <a className="nm-campaign-btn nm-campaign-btn--ghost" href="#comment-ca-marche">
-                  {"Voir comment \u00e7a marche"}
+
+                <a
+                  className="nm-campaign-btn nm-campaign-btn--ghost"
+                  href="#comment-ca-marche"
+                >
+                  Comment ça marche ?
                 </a>
               </div>
 
               <div className="nm-campaign-hero__inline-proof">
-                <span>Photo requise</span>
-                <span>{"V\u00e9rification email"}</span>
-                <span>{"Messagerie apr\u00e8s match"}</span>
+                <span>100% gratuit</span>
+                <span>Profils avec photo</span>
+                <span>Discussion après match</span>
               </div>
             </div>
 
@@ -181,19 +200,24 @@ export default function LandingNoumatchHaiti() {
               <article className="nm-campaign-hero-card nm-campaign-hero-card--main">
                 <img
                   src={heroMainImage}
-                  alt={"Couple ha\u00eftien dans un caf\u00e9 anim\u00e9 l'apr\u00e8s-midi"}
+                  alt="Couple haïtien dans un café animé"
                   fetchPriority="high"
                   decoding="async"
                 />
               </article>
+
               <article className="nm-campaign-hero-card nm-campaign-hero-card--support">
                 <img
                   src={heroSupportImage}
-                  alt={"Couple ha\u00eftien debout devant un caf\u00e9 avec une ambiance l\u00e9g\u00e8re"}
+                  alt="Jeune couple haïtien profitant d’un moment ensemble"
                   decoding="async"
                 />
+
                 <div className="nm-campaign-hero-card__caption">
-                  <span>{"Des rencontres qui commencent dans de vrais lieux, avec une vraie \u00e9nergie."}</span>
+                  <span>
+                    De nouvelles rencontres commencent chaque jour sur
+                    Noumatch.
+                  </span>
                 </div>
               </article>
             </div>
@@ -215,21 +239,39 @@ export default function LandingNoumatchHaiti() {
       <section id="comment-ca-marche" className="nm-campaign-section">
         <div className="nm-campaign-container">
           <div className="nm-campaign-heading">
-            <span className="nm-campaign-pill">{"Comment \u00e7a marche"}</span>
-            <h2>{"Un parcours simple pour passer du profil au match, puis \u00e0 la discussion."}</h2>
-            <p>{"Le produit existe d\u00e9j\u00e0. Cette page vend mieux l'entr\u00e9e dans le parcours sans toucher au flow interne."}</p>
+            <span className="nm-campaign-pill">Comment ça marche</span>
+
+            <h2>Commencez à matcher en quelques étapes simples</h2>
+
+            <p>
+              Noumatch vous aide à rencontrer de nouvelles personnes en Haïti
+              dans une expérience rapide, simple et naturelle.
+            </p>
           </div>
 
           <div className="nm-campaign-steps">
             {steps.map((step) => (
-              <article key={step.title} className="nm-campaign-step" style={{ "--nm-image-position": step.position }}>
+              <article
+                key={step.title}
+                className="nm-campaign-step"
+                style={{ "--nm-image-position": step.position }}
+              >
                 <div className="nm-campaign-step__image">
-                  <img src={step.image} alt={step.alt} loading="lazy" decoding="async" />
+                  <img
+                    src={step.image}
+                    alt={step.alt}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
+
                 <div className="nm-campaign-step__body">
                   <span>{step.kicker}</span>
+
                   <div className="nm-campaign-step__icon">{step.icon}</div>
+
                   <h3>{step.title}</h3>
+
                   <p>{step.copy}</p>
                 </div>
               </article>
@@ -243,23 +285,32 @@ export default function LandingNoumatchHaiti() {
           <div className="nm-campaign-split__media">
             <img
               src={trustImage}
-              alt={"Jeune femme ha\u00eftienne assise sereinement dans un caf\u00e9 lumineux"}
+              alt="Jeune femme haïtienne souriante utilisant Noumatch"
               loading="lazy"
               decoding="async"
             />
           </div>
 
           <div className="nm-campaign-split__copy">
-            <span className="nm-campaign-pill">{"Confiance et s\u00e9curit\u00e9"}</span>
-            <h2>{"Des rencontres qui inspirent confiance d\u00e8s le premier regard."}</h2>
+            <span className="nm-campaign-pill">Confiance et sécurité</span>
+
+            <h2>
+              Une expérience pensée pour des rencontres plus rassurantes
+            </h2>
+
             <p>
-              {"Profils avec photo, v\u00e9rification email et mod\u00e9ration active posent un cadre plus rassurant pour commencer \u00e0 discuter sereinement."}
+              Noumatch met l’accent sur des profils plus authentiques, des
+              échanges plus sérieux et une meilleure expérience pour tous.
             </p>
 
             <div className="nm-campaign-trust">
               {trustItems.map((item) => (
-                <article key={item.title} className="nm-campaign-trust__item">
+                <article
+                  key={item.title}
+                  className="nm-campaign-trust__item"
+                >
                   <div className="nm-campaign-trust__icon">{item.icon}</div>
+
                   <div>
                     <h3>{item.title}</h3>
                     <p>{item.copy}</p>
@@ -274,14 +325,27 @@ export default function LandingNoumatchHaiti() {
       <section className="nm-campaign-section">
         <div className="nm-campaign-container">
           <div className="nm-campaign-heading nm-campaign-heading--compact">
-            <span className="nm-campaign-pill">Preuve sociale</span>
-            <h2>{"La communaut\u00e9 NouMatch grandit en Ha\u00efti. Des matchs et conversations commencent d\u00e9j\u00e0."}</h2>
+            <span className="nm-campaign-pill">Communauté Noumatch</span>
+
+            <h2>
+              Des utilisateurs commencent déjà à matcher sur Noumatch 💓
+            </h2>
           </div>
 
           <div className="nm-campaign-stories">
             {storyCards.map((card) => (
-              <article key={card.title} className="nm-campaign-story" style={{ "--nm-image-position": card.position }}>
-                <img src={card.image} alt={card.alt} loading="lazy" decoding="async" />
+              <article
+                key={card.title}
+                className="nm-campaign-story"
+                style={{ "--nm-image-position": card.position }}
+              >
+                <img
+                  src={card.image}
+                  alt={card.alt}
+                  loading="lazy"
+                  decoding="async"
+                />
+
                 <div className="nm-campaign-story__body">
                   <h3>{card.title}</h3>
                   <p>{card.copy}</p>
@@ -298,19 +362,30 @@ export default function LandingNoumatchHaiti() {
             <div className="nm-campaign-final__image">
               <img
                 src={finalCtaImage}
-                alt={"Couple ha\u00eftien qui marche ensemble apr\u00e8s une belle premi\u00e8re rencontre"}
+                alt="Couple haïtien profitant d’un rendez-vous après un match"
                 loading="lazy"
                 decoding="async"
               />
             </div>
+
             <div className="nm-campaign-final__copy">
-              <span className="nm-campaign-pill">{"Pr\u00eat(e) \u00e0 rejoindre NouMatch"}</span>
-              <h2>Rejoindre NouMatch gratuitement</h2>
+              <span className="nm-campaign-pill">
+                Prêt(e) à rejoindre Noumatch ?
+              </span>
+
+              <h2>Commencez gratuitement aujourd’hui</h2>
+
               <p>
-                {"Si le clic vient d'une pub Meta, la page doit donner envie de continuer sans h\u00e9sitation. C'est exactement le r\u00f4le de ce parcours."}
+                Créez votre profil, découvrez de nouvelles personnes et
+                commencez à matcher sur Noumatch.
               </p>
-              <button type="button" className="nm-campaign-btn nm-campaign-btn--primary" onClick={handlePrimaryCta}>
-                {"Rejoindre NouMatch gratuitement"}
+
+              <button
+                type="button"
+                className="nm-campaign-btn nm-campaign-btn--primary"
+                onClick={handlePrimaryCta}
+              >
+                Créer mon profil gratuitement
                 <FaArrowRight />
               </button>
             </div>
@@ -320,3 +395,4 @@ export default function LandingNoumatchHaiti() {
     </div>
   );
 }
+
