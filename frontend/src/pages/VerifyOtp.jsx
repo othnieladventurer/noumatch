@@ -5,7 +5,7 @@ import API from '@/api/axios';
 import BrandLogo from "../components/BrandLogo";
 import "../styles/auth-redesign.css";
 import { markFunnelStage } from "../lib/attribution";
-import { trackOTPVerified } from "../lib/metaPixel";
+import { trackOTPVerified, trackCompleteRegistration } from "../lib/metaPixel";
 
 const OTP_VALIDITY_SECONDS = 600;
 
@@ -108,6 +108,7 @@ export default function VerifyOtp() {
         markFunnelStage(response.data.user.id, "otp_verified");
       }
       trackOTPVerified();
+      trackCompleteRegistration();
       setSuccess('Email vérifié avec succès ! Redirection…');
       setTimeout(() => navigate('/dashboard'), 1500);
     } catch (err) {

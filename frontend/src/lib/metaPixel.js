@@ -144,3 +144,8 @@ export const trackFirstMatch = (userId) => {
   if (tracked) markTrackedUserEvent(userId, "first_match");
   return tracked;
 };
+
+export const trackLead = (params = {}) => {
+  trackGoogleAnalyticsMirror("lead", params);
+  return safelyTrack("track", "Lead", params);
+};
