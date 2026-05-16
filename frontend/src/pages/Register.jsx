@@ -7,7 +7,7 @@ import registerMeetingImage from "../assets/marketing/register-meeting.png";
 import "../styles/auth-redesign.css";
 import { useI18n } from "../context/I18nContext";
 import { appendAttributionToFormData, markFunnelStage } from "../lib/attribution";
-import { trackCompleteRegistration, trackRegistrationStarted } from "../lib/metaPixel";
+import { trackCompleteRegistration, trackRegistrationStarted, trackLead } from "../lib/metaPixel";
 
 export default function Register() {
   const { t } = useI18n();
@@ -197,6 +197,7 @@ export default function Register() {
     if (step !== 3) return;
     setErrorMessage("");
     if (!formData.profile_photo) { setErrorMessage(t("register.errorPhotoRequired")); return; }
+    trackLead({ content_name: "NouMatch Registration" });
 
     const data = new FormData();
     data.append("first_name", formData.first_name);
@@ -229,7 +230,6 @@ export default function Register() {
         markFunnelStage(pendingRegistrationId, "registration_started");
       }
       localStorage.setItem("unverified_email", formData.email);
-      trackCompleteRegistration();
       navigate("/verify-otp", {
         state: { userId: response.data.user_id, email: formData.email, expiresIn: response.data?.expires_in }
       });
