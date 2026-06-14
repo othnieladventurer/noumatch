@@ -3,7 +3,7 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import generics, permissions, status
-from .models import Pass, Like, DailySwipe
+from .models import Pass, Like, DailySwipe, DailyCoeur
 from .serializers import LikeSerializer, PassSerializer, PassCheckSerializer, BulkPassSerializer, SwipeLimitSerializer, DailySwipeSerializer
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -105,13 +105,37 @@ class LikeCreateView(APIView):
 
         serializer = LikeSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
+            like_type = serializer.validated_data.get('type', 'like')
+
+            if like_type == 'coup_de_coeur' and not DailyCoeur.can_use(user):
+                return Response(
+                    {"error": "Limite de Coup de Coeur atteinte pour aujourd'hui. Réinitialisation à minuit (heure d'Haïti)."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
             like = serializer.save()
+
             try:
                 inject_like_reciprocal_visibility(like.from_user, like.to_user)
             except Exception:
                 logging.exception("like reciprocal visibility injection failed")
-            # Increment DailySwipe for analytics
+
             DailySwipe.increment_swipe(user, 'like')
+
+            if like_type == 'coup_de_coeur':
+                DailyCoeur.increment(user)
+                try:
+                    from notifications.models import Notification
+                    Notification.objects.create(
+                        recipient=like.to_user,
+                        type=Notification.Type.COUP_DE_COEUR,
+                        title='Coup de Coeur \U0001f49c',
+                        message=f"{like.from_user.first_name} a eu un coup de coeur pour toi \U0001f49c",
+                        priority=Notification.Priority.HIGH,
+                    )
+                except Exception:
+                    logging.exception("coup de coeur notification failed")
+
             response_serializer = LikeSerializer(like, context={'request': request})
             return Response(response_serializer.data, status=201)
         return Response(serializer.errors, status=400)
@@ -539,3 +563,47 @@ class IncrementPassView(APIView):
         except Exception:
             logging.exception("IncrementPassView failed")
             return Response({"error": "Unable to register pass"}, status=400)
+
+
+class CoeurLimitsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        remaining = DailyCoeur.remaining(user)
+        return Response({
+            'can_use': remaining > 0,
+            'remaining': remaining,
+            'daily_limit': DailyCoeur.get_daily_limit(user),
+        })
+
+
+class PassedProfilesView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        now = timezone.now()
+        passes = (
+            Pass.objects.filter(from_user=user, expires_at__gt=now)
+            .select_related('to_user')
+            .order_by('expires_at')[:50]
+        )
+
+        result = []
+        for p in passes:
+            hours_remaining = max(0, (p.expires_at - now).total_seconds() / 3600)
+            profile_photo = None
+            if p.to_user.profile_photo:
+                try:
+                    profile_photo = request.build_absolute_uri(p.to_user.profile_photo.url)
+                except Exception:
+                    pass
+            result.append({
+                'id': p.to_user.id,
+                'first_name': p.to_user.first_name,
+                'profile_photo': profile_photo,
+                'expires_at': p.expires_at.isoformat(),
+                'hours_remaining': round(hours_remaining),
+            })
+        return Response(result)

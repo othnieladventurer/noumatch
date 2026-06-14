@@ -25,7 +25,8 @@ export default function ProfileDetail() {
   const [isMatched, setIsMatched] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [matchId, setMatchId] = useState(null);
-  
+  const [coeurLimits, setCoeurLimits] = useState({ can_use: true, remaining: 3, daily_limit: 3 });
+
   // Report modal state
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [userToReport, setUserToReport] = useState(null);
@@ -83,6 +84,8 @@ export default function ProfileDetail() {
 
         await fetchUserPhotos(id);
         await checkRelationshipStatus(id);
+
+        API.get("/interactions/coeur/limits/").then(r => setCoeurLimits(r.data)).catch(() => {});
 
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -169,6 +172,37 @@ export default function ProfileDetail() {
         localStorage.removeItem("refresh");
         navigate("/login");
       }
+    }
+  };
+
+  const handlePass = async () => {
+    try {
+      await API.post("/interactions/pass/", { to_user_id: profile.id });
+    } catch (error) {
+      console.error("Error passing profile:", error);
+    } finally {
+      navigate(-1);
+    }
+  };
+
+  const handleCoupDeCoeur = async () => {
+    if (!coeurLimits.can_use) return;
+    try {
+      await API.post("/interactions/like/", { to_user_id: profile.id, type: 'coup_de_coeur' });
+      setIsLiked(true);
+      setCoeurLimits(prev => ({
+        ...prev,
+        remaining: Math.max(0, prev.remaining - 1),
+        can_use: prev.remaining > 1,
+      }));
+      trackFirstLike(user?.id);
+      markFunnelStage(user?.id, "first_like");
+      await checkForMatch();
+    } catch (error) {
+      if (error.response?.status === 403) {
+        alert(t('profileDetail.coupDeCoeurLimit'));
+      }
+      console.error("Error sending coup de coeur:", error);
     }
   };
 
@@ -1433,11 +1467,38 @@ export default function ProfileDetail() {
                 ) : (
                   <>
                     <button
+                      onClick={handlePass}
+                      className="action-btn secondary"
+                    >
+                      <i className="fas fa-times me-2"></i>
+                      {t("profileDetail.pass")}
+                    </button>
+                    <button
                       onClick={handleLike}
                       className="action-btn primary"
                     >
                       <i className="fas fa-heart me-2"></i>
                       {t("profileDetail.like")}
+                    </button>
+                    <button
+                      onClick={handleCoupDeCoeur}
+                      className="action-btn"
+                      disabled={!coeurLimits.can_use}
+                      title={coeurLimits.can_use ? `${coeurLimits.remaining} restant(s) aujourd'hui` : "Limite quotidienne atteinte"}
+                      style={{
+                        background: coeurLimits.can_use ? '#7C3AED' : '#d1d5db',
+                        color: '#fff',
+                        border: 'none',
+                        opacity: coeurLimits.can_use ? 1 : 0.55,
+                        cursor: coeurLimits.can_use ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      💜 {t("profileDetail.coupDeCoeur")}
+                      {coeurLimits.can_use && (
+                        <span style={{ fontSize: '0.75rem', marginLeft: '6px', opacity: 0.85 }}>
+                          ({coeurLimits.remaining})
+                        </span>
+                      )}
                     </button>
                     <button
                       onClick={openReportModal}

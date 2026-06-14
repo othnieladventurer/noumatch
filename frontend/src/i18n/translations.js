@@ -112,6 +112,9 @@ export const translations = {
     "profileDetail.report": "Signaler",
     "profileDetail.unlike": "Retirer le like",
     "profileDetail.like": "J’aime",
+    "profileDetail.pass": "Passer",
+    "profileDetail.coupDeCoeur": "Coup de Coeur",
+    "profileDetail.coupDeCoeurLimit": "Limite quotidienne atteinte. Réessaie demain à minuit (heure d’Haïti).",
     "profileDetail.block": "Bloquer",
     "profileDetail.footer": "L’amour vaut le risque",
 
@@ -321,6 +324,9 @@ export const translations = {
     "profileDetail.report": "Report",
     "profileDetail.unlike": "Unlike",
     "profileDetail.like": "Like",
+    "profileDetail.pass": "Pass",
+    "profileDetail.coupDeCoeur": "Coup de Coeur",
+    "profileDetail.coupDeCoeurLimit": "Daily limit reached. Try again tomorrow at midnight (Haiti time).",
     "profileDetail.block": "Block",
     "profileDetail.footer": "Take a chance on love",
 

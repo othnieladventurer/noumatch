@@ -15,6 +15,7 @@ class Notification(models.Model):
         NEW_LIKE = 'new_like', 'New Like'
         NEW_MATCH = 'new_match', 'New Match'
         NEW_MESSAGE = 'new_message', 'New Message'
+        COUP_DE_COEUR = 'coup_de_coeur', 'Coup de Coeur'
         
         # Reports
         REPORT_RECEIVED = 'report_received', 'Report Received'
