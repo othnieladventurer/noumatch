@@ -10,9 +10,12 @@ urlpatterns = [
     path('mark-read/', views.MarkNotificationReadView.as_view(), name='mark-read'),
     path('<int:pk>/', views.NotificationDetailView.as_view(), name='notification-detail'),
     path('<int:pk>/delete/', views.DeleteNotificationView.as_view(), name='notification-delete'),
-    
+
     # Admin only
     path('admin/create/', views.CreateCustomNotificationView.as_view(), name='create-notification'),
+
+    # Web push
+    path('push/subscribe/', views.PushSubscribeView.as_view(), name='push-subscribe'),
 ]
 
 

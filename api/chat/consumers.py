@@ -8,9 +8,10 @@ from channels.db import database_sync_to_async
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from .models import Conversation
+from .models import Conversation, Message
 
 User = get_user_model()
 
@@ -57,23 +58,59 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         action = data.get("action")
+
         if action == "ping":
             await self.send(text_data=json.dumps({"type": "pong"}))
+
         elif action == "typing":
+            # Broadcast typing status only to OTHER participants, not the sender
             await self.channel_layer.group_send(
                 self.group_name,
                 {
                     "type": "chat_event",
                     "event_type": "typing",
-                    "payload": {"user_id": self.user.id},
+                    "sender_channel": self.channel_name,
+                    "payload": {
+                        "user_id": self.user.id,
+                        "is_typing": bool(data.get("is_typing", True)),
+                    },
                 },
             )
 
+        elif action == "message_seen":
+            # Mark all unread messages in this conversation as read
+            count = await self.mark_messages_read()
+            if count:
+                await self.channel_layer.group_send(
+                    self.group_name,
+                    {
+                        "type": "chat_event",
+                        "event_type": "messages_read",
+                        "payload": {
+                            "conversation_id": int(self.conversation_id),
+                            "reader_id": self.user.id,
+                        },
+                    },
+                )
+
     async def chat_event(self, event):
+        # For typing events, skip sending back to the originating channel
+        if event.get("event_type") == "typing":
+            if event.get("sender_channel") == self.channel_name:
+                return
+
         await self.send(text_data=json.dumps({
             "type": event.get("event_type"),
             "payload": event.get("payload", {}),
         }))
+
+    @database_sync_to_async
+    def mark_messages_read(self):
+        now = timezone.now()
+        return Message.objects.filter(
+            conversation_id=self.conversation_id,
+            read=False,
+        ).exclude(sender=self.user).update(read=True, read_at=now)
 
     @database_sync_to_async
     def get_user_from_token(self, token):

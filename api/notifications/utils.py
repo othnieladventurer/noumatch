@@ -3,11 +3,47 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.conf import settings
 
 from .models import Notification
 from .serializers import NotificationSerializer
 from interactions.models import Like
 from admin_dashboard.services.email_notifications import queue_event_notification_email
+
+
+def send_web_push(user, title, body, url='/'):
+    """Send a Web Push notification to all of user's registered browser endpoints."""
+    vapid_private = getattr(settings, 'VAPID_PRIVATE_KEY', '')
+    vapid_claims_email = getattr(settings, 'VAPID_CLAIMS_EMAIL', 'mailto:admin@noumatch.com')
+    if not vapid_private:
+        return
+
+    try:
+        from pywebpush import webpush, WebPushException
+        from .models import PushSubscription
+        import json
+
+        subs = PushSubscription.objects.filter(user=user)
+        for sub in subs:
+            try:
+                webpush(
+                    subscription_info={
+                        'endpoint': sub.endpoint,
+                        'keys': {'p256dh': sub.p256dh, 'auth': sub.auth},
+                    },
+                    data=json.dumps({'title': title, 'body': body, 'url': url}),
+                    vapid_private_key=vapid_private,
+                    vapid_claims={'sub': vapid_claims_email},
+                )
+            except WebPushException as e:
+                if e.response and e.response.status_code in (404, 410):
+                    sub.delete()
+                else:
+                    logging.warning("Web push failed for sub %s: %s", sub.id, e)
+    except ImportError:
+        logging.warning("pywebpush not installed — skipping web push")
+    except Exception as e:
+        logging.warning("send_web_push error: %s", e)
 
 
 def send_realtime_notification(user, notification):
@@ -91,6 +127,8 @@ def send_match_notification(match, user1, user2):
             icon='handshake',
         )
         send_realtime_notification(user1, n1)
+        send_web_push(user1, "Tu as un nouveau match sur NouMatch 💜",
+                      f"Toi et {user2.first_name or 'quelqu\'un'} vous vous êtes matché(e)s !", conversation_link or '/')
         queue_event_notification_email(
             'new_match',
             user1,
@@ -117,6 +155,8 @@ def send_match_notification(match, user1, user2):
             icon='handshake',
         )
         send_realtime_notification(user2, n2)
+        send_web_push(user2, "Tu as un nouveau match sur NouMatch 💜",
+                      f"Toi et {user1.first_name or 'quelqu\'un'} vous vous êtes matché(e)s !", conversation_link or '/')
         queue_event_notification_email(
             'new_match',
             user2,
@@ -188,6 +228,10 @@ def send_message_notification(message):
             notification.save(update_fields=['title', 'message', 'count', 'is_read', 'read_at', 'metadata'])
 
         send_realtime_notification(recipient, notification)
+        send_web_push(recipient,
+                      f"{sender.first_name or sender.username or 'Nouveau'} t'a envoyé un message",
+                      preview[:100],
+                      f"/messages?conversation={conversation.id}")
         queue_event_notification_email(
             'new_message',
             recipient,

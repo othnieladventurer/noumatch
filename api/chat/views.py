@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -49,7 +50,9 @@ class ConversationDetailView(generics.RetrieveAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         conversation = self.get_object()
-        updated = conversation.messages.exclude(sender=request.user).filter(read=False).update(read=True)
+        updated = conversation.messages.exclude(sender=request.user).filter(read=False).update(
+            read=True, read_at=timezone.now()
+        )
 
         if updated:
             send_realtime_chat_event(
@@ -119,7 +122,9 @@ class GetMessagesView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         conversation_id = self.kwargs.get("conversation_id")
-        updated = queryset.exclude(sender=request.user).filter(read=False).update(read=True)
+        updated = queryset.exclude(sender=request.user).filter(read=False).update(
+            read=True, read_at=timezone.now()
+        )
 
         if updated:
             send_realtime_chat_event(

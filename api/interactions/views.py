@@ -126,12 +126,19 @@ class LikeCreateView(APIView):
                 DailyCoeur.increment(user)
                 try:
                     from notifications.models import Notification
+                    from notifications.utils import send_web_push
                     Notification.objects.create(
                         recipient=like.to_user,
                         type=Notification.Type.COUP_DE_COEUR,
                         title='Coup de Coeur \U0001f49c',
                         message=f"{like.from_user.first_name} a eu un coup de coeur pour toi \U0001f49c",
                         priority=Notification.Priority.HIGH,
+                    )
+                    send_web_push(
+                        like.to_user,
+                        f"{like.from_user.first_name} a eu un coup de coeur pour toi ✨",
+                        "Découvre son profil sur NouMatch 💜",
+                        f"/profile/{like.from_user.id}",
                     )
                 except Exception:
                     logging.exception("coup de coeur notification failed")

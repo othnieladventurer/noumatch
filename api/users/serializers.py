@@ -430,9 +430,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'first_name', 'last_name', 'age', 'bio', 'profile_photo', 
-            'profile_photo_url', 'gender', 'city', 'country', 'height', 
-            'passions', 'career', 'education', 'hobbies', 'favorite_music',
+            'id', 'first_name', 'last_name', 'age', 'bio', 'profile_photo',
+            'profile_photo_url', 'gender', 'city', 'country', 'height',
+            'passions', 'profile_prompts', 'career', 'education', 'hobbies', 'favorite_music',
             'is_online', 'account_type',
             'photo_review_required', 'photo_review_trigger_count', 'photo_review_reason',
             'bio_review_required', 'bio_review_trigger_count', 'bio_review_reason',

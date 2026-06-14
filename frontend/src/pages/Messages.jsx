@@ -21,6 +21,7 @@ export default function Messages() {
   const fileInputRef = useRef(null);
   const messageInputRef = useRef(null);
 
+  const [promptContext, setPromptContext] = useState(location.state?.promptContext || null);
   const [user, setUser] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [supportConversations, setSupportConversations] = useState([]);
@@ -33,6 +34,11 @@ export default function Messages() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+
+  const typingTimeoutRef = useRef(null);
+  const otherUserNameRef = useRef(null);
+
+  const [typingUser, setTypingUser] = useState(null);
 
   const activeConversationId = activeConversation?.id;
   const activeSupportConversationId = activeSupportConversation?.id;
@@ -152,6 +158,8 @@ export default function Messages() {
           ws.send(JSON.stringify({ action: "ping" }));
         }
       }, 30000);
+      // Mark all received messages as seen
+      ws.send(JSON.stringify({ action: "message_seen" }));
     };
 
     ws.onmessage = (event) => {
@@ -169,6 +177,16 @@ export default function Messages() {
         }
         if (data.type === "messages_read" && data.payload?.reader_id !== user?.id) {
           setMessages((prev) => prev.map((m) => (m.is_from_me ? { ...m, read: true } : m)));
+        }
+        if (data.type === "typing" && data.payload?.user_id !== user?.id) {
+          if (data.payload?.is_typing) {
+            setTypingUser(otherUserNameRef.current || "...");
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 4000);
+          } else {
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            setTypingUser(null);
+          }
         }
       } catch (_) {
         // noop
@@ -221,9 +239,25 @@ export default function Messages() {
     return conversation;
   };
 
+  const emitTyping = (isTyping) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ action: "typing", is_typing: isTyping }));
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setText(e.target.value);
+    if (!activeConversationId) return;
+    emitTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => emitTyping(false), 3000);
+  };
+
   const openConversation = async (conversation) => {
     setActiveConversation(conversation);
     setActiveSupportConversation(null);
+    setTypingUser(null);
+    otherUserNameRef.current = conversation.other_user?.first_name || conversation.other_user?.full_name || null;
     setAttachmentFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     navigate(`/messages?conversation=${conversation.id}`, { replace: true });
@@ -275,8 +309,10 @@ export default function Messages() {
       const convs = conversationsResult.status === "fulfilled" ? conversationsResult.value : [];
       const supportConvs = supportResult.status === "fulfilled" ? supportResult.value : [];
       const params = new URLSearchParams(location.search);
-      const matchId = Number(params.get("match"));
-      const selectedId = Number(params.get("conversation"));
+      const stateConvId = location.state?.conversationId;
+      const stateMatchId = location.state?.matchId;
+      const matchId = Number(params.get("match")) || Number(stateMatchId) || 0;
+      const selectedId = Number(params.get("conversation")) || Number(stateConvId) || 0;
       const supportParam = params.get("support");
 
       if (supportParam) {
@@ -373,6 +409,9 @@ export default function Messages() {
       setError("Les messages au support sont en texte uniquement pour l'instant.");
       return;
     }
+    // Stop typing indicator before sending
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    emitTyping(false);
     setSending(true);
     setError("");
 
@@ -635,11 +674,29 @@ export default function Messages() {
                             <img src={msg.attachment_url} alt="attachment" style={{ width: "100%", maxHeight: 260, objectFit: "cover", borderRadius: 10 }} />
                           )
                         ) : null}
-                        <div className={`small mt-1 ${mine ? "text-white-50" : "text-muted"}`}>{formatTime(msg.created_at)}{mine && msg.read ? ` - ${t("messages.read")}` : ""}</div>
+                        <div className={`small mt-1 d-flex align-items-center gap-1 ${mine ? "text-white-50" : "text-muted"}`}>
+                          {formatTime(msg.created_at)}
+                          {mine && (
+                            <span style={{ fontSize: '0.8em', marginLeft: 2 }}>
+                              {msg.read
+                                ? <span style={{ color: '#FF2D55' }}>✓✓</span>
+                                : <span style={{ color: 'rgba(255,255,255,0.5)' }}>✓</span>
+                              }
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
+                {typingUser && activeConversationId && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', color: '#999', fontStyle: 'italic', fontSize: 13 }}>
+                    <span>{typingUser} est en train d'écrire</span>
+                    <span className="nm-typing-dots">
+                      <span /><span /><span />
+                    </span>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -657,6 +714,21 @@ export default function Messages() {
               )}
 
               <div className="card-footer bg-white border-0 pb-3">
+                {promptContext && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: '#FAF8F4', border: '1px solid #E8E5DF',
+                    borderRadius: 10, padding: '8px 12px', marginBottom: 8,
+                    fontSize: 13, color: '#999',
+                  }}>
+                    <span>💬 {promptContext}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPromptContext(null)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: '0 4px' }}
+                    >×</button>
+                  </div>
+                )}
                 {mediaPreview && (
                   <div className="mb-2">
                     {attachmentFile?.type.startsWith("video/") ? (
@@ -689,7 +761,7 @@ export default function Messages() {
                     className="form-control rounded-pill"
                     placeholder={t("messages.typePlaceholder")}
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={handleInputChange}
                     disabled={!activeThreadId || sending}
                   />
                   <button className="btn btn-danger rounded-pill px-3" disabled={sending || (!text.trim() && !attachmentFile) || !activeThreadId}>

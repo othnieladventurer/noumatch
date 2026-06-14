@@ -25,6 +25,7 @@ export default function ProfileDetail() {
   const [isMatched, setIsMatched] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [matchId, setMatchId] = useState(null);
+  const [conversationId, setConversationId] = useState(null);
   const [coeurLimits, setCoeurLimits] = useState({ can_use: true, remaining: 3, daily_limit: 3 });
 
   // Report modal state
@@ -120,6 +121,13 @@ export default function ProfileDetail() {
       if (match) {
         setIsMatched(true);
         setMatchId(match.id);
+        API.get('/chat/conversations/').then(r => {
+          const conv = r.data.find(c =>
+            c.other_user?.id === parseInt(profileId) ||
+            c.match_id === match.id
+          );
+          if (conv) setConversationId(conv.id);
+        }).catch(() => {});
       }
 
       const blocksResponse = await API.get("/blocked/blocks/");
@@ -1404,6 +1412,49 @@ export default function ProfileDetail() {
             </div>
           )}
 
+          {Array.isArray(profile.profile_prompts) && profile.profile_prompts.length > 0 && (
+            <div className="profile-section">
+              <h3 className="section-title">
+                <i className="fas fa-comment-dots"></i>
+                Partage quelque chose sur toi
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {profile.profile_prompts.slice(0, 3).map((item, idx) => (
+                  <div key={idx} style={{
+                    background: '#fff', border: '1px solid #E8E5DF',
+                    borderRadius: 12, padding: 14,
+                  }}>
+                    <div style={{ color: '#999', fontSize: 12, marginBottom: 6 }}>
+                      {item.question}
+                    </div>
+                    <div style={{ color: '#1A1A2E', fontSize: 15, lineHeight: 1.5 }}>
+                      {item.answer}
+                    </div>
+                    {isMatched && (
+                      <button
+                        onClick={() => navigate('/messages', {
+                          state: {
+                            promptContext: item.question,
+                            conversationId: conversationId,
+                            matchId: matchId,
+                          }
+                        })}
+                        style={{
+                          marginTop: 10, background: 'transparent',
+                          border: '1px solid #E8E5DF', borderRadius: 999,
+                          padding: '6px 14px', fontSize: 13, color: '#FF2D55',
+                          cursor: 'pointer', fontWeight: 500,
+                        }}
+                      >
+                        💬 Commenter ça
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="action-buttons">
             {isBlocked ? (
               <button
@@ -1486,7 +1537,7 @@ export default function ProfileDetail() {
                       disabled={!coeurLimits.can_use}
                       title={coeurLimits.can_use ? `${coeurLimits.remaining} restant(s) aujourd'hui` : "Limite quotidienne atteinte"}
                       style={{
-                        background: coeurLimits.can_use ? '#7C3AED' : '#d1d5db',
+                        background: coeurLimits.can_use ? '#8B30C9' : '#d1d5db',
                         color: '#fff',
                         border: 'none',
                         opacity: coeurLimits.can_use ? 1 : 0.55,

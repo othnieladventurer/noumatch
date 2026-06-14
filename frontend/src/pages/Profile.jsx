@@ -54,6 +54,22 @@ export default function Profile() {
 
   const [photoPreview, setPhotoPreview] = useState(null);
 
+  // Profile prompts
+  const PROMPT_OPTIONS = [
+    "Ce qui me fait toujours sourire...",
+    "La chose qui me rend unique c'est...",
+    "Mon plat haïtien préféré c'est...",
+    "Pour moi, une relation parfaite c'est...",
+    "Je suis passionné(e) par...",
+    "Mon plus grand rêve en Haïti...",
+    "Le truc que peu de gens savent sur moi...",
+    "Ce que je cherche vraiment c'est...",
+    "Un fait amusant sur moi...",
+    "Ce que j'aime faire le week-end...",
+  ];
+  const [profilePrompts, setProfilePrompts] = useState([]);
+  const [savingPrompts, setSavingPrompts] = useState(false);
+
   const getProfilePhotoUrl = (path) => {
     return resolveMediaUrl(path);
   };
@@ -315,6 +331,9 @@ export default function Profile() {
         if (fullUserData.profile_photo) {
           setPhotoPreview(fullUserData.profile_photo_url || getProfilePhotoUrl(fullUserData.profile_photo));
         }
+        if (Array.isArray(fullUserData.profile_prompts)) {
+          setProfilePrompts(fullUserData.profile_prompts);
+        }
       } catch (error) {
         setError("Impossible de charger le profil");
         if (error.response?.status === 401) {
@@ -424,6 +443,33 @@ export default function Profile() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const savePrompts = async () => {
+    setSavingPrompts(true);
+    try {
+      const res = await API.patch('/users/profile/update/', { profile_prompts: profilePrompts });
+      setUser(prev => ({ ...prev, profile_prompts: res.data.profile_prompts ?? profilePrompts }));
+    } catch (e) {
+      setError(e.response?.data?.message || "Impossible de sauvegarder les prompts");
+    } finally {
+      setSavingPrompts(false);
+    }
+  };
+
+  const addOrUpdatePrompt = (question, answer) => {
+    setProfilePrompts(prev => {
+      const exists = prev.find(p => p.question === question);
+      if (exists) {
+        return prev.map(p => p.question === question ? { ...p, answer } : p);
+      }
+      if (prev.length >= 3) return prev;
+      return [...prev, { question, answer }];
+    });
+  };
+
+  const removePrompt = (question) => {
+    setProfilePrompts(prev => prev.filter(p => p.question !== question));
   };
 
   const cancelEdit = () => {
@@ -2183,6 +2229,90 @@ export default function Profile() {
               )}
             </div>
           )}
+
+          <div className="profile-section">
+            <h3 className="section-title">
+              <i className="fas fa-comment-dots"></i>
+              Partage quelque chose sur toi
+            </h3>
+            <p style={{ fontSize: 13, color: '#999', marginBottom: 16 }}>
+              Choisis jusqu'à 3 questions et réponds-y. Elles apparaîtront sur ton profil.
+            </p>
+
+            {/* Active prompts */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {profilePrompts.map((item) => (
+                <div key={item.question} style={{
+                  background: '#FAF8F4', border: '1px solid #E8E5DF',
+                  borderRadius: 12, padding: 14, position: 'relative',
+                }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>{item.question}</div>
+                  <textarea
+                    value={item.answer}
+                    onChange={e => addOrUpdatePrompt(item.question, e.target.value)}
+                    maxLength={200}
+                    rows={2}
+                    placeholder="Ta réponse..."
+                    style={{
+                      width: '100%', background: 'transparent', border: 'none',
+                      outline: 'none', resize: 'none', fontSize: 14,
+                      color: '#1A1A2E', fontFamily: 'inherit',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePrompt(item.question)}
+                    style={{
+                      position: 'absolute', top: 10, right: 12,
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#999', fontSize: 16,
+                    }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+
+            {/* Prompt picker — show remaining slots */}
+            {profilePrompts.length < 3 && (
+              <div>
+                <p style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>
+                  Ajouter une question ({profilePrompts.length}/3)
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {PROMPT_OPTIONS.filter(q => !profilePrompts.find(p => p.question === q)).map(q => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => addOrUpdatePrompt(q, '')}
+                      style={{
+                        background: '#fff', border: '1px solid #E8E5DF',
+                        borderRadius: 999, padding: '8px 16px',
+                        fontSize: 13, color: '#1A1A2E', cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      + {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {profilePrompts.length > 0 && (
+              <button
+                type="button"
+                onClick={savePrompts}
+                disabled={savingPrompts}
+                style={{
+                  marginTop: 16, background: '#FF2D55', color: '#fff',
+                  border: 'none', borderRadius: 999, padding: '10px 24px',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                {savingPrompts ? 'Sauvegarde...' : 'Sauvegarder'}
+              </button>
+            )}
+          </div>
 
           <div className="profile-section">
             <h3 className="section-title">

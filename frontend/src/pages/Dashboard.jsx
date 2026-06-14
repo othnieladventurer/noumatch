@@ -8,6 +8,8 @@ import CenterBlock from "../components/CenterBlock";
 import DiscoveryGrid from "../components/DiscoveryGrid";
 import RightBlock from "../components/RightBlock";
 import Modals from "../components/Modals";
+import MatchCelebration from "../components/MatchCelebration";
+import { requestPushPermission } from "../lib/pushNotifications";
 import { getProfilePhotoUrl, calculateAge } from "../utils/helpers";
 import { canSeeWhoLiked } from "../utils/accountAccess";
 import { useNotifications } from '../context/NotificationContext';
@@ -95,6 +97,8 @@ export default function Dashboard() {
   const [selectedLike, setSelectedLike] = useState(null);
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
+  const [celebrationProfile, setCelebrationProfile] = useState(null);
+  const [celebrationConvId, setCelebrationConvId] = useState(null);
   const [unblockModalOpen, setUnblockModalOpen] = useState(false);
   const [selectedBlocked, setSelectedBlocked] = useState(null);
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -602,9 +606,17 @@ export default function Dashboard() {
         }
         const matchedProfileFound = likesList.find(like => like.id === likedUserId);
         if (matchedProfileFound) {
-          setMatchedProfile(matchedProfileFound);
-          setMatchModalOpen(true);
+          // Fetch the new conversation id so celebration can link to it
+          fetchConversations().then(convs => {
+            const conv = convs?.find(c =>
+              c.other_user?.id === likedUserId || c.match?.user1_id === likedUserId || c.match?.user2_id === likedUserId
+            );
+            setCelebrationConvId(conv?.id || null);
+          }).catch(() => {});
+          setCelebrationProfile(matchedProfileFound);
           document.body.style.overflow = 'hidden';
+          // Request push permission on first successful match
+          requestPushPermission().catch(() => {});
         }
       }
     }
@@ -1136,7 +1148,15 @@ export default function Dashboard() {
     const lastNotif = notifications[0];
     if (lastNotif.type === 'new_match') {
       fetchMatches(blockedIds);
-      fetchConversations();
+      fetchConversations().then(convs => {
+        // Show celebration for the newest match received via push
+        const newest = convs?.[0];
+        if (newest?.other_user) {
+          setCelebrationProfile(newest.other_user);
+          setCelebrationConvId(newest.id);
+          document.body.style.overflow = 'hidden';
+        }
+      }).catch(() => {});
     } else if (lastNotif.type === 'new_like') {
       fetchLikesReceived(blockedIds);
     } else if (lastNotif.type === 'new_message') {
@@ -1578,6 +1598,18 @@ export default function Dashboard() {
               closeReportModal={closeReportModal}
               userToReport={userToReport}
             />
+
+            {celebrationProfile && (
+              <MatchCelebration
+                matchedProfile={celebrationProfile}
+                conversationId={celebrationConvId}
+                onDismiss={() => {
+                  setCelebrationProfile(null);
+                  setCelebrationConvId(null);
+                  document.body.style.overflow = '';
+                }}
+              />
+            )}
           </>
         ) : (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>

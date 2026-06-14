@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getProfilePhotoUrl } from '../utils/helpers';
 
 const EMPTY_STATE_TS_KEY = 'nm_empty_state_ts';
 const REFRESH_COOLDOWN_MS = 10 * 60 * 1000;
@@ -139,7 +138,8 @@ export default function DiscoveryGrid({
 function ProfileCard({ profile, onClick }) {
   const age = profile.age;
   const city = profile.location || profile.city || '';
-  const photo = profile.profile_photo || getProfilePhotoUrl(null);
+  const photo = profile.profile_photo;
+  const initial = (profile.first_name || '?')[0].toUpperCase();
 
   return (
     <div
@@ -153,17 +153,31 @@ function ProfileCard({ profile, onClick }) {
         overflow: 'hidden',
         cursor: 'pointer',
         aspectRatio: '3 / 4',
-        background: '#1a1a1a',
+        background: '#1A1A2E',
         boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
         userSelect: 'none',
       }}
     >
-      <img
-        src={photo}
-        alt={profile.first_name || ''}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
-        loading="lazy"
-      />
+      {photo ? (
+        <img
+          src={photo}
+          alt={profile.first_name || ''}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
+          loading="lazy"
+        />
+      ) : (
+        <div style={{
+          width: '100%', height: '100%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: '#1A1A2E',
+          fontSize: 'clamp(2rem, 10vw, 4rem)',
+          fontWeight: 700,
+          color: '#FF2D55',
+          letterSpacing: '-0.02em',
+        }}>
+          {initial}
+        </div>
+      )}
 
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0, height: '55%',
