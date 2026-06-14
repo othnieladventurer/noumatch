@@ -91,9 +91,9 @@ export default function ProfileDetail() {
           localStorage.removeItem("refresh");
           navigate("/login");
         } else if (error.response?.status === 404) {
-          setError("Profile not found");
+          setError(t("profileDetail.notFound"));
         } else {
-          setError(error.response?.data?.message || error.message || "Failed to fetch profile");
+          setError(error.response?.data?.message || error.message || t("profileDetail.fetchError"));
         }
       } finally {
         setLoading(false);

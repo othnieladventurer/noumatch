@@ -195,7 +195,7 @@ export default function Profile() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.response?.data?.message || error.message || "Failed to upload photos");
+      setError(error.response?.data?.message || error.message || "Échec du téléchargement des photos");
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -233,7 +233,7 @@ export default function Profile() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.response?.data?.message || error.message || "Failed to delete photo");
+      setError(error.response?.data?.message || error.message || "Impossible de supprimer la photo");
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -266,7 +266,7 @@ export default function Profile() {
         error.response?.data?.error ||
         error.response?.data?.message ||
         error.message ||
-        "Failed to set main photo"
+        "Impossible de définir la photo principale"
       );
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
@@ -316,7 +316,7 @@ export default function Profile() {
           setPhotoPreview(fullUserData.profile_photo_url || getProfilePhotoUrl(fullUserData.profile_photo));
         }
       } catch (error) {
-        setError("Failed to load profile");
+        setError("Impossible de charger le profil");
         if (error.response?.status === 401) {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
@@ -415,7 +415,7 @@ export default function Profile() {
       setEditing(false);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.response?.data?.message || error.message || "Failed to update profile");
+      setError(error.response?.data?.message || error.message || "Impossible de mettre à jour le profil");
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -485,7 +485,7 @@ export default function Profile() {
       setError(
         deleteError.response?.data?.error ||
           deleteError.message ||
-          "Failed to delete account"
+          "Impossible de supprimer le compte"
       );
     } finally {
       setDeletingAccount(false);
@@ -1773,11 +1773,11 @@ export default function Profile() {
             <div className="d-flex justify-content-end">
               {user?.is_verified ? (
                 <span className="verification-badge verified-badge">
-                  <i className="fas fa-check-circle"></i> Verified Account
+                  <i className="fas fa-check-circle"></i> Compte vérifié
                 </span>
               ) : (
                 <span className="verification-badge unverified-badge">
-                  <i className="fas fa-clock"></i> Not Verified
+                  <i className="fas fa-clock"></i> Non vérifié
                 </span>
               )}
             </div>
@@ -1786,14 +1786,14 @@ export default function Profile() {
           <div className="profile-section">
             <h3 className="section-title">
               <i className="fas fa-heart"></i>
-              About You
+              À propos de toi
             </h3>
 
             {!editing ? (
               <>
                 <div className="about-text">
                   <i className="fas fa-quote-left me-2"></i>
-                  {user?.bio || "You haven't added a bio yet"}
+                  {user?.bio || "Tu n'as pas encore ajouté de bio"}
                   <i className="fas fa-quote-right ms-2"></i>
                 </div>
 
@@ -1801,7 +1801,7 @@ export default function Profile() {
                   {user?.gender && (
                     <span className="info-chip">
                       <i className="fas fa-venus-mars"></i>
-                      {user.gender === "male" ? "Man" : user.gender === "female" ? "Woman" : user.gender}
+                      {user.gender === "male" ? "Homme" : user.gender === "female" ? "Femme" : user.gender}
                     </span>
                   )}
 

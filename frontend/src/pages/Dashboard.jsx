@@ -238,12 +238,12 @@ export default function Dashboard() {
   if (crashError) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <h1 style={{ color: '#ff4d6d', marginBottom: '20px' }}>Application Error</h1>
+        <h1 style={{ color: '#ff4d6d', marginBottom: '20px' }}>Une erreur s'est produite</h1>
         <div style={{ background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '8px', padding: '20px', maxWidth: '800px', width: '100%', textAlign: 'left', overflow: 'auto' }}>
           <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{crashError}</pre>
         </div>
         <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 30px', background: '#ff4d6d', color: 'white', border: 'none', borderRadius: '30px', cursor: 'pointer' }}>
-          Reload Page
+          Recharger la page
         </button>
       </div>
     );
@@ -704,7 +704,7 @@ export default function Dashboard() {
   const handleLike = useCallback(async () => {
     if (!currentProfile || isAnimating || likeInProgress.current || isBlocked(currentProfile.id)) return;
     if (!swipeLimits.can_like) {
-      alert(`Daily like limit reached (${swipeLimits.daily_limit}/day). Upgrade to premium for more!`);
+      alert(`Limite de likes atteinte (${swipeLimits.daily_limit}/jour). Passez à premium pour continuer !`);
       return;
     }
     likeInProgress.current = true;

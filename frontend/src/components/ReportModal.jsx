@@ -1,6 +1,18 @@
 import React, { useState } from 'react';
 import { getRuntimeApiBase } from '../utils/apiBase';
 
+const REPORT_REASONS = [
+  { value: 'fake_profile',           label: 'Faux profil' },
+  { value: 'harassment',             label: 'Harcèlement ou intimidation' },
+  { value: 'inappropriate_content',  label: 'Photos ou contenu inapproprié' },
+  { value: 'scam',                   label: 'Arnaque ou fraude' },
+  { value: 'underage',               label: 'Utilisateur potentiellement mineur' },
+  { value: 'offensive_language',     label: 'Langage offensant' },
+  { value: 'spam',                   label: 'Spam' },
+  { value: 'privacy_violation',      label: 'Violation de la vie privée' },
+  { value: 'other',                  label: 'Autre' },
+];
+
 const ReportModal = ({ isOpen, onClose, reportedUser }) => {
   const API_BASE = getRuntimeApiBase();
   const [reportReason, setReportReason] = useState('');
@@ -9,21 +21,9 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
   const [reportError, setReportError] = useState('');
   const [reportSuccess, setReportSuccess] = useState(false);
 
-  const REPORT_REASONS = [
-    { value: 'fake_profile', label: 'Fake Profile' },
-    { value: 'harassment', label: 'Harassment or Bullying' },
-    { value: 'inappropriate_content', label: 'Inappropriate Photos/Content' },
-    { value: 'scam', label: 'Scam or Fraud' },
-    { value: 'underage', label: 'User May Be Underage' },
-    { value: 'offensive_language', label: 'Offensive Language' },
-    { value: 'spam', label: 'Spam' },
-    { value: 'privacy_violation', label: 'Privacy Violation' },
-    { value: 'other', label: 'Other' },
-  ];
-
   const handleSubmitReport = async () => {
     if (!reportReason) {
-      setReportError('Please select a reason');
+      setReportError('Veuillez sélectionner une raison');
       return;
     }
 
@@ -52,10 +52,10 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
         }, 2000);
       } else {
         const data = await response.json();
-        setReportError(data.error || 'Failed to submit report');
+        setReportError(data.error || 'Échec de l\'envoi du signalement');
       }
-    } catch (error) {
-      setReportError('Network error. Please try again.');
+    } catch {
+      setReportError('Erreur réseau. Veuillez réessayer.');
     } finally {
       setSubmitting(false);
     }
@@ -90,7 +90,7 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
           backdropFilter: 'blur(4px)',
         }}
       />
-      
+
       <div
         className="card"
         style={{
@@ -105,12 +105,8 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="fw-bold mb-0">Report User</h4>
-          <button
-            onClick={onClose}
-            className="btn-close"
-            style={{ fontSize: '1rem' }}
-          ></button>
+          <h4 className="fw-bold mb-0">Signaler un utilisateur</h4>
+          <button onClick={onClose} className="btn-close" style={{ fontSize: '1rem' }} />
         </div>
 
         {reportSuccess ? (
@@ -118,8 +114,8 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
             <div className="text-success mb-3">
               <i className="fas fa-check-circle" style={{ fontSize: '3rem' }}></i>
             </div>
-            <h5>Report Submitted!</h5>
-            <p className="text-secondary">Thank you for helping keep our community safe.</p>
+            <h5>Signalement envoyé !</h5>
+            <p className="text-secondary">Merci de nous aider à garder notre communauté sûre.</p>
           </div>
         ) : (
           <>
@@ -128,14 +124,14 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
             )}
 
             <div className="mb-3">
-              <label className="form-label fw-semibold">Reason for Report *</label>
+              <label className="form-label fw-semibold">Raison du signalement *</label>
               <select
                 className="form-select"
                 value={reportReason}
                 onChange={(e) => setReportReason(e.target.value)}
                 style={{ borderRadius: '12px' }}
               >
-                <option value="">Select a reason</option>
+                <option value="">Sélectionnez une raison</option>
                 {REPORT_REASONS.map(reason => (
                   <option key={reason.value} value={reason.value}>
                     {reason.label}
@@ -145,13 +141,13 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
             </div>
 
             <div className="mb-3">
-              <label className="form-label fw-semibold">Additional Details</label>
+              <label className="form-label fw-semibold">Détails supplémentaires</label>
               <textarea
                 className="form-control"
                 rows="4"
                 value={reportDescription}
                 onChange={(e) => setReportDescription(e.target.value)}
-                placeholder="Please provide any additional information..."
+                placeholder="Fournissez toute information complémentaire..."
                 style={{ borderRadius: '12px' }}
               />
             </div>
@@ -162,7 +158,7 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
                 className="btn btn-outline-secondary w-50"
                 style={{ borderRadius: '30px' }}
               >
-                Cancel
+                Annuler
               </button>
               <button
                 onClick={handleSubmitReport}
@@ -173,10 +169,10 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
                 {submitting ? (
                   <>
                     <span className="spinner-border spinner-border-sm me-2"></span>
-                    Submitting...
+                    Envoi en cours...
                   </>
                 ) : (
-                  'Submit Report'
+                  'Envoyer le signalement'
                 )}
               </button>
             </div>
@@ -188,4 +184,3 @@ const ReportModal = ({ isOpen, onClose, reportedUser }) => {
 };
 
 export default ReportModal;
-

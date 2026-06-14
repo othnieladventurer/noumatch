@@ -370,7 +370,7 @@ export default function Messages() {
     if (!activeThreadId || sending) return;
     if (!text.trim() && !attachmentFile) return;
     if (activeSupportConversationId && attachmentFile) {
-      setError("Support messages are text-only for now.");
+      setError("Les messages au support sont en texte uniquement pour l'instant.");
       return;
     }
     setSending(true);
