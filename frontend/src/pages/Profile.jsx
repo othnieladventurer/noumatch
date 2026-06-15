@@ -54,6 +54,22 @@ export default function Profile() {
 
   const [photoPreview, setPhotoPreview] = useState(null);
 
+  // Profile prompts
+  const PROMPT_OPTIONS = [
+    "Ce qui me fait toujours sourire...",
+    "La chose qui me rend unique c'est...",
+    "Mon plat haïtien préféré c'est...",
+    "Pour moi, une relation parfaite c'est...",
+    "Je suis passionné(e) par...",
+    "Mon plus grand rêve en Haïti...",
+    "Le truc que peu de gens savent sur moi...",
+    "Ce que je cherche vraiment c'est...",
+    "Un fait amusant sur moi...",
+    "Ce que j'aime faire le week-end...",
+  ];
+  const [profilePrompts, setProfilePrompts] = useState([]);
+  const [savingPrompts, setSavingPrompts] = useState(false);
+
   const getProfilePhotoUrl = (path) => {
     return resolveMediaUrl(path);
   };
@@ -195,7 +211,7 @@ export default function Profile() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.response?.data?.message || error.message || "Failed to upload photos");
+      setError(error.response?.data?.message || error.message || "Échec du téléchargement des photos");
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -233,7 +249,7 @@ export default function Profile() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.response?.data?.message || error.message || "Failed to delete photo");
+      setError(error.response?.data?.message || error.message || "Impossible de supprimer la photo");
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -266,7 +282,7 @@ export default function Profile() {
         error.response?.data?.error ||
         error.response?.data?.message ||
         error.message ||
-        "Failed to set main photo"
+        "Impossible de définir la photo principale"
       );
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
@@ -315,8 +331,11 @@ export default function Profile() {
         if (fullUserData.profile_photo) {
           setPhotoPreview(fullUserData.profile_photo_url || getProfilePhotoUrl(fullUserData.profile_photo));
         }
+        if (Array.isArray(fullUserData.profile_prompts)) {
+          setProfilePrompts(fullUserData.profile_prompts);
+        }
       } catch (error) {
-        setError("Failed to load profile");
+        setError("Impossible de charger le profil");
         if (error.response?.status === 401) {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
@@ -415,7 +434,7 @@ export default function Profile() {
       setEditing(false);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
-      setError(error.response?.data?.message || error.message || "Failed to update profile");
+      setError(error.response?.data?.message || error.message || "Impossible de mettre à jour le profil");
       if (error.response?.status === 401) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
@@ -424,6 +443,33 @@ export default function Profile() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const savePrompts = async () => {
+    setSavingPrompts(true);
+    try {
+      const res = await API.patch('/users/profile/update/', { profile_prompts: profilePrompts });
+      setUser(prev => ({ ...prev, profile_prompts: res.data.profile_prompts ?? profilePrompts }));
+    } catch (e) {
+      setError(e.response?.data?.message || "Impossible de sauvegarder les prompts");
+    } finally {
+      setSavingPrompts(false);
+    }
+  };
+
+  const addOrUpdatePrompt = (question, answer) => {
+    setProfilePrompts(prev => {
+      const exists = prev.find(p => p.question === question);
+      if (exists) {
+        return prev.map(p => p.question === question ? { ...p, answer } : p);
+      }
+      if (prev.length >= 3) return prev;
+      return [...prev, { question, answer }];
+    });
+  };
+
+  const removePrompt = (question) => {
+    setProfilePrompts(prev => prev.filter(p => p.question !== question));
   };
 
   const cancelEdit = () => {
@@ -485,7 +531,7 @@ export default function Profile() {
       setError(
         deleteError.response?.data?.error ||
           deleteError.message ||
-          "Failed to delete account"
+          "Impossible de supprimer le compte"
       );
     } finally {
       setDeletingAccount(false);
@@ -1773,11 +1819,11 @@ export default function Profile() {
             <div className="d-flex justify-content-end">
               {user?.is_verified ? (
                 <span className="verification-badge verified-badge">
-                  <i className="fas fa-check-circle"></i> Verified Account
+                  <i className="fas fa-check-circle"></i> Compte vérifié
                 </span>
               ) : (
                 <span className="verification-badge unverified-badge">
-                  <i className="fas fa-clock"></i> Not Verified
+                  <i className="fas fa-clock"></i> Non vérifié
                 </span>
               )}
             </div>
@@ -1786,14 +1832,14 @@ export default function Profile() {
           <div className="profile-section">
             <h3 className="section-title">
               <i className="fas fa-heart"></i>
-              About You
+              À propos de toi
             </h3>
 
             {!editing ? (
               <>
                 <div className="about-text">
                   <i className="fas fa-quote-left me-2"></i>
-                  {user?.bio || "You haven't added a bio yet"}
+                  {user?.bio || "Tu n'as pas encore ajouté de bio"}
                   <i className="fas fa-quote-right ms-2"></i>
                 </div>
 
@@ -1801,7 +1847,7 @@ export default function Profile() {
                   {user?.gender && (
                     <span className="info-chip">
                       <i className="fas fa-venus-mars"></i>
-                      {user.gender === "male" ? "Man" : user.gender === "female" ? "Woman" : user.gender}
+                      {user.gender === "male" ? "Homme" : user.gender === "female" ? "Femme" : user.gender}
                     </span>
                   )}
 
@@ -2183,6 +2229,90 @@ export default function Profile() {
               )}
             </div>
           )}
+
+          <div className="profile-section">
+            <h3 className="section-title">
+              <i className="fas fa-comment-dots"></i>
+              Partage quelque chose sur toi
+            </h3>
+            <p style={{ fontSize: 13, color: '#999', marginBottom: 16 }}>
+              Choisis jusqu'à 3 questions et réponds-y. Elles apparaîtront sur ton profil.
+            </p>
+
+            {/* Active prompts */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {profilePrompts.map((item) => (
+                <div key={item.question} style={{
+                  background: '#FAF8F4', border: '1px solid #E8E5DF',
+                  borderRadius: 12, padding: 14, position: 'relative',
+                }}>
+                  <div style={{ fontSize: 12, color: '#999', marginBottom: 6 }}>{item.question}</div>
+                  <textarea
+                    value={item.answer}
+                    onChange={e => addOrUpdatePrompt(item.question, e.target.value)}
+                    maxLength={200}
+                    rows={2}
+                    placeholder="Ta réponse..."
+                    style={{
+                      width: '100%', background: 'transparent', border: 'none',
+                      outline: 'none', resize: 'none', fontSize: 14,
+                      color: '#1A1A2E', fontFamily: 'inherit',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePrompt(item.question)}
+                    style={{
+                      position: 'absolute', top: 10, right: 12,
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#999', fontSize: 16,
+                    }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
+
+            {/* Prompt picker — show remaining slots */}
+            {profilePrompts.length < 3 && (
+              <div>
+                <p style={{ fontSize: 12, color: '#999', marginBottom: 8 }}>
+                  Ajouter une question ({profilePrompts.length}/3)
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {PROMPT_OPTIONS.filter(q => !profilePrompts.find(p => p.question === q)).map(q => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => addOrUpdatePrompt(q, '')}
+                      style={{
+                        background: '#fff', border: '1px solid #E8E5DF',
+                        borderRadius: 999, padding: '8px 16px',
+                        fontSize: 13, color: '#1A1A2E', cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                    >
+                      + {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {profilePrompts.length > 0 && (
+              <button
+                type="button"
+                onClick={savePrompts}
+                disabled={savingPrompts}
+                style={{
+                  marginTop: 16, background: '#FF2D55', color: '#fff',
+                  border: 'none', borderRadius: 999, padding: '10px 24px',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                {savingPrompts ? 'Sauvegarde...' : 'Sauvegarder'}
+              </button>
+            )}
+          </div>
 
           <div className="profile-section">
             <h3 className="section-title">

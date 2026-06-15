@@ -5,6 +5,11 @@ from django.utils import timezone
 
 
 class Like(models.Model):
+    LIKE_TYPES = [
+        ('like', 'Like'),
+        ('coup_de_coeur', 'Coup de Coeur'),
+    ]
+
     from_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -16,7 +21,8 @@ class Like(models.Model):
         related_name='likes_received'
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    notification_sent = models.BooleanField(default=False)  # 👈 ADD THIS FIELD
+    notification_sent = models.BooleanField(default=False)
+    type = models.CharField(max_length=20, choices=LIKE_TYPES, default='like')
 
     class Meta:
         unique_together = ('from_user', 'to_user')  # prevent duplicate likes
@@ -109,10 +115,9 @@ class DailySwipe(models.Model):
     
     def __str__(self):
         return f"{self.user.email} - {self.swipe_type} - {self.date}: {self.count}"
-    
+
     @classmethod
     def increment_swipe(cls, user, swipe_type):
-        """Increment swipe count for today"""
         today = timezone.now().date()
         swipe, created = cls.objects.get_or_create(
             user=user,
@@ -124,15 +129,59 @@ class DailySwipe(models.Model):
             swipe.count += 1
             swipe.save()
         return swipe
-    
+
     @classmethod
     def get_today_count(cls, user, swipe_type):
-        """Get today's swipe count for a specific type"""
         today = timezone.now().date()
         try:
             swipe = cls.objects.get(user=user, swipe_type=swipe_type, date=today)
             return swipe.count
         except cls.DoesNotExist:
             return 0
+
+
+class DailyCoeur(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='daily_coeurs'
+    )
+    date = models.DateField()
+    used_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('user', 'date')
+
+    @staticmethod
+    def _haiti_today():
+        from datetime import timezone as dt_tz, timedelta as dt_td
+        return timezone.now().astimezone(dt_tz(dt_td(hours=-5))).date()
+
+    @classmethod
+    def get_daily_limit(cls, user):
+        base = getattr(settings, 'COUP_DE_COEUR_BASE_LIMIT', 3)
+        bonus = getattr(user, 'referral_coeur_bonus', 0)
+        return min(base + bonus, getattr(settings, 'COUP_DE_COEUR_MAX_LIMIT', 5))
+
+    @classmethod
+    def get_or_create_today(cls, user):
+        record, _ = cls.objects.get_or_create(user=user, date=cls._haiti_today())
+        return record
+
+    @classmethod
+    def remaining(cls, user):
+        record = cls.get_or_create_today(user)
+        return max(0, cls.get_daily_limit(user) - record.used_count)
+
+    @classmethod
+    def can_use(cls, user):
+        return cls.remaining(user) > 0
+
+    @classmethod
+    def increment(cls, user):
+        record = cls.get_or_create_today(user)
+        record.used_count += 1
+        record.save(update_fields=['used_count'])
+        return record
 
 

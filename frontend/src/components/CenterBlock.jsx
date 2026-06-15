@@ -26,7 +26,10 @@ const RoundActionBtn = ({ onClick, bg, icon, iconColor, label, size = 52, disabl
   </button>
 );
 
-const DEFAULT_PHOTO_REVIEW_MESSAGE = "Merci d'ajouter une photo recente et conforme a nos regles pour continuer a swiper et eviter une suspension de votre compte NouMatch.";
+const DEFAULT_PHOTO_REVIEW_MESSAGE = "Merci d'ajouter une photo récente et conforme à nos règles pour continuer à swiper et éviter une suspension de votre compte NouMatch.";
+
+const EMPTY_STATE_REFRESH_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+const EMPTY_STATE_TS_KEY = 'nm_empty_state_ts';
 
 export default function CenterBlock(props) {
   const { t } = useI18n();
@@ -44,6 +47,32 @@ export default function CenterBlock(props) {
 
   const [localLikesRemaining, setLocalLikesRemaining] = useState(backendRemaining ?? null);
   const [localCanLike, setLocalCanLike] = useState(backendCanLike ?? true);
+
+  // Show "Rafraîchir" only after EMPTY_STATE_REFRESH_COOLDOWN_MS has elapsed since hitting the empty state
+  const [showRefresh, setShowRefresh] = useState(() => {
+    const ts = parseInt(localStorage.getItem(EMPTY_STATE_TS_KEY) || '0', 10);
+    return ts > 0 && Date.now() - ts > EMPTY_STATE_REFRESH_COOLDOWN_MS;
+  });
+
+  useEffect(() => {
+    const isEmpty = !profiles.length || !currentProfile;
+    if (isEmpty) {
+      if (!localStorage.getItem(EMPTY_STATE_TS_KEY)) {
+        localStorage.setItem(EMPTY_STATE_TS_KEY, Date.now().toString());
+      }
+      const id = setInterval(() => {
+        const ts = parseInt(localStorage.getItem(EMPTY_STATE_TS_KEY) || '0', 10);
+        if (ts && Date.now() - ts > EMPTY_STATE_REFRESH_COOLDOWN_MS) {
+          setShowRefresh(true);
+          clearInterval(id);
+        }
+      }, 60_000);
+      return () => clearInterval(id);
+    } else {
+      localStorage.removeItem(EMPTY_STATE_TS_KEY);
+      setShowRefresh(false);
+    }
+  }, [profiles.length, currentProfile]);
 
   // Update local state when swipeLimits changes (e.g., after a like)
   useEffect(() => {
@@ -107,7 +136,7 @@ export default function CenterBlock(props) {
   const requiresBioReview = Boolean(user?.bio_review_required);
   const requiresBio = requiresBioReview || !String(user?.bio || "").trim();
   const photoReviewMessage = String(user?.photo_review_reason || "").trim() || DEFAULT_PHOTO_REVIEW_MESSAGE;
-  const bioReviewMessage = String(user?.bio_review_reason || "").trim() || "Merci de mettre a jour votre bio pour continuer a swiper et garder un profil clair et conforme sur NouMatch.";
+  const bioReviewMessage = String(user?.bio_review_reason || "").trim() || "Merci de mettre à jour votre bio pour continuer à swiper et garder un profil clair et conforme sur NouMatch.";
   const requiresProfileCompletionBlock = requiresPhotoRefresh || requiresBio;
   const profileBlockTitleSize = isMobile ? "1.15rem" : "1.35rem";
   const profileBlockCopySize = isMobile ? "0.84rem" : "0.92rem";
@@ -161,9 +190,9 @@ export default function CenterBlock(props) {
           </div>
           <h3 className="fw-bold mb-2" style={{ fontSize: profileBlockTitleSize, lineHeight: 1.25 }}>
             {requiresPhotoRefresh && requiresBio
-              ? "Veuillez completer votre profil avant de continuer"
+              ? "Veuillez compléter votre profil avant de continuer"
               : requiresPhotoRefresh
-                ? "Veuillez mettre a jour votre photo de profil"
+                ? "Veuillez mettre à jour votre photo de profil"
                 : "Veuillez ajouter une bio avant de continuer"}
           </h3>
           <div
@@ -210,7 +239,7 @@ export default function CenterBlock(props) {
                 <div>
                   {requiresBioReview
                     ? bioReviewMessage
-                    : "Votre bio aide les autres a mieux vous decouvrir avant un like ou un match. Ajoutez quelques lignes pour acceder au fil."}
+                    : "Votre bio aide les autres à mieux vous découvrir avant un like ou un match. Ajoutez quelques lignes pour accéder au fil."}
                 </div>
               </div>
             )}
@@ -228,7 +257,7 @@ export default function CenterBlock(props) {
                   fontSize: isMobile ? "0.92rem" : "1rem",
                 }}
               >
-                Mettre a jour ma photo
+                Mettre à jour ma photo
               </button>
             )}
             {requiresBio && (
@@ -271,20 +300,23 @@ export default function CenterBlock(props) {
             padding: isMobile ? "8px 4px" : 0,
           }}
         >
-          <i className="fas fa-users fa-3x mb-3" style={{ color: '#ff4d6d' }}></i>
-          <h4 className="mb-3">{t("center.noProfilesTitle")}</h4>
-          <p className="small opacity-75 mb-4" style={{ maxWidth: "320px" }}>
-            {t("center.noProfilesBody")}<br />
+          <div style={{ fontSize: '3rem', marginBottom: '12px' }}>💜</div>
+          <h4 className="mb-3" style={{ fontWeight: 700 }}>{t("center.noProfilesTitle")}</h4>
+          <p className="small opacity-75 mb-2" style={{ maxWidth: "320px", lineHeight: 1.6 }}>
+            {t("center.noProfilesBody")}
+          </p>
+          <p className="small opacity-75 mb-4" style={{ maxWidth: "320px", lineHeight: 1.6 }}>
             {t("center.noProfilesInvite")}
           </p>
           <div className="d-flex flex-column gap-3 align-items-center">
             <button onClick={handleCopyInviteLink} className="btn btn-danger rounded-pill px-4 py-2" style={{ background: 'linear-gradient(145deg, #ff4d6d, #ff3355)', border: 'none' }}>
               <i className="fas fa-share-alt me-2"></i> {t("common.inviteFriend")}
             </button>
-            <button onClick={reloadProfiles} className="btn btn-outline-light rounded-pill px-4 py-2">
-              <i className="fas fa-sync-alt me-2"></i> {t("common.refresh")}
-            </button>
-            <small className="mt-2" style={{ color: "rgba(255,255,255,0.62)" }}>({t("common.comingBackSoon")})</small>
+            {showRefresh && (
+              <button onClick={reloadProfiles} className="btn btn-outline-light rounded-pill px-4 py-2">
+                <i className="fas fa-sync-alt me-2"></i> {t("common.refresh")}
+              </button>
+            )}
           </div>
         </div>
       </div>

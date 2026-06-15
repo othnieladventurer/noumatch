@@ -101,6 +101,7 @@ class Message(models.Model):
     message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES, default='text')
     attachment = models.FileField(upload_to='chat_attachments/', null=True, blank=True)
     read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -121,7 +122,8 @@ class Message(models.Model):
     def mark_as_read(self):
         if not self.read:
             self.read = True
-            self.save(update_fields=['read'])
+            self.read_at = timezone.now()
+            self.save(update_fields=['read', 'read_at'])
 
     def save(self, *args, **kwargs):
         is_new = not self.pk

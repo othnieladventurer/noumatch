@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     LikeCreateView, ReceivedLikesView, SentLikesView, UnlikeByLikeIdView, UnlikeView,
     CreatePassView, CheckPassView, RemovePassView, UserPassesSentView, UserPassesReceivedView,
-    PassStatsView, BulkCreatePassView, GetSwipeLimitsView, IncrementLikeView, IncrementPassView
+    PassStatsView, BulkCreatePassView, GetSwipeLimitsView, IncrementLikeView, IncrementPassView,
+    CoeurLimitsView, PassedProfilesView,
 )
 
 urlpatterns = [
@@ -20,9 +21,13 @@ urlpatterns = [
     path('passes/sent/', UserPassesSentView.as_view(), name='passes-sent'),
     path('passes/received/', UserPassesReceivedView.as_view(), name='passes-received'),
     path('passes/stats/', PassStatsView.as_view(), name='pass-stats'),
+    path('passes/passed/', PassedProfilesView.as_view(), name='passed-profiles'),
 
     # Swipe tracking endpoints
     path('swipe/limits/', GetSwipeLimitsView.as_view(), name='swipe-limits'),
     path('swipe/like/', IncrementLikeView.as_view(), name='swipe-like'),
     path('swipe/pass/', IncrementPassView.as_view(), name='swipe-pass'),
+
+    # Coup de Coeur
+    path('coeur/limits/', CoeurLimitsView.as_view(), name='coeur-limits'),
 ]

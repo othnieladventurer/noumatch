@@ -7,7 +7,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Notification
+from .models import Notification, PushSubscription
 from .serializers import (
     NotificationSerializer,
     NotificationMarkReadSerializer,
@@ -135,3 +135,28 @@ class CreateCustomNotificationView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class PushSubscribeView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        endpoint = request.data.get('endpoint', '').strip()
+        p256dh = request.data.get('p256dh', '').strip()
+        auth = request.data.get('auth', '').strip()
+        if not endpoint or not p256dh or not auth:
+            return Response({'error': 'endpoint, p256dh and auth are required'}, status=400)
+
+        PushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={'user': request.user, 'p256dh': p256dh, 'auth': auth},
+        )
+        return Response({'subscribed': True}, status=201)
+
+    def delete(self, request):
+        endpoint = request.data.get('endpoint', '').strip()
+        if endpoint:
+            PushSubscription.objects.filter(user=request.user, endpoint=endpoint).delete()
+        else:
+            PushSubscription.objects.filter(user=request.user).delete()
+        return Response({'unsubscribed': True})

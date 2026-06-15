@@ -85,6 +85,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     height = models.PositiveIntegerField(null=True, blank=True)
     passions = models.TextField(blank=True)
+    profile_prompts = models.JSONField(default=list, blank=True)
     career = models.CharField(max_length=100, blank=True)
     education = models.CharField(max_length=100, blank=True)
     hobbies = models.TextField(blank=True)

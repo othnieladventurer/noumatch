@@ -82,6 +82,7 @@ class MessageSerializer(serializers.ModelSerializer):
             'attachment',
             'attachment_url',
             'read',
+            'read_at',
             'created_at',
             'is_from_me',
         ]
@@ -89,6 +90,7 @@ class MessageSerializer(serializers.ModelSerializer):
             'id',
             'created_at',
             'read',
+            'read_at',
             'conversation',
             'sender',
             'sender_email',

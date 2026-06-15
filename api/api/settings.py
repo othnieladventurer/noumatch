@@ -482,6 +482,15 @@ if BREVO_API_KEY:
 else:
     logging.info(f"⚠️  Brevo API: {ENVIRONMENT.upper()} mode - No key found")
 
+# ========== WEB PUSH (VAPID) ==========
+VAPID_PUBLIC_KEY = config('VAPID_PUBLIC_KEY', default='')
+VAPID_PRIVATE_KEY = config('VAPID_PRIVATE_KEY', default='')
+VAPID_CLAIMS_EMAIL = config('VAPID_CLAIMS_EMAIL', default='mailto:admin@noumatch.com')
+
+# ========== COUP DE COEUR ==========
+COUP_DE_COEUR_BASE_LIMIT = 3
+COUP_DE_COEUR_MAX_LIMIT = 5
+
 # ========== FRONTEND URL ==========
 if ENVIRONMENT == "production":
     FRONTEND_URL = config('FRONTEND_URL', default='https://noumatch.com')

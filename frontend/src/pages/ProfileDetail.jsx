@@ -25,7 +25,9 @@ export default function ProfileDetail() {
   const [isMatched, setIsMatched] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [matchId, setMatchId] = useState(null);
-  
+  const [conversationId, setConversationId] = useState(null);
+  const [coeurLimits, setCoeurLimits] = useState({ can_use: true, remaining: 3, daily_limit: 3 });
+
   // Report modal state
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [userToReport, setUserToReport] = useState(null);
@@ -84,6 +86,8 @@ export default function ProfileDetail() {
         await fetchUserPhotos(id);
         await checkRelationshipStatus(id);
 
+        API.get("/interactions/coeur/limits/").then(r => setCoeurLimits(r.data)).catch(() => {});
+
       } catch (error) {
         console.error("Error fetching data:", error);
         if (error.response?.status === 401) {
@@ -91,9 +95,9 @@ export default function ProfileDetail() {
           localStorage.removeItem("refresh");
           navigate("/login");
         } else if (error.response?.status === 404) {
-          setError("Profile not found");
+          setError(t("profileDetail.notFound"));
         } else {
-          setError(error.response?.data?.message || error.message || "Failed to fetch profile");
+          setError(error.response?.data?.message || error.message || t("profileDetail.fetchError"));
         }
       } finally {
         setLoading(false);
@@ -117,6 +121,13 @@ export default function ProfileDetail() {
       if (match) {
         setIsMatched(true);
         setMatchId(match.id);
+        API.get('/chat/conversations/').then(r => {
+          const conv = r.data.find(c =>
+            c.other_user?.id === parseInt(profileId) ||
+            c.match_id === match.id
+          );
+          if (conv) setConversationId(conv.id);
+        }).catch(() => {});
       }
 
       const blocksResponse = await API.get("/blocked/blocks/");
@@ -169,6 +180,37 @@ export default function ProfileDetail() {
         localStorage.removeItem("refresh");
         navigate("/login");
       }
+    }
+  };
+
+  const handlePass = async () => {
+    try {
+      await API.post("/interactions/pass/", { to_user_id: profile.id });
+    } catch (error) {
+      console.error("Error passing profile:", error);
+    } finally {
+      navigate(-1);
+    }
+  };
+
+  const handleCoupDeCoeur = async () => {
+    if (!coeurLimits.can_use) return;
+    try {
+      await API.post("/interactions/like/", { to_user_id: profile.id, type: 'coup_de_coeur' });
+      setIsLiked(true);
+      setCoeurLimits(prev => ({
+        ...prev,
+        remaining: Math.max(0, prev.remaining - 1),
+        can_use: prev.remaining > 1,
+      }));
+      trackFirstLike(user?.id);
+      markFunnelStage(user?.id, "first_like");
+      await checkForMatch();
+    } catch (error) {
+      if (error.response?.status === 403) {
+        alert(t('profileDetail.coupDeCoeurLimit'));
+      }
+      console.error("Error sending coup de coeur:", error);
     }
   };
 
@@ -1370,6 +1412,49 @@ export default function ProfileDetail() {
             </div>
           )}
 
+          {Array.isArray(profile.profile_prompts) && profile.profile_prompts.length > 0 && (
+            <div className="profile-section">
+              <h3 className="section-title">
+                <i className="fas fa-comment-dots"></i>
+                Partage quelque chose sur toi
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {profile.profile_prompts.slice(0, 3).map((item, idx) => (
+                  <div key={idx} style={{
+                    background: '#fff', border: '1px solid #E8E5DF',
+                    borderRadius: 12, padding: 14,
+                  }}>
+                    <div style={{ color: '#999', fontSize: 12, marginBottom: 6 }}>
+                      {item.question}
+                    </div>
+                    <div style={{ color: '#1A1A2E', fontSize: 15, lineHeight: 1.5 }}>
+                      {item.answer}
+                    </div>
+                    {isMatched && (
+                      <button
+                        onClick={() => navigate('/messages', {
+                          state: {
+                            promptContext: item.question,
+                            conversationId: conversationId,
+                            matchId: matchId,
+                          }
+                        })}
+                        style={{
+                          marginTop: 10, background: 'transparent',
+                          border: '1px solid #E8E5DF', borderRadius: 999,
+                          padding: '6px 14px', fontSize: 13, color: '#FF2D55',
+                          cursor: 'pointer', fontWeight: 500,
+                        }}
+                      >
+                        💬 Commenter ça
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="action-buttons">
             {isBlocked ? (
               <button
@@ -1433,11 +1518,38 @@ export default function ProfileDetail() {
                 ) : (
                   <>
                     <button
+                      onClick={handlePass}
+                      className="action-btn secondary"
+                    >
+                      <i className="fas fa-times me-2"></i>
+                      {t("profileDetail.pass")}
+                    </button>
+                    <button
                       onClick={handleLike}
                       className="action-btn primary"
                     >
                       <i className="fas fa-heart me-2"></i>
                       {t("profileDetail.like")}
+                    </button>
+                    <button
+                      onClick={handleCoupDeCoeur}
+                      className="action-btn"
+                      disabled={!coeurLimits.can_use}
+                      title={coeurLimits.can_use ? `${coeurLimits.remaining} restant(s) aujourd'hui` : "Limite quotidienne atteinte"}
+                      style={{
+                        background: coeurLimits.can_use ? '#8B30C9' : '#d1d5db',
+                        color: '#fff',
+                        border: 'none',
+                        opacity: coeurLimits.can_use ? 1 : 0.55,
+                        cursor: coeurLimits.can_use ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      💜 {t("profileDetail.coupDeCoeur")}
+                      {coeurLimits.can_use && (
+                        <span style={{ fontSize: '0.75rem', marginLeft: '6px', opacity: 0.85 }}>
+                          ({coeurLimits.remaining})
+                        </span>
+                      )}
                     </button>
                     <button
                       onClick={openReportModal}

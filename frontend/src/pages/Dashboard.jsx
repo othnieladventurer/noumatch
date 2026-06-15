@@ -1,12 +1,15 @@
 // src/pages/Dashboard.jsx - Complete redesigned version (with user passed to CenterBlock)
 
 import React, { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef, useTransition } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import DashboardNavbar from "../components/DashboardNavbar";
 import LeftBlock from "../components/LeftBlock";
 import CenterBlock from "../components/CenterBlock";
+import DiscoveryGrid from "../components/DiscoveryGrid";
 import RightBlock from "../components/RightBlock";
 import Modals from "../components/Modals";
+import MatchCelebration from "../components/MatchCelebration";
+import { requestPushPermission } from "../lib/pushNotifications";
 import { getProfilePhotoUrl, calculateAge } from "../utils/helpers";
 import { canSeeWhoLiked } from "../utils/accountAccess";
 import { useNotifications } from '../context/NotificationContext';
@@ -29,6 +32,7 @@ const PRELOAD_THRESHOLD = 5;
 export default function Dashboard() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [crashError, setCrashError] = useState(null);
@@ -85,12 +89,16 @@ export default function Dashboard() {
   const [blockedList, setBlockedList] = useState([]);
   const [blockedIds, setBlockedIds] = useState([]);
   const [conversations, setConversations] = useState([]);
-  
+  const [passedProfiles, setPassedProfiles] = useState([]);
+  const [coeurLimits, setCoeurLimits] = useState({ can_use: true, remaining: 3, daily_limit: 3 });
+
   // Modal controls
   const [likeModalOpen, setLikeModalOpen] = useState(false);
   const [selectedLike, setSelectedLike] = useState(null);
   const [matchModalOpen, setMatchModalOpen] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState(null);
+  const [celebrationProfile, setCelebrationProfile] = useState(null);
+  const [celebrationConvId, setCelebrationConvId] = useState(null);
   const [unblockModalOpen, setUnblockModalOpen] = useState(false);
   const [selectedBlocked, setSelectedBlocked] = useState(null);
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -113,6 +121,7 @@ export default function Dashboard() {
   const [isPending, startTransition] = useTransition();
   const initialFetchDone = useRef(false);
   const interactionsFetched = useRef(false);
+  const navigationKeyRef = useRef(null);
   const imagePreloadCache = useRef(new Map());
   const pendingProfileLoad = useRef(false);
   const lastLoggedImpressionId = useRef(null);
@@ -179,7 +188,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (windowWidth < 992 && requiresProfileCompletionBlock && !['center', 'profile'].includes(activeMobileTab)) {
+    if (windowWidth < 992 && requiresProfileCompletionBlock && !['center', 'moi'].includes(activeMobileTab)) {
       setActiveMobileTab('center');
     }
   }, [windowWidth, requiresProfileCompletionBlock, activeMobileTab]);
@@ -238,12 +247,12 @@ export default function Dashboard() {
   if (crashError) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <h1 style={{ color: '#ff4d6d', marginBottom: '20px' }}>Application Error</h1>
+        <h1 style={{ color: '#ff4d6d', marginBottom: '20px' }}>Une erreur s'est produite</h1>
         <div style={{ background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '8px', padding: '20px', maxWidth: '800px', width: '100%', textAlign: 'left', overflow: 'auto' }}>
           <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{crashError}</pre>
         </div>
         <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 30px', background: '#ff4d6d', color: 'white', border: 'none', borderRadius: '30px', cursor: 'pointer' }}>
-          Reload Page
+          Recharger la page
         </button>
       </div>
     );
@@ -294,6 +303,24 @@ export default function Dashboard() {
       }
     }
   }, [navigate]);
+
+  const fetchPassedProfiles = useCallback(async () => {
+    try {
+      const response = await API.get("/interactions/passes/passed/");
+      setPassedProfiles(response.data);
+    } catch (error) {
+      console.error("Error fetching passed profiles:", error);
+    }
+  }, []);
+
+  const fetchCoeurLimits = useCallback(async () => {
+    try {
+      const response = await API.get("/interactions/coeur/limits/");
+      setCoeurLimits(response.data);
+    } catch (error) {
+      console.error("Error fetching coeur limits:", error);
+    }
+  }, []);
   
   const fetchProfilesBasedOnUser = useCallback(async (page = 1, append = false) => {
     if (!user?.id) return;
@@ -579,9 +606,17 @@ export default function Dashboard() {
         }
         const matchedProfileFound = likesList.find(like => like.id === likedUserId);
         if (matchedProfileFound) {
-          setMatchedProfile(matchedProfileFound);
-          setMatchModalOpen(true);
+          // Fetch the new conversation id so celebration can link to it
+          fetchConversations().then(convs => {
+            const conv = convs?.find(c =>
+              c.other_user?.id === likedUserId || c.match?.user1_id === likedUserId || c.match?.user2_id === likedUserId
+            );
+            setCelebrationConvId(conv?.id || null);
+          }).catch(() => {});
+          setCelebrationProfile(matchedProfileFound);
           document.body.style.overflow = 'hidden';
+          // Request push permission on first successful match
+          requestPushPermission().catch(() => {});
         }
       }
     }
@@ -704,7 +739,7 @@ export default function Dashboard() {
   const handleLike = useCallback(async () => {
     if (!currentProfile || isAnimating || likeInProgress.current || isBlocked(currentProfile.id)) return;
     if (!swipeLimits.can_like) {
-      alert(`Daily like limit reached (${swipeLimits.daily_limit}/day). Upgrade to premium for more!`);
+      alert(`Limite de likes atteinte (${swipeLimits.daily_limit}/jour). Passez à premium pour continuer !`);
       return;
     }
     likeInProgress.current = true;
@@ -759,6 +794,13 @@ export default function Dashboard() {
     }, 50);
   }, [currentProfile, isAnimating, isBlocked, triggerSlide, trackPass, sessionId]);
   
+  const handleLoadMore = useCallback(() => {
+    if (!hasMoreProfiles || isLoadingMore || profilesLoading) return;
+    const next = currentPage + 1;
+    setCurrentPage(next);
+    fetchProfilesBasedOnUser(next, true);
+  }, [hasMoreProfiles, isLoadingMore, profilesLoading, currentPage, fetchProfilesBasedOnUser]);
+
   const getCurrentProfilePhotos = useCallback(() => {
     if (!currentProfile) return [];
     const photos = [];
@@ -1106,13 +1148,38 @@ export default function Dashboard() {
     const lastNotif = notifications[0];
     if (lastNotif.type === 'new_match') {
       fetchMatches(blockedIds);
-      fetchConversations();
+      fetchConversations().then(convs => {
+        // Show celebration for the newest match received via push
+        const newest = convs?.[0];
+        if (newest?.other_user) {
+          setCelebrationProfile(newest.other_user);
+          setCelebrationConvId(newest.id);
+          document.body.style.overflow = 'hidden';
+        }
+      }).catch(() => {});
     } else if (lastNotif.type === 'new_like') {
       fetchLikesReceived(blockedIds);
     } else if (lastNotif.type === 'new_message') {
       fetchConversations();
     }
   }, [notifications, user, blockedIds, fetchMatches, fetchConversations, fetchLikesReceived]);
+
+  // Refresh profiles when user navigates back from ProfileDetail
+  useEffect(() => {
+    if (navigationKeyRef.current === null) {
+      navigationKeyRef.current = location.key;
+      return;
+    }
+    if (location.key !== navigationKeyRef.current) {
+      navigationKeyRef.current = location.key;
+      if (user) {
+        fetchProfilesBasedOnUser(1, false);
+        setCurrentPage(1);
+        fetchCoeurLimits();
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
   
   useEffect(() => {
     return () => {
@@ -1143,47 +1210,180 @@ export default function Dashboard() {
   };
   
   const renderMobileContent = () => {
+    const convUserIds = new Set(conversations.map(c => c.other_user?.id).filter(Boolean));
+    const unmessagedMatches = matchesList.filter(m => !convUserIds.has(m.id));
+
     switch(activeMobileTab) {
-      case 'likes':
+      case 'conversations':
         return (
-          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
-            <SectionCard title={t("dashboard.likesWhoLikeYou")} count={likesList.length}>
-              {likesList.length > 0 ? <AvatarRow items={likesList} onClickAvatar={openLikeModal} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="far fa-heart me-2"></i><div>{t("dashboard.noLikesYet")}</div></div></div>}
-            </SectionCard>
-          </div>
-        );
-      case 'matches':
-        return (
-          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
-            <SectionCard title="Matches" count={matchesList.length}>
-              {matchesList.length > 0 ? <AvatarRow items={matchesList} onClickAvatar={openMatchModalFor} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="fas fa-heart me-2"></i><div>{t("dashboard.noMatchesYet")}</div></div></div>}
-            </SectionCard>
-          </div>
-        );
-      case 'blocks':
-        return (
-          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
-            <SectionCard title="Bloqués" count={blockedList.length}>
-              {blockedList.length > 0 ? <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} /> : <div className="text-center py-3"><div className="text-secondary small"><i className="fas fa-ban me-2"></i><div>{t("dashboard.noBlockedYet")}</div></div></div>}
-            </SectionCard>
-          </div>
-        );
-      case 'profile':
-        return (
-          <div className="h-100 p-3" style={{ overflowY: 'auto', height: '100%' }}>
-            <div className="text-center">
-              <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle mb-3" style={{ width: '100px', height: '100px', objectFit: 'cover', border: '3px solid #ff4d6d' }} />
-              <h5 className="fw-bold">{user?.first_name} {user?.last_name}</h5>
-              <p className="text-secondary small">{user?.email}</p>
-              <div className="mt-3">
-                <button onClick={goToMyProfile} className="btn btn-outline-danger w-100 mb-2" style={{ borderRadius: '30px' }}>Voir mon profil</button>
-                <button onClick={() => { localStorage.removeItem("access"); localStorage.removeItem("refresh"); navigate("/login"); }} className="btn btn-outline-secondary w-100" style={{ borderRadius: '30px' }}>Déconnexion</button>
+          <div style={{ overflowY: 'auto', height: '100%', background: '#fff' }}>
+            {unmessagedMatches.length > 0 && (
+              <div style={{ padding: '16px 16px 0' }}>
+                <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+                  Nouveaux matchs
+                </p>
+                <div style={{ display: 'flex', gap: '14px', overflowX: 'auto', paddingBottom: '16px' }}>
+                  {unmessagedMatches.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => navigate(`/messages/${m.id}`)}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', flexShrink: 0, background: 'none', border: 'none', padding: 0 }}
+                    >
+                      <img
+                        src={m.photo || getProfilePhotoUrl(null)}
+                        alt={m.first_name}
+                        style={{ width: '62px', height: '62px', borderRadius: '50%', objectFit: 'cover', border: '2.5px solid #7C3AED' }}
+                      />
+                      <span style={{ fontSize: '11px', marginTop: '5px', color: '#333', fontWeight: 500 }}>{m.first_name}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
+            )}
+            <div style={{ borderTop: unmessagedMatches.length > 0 ? '1px solid #f0f0f0' : 'none' }}>
+              {conversations.length > 0 ? conversations.map(conv => (
+                <div
+                  key={conv.id}
+                  onClick={() => navigate(`/messages/${conv.other_user?.id}`)}
+                  style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: '12px', cursor: 'pointer', borderBottom: '1px solid #f7f7f7' }}
+                >
+                  <img
+                    src={conv.other_user?.profile_photo || getProfilePhotoUrl(null)}
+                    alt={conv.other_user?.first_name}
+                    style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#1a1a1a' }}>{conv.other_user?.first_name}</span>
+                      {conv.unread_count > 0 && (
+                        <span style={{ background: '#ff4d6d', color: '#fff', borderRadius: '10px', padding: '2px 7px', fontSize: '11px', fontWeight: 700, flexShrink: 0 }}>
+                          {conv.unread_count}
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: '#8e8e93', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {conv.last_message?.content || 'Dites bonjour 👋'}
+                    </p>
+                  </div>
+                </div>
+              )) : (
+                <div style={{ textAlign: 'center', padding: '48px 24px', color: '#8e8e93' }}>
+                  <i className="fas fa-comments" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block' }}></i>
+                  <p style={{ margin: 0 }}>Pas encore de conversations. Découvrez des profils et matchez !</p>
+                </div>
+              )}
             </div>
           </div>
         );
-      default:
+
+      case 'moi':
         return (
+          <div style={{ overflowY: 'auto', height: '100%', background: '#f5f7fb' }}>
+            <div style={{ textAlign: 'center', padding: '28px 20px 20px', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+              <img
+                src={getProfilePhotoUrl(user?.profile_photo)}
+                alt={user?.first_name}
+                className="rounded-circle"
+                style={{ width: '82px', height: '82px', objectFit: 'cover', border: '3px solid #ff4d6d', marginBottom: '12px' }}
+              />
+              <h5 style={{ fontWeight: 700, marginBottom: '2px' }}>{user?.first_name} {user?.last_name}</h5>
+              <p style={{ color: '#8e8e93', fontSize: '0.82rem', margin: '0 0 16px' }}>{user?.email}</p>
+              <button onClick={goToMyProfile} className="btn btn-outline-danger rounded-pill px-4 py-1" style={{ fontSize: '0.88rem' }}>
+                Voir mon profil
+              </button>
+            </div>
+
+            <div style={{ margin: '16px 16px 0', background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <button
+                onClick={() => setActiveMobileTab('blocks')}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', borderBottom: '1px solid #f5f5f5', cursor: 'pointer' }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
+                  <i className="fas fa-ban" style={{ color: '#ff4d6d', width: '16px' }}></i>
+                  Utilisateurs bloqués
+                  {blockedList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{blockedList.length}</span>}
+                </span>
+                <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
+              </button>
+              <button
+                onClick={() => { fetchPassedProfiles(); setActiveMobileTab('passed'); }}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
+                  <i className="fas fa-undo" style={{ color: '#7C3AED', width: '16px' }}></i>
+                  Profils passés
+                </span>
+                <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
+              </button>
+            </div>
+
+            <div style={{ padding: '16px' }}>
+              <button
+                onClick={() => { localStorage.removeItem("access"); localStorage.removeItem("refresh"); navigate("/login"); }}
+                className="btn btn-outline-secondary w-100 rounded-pill"
+              >
+                Déconnexion
+              </button>
+            </div>
+          </div>
+        );
+
+      case 'blocks':
+        return (
+          <div style={{ overflowY: 'auto', height: '100%', background: '#f5f7fb' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+              <button onClick={() => setActiveMobileTab('moi')} style={{ background: 'none', border: 'none', color: '#ff4d6d', fontWeight: 600, padding: '0 12px 0 0', cursor: 'pointer' }}>
+                <i className="fas fa-chevron-left me-1"></i>Retour
+              </button>
+              <span style={{ fontWeight: 700, fontSize: '1rem' }}>Utilisateurs bloqués</span>
+            </div>
+            <div style={{ padding: '16px' }}>
+              {blockedList.length > 0 ? (
+                <AvatarRow items={blockedList} onClickAvatar={openUnblockModal} />
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8e8e93' }}>
+                  <i className="fas fa-ban" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block' }}></i>
+                  <p style={{ margin: 0 }}>{t("dashboard.noBlockedYet")}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'passed':
+        return (
+          <div style={{ overflowY: 'auto', height: '100%', background: '#f5f7fb' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+              <button onClick={() => setActiveMobileTab('moi')} style={{ background: 'none', border: 'none', color: '#ff4d6d', fontWeight: 600, padding: '0 12px 0 0', cursor: 'pointer' }}>
+                <i className="fas fa-chevron-left me-1"></i>Retour
+              </button>
+              <span style={{ fontWeight: 700, fontSize: '1rem' }}>Profils passés</span>
+            </div>
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {passedProfiles.length > 0 ? passedProfiles.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fff', borderRadius: '14px', padding: '12px 14px', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+                  <img src={p.profile_photo || getProfilePhotoUrl(null)} alt={p.first_name} style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: '#1a1a1a' }}>{p.first_name}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#7C3AED', marginTop: '3px' }}>
+                      <i className="fas fa-clock me-1"></i>
+                      Ce profil réapparaîtra dans {p.hours_remaining}h
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8e8e93' }}>
+                  <i className="fas fa-undo" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block', color: '#7C3AED' }}></i>
+                  <p style={{ margin: 0 }}>Aucun profil passé pour l'instant.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      default: // 'center' — discover
+        return requiresProfileCompletionBlock ? (
           <div style={{ height: '100%', overflow: 'hidden', minHeight: 0, background: '#000' }}>
             <CenterBlock
               profilesLoading={profilesLoading}
@@ -1216,6 +1416,19 @@ export default function Dashboard() {
               reloadProfiles={reloadProfiles}
               swipeLimits={swipeLimits}
               user={user}
+            />
+          </div>
+        ) : (
+          <div style={{ height: '100%', overflowY: 'auto', background: '#f5f7fb' }}>
+            <DiscoveryGrid
+              profiles={profiles}
+              profilesLoading={profilesLoading}
+              isLoadingMore={isLoadingMore}
+              hasMore={hasMoreProfiles}
+              onLoadMore={handleLoadMore}
+              onRefresh={reloadProfiles}
+              user={user}
+              windowWidth={windowWidth}
             />
           </div>
         );
@@ -1263,39 +1476,52 @@ export default function Dashboard() {
                       goToMyProfile={goToMyProfile}
                     />
                   </div>
-                  <div className="col-lg-6 col-md-8 h-100">
-                    <CenterBlock
-                      profilesLoading={profilesLoading}
-                      apiError={apiError}
-                      profiles={profiles}
-                      profileIndex={profileIndex}
-                      currentProfile={currentProfile}
-                      getCurrentPhotoUrl={getCurrentPhotoUrl}
-                      openPhotoModal={openPhotoModal}
-                      getCurrentProfilePhotos={getCurrentProfilePhotos}
-                      currentPhotoIndex={currentPhotoIndex}
-                      setCurrentPhotoIndex={setCurrentPhotoIndex}
-                      goToPrevPhoto={goToPrevPhoto}
-                      goToNextPhoto={goToNextPhoto}
-                      isPhotoAnimating={isPhotoAnimating}
-                      isMatched={isMatched}
-                      isLiked={isLiked}
-                      goToProfile={goToProfile}
-                      handlePass={handlePass}
-                      handleLike={handleLike}
-                      handleUnmatch={handleUnmatch}
-                      isAnimating={isAnimating}
-                      goToMessenger={goToMessenger}
-                      goToMyProfile={goToMyProfile}
-                      setMatchedProfile={setMatchedProfile}
-                      setMatchModalOpen={setMatchModalOpen}
-                      openReportModal={openReportModal}
-                      handleBlock={handleBlock}
-                      centerCardStyle={centerCardStyle}
-                      reloadProfiles={reloadProfiles}
-                      swipeLimits={swipeLimits}
-                      user={user}
-                    />
+                  <div className="col-lg-6 col-md-8 h-100" style={{ overflowY: requiresProfileCompletionBlock ? 'hidden' : 'auto' }}>
+                    {requiresProfileCompletionBlock ? (
+                      <CenterBlock
+                        profilesLoading={profilesLoading}
+                        apiError={apiError}
+                        profiles={profiles}
+                        profileIndex={profileIndex}
+                        currentProfile={currentProfile}
+                        getCurrentPhotoUrl={getCurrentPhotoUrl}
+                        openPhotoModal={openPhotoModal}
+                        getCurrentProfilePhotos={getCurrentProfilePhotos}
+                        currentPhotoIndex={currentPhotoIndex}
+                        setCurrentPhotoIndex={setCurrentPhotoIndex}
+                        goToPrevPhoto={goToPrevPhoto}
+                        goToNextPhoto={goToNextPhoto}
+                        isPhotoAnimating={isPhotoAnimating}
+                        isMatched={isMatched}
+                        isLiked={isLiked}
+                        goToProfile={goToProfile}
+                        handlePass={handlePass}
+                        handleLike={handleLike}
+                        handleUnmatch={handleUnmatch}
+                        isAnimating={isAnimating}
+                        goToMessenger={goToMessenger}
+                        goToMyProfile={goToMyProfile}
+                        setMatchedProfile={setMatchedProfile}
+                        setMatchModalOpen={setMatchModalOpen}
+                        openReportModal={openReportModal}
+                        handleBlock={handleBlock}
+                        centerCardStyle={centerCardStyle}
+                        reloadProfiles={reloadProfiles}
+                        swipeLimits={swipeLimits}
+                        user={user}
+                      />
+                    ) : (
+                      <DiscoveryGrid
+                        profiles={profiles}
+                        profilesLoading={profilesLoading}
+                        isLoadingMore={isLoadingMore}
+                        hasMore={hasMoreProfiles}
+                        onLoadMore={handleLoadMore}
+                        onRefresh={reloadProfiles}
+                        user={user}
+                        windowWidth={windowWidth}
+                      />
+                    )}
                   </div>
                   <div className="col-lg-3 d-none d-lg-block h-100">
                     <RightBlock
@@ -1313,19 +1539,31 @@ export default function Dashboard() {
             </div>
             
             {/* Mobile Layout */}
-            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, background: activeMobileTab === 'center' ? '#000' : 'transparent' }}>
+            <div className={`${windowWidth < 992 ? 'd-block' : 'd-none'}`} style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0, background: (activeMobileTab === 'center' && requiresProfileCompletionBlock) ? '#000' : 'transparent' }}>
               <div
                 style={{
                   height: mobileLayout.contentHeight ? `${mobileLayout.contentHeight}px` : `calc(100% - ${MOBILE_BOTTOM_NAV_HEIGHT}px - env(safe-area-inset-bottom, 0px))`,
                   overflow: 'hidden',
                   minHeight: 0,
-                  background: activeMobileTab === 'center' ? '#000' : 'transparent',
+                  background: (activeMobileTab === 'center' && requiresProfileCompletionBlock) ? '#000' : 'transparent',
                 }}
               >
                 {renderMobileContent()}
               </div>
             </div>
-            {windowWidth < 992 && <MobileBottomNav navRef={mobileBottomNavRef} user={user} activeMobileTab={activeMobileTab} setActiveMobileTab={setActiveMobileTab} likesList={likesList} matchesList={matchesList} getProfilePhotoUrl={getProfilePhotoUrl} t={t} requiresProfileCompletionBlock={requiresProfileCompletionBlock} />}
+            {windowWidth < 992 && (
+              <MobileBottomNav
+                navRef={mobileBottomNavRef}
+                user={user}
+                activeMobileTab={activeMobileTab}
+                setActiveMobileTab={setActiveMobileTab}
+                matchesList={matchesList}
+                conversations={conversations}
+                getProfilePhotoUrl={getProfilePhotoUrl}
+                t={t}
+                requiresProfileCompletionBlock={requiresProfileCompletionBlock}
+              />
+            )}
             
             <Modals
               user={user}
@@ -1360,6 +1598,18 @@ export default function Dashboard() {
               closeReportModal={closeReportModal}
               userToReport={userToReport}
             />
+
+            {celebrationProfile && (
+              <MatchCelebration
+                matchedProfile={celebrationProfile}
+                conversationId={celebrationConvId}
+                onDismiss={() => {
+                  setCelebrationProfile(null);
+                  setCelebrationConvId(null);
+                  document.body.style.overflow = '';
+                }}
+              />
+            )}
           </>
         ) : (
           <div className="d-flex justify-content-center align-items-center" style={{ height: "100%" }}>
@@ -1570,8 +1820,15 @@ export default function Dashboard() {
 }
 
 // Internal components for mobile bottom nav
-const MobileBottomNav = ({ navRef, user, activeMobileTab, setActiveMobileTab, likesList, matchesList, getProfilePhotoUrl, t, requiresProfileCompletionBlock }) => {
-  const canViewLikes = canSeeWhoLiked(user);
+const MobileBottomNav = ({ navRef, user, activeMobileTab, setActiveMobileTab, matchesList, conversations, getProfilePhotoUrl, t, requiresProfileCompletionBlock }) => {
+  const convUserIds = new Set((conversations || []).map(c => c.other_user?.id).filter(Boolean));
+  const unmessagedCount = (matchesList || []).filter(m => !convUserIds.has(m.id)).length;
+  const unreadCount = (conversations || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
+  const conversationsBadge = unmessagedCount + unreadCount;
+
+  const isMoiActive = ['moi', 'blocks', 'passed'].includes(activeMobileTab);
+  const isConvActive = activeMobileTab === 'conversations';
+
   if (requiresProfileCompletionBlock) {
     return (
       <div ref={navRef} className="mobile-bottom-nav">
@@ -1579,9 +1836,9 @@ const MobileBottomNav = ({ navRef, user, activeMobileTab, setActiveMobileTab, li
           <i className="fas fa-compass nav-icon"></i>
           <span>{t("dashboard.nav.discover")}</span>
         </button>
-        <button onClick={() => setActiveMobileTab('profile')} className={`nav-item ${activeMobileTab === 'profile' ? 'active' : ''}`}>
+        <button onClick={() => setActiveMobileTab('moi')} className={`nav-item ${isMoiActive ? 'active' : ''}`}>
           <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '24px', height: '24px', objectFit: 'cover' }} />
-          <span>{t("dashboard.nav.profile")}</span>
+          <span>Moi</span>
         </button>
       </div>
     );
@@ -1593,25 +1850,22 @@ const MobileBottomNav = ({ navRef, user, activeMobileTab, setActiveMobileTab, li
         <i className="fas fa-compass nav-icon"></i>
         <span>{t("dashboard.nav.discover")}</span>
       </button>
-      {canViewLikes && (
-        <button onClick={() => setActiveMobileTab('likes')} className={`nav-item ${activeMobileTab === 'likes' ? 'active' : ''}`} style={{ position: 'relative' }}>
-          <i className="fas fa-heart nav-icon"></i>
-          {likesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%', fontSize: '10px', padding: '2px 5px' }}>{likesList.length}</span>}
-          <span>{t("dashboard.nav.likes")}</span>
-        </button>
-      )}
-      <button onClick={() => setActiveMobileTab('matches')} className={`nav-item ${activeMobileTab === 'matches' ? 'active' : ''}`} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setActiveMobileTab('conversations')}
+        className={`nav-item ${isConvActive ? 'active' : ''}`}
+        style={{ position: 'relative' }}
+      >
         <i className="fas fa-comments nav-icon"></i>
-        {matchesList.length > 0 && <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '20%', fontSize: '10px', padding: '2px 5px' }}>{matchesList.length}</span>}
-        <span>{t("dashboard.nav.matches")}</span>
+        {conversationsBadge > 0 && (
+          <span className="badge bg-danger rounded-pill" style={{ position: 'absolute', top: 0, right: '18%', fontSize: '10px', padding: '2px 5px', minWidth: '16px' }}>
+            {conversationsBadge > 99 ? '99+' : conversationsBadge}
+          </span>
+        )}
+        <span>Conversations</span>
       </button>
-      <button onClick={() => setActiveMobileTab('blocks')} className={`nav-item ${activeMobileTab === 'blocks' ? 'active' : ''}`}>
-        <i className="fas fa-ban nav-icon"></i>
-        <span>{t("dashboard.nav.blocked")}</span>
-      </button>
-      <button onClick={() => setActiveMobileTab('profile')} className={`nav-item ${activeMobileTab === 'profile' ? 'active' : ''}`}>
+      <button onClick={() => setActiveMobileTab('moi')} className={`nav-item ${isMoiActive ? 'active' : ''}`}>
         <img src={getProfilePhotoUrl(user?.profile_photo)} alt="profile" className="rounded-circle" style={{ width: '24px', height: '24px', objectFit: 'cover' }} />
-        <span>{t("dashboard.nav.profile")}</span>
+        <span>Moi</span>
       </button>
     </div>
   );

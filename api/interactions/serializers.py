@@ -32,7 +32,7 @@ class LikeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Like
-        fields = ('id', 'from_user', 'to_user', 'to_user_id', 'created_at', 'is_mutual')
+        fields = ('id', 'from_user', 'to_user', 'to_user_id', 'created_at', 'is_mutual', 'type')
         read_only_fields = ('id', 'from_user', 'created_at', 'is_mutual')
 
     def get_is_mutual(self, obj):
