@@ -1,6 +1,6 @@
 from django.db import models
 from django.db.models import Q, Count, Avg, Sum, OuterRef, Subquery, Max
-from django.db.models.functions import Lower
+from django.db.models.functions import Lower, TruncDate, TruncWeek
 from django.utils import timezone
 from datetime import timedelta, datetime
 from math import ceil
@@ -1011,6 +1011,10 @@ class AdminUsersManagementView(APIView):
         first_name = payload.get('first_name')
         last_name = payload.get('last_name')
         username = payload.get('username')
+        gender = payload.get('gender')
+        account_type = payload.get('account_type')
+        is_verified = payload.get('is_verified')
+        birth_date = payload.get('birth_date')
 
         if role is not None:
             role = str(role).strip().lower()
@@ -1031,6 +1035,20 @@ class AdminUsersManagementView(APIView):
             user.last_name = str(last_name).strip()
         if username is not None and str(username).strip():
             user.username = str(username).strip()
+        if gender is not None:
+            if gender in ('male', 'female', 'other', ''):
+                user.gender = gender
+        if account_type is not None:
+            if account_type in ('free', 'premium', 'god_mode'):
+                user.account_type = account_type
+        if is_verified is not None:
+            user.is_verified = bool(is_verified)
+        if birth_date is not None:
+            from datetime import date as _date
+            try:
+                user.birth_date = _date.fromisoformat(birth_date) if birth_date else None
+            except (ValueError, TypeError):
+                pass
 
         user.save()
         return Response({'success': True})
@@ -4016,5 +4034,263 @@ class AdminWaitlistCampaignSendInvitesView(APIView):
             'failed': failed,
         })
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PR4 — Analytics + Interaction List Views
+# ─────────────────────────────────────────────────────────────────────────────
+
+class AdminAnalyticsView(APIView):
+    """GET /api/noumatch-admin/analytics/ — aggregated platform analytics."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        now = timezone.now()
+        thirty_days_ago = now - timedelta(days=30)
+        eight_weeks_ago = now - timedelta(weeks=8)
+
+        # DAU — distinct non-staff users active per day, last 30 days
+        dau_qs = (
+            User.objects
+            .filter(last_activity__gte=thirty_days_ago, is_staff=False)
+            .annotate(date=TruncDate('last_activity'))
+            .values('date')
+            .annotate(count=Count('id', distinct=True))
+            .order_by('date')
+        )
+        dau = [{'date': str(r['date']), 'count': r['count']} for r in dau_qs]
+
+        # Signups — new non-staff users per day, last 30 days
+        signups_qs = (
+            User.objects
+            .filter(date_joined__gte=thirty_days_ago, is_staff=False)
+            .annotate(date=TruncDate('date_joined'))
+            .values('date')
+            .annotate(count=Count('id'))
+            .order_by('date')
+        )
+        signups = [{'date': str(r['date']), 'count': r['count']} for r in signups_qs]
+
+        # Gender ratio — % split across all active non-staff users
+        gender_qs = (
+            User.objects
+            .filter(is_active=True, is_staff=False)
+            .values('gender')
+            .annotate(count=Count('id'))
+        )
+        total_gendered = sum(r['count'] for r in gender_qs) or 1
+        gender_map = {(r['gender'] or 'other'): r['count'] for r in gender_qs}
+        gender_ratio = {
+            'male': round(gender_map.get('male', 0) / total_gendered * 100),
+            'female': round(gender_map.get('female', 0) / total_gendered * 100),
+        }
+
+        # Match rate per week — matches / (likes * 0.5), last 8 weeks
+        matches_by_week = (
+            Match.objects
+            .filter(created_at__gte=eight_weeks_ago)
+            .annotate(week=TruncWeek('created_at'))
+            .values('week')
+            .annotate(count=Count('id'))
+            .order_by('week')
+        )
+        likes_by_week = (
+            Like.objects
+            .filter(created_at__gte=eight_weeks_ago)
+            .annotate(week=TruncWeek('created_at'))
+            .values('week')
+            .annotate(count=Count('id'))
+            .order_by('week')
+        )
+        likes_map = {r['week']: r['count'] for r in likes_by_week}
+        match_rate = []
+        for r in matches_by_week:
+            week_label = r['week'].strftime('%G-W%V')
+            swipes = likes_map.get(r['week'], 0)
+            rate = round(r['count'] / (swipes * 0.5), 2) if swipes else 0.0
+            match_rate.append({'week': week_label, 'rate': rate})
+
+        # Message conversion — % of matches where at least one message was sent
+        total_matches = Match.objects.count()
+        matches_with_msgs = (
+            Conversation.objects
+            .filter(messages__isnull=False)
+            .distinct()
+            .count()
+        )
+        message_conversion = round(matches_with_msgs / total_matches, 2) if total_matches else 0.0
+
+        # Top 8 cities
+        top_cities_qs = (
+            User.objects
+            .filter(is_active=True, is_staff=False)
+            .exclude(city='')
+            .values('city')
+            .annotate(count=Count('id'))
+            .order_by('-count')[:8]
+        )
+        top_cities = [{'city': r['city'], 'count': r['count']} for r in top_cities_qs]
+
+        return Response({
+            'dau': dau,
+            'signups': signups,
+            'gender_ratio': gender_ratio,
+            'match_rate': match_rate,
+            'message_conversion': message_conversion,
+            'top_cities': top_cities,
+        })
+
+
+class AdminInteractionLikesView(APIView):
+    """GET /api/noumatch-admin/interactions/likes/ — paginated like events."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        page = max(1, int(request.query_params.get('page', 1)))
+        limit = min(50, max(1, int(request.query_params.get('limit', 20))))
+        search = request.query_params.get('search', '').strip()
+
+        qs = Like.objects.select_related('from_user', 'to_user').order_by('-created_at')
+        if search:
+            qs = qs.filter(
+                Q(from_user__email__icontains=search)
+                | Q(from_user__first_name__icontains=search)
+                | Q(from_user__last_name__icontains=search)
+                | Q(to_user__email__icontains=search)
+                | Q(to_user__first_name__icontains=search)
+                | Q(to_user__last_name__icontains=search)
+            )
+
+        total = qs.count()
+        offset = (page - 1) * limit
+        items = list(qs[offset: offset + limit])
+
+        def _mini(u):
+            return {
+                'id': u.id,
+                'name': f"{u.first_name} {u.last_name}".strip() or u.email,
+                'email': u.email,
+            }
+
+        return Response({
+            'count': total,
+            'page': page,
+            'pages': max(1, (total + limit - 1) // limit),
+            'results': [
+                {
+                    'id': like.id,
+                    'from_user': _mini(like.from_user),
+                    'to_user': _mini(like.to_user),
+                    'type': like.type,
+                    'created_at': like.created_at.isoformat(),
+                }
+                for like in items
+            ],
+        })
+
+
+class AdminInteractionMatchesView(APIView):
+    """GET /api/noumatch-admin/interactions/matches/ — paginated match events."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        page = max(1, int(request.query_params.get('page', 1)))
+        limit = min(50, max(1, int(request.query_params.get('limit', 20))))
+        search = request.query_params.get('search', '').strip()
+
+        qs = (
+            Match.objects
+            .select_related('user1', 'user2')
+            .prefetch_related('conversation__messages')
+            .order_by('-created_at')
+        )
+        if search:
+            qs = qs.filter(
+                Q(user1__email__icontains=search)
+                | Q(user1__first_name__icontains=search)
+                | Q(user1__last_name__icontains=search)
+                | Q(user2__email__icontains=search)
+                | Q(user2__first_name__icontains=search)
+                | Q(user2__last_name__icontains=search)
+            )
+
+        total = qs.count()
+        offset = (page - 1) * limit
+        items = list(qs[offset: offset + limit])
+
+        def _mini(u):
+            return {
+                'id': u.id,
+                'name': f"{u.first_name} {u.last_name}".strip() or u.email,
+                'email': u.email,
+            }
+
+        def _has_messages(match):
+            try:
+                return match.conversation.messages.exists()
+            except Exception:
+                return False
+
+        return Response({
+            'count': total,
+            'page': page,
+            'pages': max(1, (total + limit - 1) // limit),
+            'results': [
+                {
+                    'id': m.id,
+                    'user1': _mini(m.user1),
+                    'user2': _mini(m.user2),
+                    'has_messages': _has_messages(m),
+                    'created_at': m.created_at.isoformat(),
+                }
+                for m in items
+            ],
+        })
+
+
+class AdminInteractionBlocksView(APIView):
+    """GET /api/noumatch-admin/interactions/blocks/ — paginated block events."""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        page = max(1, int(request.query_params.get('page', 1)))
+        limit = min(50, max(1, int(request.query_params.get('limit', 20))))
+        search = request.query_params.get('search', '').strip()
+
+        qs = Block.objects.select_related('blocker', 'blocked').order_by('-created_at')
+        if search:
+            qs = qs.filter(
+                Q(blocker__email__icontains=search)
+                | Q(blocker__first_name__icontains=search)
+                | Q(blocker__last_name__icontains=search)
+                | Q(blocked__email__icontains=search)
+                | Q(blocked__first_name__icontains=search)
+                | Q(blocked__last_name__icontains=search)
+            )
+
+        total = qs.count()
+        offset = (page - 1) * limit
+        items = list(qs[offset: offset + limit])
+
+        def _mini(u):
+            return {
+                'id': u.id,
+                'name': f"{u.first_name} {u.last_name}".strip() or u.email,
+                'email': u.email,
+            }
+
+        return Response({
+            'count': total,
+            'page': page,
+            'pages': max(1, (total + limit - 1) // limit),
+            'results': [
+                {
+                    'id': b.id,
+                    'blocker': _mini(b.blocker),
+                    'blocked': _mini(b.blocked),
+                    'created_at': b.created_at.isoformat(),
+                }
+                for b in items
+            ],
+        })
 
 

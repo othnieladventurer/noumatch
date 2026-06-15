@@ -68,6 +68,7 @@ export default function AdminDashboard() {
   const [activeUsersMetrics, setActiveUsersMetrics] = useState(null);
   const [activeUsersLoading, setActiveUsersLoading] = useState(false);
   const [activeUsersError, setActiveUsersError] = useState('');
+  const [analytics, setAnalytics] = useState(null);
 
   useEffect(() => {
     if (darkMode) {
@@ -95,6 +96,12 @@ export default function AdminDashboard() {
         });
         setMetrics(res.data);
         setError('');
+        try {
+          const analyticsRes = await adminRequest({ method: 'get', url: `${API_BASE}/analytics/` });
+          setAnalytics(analyticsRes.data);
+        } catch (_e) {
+          // analytics failure doesn't break the dashboard
+        }
       } catch (err) {
         if (err?.authExpired || err.response?.status === 401 || err.response?.status === 403) {
           localStorage.removeItem('admin_access');
@@ -539,6 +546,78 @@ export default function AdminDashboard() {
         )}
 
         <div className="admin-page-shell dashboard-premium-shell">
+          {/* ── Gender balance status bar ── */}
+          {analytics && (() => {
+            const female = analytics.gender_ratio?.female ?? 0;
+            const male = analytics.gender_ratio?.male ?? 0;
+            const minority = Math.min(female, male);
+            const isHealthy = minority >= 40;
+            const isWatch = minority >= 30 && minority < 40;
+            const color = isHealthy ? '#1E7D48' : isWatch ? '#B8680A' : '#D82B2B';
+            const bg = isHealthy ? '#F0FBF4' : isWatch ? '#FEF9ED' : '#FEF0EF';
+            return (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                background: bg, border: `1px solid ${color}22`,
+                borderRadius: 10, padding: '10px 16px', marginBottom: 20,
+              }}>
+                {!isHealthy && <i className="fas fa-triangle-exclamation" style={{ color, fontSize: 14, flexShrink: 0 }} />}
+                <span style={{ fontWeight: 600, fontSize: '0.82rem', color, flexShrink: 0 }}>Équilibre H/F</span>
+                <span style={{ fontSize: '0.82rem', color, fontWeight: 500 }}>
+                  {female}% Femme · {male}% Homme
+                </span>
+                <div style={{ flex: 1, height: 6, background: '#E8E5DF', borderRadius: 3, overflow: 'hidden', minWidth: 60 }}>
+                  <div style={{ width: `${female}%`, height: '100%', background: '#FF2D55', borderRadius: 3 }} />
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Gender donut ── */}
+          {analytics?.gender_ratio && (
+            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, marginBottom: 24 }}>
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px' }}>
+                <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  Répartition par genre
+                </p>
+                <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
+                  {[
+                    { label: `Femme ${analytics.gender_ratio.female}%`, color: '#FF2D55' },
+                    { label: `Homme ${analytics.gender_ratio.male}%`, color: '#8B30C9' },
+                  ].map(({ label, color }) => (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                      <span style={{ width: 10, height: 10, background: color, display: 'inline-block', borderRadius: 2, flexShrink: 0 }} />
+                      {label}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ height: 160 }}>
+                  <Doughnut
+                    data={{
+                      labels: ['Femme', 'Homme'],
+                      datasets: [{
+                        data: [analytics.gender_ratio.female, analytics.gender_ratio.male],
+                        backgroundColor: ['#FF2D55', '#8B30C9'],
+                        borderColor: ['#FF2D55', '#8B30C9'],
+                        borderWidth: 0,
+                        hoverOffset: 4,
+                      }],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.parsed}%` } },
+                      },
+                      cutout: '65%',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <section className="dashboard-spotlight-grid">
             {spotlightCards.map((card) => (
               <button key={card.eyebrow} type="button" className={`dashboard-spotlight-card tone-${card.tone}`} onClick={card.onClick}>

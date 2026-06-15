@@ -209,6 +209,10 @@ export default function AdminUsers() {
       password: '',
       role: user.role || 'app_user',
       is_active: user.is_active,
+      gender: user.gender || '',
+      account_type: user.account_type || 'free',
+      is_verified: user.is_verified || false,
+      birth_date: user.birth_date || '',
     });
     setShowUserModal(true);
   };
@@ -225,6 +229,10 @@ export default function AdminUsers() {
             username: userForm.username,
             role: userForm.role,
             is_active: userForm.is_active,
+            gender: userForm.gender,
+            account_type: userForm.account_type,
+            is_verified: userForm.is_verified,
+            birth_date: userForm.birth_date || null,
           },
         });
       } else {
@@ -716,6 +724,36 @@ export default function AdminUsers() {
                   <input type="checkbox" checked={userForm.is_active} onChange={(e) => setUserForm({ ...userForm, is_active: e.target.checked })} />
                   Active
                 </label>
+
+                {editingUser && (
+                  <>
+                    <hr style={{ margin: '4px 0', borderColor: '#E8E5DF' }} />
+                    <small style={{ color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.8px', fontSize: '10px' }}>Profil</small>
+
+                    <select className="form-select" value={userForm.gender} onChange={(e) => setUserForm({ ...userForm, gender: e.target.value })}>
+                      <option value="">Genre — non spécifié</option>
+                      <option value="female">Femme</option>
+                      <option value="male">Homme</option>
+                      <option value="other">Autre</option>
+                    </select>
+
+                    <select className="form-select" value={userForm.account_type} onChange={(e) => setUserForm({ ...userForm, account_type: e.target.value })}>
+                      <option value="free">Free</option>
+                      <option value="premium">Premium</option>
+                      <option value="god_mode">God Mode</option>
+                    </select>
+
+                    <label className="d-flex align-items-center gap-2">
+                      <input type="checkbox" checked={userForm.is_verified} onChange={(e) => setUserForm({ ...userForm, is_verified: e.target.checked })} />
+                      Profil vérifié
+                    </label>
+
+                    <div>
+                      <label className="form-label small mb-1" style={{ color: '#666' }}>Date de naissance</label>
+                      <input className="form-control" type="date" value={userForm.birth_date} onChange={(e) => setUserForm({ ...userForm, birth_date: e.target.value })} />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowUserModal(false)}>Cancel</button>

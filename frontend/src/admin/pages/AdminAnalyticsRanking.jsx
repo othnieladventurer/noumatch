@@ -5,6 +5,22 @@ import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Filler,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip, Legend);
+ChartJS.defaults.color = '#666';
+ChartJS.defaults.borderColor = '#E8E5DF';
 
 const API_BASE = getAdminApiBase();
 
@@ -18,6 +34,9 @@ export default function AdminAnalyticsRanking() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState('');
 
   useEffect(() => {
     if (darkMode) {
@@ -69,6 +88,23 @@ export default function AdminAnalyticsRanking() {
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
   }, [navigate]);
 
+  useEffect(() => {
+    const token = getAdminAuthToken();
+    if (!token) return;
+    const fetchAnalytics = async () => {
+      try {
+        setAnalyticsLoading(true);
+        const res = await adminRequest({ method: 'get', url: `${API_BASE}/analytics/` });
+        setAnalytics(res.data);
+      } catch (err) {
+        setAnalyticsError('Impossible de charger les métriques');
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, []);
+
   const handleMenuClick = (menu, path) => {
     setActiveMenu(menu);
     navigate(path);
@@ -96,6 +132,105 @@ export default function AdminAnalyticsRanking() {
           )}
           {warning && (
             <div className="alert alert-warning">{warning}</div>
+          )}
+
+          {/* ── PR4 Analytics Charts ── */}
+          {analyticsLoading && <AdminPageSpinner label="Chargement des métriques..." />}
+          {analyticsError && <div className="alert alert-danger">{analyticsError}</div>}
+          {analytics && (
+            <>
+              {/* Match rate + Message conversion */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px' }}>
+                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    Taux de match par semaine (8 sem.)
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                      <span style={{ width: 10, height: 10, background: '#8B30C9', display: 'inline-block', borderRadius: 2 }} />
+                      Taux de match
+                    </div>
+                  </div>
+                  <div style={{ height: 200 }}>
+                    <Line
+                      data={{
+                        labels: analytics.match_rate.map((d) => d.week),
+                        datasets: [{
+                          label: 'Taux de match',
+                          data: analytics.match_rate.map((d) => d.rate),
+                          borderColor: '#8B30C9',
+                          backgroundColor: 'rgba(139,48,201,0.10)',
+                          fill: true,
+                          tension: 0.3,
+                          pointRadius: 4,
+                          pointBackgroundColor: '#8B30C9',
+                        }],
+                      }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y}` } } },
+                        scales: {
+                          x: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' } },
+                          y: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' }, beginAtZero: true, max: 1 },
+                        },
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '24px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    Conversion vers messages
+                  </p>
+                  <p style={{ margin: 0, fontSize: '3rem', fontWeight: 800, color: '#FF2D55', lineHeight: 1 }}>
+                    {Math.round((analytics.message_conversion || 0) * 100)}%
+                  </p>
+                  <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#666' }}>
+                    des matchs ont eu au moins un message
+                  </p>
+                </div>
+              </div>
+
+              {/* Top cities horizontal bar */}
+              {analytics.top_cities.length > 0 && (
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px', marginBottom: 24 }}>
+                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    Top villes
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                      <span style={{ width: 10, height: 10, background: '#FF2D55', display: 'inline-block', borderRadius: 2 }} />
+                      Utilisateurs
+                    </div>
+                  </div>
+                  <div style={{ height: Math.max(analytics.top_cities.length * 48, 200) }}>
+                    <Bar
+                      data={{
+                        labels: analytics.top_cities.map((c) => c.city),
+                        datasets: [{
+                          label: 'Utilisateurs',
+                          data: analytics.top_cities.map((c) => c.count),
+                          backgroundColor: '#FF2D55',
+                          borderColor: '#FF2D55',
+                          borderRadius: 4,
+                        }],
+                      }}
+                      options={{
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.x} utilisateurs` } } },
+                        scales: {
+                          x: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' }, beginAtZero: true },
+                          y: { grid: { display: false }, ticks: { color: '#666' } },
+                        },
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <div className="metrics-grid" style={{ padding: 0 }}>

@@ -5,6 +5,22 @@ import AdminTopNav from '../components/AdminTopNav';
 import AdminPageSpinner from '../components/AdminPageSpinner';
 import './AdminDashboard.css';
 import { adminRequest, getAdminApiBase, getAdminAuthToken } from '../utils/adminApi';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Filler,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Line, Bar } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Tooltip, Legend);
+ChartJS.defaults.color = '#666';
+ChartJS.defaults.borderColor = '#E8E5DF';
 
 const API_BASE = getAdminApiBase();
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -133,6 +149,9 @@ export default function AdminAnalyticsPerformance() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState('');
   const [dateFrom, setDateFrom] = useState(DEFAULT_FROM);
   const [dateTo, setDateTo] = useState(TODAY);
   const [actions, setActions] = useState(EVENT_OPTIONS.map((event) => event.key));
@@ -236,6 +255,23 @@ export default function AdminAnalyticsPerformance() {
     };
     window.addEventListener('admin:refresh-page', handleRefresh);
     return () => window.removeEventListener('admin:refresh-page', handleRefresh);
+  }, []);
+
+  useEffect(() => {
+    const token = getAdminAuthToken();
+    if (!token) return;
+    const fetchAnalytics = async () => {
+      try {
+        setAnalyticsLoading(true);
+        const res = await adminRequest({ method: 'get', url: `${API_BASE}/analytics/` });
+        setAnalytics(res.data);
+      } catch (err) {
+        setAnalyticsError('Impossible de charger les métriques');
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+    fetchAnalytics();
   }, []);
 
   const fetchSeoMetrics = async () => {
@@ -351,6 +387,88 @@ export default function AdminAnalyticsPerformance() {
           </section>
 
           {error && <div className="alert alert-danger performance-alert">{error}</div>}
+
+          {/* ── PR4 Analytics Charts ── */}
+          {analyticsLoading && <AdminPageSpinner label="Chargement des métriques..." />}
+          {analyticsError && <div className="alert alert-danger performance-alert">{analyticsError}</div>}
+          {analytics && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24, padding: '0 0 8px' }}>
+              {/* DAU line chart */}
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px' }}>
+                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  Utilisateurs actifs / jour (30j)
+                </p>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                    <span style={{ width: 10, height: 10, background: '#FF2D55', display: 'inline-block', borderRadius: 2 }} />
+                    DAU
+                  </div>
+                </div>
+                <div style={{ height: 200 }}>
+                  <Line
+                    data={{
+                      labels: analytics.dau.map((d) => d.date.slice(5)),
+                      datasets: [{
+                        label: 'DAU',
+                        data: analytics.dau.map((d) => d.count),
+                        borderColor: '#FF2D55',
+                        backgroundColor: 'rgba(255,45,85,0.10)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#FF2D55',
+                      }],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y} utilisateurs` } } },
+                      scales: {
+                        x: { grid: { color: '#E8E5DF' }, ticks: { color: '#666', maxTicksLimit: 8 } },
+                        y: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' }, beginAtZero: true },
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Signups bar chart */}
+              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px' }}>
+                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  Nouvelles inscriptions / jour (30j)
+                </p>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                    <span style={{ width: 10, height: 10, background: '#FF2D55', display: 'inline-block', borderRadius: 2 }} />
+                    Inscriptions
+                  </div>
+                </div>
+                <div style={{ height: 200 }}>
+                  <Bar
+                    data={{
+                      labels: analytics.signups.map((d) => d.date.slice(5)),
+                      datasets: [{
+                        label: 'Inscriptions',
+                        data: analytics.signups.map((d) => d.count),
+                        backgroundColor: '#FF2D55',
+                        borderColor: '#FF2D55',
+                        borderRadius: 4,
+                      }],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y} inscriptions` } } },
+                      scales: {
+                        x: { grid: { display: false }, ticks: { color: '#666', maxTicksLimit: 8 } },
+                        y: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' }, beginAtZero: true },
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <section className="performance-filter-panel">
             <div className="performance-date-filters">

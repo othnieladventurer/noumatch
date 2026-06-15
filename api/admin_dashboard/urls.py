@@ -59,6 +59,10 @@ from .views import (
     AdminWaitlistUpdateView,
     AdminWaitlistCampaignPreviewView,
     AdminWaitlistCampaignSendInvitesView,
+    AdminAnalyticsView,
+    AdminInteractionLikesView,
+    AdminInteractionMatchesView,
+    AdminInteractionBlocksView,
 )
 
 # Import waitlist views directly (only if needed for other patterns; but we will not use them to avoid duplication)
@@ -109,6 +113,10 @@ urlpatterns = [
     path('analytics/impression/update/', UpdateImpressionView.as_view(), name='update_impression'),
     path('analytics/impressions/', AdminAnalyticsImpressionsView.as_view(), name='admin-analytics-impressions'),
     path('analytics/ranking/', AdminAnalyticsRankingView.as_view(), name='admin-analytics-ranking'),
+    path('analytics/', AdminAnalyticsView.as_view(), name='admin-analytics'),
+    path('interactions/likes/', AdminInteractionLikesView.as_view(), name='admin-interactions-likes'),
+    path('interactions/matches/', AdminInteractionMatchesView.as_view(), name='admin-interactions-matches'),
+    path('interactions/blocks/', AdminInteractionBlocksView.as_view(), name='admin-interactions-blocks'),
     path('admin/metrics/active-users/', AdminActiveUsersMetricsView.as_view(), name='admin-active-users-metrics'),
     path('metrics/active-users/', AdminActiveUsersMetricsView.as_view(), name='admin-active-users-metrics-compat'),
     path('metrics/user-scores/refresh/', AdminUserScoringRefreshView.as_view(), name='admin-user-scores-refresh'),
