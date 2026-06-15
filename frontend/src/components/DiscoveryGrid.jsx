@@ -66,7 +66,7 @@ export default function DiscoveryGrid({
     return (
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: '48px 24px', textAlign: 'center', background: '#000', minHeight: '100%', color: '#fff',
+        padding: '48px 24px', textAlign: 'center', background: '#FFF0F3', minHeight: '100%', color: '#1a1a2e',
       }}>
         <div style={{ fontSize: '3.5rem', marginBottom: '16px' }}>💜</div>
         <h4 style={{ fontWeight: 700, marginBottom: '12px', lineHeight: 1.3 }}>
@@ -89,7 +89,7 @@ export default function DiscoveryGrid({
             </button>
           )}
           {showRefresh && (
-            <button onClick={onRefresh} className="btn btn-outline-light rounded-pill py-2">
+            <button onClick={onRefresh} className="btn btn-outline-secondary rounded-pill py-2">
               <i className="fas fa-sync-alt me-2"></i>Rafraîchir
             </button>
           )}

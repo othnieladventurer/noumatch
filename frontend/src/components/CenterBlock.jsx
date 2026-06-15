@@ -288,8 +288,8 @@ export default function CenterBlock(props) {
           width: '100%',
           height: '100%',
           minHeight: '100%',
-          background: '#000',
-          color: '#fff',
+          background: '#FFF0F3',
+          color: '#1a1a2e',
         }}
       >
         <div
