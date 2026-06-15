@@ -554,7 +554,7 @@ export default function AdminDashboard() {
             const isHealthy = minority >= 40;
             const isWatch = minority >= 30 && minority < 40;
             const color = isHealthy ? '#1E7D48' : isWatch ? '#B8680A' : '#D82B2B';
-            const bg = isHealthy ? '#F0FBF4' : isWatch ? '#FEF9ED' : '#FEF0EF';
+            const bg = isHealthy ? (darkMode ? 'rgba(30,125,72,0.18)' : '#F0FBF4') : isWatch ? (darkMode ? 'rgba(184,104,10,0.18)' : '#FEF9ED') : (darkMode ? 'rgba(216,43,43,0.18)' : '#FEF0EF');
             return (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 12,
@@ -566,7 +566,7 @@ export default function AdminDashboard() {
                 <span style={{ fontSize: '0.82rem', color, fontWeight: 500 }}>
                   {female}% Femme · {male}% Homme
                 </span>
-                <div style={{ flex: 1, height: 6, background: '#E8E5DF', borderRadius: 3, overflow: 'hidden', minWidth: 60 }}>
+                <div style={{ flex: 1, height: 6, background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden', minWidth: 60 }}>
                   <div style={{ width: `${female}%`, height: '100%', background: '#FF2D55', borderRadius: 3 }} />
                 </div>
               </div>
@@ -576,8 +576,8 @@ export default function AdminDashboard() {
           {/* ── Gender donut ── */}
           {analytics?.gender_ratio && (
             <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, marginBottom: 24 }}>
-              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px' }}>
-                <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--border-color)', padding: '20px 20px 12px' }}>
+                <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                   Répartition par genre
                 </p>
                 <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
@@ -585,7 +585,7 @@ export default function AdminDashboard() {
                     { label: `Femme ${analytics.gender_ratio.female}%`, color: '#FF2D55' },
                     { label: `Homme ${analytics.gender_ratio.male}%`, color: '#8B30C9' },
                   ].map(({ label, color }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                       <span style={{ width: 10, height: 10, background: color, display: 'inline-block', borderRadius: 2, flexShrink: 0 }} />
                       {label}
                     </div>

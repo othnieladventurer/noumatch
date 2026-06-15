@@ -49,6 +49,11 @@ export default function AdminAnalyticsRanking() {
   }, [darkMode]);
 
   useEffect(() => {
+    ChartJS.defaults.color = darkMode ? '#94a3b8' : '#666';
+    ChartJS.defaults.borderColor = darkMode ? '#1e293b' : '#E8E5DF';
+  }, [darkMode]);
+
+  useEffect(() => {
     const token = getAdminAuthToken();
     if (!token) {
       navigate('/admin/login');
@@ -141,12 +146,12 @@ export default function AdminAnalyticsRanking() {
             <>
               {/* Match rate + Message conversion */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16 }}>
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px' }}>
-                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--border-color)', padding: '20px 20px 12px' }}>
+                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                     Taux de match par semaine (8 sem.)
                   </p>
                   <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                       <span style={{ width: 10, height: 10, background: '#8B30C9', display: 'inline-block', borderRadius: 2 }} />
                       Taux de match
                     </div>
@@ -171,22 +176,22 @@ export default function AdminAnalyticsRanking() {
                         maintainAspectRatio: false,
                         plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y}` } } },
                         scales: {
-                          x: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' } },
-                          y: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' }, beginAtZero: true, max: 1 },
+                          x: { grid: { color: darkMode ? '#1e293b' : '#E8E5DF' }, ticks: { color: darkMode ? '#94a3b8' : '#666' } },
+                          y: { grid: { color: darkMode ? '#1e293b' : '#E8E5DF' }, ticks: { color: darkMode ? '#94a3b8' : '#666' }, beginAtZero: true, max: 1 },
                         },
                       }}
                     />
                   </div>
                 </div>
 
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '24px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
-                  <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--border-color)', padding: '24px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                     Conversion vers messages
                   </p>
                   <p style={{ margin: 0, fontSize: '3rem', fontWeight: 800, color: '#FF2D55', lineHeight: 1 }}>
                     {Math.round((analytics.message_conversion || 0) * 100)}%
                   </p>
-                  <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: '#666' }}>
+                  <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                     des matchs ont eu au moins un message
                   </p>
                 </div>
@@ -194,12 +199,12 @@ export default function AdminAnalyticsRanking() {
 
               {/* Top cities horizontal bar */}
               {analytics.top_cities.length > 0 && (
-                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px', marginBottom: 24 }}>
-                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--border-color)', padding: '20px 20px 12px', marginBottom: 24 }}>
+                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                     Top villes
                   </p>
                   <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                       <span style={{ width: 10, height: 10, background: '#FF2D55', display: 'inline-block', borderRadius: 2 }} />
                       Utilisateurs
                     </div>
@@ -222,8 +227,8 @@ export default function AdminAnalyticsRanking() {
                         maintainAspectRatio: false,
                         plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.x} utilisateurs` } } },
                         scales: {
-                          x: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' }, beginAtZero: true },
-                          y: { grid: { display: false }, ticks: { color: '#666' } },
+                          x: { grid: { color: darkMode ? '#1e293b' : '#E8E5DF' }, ticks: { color: darkMode ? '#94a3b8' : '#666' }, beginAtZero: true },
+                          y: { grid: { display: false }, ticks: { color: darkMode ? '#94a3b8' : '#666' } },
                         },
                       }}
                     />

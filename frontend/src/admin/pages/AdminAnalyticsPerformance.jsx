@@ -169,6 +169,11 @@ export default function AdminAnalyticsPerformance() {
     }
   }, [darkMode]);
 
+  useEffect(() => {
+    ChartJS.defaults.color = darkMode ? '#94a3b8' : '#666';
+    ChartJS.defaults.borderColor = darkMode ? '#1e293b' : '#E8E5DF';
+  }, [darkMode]);
+
   const fetchMetrics = async ({ silent = false, forceActions, forceDateFrom, forceDateTo } = {}) => {
     const token = getAdminAuthToken();
     if (!token) {
@@ -394,12 +399,12 @@ export default function AdminAnalyticsPerformance() {
           {analytics && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24, padding: '0 0 8px' }}>
               {/* DAU line chart */}
-              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px' }}>
-                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--border-color)', padding: '20px 20px 12px' }}>
+                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                   Utilisateurs actifs / jour (30j)
                 </p>
                 <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                     <span style={{ width: 10, height: 10, background: '#FF2D55', display: 'inline-block', borderRadius: 2 }} />
                     DAU
                   </div>
@@ -424,8 +429,8 @@ export default function AdminAnalyticsPerformance() {
                       maintainAspectRatio: false,
                       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y} utilisateurs` } } },
                       scales: {
-                        x: { grid: { color: '#E8E5DF' }, ticks: { color: '#666', maxTicksLimit: 8 } },
-                        y: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' }, beginAtZero: true },
+                        x: { grid: { color: darkMode ? '#1e293b' : '#E8E5DF' }, ticks: { color: darkMode ? '#94a3b8' : '#666', maxTicksLimit: 8 } },
+                        y: { grid: { color: darkMode ? '#1e293b' : '#E8E5DF' }, ticks: { color: darkMode ? '#94a3b8' : '#666' }, beginAtZero: true },
                       },
                     }}
                   />
@@ -433,12 +438,12 @@ export default function AdminAnalyticsPerformance() {
               </div>
 
               {/* Signups bar chart */}
-              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E8E5DF', padding: '20px 20px 12px' }}>
-                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: '#1A1A2E', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <div style={{ background: 'var(--card-bg)', borderRadius: 12, border: '1px solid var(--border-color)', padding: '20px 20px 12px' }}>
+                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
                   Nouvelles inscriptions / jour (30j)
                 </p>
                 <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#666' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
                     <span style={{ width: 10, height: 10, background: '#FF2D55', display: 'inline-block', borderRadius: 2 }} />
                     Inscriptions
                   </div>
@@ -460,8 +465,8 @@ export default function AdminAnalyticsPerformance() {
                       maintainAspectRatio: false,
                       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.y} inscriptions` } } },
                       scales: {
-                        x: { grid: { display: false }, ticks: { color: '#666', maxTicksLimit: 8 } },
-                        y: { grid: { color: '#E8E5DF' }, ticks: { color: '#666' }, beginAtZero: true },
+                        x: { grid: { display: false }, ticks: { color: darkMode ? '#94a3b8' : '#666', maxTicksLimit: 8 } },
+                        y: { grid: { color: darkMode ? '#1e293b' : '#E8E5DF' }, ticks: { color: darkMode ? '#94a3b8' : '#666' }, beginAtZero: true },
                       },
                     }}
                   />
