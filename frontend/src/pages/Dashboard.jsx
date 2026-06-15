@@ -920,6 +920,18 @@ export default function Dashboard() {
     }
   }, [fetchProfilesBasedOnUser, fetchLikesReceived, fetchMatches, fetchConversations, blockedIds]);
   
+  const handleCoeur = useCallback(async () => {
+    if (!currentProfile || !coeurLimits.can_use) return;
+    try {
+      await API.post("/interactions/like/", { to_user_id: currentProfile.id, type: 'coup_de_coeur' });
+      setCoeurLimits(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1), can_use: prev.remaining > 1 }));
+      await checkForMatch(currentProfile.id);
+    } catch (err) {
+      if (err.response?.status === 403) alert("Limite de Coups de Coeur atteinte pour aujourd'hui.");
+      console.error("Coeur error:", err);
+    }
+  }, [currentProfile, coeurLimits, checkForMatch]);
+
   const openReportModal = useCallback((user) => {
     setUserToReport(user);
     setReportModalOpen(true);
@@ -1558,13 +1570,8 @@ export default function Dashboard() {
                   <div className="col-lg-3 col-md-4 h-100">
                     <LeftBlock
                       user={user}
-                      likesList={likesList}
-                      matchesList={matchesList}
-                      blockedList={blockedList}
-                      openLikeModal={openLikeModal}
-                      openMatchModalFor={openMatchModalFor}
-                      openUnblockModal={openUnblockModal}
                       goToMyProfile={goToMyProfile}
+                      conversations={conversations}
                     />
                   </div>
                   <div className="col-lg-6 col-md-8 h-100" style={{ overflowY: requiresProfileCompletionBlock ? 'hidden' : 'auto' }}>
@@ -1617,12 +1624,17 @@ export default function Dashboard() {
                   <div className="col-lg-3 d-none d-lg-block h-100">
                     <RightBlock
                       currentProfile={currentProfile}
-                      getCurrentProfilePhotos={getCurrentProfilePhotos}
                       isMatched={isMatched}
                       isLiked={isLiked}
                       goToProfile={goToProfile}
                       goToMessenger={goToMessenger}
                       handleUnmatch={handleUnmatch}
+                      handlePass={handlePass}
+                      handleLike={handleLike}
+                      handleCoeur={handleCoeur}
+                      coeurLimits={coeurLimits}
+                      openReportModal={openReportModal}
+                      handleBlock={handleBlock}
                     />
                   </div>
                 </div>
