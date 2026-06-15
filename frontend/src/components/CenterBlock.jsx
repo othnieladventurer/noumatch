@@ -288,8 +288,8 @@ export default function CenterBlock(props) {
           width: '100%',
           height: '100%',
           minHeight: '100%',
-          background: '#000',
-          color: '#fff',
+          background: '#FFF0F3',
+          color: '#1a1a2e',
         }}
       >
         <div
@@ -313,7 +313,7 @@ export default function CenterBlock(props) {
               <i className="fas fa-share-alt me-2"></i> {t("common.inviteFriend")}
             </button>
             {showRefresh && (
-              <button onClick={reloadProfiles} className="btn btn-outline-light rounded-pill px-4 py-2">
+              <button onClick={reloadProfiles} className="btn btn-outline-secondary rounded-pill px-4 py-2">
                 <i className="fas fa-sync-alt me-2"></i> {t("common.refresh")}
               </button>
             )}
