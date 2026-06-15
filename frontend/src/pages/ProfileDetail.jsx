@@ -31,6 +31,7 @@ export default function ProfileDetail() {
   // Report modal state
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [userToReport, setUserToReport] = useState(null);
+  const [dotsMenuOpen, setDotsMenuOpen] = useState(false);
   
   // Photo gallery state
   const [photoModalOpen, setPhotoModalOpen] = useState(false);
@@ -586,12 +587,27 @@ export default function ProfileDetail() {
     <>
       <DashboardNavbar user={user} />
       <PhotoModal />
-      <ReportModal 
+      <ReportModal
         isOpen={reportModalOpen}
         onClose={closeReportModal}
         reportedUser={userToReport}
       />
-      
+
+      {dotsMenuOpen && (
+        <>
+          <div onClick={() => setDotsMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200 }} />
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderRadius: '20px 20px 0 0', padding: '12px 0 calc(24px + env(safe-area-inset-bottom))', zIndex: 201, boxShadow: '0 -8px 30px rgba(0,0,0,0.15)' }}>
+            <div style={{ width: 40, height: 4, background: '#E0E0E0', borderRadius: 2, margin: '0 auto 20px' }} />
+            <button onClick={() => { setDotsMenuOpen(false); openReportModal(profile); }} style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '14px 24px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.95rem', color: '#1A1A2E' }}>
+              🚩 <span>Signaler ce profil</span>
+            </button>
+            <button onClick={() => { setDotsMenuOpen(false); handleBlock(profile); }} style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', padding: '14px 24px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.95rem', color: '#FF2D55', borderTop: '1px solid #F0EEE8' }}>
+              🚫 <span>Bloquer cet utilisateur</span>
+            </button>
+          </div>
+        </>
+      )}
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
@@ -1174,277 +1190,201 @@ export default function ProfileDetail() {
             width: 45px;
           }
         }
+        .pd-page { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #FAF8F4; min-height: 100vh; padding-bottom: calc(160px + env(safe-area-inset-bottom)); }
+        .pd-hero { position: relative; width: 100%; height: 55vh; background: #1A1A2E; overflow: hidden; }
+        .pd-hero-img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+        .pd-hero-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 40%; background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%); pointer-events: none; }
+        .pd-topbar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; z-index: 10; }
+        .pd-topbar-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: rgba(255,255,255,0.88); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1A1A2E; font-size: 1.1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.18); flex-shrink: 0; }
+        .pd-verified-badge { background: rgba(0,0,0,0.55); backdrop-filter: blur(8px); border-radius: 20px; padding: 4px 10px; font-size: 10px; color: #4ade80; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+        .pd-hero-info { position: absolute; bottom: 16px; left: 16px; right: 64px; color: #fff; z-index: 10; }
+        .pd-hero-name { font-size: 22px; font-weight: 700; line-height: 1.2; text-shadow: 0 1px 4px rgba(0,0,0,0.4); margin-bottom: 4px; }
+        .pd-hero-city { font-size: 14px; opacity: 0.92; display: flex; align-items: center; gap: 4px; }
+        .pd-photo-nav-left, .pd-photo-nav-right { position: absolute; top: 0; bottom: 0; width: 50%; z-index: 5; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .pd-photo-nav-left { left: 0; }
+        .pd-photo-nav-right { right: 0; }
+        .pd-photo-dots { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 10; }
+        .pd-photo-dot { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.45); transition: all 0.2s; }
+        .pd-photo-dot.active { background: #fff; }
+        .pd-card { background: #fff; border-radius: 20px 20px 0 0; margin-top: -16px; position: relative; z-index: 20; min-height: 50vh; }
+        .pd-section { padding: 20px 20px 0; }
+        .pd-divider { height: 1px; background: #F0EEE8; margin: 16px 20px 0; }
+        .pd-section-label { font-size: 11px; font-weight: 700; color: #FF2D55; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+        .pd-bio { font-size: 0.95rem; line-height: 1.6; color: #4a4a4a; margin: 0; }
+        .pd-chip { background: #F8F5F0; padding: 6px 14px; border-radius: 999px; font-size: 0.83rem; color: #2d2d2d; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #E8E5DF; }
+        .pd-chip i { color: #FF2D55; font-size: 0.78rem; }
+        .pd-tag { display: inline-block; padding: 6px 14px; border-radius: 999px; font-size: 0.83rem; font-weight: 500; border: 1px solid #E8E5DF; background: #fff; color: #2d2d2d; margin: 0 4px 6px 0; }
+        .pd-action-bar { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #F0EEE8; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); z-index: 100; box-shadow: 0 -4px 20px rgba(0,0,0,0.07); }
+        .pd-btn-row { display: flex; gap: 10px; margin-bottom: 8px; }
+        .pd-btn { padding: 13px 16px; border-radius: 999px; border: none; font-weight: 600; font-size: 0.92rem; cursor: pointer; transition: opacity 0.15s; flex: 1; text-align: center; }
+        .pd-btn:active { opacity: 0.8; }
+        .pd-btn-ghost { background: transparent; border: 1.5px solid #FF2D55 !important; color: #FF2D55; }
+        .pd-btn-pink { background: #FF2D55; color: #fff; }
+        .pd-btn-purple { background: #8B30C9; color: #fff; width: 100%; display: block; }
+        .pd-btn-purple:disabled { background: #d1d5db; opacity: 0.6; cursor: not-allowed; }
+        .pd-btn-green { background: #22c55e; color: #fff; width: 100%; display: block; }
+        .pd-prompt-card { background: #FAF8F4; border: 1px solid #E8E5DF; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+        .pd-prompt-q { font-size: 11px; color: #999; margin-bottom: 6px; }
+        .pd-prompt-a { font-size: 0.9rem; color: #1A1A2E; line-height: 1.5; }
+        .pd-tagline { text-align: center; font-style: italic; color: #999; font-size: 13px; padding: 24px 20px 28px; }
+        @media (min-width: 768px) {
+          .pd-page { max-width: 480px; margin: 0 auto; }
+          .pd-action-bar { max-width: 480px; left: 50%; transform: translateX(-50%); right: auto; width: 480px; }
+        }
       `}</style>
 
-      <div className="profile-detail-page">
-        <div className="photo-gallery">
-          <button onClick={goBack} className="gallery-back-btn">
-            <i className="fas fa-arrow-left"></i>
-          </button>
-          
-          {photos.length > 1 && (
-            <div className="photo-count">
-              <i className="fas fa-images"></i>
-              {activePhotoIndex + 1} / {photos.length}
+      <div className="pd-page">
+        {/* Hero photo */}
+        <div className="pd-hero">
+          {currentPhoto ? (
+            <img src={currentPhoto} alt={formatName(profile)} className="pd-hero-img" onClick={() => openPhotoModal(currentPhoto, activePhotoIndex)} />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FF2D55', fontSize: '3rem' }}>
+              <i className="fas fa-user" />
             </div>
           )}
-          
-          {currentPhoto ? (
-            <img
-              src={currentPhoto}
-              alt={formatName(profile)}
-              className="main-photo"
-              onClick={() => openPhotoModal(currentPhoto, activePhotoIndex)}
-            />
-          ) : (
-            <div className="text-white">{t("profileDetail.noPhoto")}</div>
-          )}
-          
+          <div className="pd-hero-gradient" />
           {photos.length > 1 && (
             <>
-              <div className="photo-nav photo-nav-left" onClick={prevPhoto}>
-                <button>
-                  <i className="fas fa-chevron-left"></i>
-                </button>
-              </div>
-              <div className="photo-nav photo-nav-right" onClick={nextPhoto}>
-                <button>
-                  <i className="fas fa-chevron-right"></i>
-                </button>
-              </div>
+              <div className="pd-photo-nav-left" onClick={prevPhoto} />
+              <div className="pd-photo-nav-right" onClick={nextPhoto} />
             </>
           )}
-          
           {photos.length > 1 && (
-            <div className="photo-indicators">
-              {photos.map((_, index) => (
-                <div 
-                  key={index}
-                  className={`photo-indicator ${activePhotoIndex === index ? 'active' : ''}`}
-                  onClick={() => setActivePhotoIndex(index)}
-                />
+            <div className="pd-photo-dots">
+              {photos.map((_, i) => (
+                <div key={i} className={`pd-photo-dot${i === activePhotoIndex ? ' active' : ''}`} style={{ width: i === activePhotoIndex ? 24 : 14 }} onClick={() => setActivePhotoIndex(i)} />
               ))}
             </div>
           )}
-          
-          {photos.length > 1 && (
-            <div className="thumbnail-strip">
-              {photos.map((photo, index) => (
-                <img
-                  key={index}
-                  src={photo.image || photo}
-                  alt={`Thumbnail ${index + 1}`}
-                  className={`thumbnail ${activePhotoIndex === index ? 'active' : ''}`}
-                  onClick={() => setActivePhotoIndex(index)}
-                />
-              ))}
+          <div className="pd-topbar">
+            <button className="pd-topbar-btn" onClick={goBack}>
+              <i className="fas fa-arrow-left" />
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {profile.is_verified && (
+                <span className="pd-verified-badge">
+                  <i className="fas fa-check-circle" style={{ fontSize: 9 }} /> Vérifié
+                </span>
+              )}
+              <button className="pd-topbar-btn" onClick={() => setDotsMenuOpen(true)} style={{ fontSize: '1rem', fontWeight: 700, letterSpacing: 1 }}>
+                •••
+              </button>
             </div>
-          )}
-          
-          <div className="gallery-overlay">
-            <div className="gallery-name">
-              {formatName(profile)}
-              <span className="gallery-age">{profile.age ? `, ${profile.age}` : ''}</span>
+          </div>
+          <div className="pd-hero-info">
+            <div className="pd-hero-name">
+              {formatName(profile)}{(profile.age || calculateAge(profile.birth_date)) ? `, ${profile.age || calculateAge(profile.birth_date)}` : ''}
             </div>
             {profile.location && (
-              <div className="gallery-location">
-                <i className="fas fa-map-marker-alt"></i>
+              <div className="pd-hero-city">
+                <i className="fas fa-map-marker-alt" style={{ color: '#FF2D55', fontSize: 11 }} />
                 {profile.location}
               </div>
             )}
           </div>
         </div>
 
-        <div className="profile-content">
-          <div className="profile-section pt-3 pb-0">
-            <div className="d-flex justify-content-end">
-              {isMatched && (
-                <span className="relationship-badge matched">
-                  <i className="fas fa-heart me-1"></i> {t("profileDetail.matched")}
-                </span>
-              )}
-              {!isMatched && isLiked && (
-                <span className="relationship-badge liked">
-                  <i className="fas fa-check me-1"></i> {t("profileDetail.youLiked")}
-                </span>
-              )}
-              {isBlocked && (
-                <span className="relationship-badge blocked">
-                  <i className="fas fa-ban me-1"></i> {t("profileDetail.blocked")}
-                </span>
-              )}
-            </div>
-          </div>
+        {/* White card */}
+        <div className="pd-card">
+          {profile.bio && (
+            <>
+              <div className="pd-section" style={{ paddingTop: 24 }}>
+                <div className="pd-section-label"><i className="fas fa-heart" /> À PROPOS</div>
+                <p className="pd-bio">{profile.bio}</p>
+              </div>
+              <div className="pd-divider" />
+            </>
+          )}
 
-          <div className="profile-section">
-            <h3 className="section-title">
-              <i className="fas fa-heart"></i>
-              {t("profileDetail.about")} {profile.first_name || "them"}
-            </h3>
-            
-            <div className="about-text">
-              <i className="fas fa-quote-left me-2"></i>
-              {profile.bio || t("profileDetail.noBio")}
-              <i className="fas fa-quote-right ms-2"></i>
-            </div>
-
-            <div className="info-chips">
+          <div className="pd-section" style={{ paddingTop: profile.bio ? 16 : 24 }}>
+            <div className="pd-section-label"><i className="fas fa-info-circle" /> INFOS DE BASE</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {profile.gender && (
-                <span className="info-chip">
-                  <i className="fas fa-venus-mars"></i>
+                <span className="pd-chip">
+                  <i className="fas fa-venus-mars" />
                   {profile.gender === 'male' ? t("profileDetail.man") : profile.gender === 'female' ? t("profileDetail.woman") : profile.gender}
                 </span>
               )}
-              
+              {(profile.age || calculateAge(profile.birth_date)) && (
+                <span className="pd-chip">
+                  <i className="fas fa-cake-candles" />
+                  {profile.age || calculateAge(profile.birth_date)} {t("profileDetail.years")}
+                </span>
+              )}
               {profile.height && (
-                <span className="info-chip">
-                  <i className="fas fa-ruler"></i>
+                <span className="pd-chip">
+                  <i className="fas fa-ruler" />
                   {profile.height} cm
                 </span>
               )}
-              
-              {calculateAge(profile.birth_date) && (
-                <span className="info-chip">
-                  <i className="fas fa-cake-candles"></i>
-                  {calculateAge(profile.birth_date)} {t("profileDetail.years")}
-                </span>
-              )}
-            </div>
-
-            <div className="mt-3">
-              {profile.is_verified ? (
-                <span className="verification-badge verified-badge">
-                  <i className="fas fa-check-circle"></i> {t("profileDetail.verified")}
-                </span>
-              ) : (
-                <span className="verification-badge unverified-badge">
-                  <i className="fas fa-clock"></i> {t("profileDetail.notVerified")}
+              {profile.is_verified && (
+                <span className="pd-chip" style={{ color: '#22c55e', borderColor: '#bbf7d0', background: '#f0fdf4' }}>
+                  <i className="fas fa-check-circle" style={{ color: '#22c55e' }} /> {t("profileDetail.verified")}
                 </span>
               )}
             </div>
           </div>
 
           {(profile.career || profile.education) && (
-            <div className="profile-section">
-              <h3 className="section-title">
-                <i className="fas fa-briefcase"></i>
-                {t("profileDetail.workEducation")}
-              </h3>
-              
-              <div className="professional-grid">
+            <>
+              <div className="pd-divider" />
+              <div className="pd-section">
+                <div className="pd-section-label"><i className="fas fa-briefcase" /> {t("profileDetail.workEducation")}</div>
                 {profile.career && (
-                  <div className="professional-card">
-                    <div className="professional-label">{t("profileDetail.career")}</div>
-                    <div className="professional-value">
-                      <i className="fas fa-briefcase"></i>
-                      {profile.career}
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '0.9rem', color: '#2d2d2d' }}>
+                    <i className="fas fa-briefcase" style={{ color: '#FF2D55', width: 16 }} /> {profile.career}
                   </div>
                 )}
-                
                 {profile.education && (
-                  <div className="professional-card">
-                    <div className="professional-label">{t("profileDetail.education")}</div>
-                    <div className="professional-value">
-                      <i className="fas fa-graduation-cap"></i>
-                      {profile.education}
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9rem', color: '#2d2d2d' }}>
+                    <i className="fas fa-graduation-cap" style={{ color: '#FF2D55', width: 16 }} /> {profile.education}
                   </div>
                 )}
               </div>
-            </div>
+            </>
           )}
 
           {(profile.passions || profile.hobbies || profile.favorite_music) && (
-            <div className="profile-section">
-              <h3 className="section-title">
-                <i className="fas fa-star"></i>
-                {t("profileDetail.interests")}
-              </h3>
-              
-              {profile.passions && (
-                <div className="mb-3">
-                  <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
-                    <i className="fas fa-fire me-1" style={{ color: '#ff4d6d' }}></i>
-                    {t("profileDetail.passions")}
-                  </h6>
-                  <div className="interest-tags">
-                    {profile.passions.split(',').map((item, index) => (
-                      <span key={index} className="interest-tag passion-tag">
-                        {item.trim()}
-                      </span>
-                    ))}
-                  </div>
+            <>
+              <div className="pd-divider" />
+              <div className="pd-section">
+                <div className="pd-section-label"><i className="fas fa-star" /> {t("profileDetail.interests")}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>
+                  {profile.passions && profile.passions.split(',').map((item, index) => (
+                    <span key={index} className="pd-tag" style={{ borderColor: '#ffd8df', background: '#fff6f8' }}>{item.trim()}</span>
+                  ))}
+                  {profile.hobbies && profile.hobbies.split(',').map((item, index) => (
+                    <span key={`h${index}`} className="pd-tag" style={{ borderColor: '#d7ecff', background: '#f5fbff' }}>{item.trim()}</span>
+                  ))}
+                  {profile.favorite_music && (
+                    <>
+                      <div style={{ width: '100%', marginTop: 10, marginBottom: 6, fontSize: 11, fontWeight: 700, color: '#FF2D55', textTransform: 'uppercase', letterSpacing: 1.2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <i className="fas fa-music" /> {t("profileDetail.musicVibes")}
+                      </div>
+                      {profile.favorite_music.split(',').map((item, index) => (
+                        <span key={`m${index}`} className="pd-tag" style={{ borderColor: '#efe2ff', background: '#faf7ff' }}>{item.trim()}</span>
+                      ))}
+                    </>
+                  )}
                 </div>
-              )}
-
-              {profile.hobbies && (
-                <div className="mb-3">
-                  <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
-                    <i className="fas fa-pencil me-1" style={{ color: '#ff4d6d' }}></i>
-                    {t("profileDetail.hobbies")}
-                  </h6>
-                  <div className="interest-tags">
-                    {profile.hobbies.split(',').map((item, index) => (
-                      <span key={index} className="interest-tag hobby-tag">
-                        {item.trim()}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {profile.favorite_music && (
-                <div className="mb-2">
-                  <h6 className="fw-semibold mb-2" style={{ fontSize: '0.9rem', color: '#4a4a4a' }}>
-                    <i className="fas fa-music me-1" style={{ color: '#ff4d6d' }}></i>
-                    {t("profileDetail.musicVibes")}
-                  </h6>
-                  <div className="interest-tags">
-                    {profile.favorite_music.split(',').map((item, index) => (
-                      <span key={index} className="interest-tag music-tag">
-                        {item.trim()}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            </>
           )}
 
           {Array.isArray(profile.profile_prompts) && profile.profile_prompts.length > 0 && (
-            <div className="profile-section">
-              <h3 className="section-title">
-                <i className="fas fa-comment-dots"></i>
-                Partage quelque chose sur toi
-              </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <>
+              <div className="pd-divider" />
+              <div className="pd-section">
+                <div className="pd-section-label"><i className="fas fa-comment-dots" /> EN QUELQUES MOTS</div>
                 {profile.profile_prompts.slice(0, 3).map((item, idx) => (
-                  <div key={idx} style={{
-                    background: '#fff', border: '1px solid #E8E5DF',
-                    borderRadius: 12, padding: 14,
-                  }}>
-                    <div style={{ color: '#999', fontSize: 12, marginBottom: 6 }}>
-                      {item.question}
-                    </div>
-                    <div style={{ color: '#1A1A2E', fontSize: 15, lineHeight: 1.5 }}>
-                      {item.answer}
-                    </div>
+                  <div key={idx} className="pd-prompt-card">
+                    <div className="pd-prompt-q">{item.question}</div>
+                    <div className="pd-prompt-a">{item.answer}</div>
                     {isMatched && (
                       <button
-                        onClick={() => navigate('/messages', {
-                          state: {
-                            promptContext: item.question,
-                            conversationId: conversationId,
-                            matchId: matchId,
-                          }
-                        })}
-                        style={{
-                          marginTop: 10, background: 'transparent',
-                          border: '1px solid #E8E5DF', borderRadius: 999,
-                          padding: '6px 14px', fontSize: 13, color: '#FF2D55',
-                          cursor: 'pointer', fontWeight: 500,
-                        }}
+                        onClick={() => navigate('/messages', { state: { promptContext: item.question, conversationId, matchId } })}
+                        style={{ marginTop: 10, background: 'transparent', border: '1px solid #E8E5DF', borderRadius: 999, padding: '6px 14px', fontSize: 12, color: '#FF2D55', cursor: 'pointer', fontWeight: 500 }}
                       >
                         💬 Commenter ça
                       </button>
@@ -1452,133 +1392,45 @@ export default function ProfileDetail() {
                   </div>
                 ))}
               </div>
-            </div>
+            </>
           )}
 
-          <div className="action-buttons">
-            {isBlocked ? (
-              <button
-                onClick={handleUnblock}
-                className="action-btn success"
-              >
-                <i className="fas fa-check me-2"></i>
-                {t("profileDetail.unblock")}
-              </button>
-            ) : (
-              <>
-                {isMatched ? (
-                  <>
-                    <button
-                      onClick={() => navigate(`/messages/${profile.id}`)}
-                      className="action-btn primary"
-                    >
-                      <i className="fas fa-comment-dots me-2"></i>
-                      {t("profileDetail.message")}
-                    </button>
-                    <button
-                      onClick={handleUnmatch}
-                      className="action-btn danger"
-                    >
-                      <i className="fas fa-heart-broken me-2"></i>
-                      {t("profileDetail.unmatch")}
-                    </button>
-                    <button
-                      onClick={openReportModal}
-                      className="action-btn warning"
-                    >
-                      <i className="fas fa-flag me-2"></i>
-                      {t("profileDetail.report")}
-                    </button>
-                  </>
-                ) : isLiked ? (
-                  <>
-                    <button
-                      onClick={handleUnlike}
-                      className="action-btn secondary"
-                    >
-                      <i className="fas fa-times me-2"></i>
-                      {t("profileDetail.unlike")}
-                    </button>
-                    <button
-                      onClick={() => navigate(`/messages/${profile.id}`)}
-                      className="action-btn primary"
-                      disabled={!isMatched}
-                    >
-                      <i className="fas fa-comment-dots me-2"></i>
-                      {t("profileDetail.message")}
-                    </button>
-                    <button
-                      onClick={openReportModal}
-                      className="action-btn warning"
-                    >
-                      <i className="fas fa-flag me-2"></i>
-                      {t("profileDetail.report")}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button
-                      onClick={handlePass}
-                      className="action-btn secondary"
-                    >
-                      <i className="fas fa-times me-2"></i>
-                      {t("profileDetail.pass")}
-                    </button>
-                    <button
-                      onClick={handleLike}
-                      className="action-btn primary"
-                    >
-                      <i className="fas fa-heart me-2"></i>
-                      {t("profileDetail.like")}
-                    </button>
-                    <button
-                      onClick={handleCoupDeCoeur}
-                      className="action-btn"
-                      disabled={!coeurLimits.can_use}
-                      title={coeurLimits.can_use ? `${coeurLimits.remaining} restant(s) aujourd'hui` : "Limite quotidienne atteinte"}
-                      style={{
-                        background: coeurLimits.can_use ? '#8B30C9' : '#d1d5db',
-                        color: '#fff',
-                        border: 'none',
-                        opacity: coeurLimits.can_use ? 1 : 0.55,
-                        cursor: coeurLimits.can_use ? 'pointer' : 'not-allowed',
-                      }}
-                    >
-                      💜 {t("profileDetail.coupDeCoeur")}
-                      {coeurLimits.can_use && (
-                        <span style={{ fontSize: '0.75rem', marginLeft: '6px', opacity: 0.85 }}>
-                          ({coeurLimits.remaining})
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      onClick={openReportModal}
-                      className="action-btn warning"
-                    >
-                      <i className="fas fa-flag me-2"></i>
-                      {t("profileDetail.report")}
-                    </button>
-                  </>
-                )}
-                
-                <button
-                  onClick={handleBlock}
-                  className="action-btn secondary"
-                >
-                  <i className="fas fa-ban me-2"></i>
-                  {t("profileDetail.block")}
-                </button>
-              </>
-            )}
-          </div>
-
-          <div className="text-center pb-4">
-            <p className="small text-secondary" style={{ fontSize: '0.8rem' }}>
-              <i className="fas fa-heart me-1" style={{ color: '#ff4d6d' }}></i>
-              {t("profileDetail.footer")}
-            </p>
-          </div>
+          <div className="pd-tagline">L'amour vaut le risque</div>
         </div>
+      </div>
+
+      {/* Fixed action bar */}
+      <div className="pd-action-bar">
+        {isBlocked ? (
+          <button className="pd-btn pd-btn-green" onClick={handleUnblock}>
+            <i className="fas fa-check" style={{ marginRight: 6 }} /> {t("profileDetail.unblock")}
+          </button>
+        ) : isMatched ? (
+          <>
+            <div className="pd-btn-row">
+              <button className="pd-btn pd-btn-pink" style={{ flex: 1 }} onClick={() => navigate(`/messages/${profile.id}`)}>
+                💬 Envoyer un message
+              </button>
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 4 }}>
+              <button onClick={handleUnmatch} style={{ background: 'none', border: 'none', color: '#8e8e93', fontSize: '0.8rem', cursor: 'pointer', textDecoration: 'underline' }}>
+                Unmatch
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="pd-btn-row">
+              <button className="pd-btn pd-btn-ghost" onClick={handlePass}>Passer</button>
+              <button className="pd-btn pd-btn-pink" onClick={handleLike}>
+                {isLiked ? '❤️ Aimé' : "J'aime ❤️"}
+              </button>
+            </div>
+            <button className="pd-btn pd-btn-purple" onClick={handleCoupDeCoeur} disabled={!coeurLimits.can_use}>
+              💜 Coup de Coeur {coeurLimits.can_use ? `(${coeurLimits.remaining})` : '(0)'}
+            </button>
+          </>
+        )}
       </div>
     </>
   );

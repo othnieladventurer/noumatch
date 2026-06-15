@@ -920,6 +920,18 @@ export default function Dashboard() {
     }
   }, [fetchProfilesBasedOnUser, fetchLikesReceived, fetchMatches, fetchConversations, blockedIds]);
   
+  const handleCoeur = useCallback(async () => {
+    if (!currentProfile || !coeurLimits.can_use) return;
+    try {
+      await API.post("/interactions/like/", { to_user_id: currentProfile.id, type: 'coup_de_coeur' });
+      setCoeurLimits(prev => ({ ...prev, remaining: Math.max(0, prev.remaining - 1), can_use: prev.remaining > 1 }));
+      await checkForMatch(currentProfile.id);
+    } catch (err) {
+      if (err.response?.status === 403) alert("Limite de Coups de Coeur atteinte pour aujourd'hui.");
+      console.error("Coeur error:", err);
+    }
+  }, [currentProfile, coeurLimits, checkForMatch]);
+
   const openReportModal = useCallback((user) => {
     setUserToReport(user);
     setReportModalOpen(true);
@@ -1295,14 +1307,27 @@ export default function Dashboard() {
             </div>
 
             <div style={{ margin: '16px 16px 0', background: '#fff', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              {canSeeWhoLiked(user) && (
+                <button
+                  onClick={() => setActiveMobileTab('likes')}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', borderBottom: '1px solid #f5f5f5', cursor: 'pointer' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
+                    <i className="fas fa-star" style={{ color: '#8B30C9', width: '16px' }}></i>
+                    Qui vous a aimé
+                    {likesList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{likesList.length}</span>}
+                  </span>
+                  <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
+                </button>
+              )}
               <button
-                onClick={() => setActiveMobileTab('blocks')}
+                onClick={() => setActiveMobileTab('matches')}
                 style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', borderBottom: '1px solid #f5f5f5', cursor: 'pointer' }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
-                  <i className="fas fa-ban" style={{ color: '#ff4d6d', width: '16px' }}></i>
-                  Utilisateurs bloqués
-                  {blockedList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{blockedList.length}</span>}
+                  <i className="fas fa-heart" style={{ color: '#FF2D55', width: '16px' }}></i>
+                  Vos matchs
+                  {matchesList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{matchesList.length}</span>}
                 </span>
                 <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
               </button>
@@ -1317,29 +1342,16 @@ export default function Dashboard() {
                 <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
               </button>
               <button
-                onClick={() => setActiveMobileTab('matches')}
-                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', borderBottom: canSeeWhoLiked(user) ? '1px solid #f5f5f5' : 'none', cursor: 'pointer' }}
+                onClick={() => setActiveMobileTab('blocks')}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', cursor: 'pointer' }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
-                  <i className="fas fa-heart" style={{ color: '#FF2D55', width: '16px' }}></i>
-                  Vos matchs
-                  {matchesList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{matchesList.length}</span>}
+                  <i className="fas fa-ban" style={{ color: '#ff4d6d', width: '16px' }}></i>
+                  Utilisateurs bloqués
+                  {blockedList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{blockedList.length}</span>}
                 </span>
                 <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
               </button>
-              {canSeeWhoLiked(user) && (
-                <button
-                  onClick={() => setActiveMobileTab('likes')}
-                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', cursor: 'pointer' }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
-                    <i className="fas fa-star" style={{ color: '#8B30C9', width: '16px' }}></i>
-                    Qui vous a aimé
-                    {likesList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{likesList.length}</span>}
-                  </span>
-                  <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
-                </button>
-              )}
             </div>
 
             <div style={{ padding: '16px' }}>
@@ -1558,13 +1570,8 @@ export default function Dashboard() {
                   <div className="col-lg-3 col-md-4 h-100">
                     <LeftBlock
                       user={user}
-                      likesList={likesList}
-                      matchesList={matchesList}
-                      blockedList={blockedList}
-                      openLikeModal={openLikeModal}
-                      openMatchModalFor={openMatchModalFor}
-                      openUnblockModal={openUnblockModal}
                       goToMyProfile={goToMyProfile}
+                      conversations={conversations}
                     />
                   </div>
                   <div className="col-lg-6 col-md-8 h-100" style={{ overflowY: requiresProfileCompletionBlock ? 'hidden' : 'auto' }}>
@@ -1617,12 +1624,17 @@ export default function Dashboard() {
                   <div className="col-lg-3 d-none d-lg-block h-100">
                     <RightBlock
                       currentProfile={currentProfile}
-                      getCurrentProfilePhotos={getCurrentProfilePhotos}
                       isMatched={isMatched}
                       isLiked={isLiked}
                       goToProfile={goToProfile}
                       goToMessenger={goToMessenger}
                       handleUnmatch={handleUnmatch}
+                      handlePass={handlePass}
+                      handleLike={handleLike}
+                      handleCoeur={handleCoeur}
+                      coeurLimits={coeurLimits}
+                      openReportModal={openReportModal}
+                      handleBlock={handleBlock}
                     />
                   </div>
                 </div>
