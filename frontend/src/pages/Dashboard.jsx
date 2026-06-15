@@ -1308,7 +1308,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => { fetchPassedProfiles(); setActiveMobileTab('passed'); }}
-                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', borderBottom: '1px solid #f5f5f5', cursor: 'pointer' }}
               >
                 <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
                   <i className="fas fa-undo" style={{ color: '#7C3AED', width: '16px' }}></i>
@@ -1316,6 +1316,30 @@ export default function Dashboard() {
                 </span>
                 <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
               </button>
+              <button
+                onClick={() => setActiveMobileTab('matches')}
+                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', borderBottom: canSeeWhoLiked(user) ? '1px solid #f5f5f5' : 'none', cursor: 'pointer' }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
+                  <i className="fas fa-heart" style={{ color: '#FF2D55', width: '16px' }}></i>
+                  Vos matchs
+                  {matchesList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{matchesList.length}</span>}
+                </span>
+                <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
+              </button>
+              {canSeeWhoLiked(user) && (
+                <button
+                  onClick={() => setActiveMobileTab('likes')}
+                  style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 16px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#1a1a1a', fontWeight: 500 }}>
+                    <i className="fas fa-star" style={{ color: '#8B30C9', width: '16px' }}></i>
+                    Qui vous a aimé
+                    {likesList.length > 0 && <span className="badge bg-secondary rounded-pill" style={{ fontSize: '11px' }}>{likesList.length}</span>}
+                  </span>
+                  <i className="fas fa-chevron-right" style={{ color: '#c7c7cc', fontSize: '12px' }}></i>
+                </button>
+              )}
             </div>
 
             <div style={{ padding: '16px' }}>
@@ -1376,6 +1400,73 @@ export default function Dashboard() {
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8e8e93' }}>
                   <i className="fas fa-undo" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block', color: '#7C3AED' }}></i>
                   <p style={{ margin: 0 }}>Aucun profil passé pour l'instant.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'matches':
+        return (
+          <div style={{ overflowY: 'auto', height: '100%', background: '#f5f7fb' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+              <button onClick={() => setActiveMobileTab('moi')} style={{ background: 'none', border: 'none', color: '#ff4d6d', fontWeight: 600, padding: '0 12px 0 0', cursor: 'pointer' }}>
+                <i className="fas fa-chevron-left me-1"></i>Retour
+              </button>
+              <span style={{ fontWeight: 700, fontSize: '1rem' }}>Vos matchs</span>
+            </div>
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {matchesList.length > 0 ? matchesList.map(m => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fff', borderRadius: '14px', padding: '12px 14px', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+                  <img src={m.photo || getProfilePhotoUrl(null)} alt={m.first_name} style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #FF2D55' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: '#1a1a1a' }}>{m.first_name}</div>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/messages/${m.id}`)}
+                    style={{ background: '#FF2D55', color: '#fff', border: 'none', borderRadius: '20px', padding: '7px 14px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    Message
+                  </button>
+                </div>
+              )) : (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8e8e93' }}>
+                  <i className="fas fa-heart" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block', color: '#FF2D55' }}></i>
+                  <p style={{ margin: 0 }}>Pas encore de matchs. Continuez à swiper !</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'likes':
+        return (
+          <div style={{ overflowY: 'auto', height: '100%', background: '#f5f7fb' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+              <button onClick={() => setActiveMobileTab('moi')} style={{ background: 'none', border: 'none', color: '#ff4d6d', fontWeight: 600, padding: '0 12px 0 0', cursor: 'pointer' }}>
+                <i className="fas fa-chevron-left me-1"></i>Retour
+              </button>
+              <span style={{ fontWeight: 700, fontSize: '1rem' }}>Qui vous a aimé</span>
+            </div>
+            <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {likesList.length > 0 ? likesList.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fff', borderRadius: '14px', padding: '12px 14px', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+                  <img src={p.photo || getProfilePhotoUrl(null)} alt={p.first_name} style={{ width: '50px', height: '50px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: '#1a1a1a' }}>{p.first_name}</div>
+                    {p.age && <div style={{ fontSize: '0.78rem', color: '#8e8e93' }}>{p.age} ans</div>}
+                  </div>
+                  <button
+                    onClick={() => openLikeModal(p)}
+                    style={{ background: '#8B30C9', color: '#fff', border: 'none', borderRadius: '20px', padding: '7px 14px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    Voir
+                  </button>
+                </div>
+              )) : (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#8e8e93' }}>
+                  <i className="fas fa-star" style={{ fontSize: '2.5rem', marginBottom: '12px', display: 'block', color: '#8B30C9' }}></i>
+                  <p style={{ margin: 0 }}>Pas encore de j'aime reçus.</p>
                 </div>
               )}
             </div>
@@ -1826,7 +1917,7 @@ const MobileBottomNav = ({ navRef, user, activeMobileTab, setActiveMobileTab, ma
   const unreadCount = (conversations || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
   const conversationsBadge = unmessagedCount + unreadCount;
 
-  const isMoiActive = ['moi', 'blocks', 'passed'].includes(activeMobileTab);
+  const isMoiActive = ['moi', 'blocks', 'passed', 'matches', 'likes'].includes(activeMobileTab);
   const isConvActive = activeMobileTab === 'conversations';
 
   if (requiresProfileCompletionBlock) {
