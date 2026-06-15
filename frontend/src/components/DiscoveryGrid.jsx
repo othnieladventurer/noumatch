@@ -89,7 +89,7 @@ export default function DiscoveryGrid({
             </button>
           )}
           {showRefresh && (
-            <button onClick={onRefresh} className="btn btn-outline-light rounded-pill py-2">
+            <button onClick={onRefresh} className="btn btn-outline-secondary rounded-pill py-2">
               <i className="fas fa-sync-alt me-2"></i>Rafraîchir
             </button>
           )}
