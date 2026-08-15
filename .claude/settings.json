@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git push *)",
+            "shell": "bash",
+            "command": "behind=$(git log staging..main --oneline 2>/dev/null); if [ -n \"$behind\" ]; then printf '{\"systemMessage\":\"WARNING: staging is behind main - run: git checkout staging && git merge main && git push origin staging\"}'; fi || true"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git commit *)",
+            "shell": "bash",
+            "command": "behind=$(git log staging..main --oneline 2>/dev/null); if [ -n \"$behind\" ]; then printf '{\"systemMessage\":\"WARNING: staging is behind main - run: git checkout staging && git merge main && git push origin staging\"}'; fi || true"
+          }
+        ]
+      },
+      {
+        "matcher": "PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "PowerShell(git push *)",
+            "shell": "bash",
+            "command": "behind=$(git log staging..main --oneline 2>/dev/null); if [ -n \"$behind\" ]; then printf '{\"systemMessage\":\"WARNING: staging is behind main - run: git checkout staging && git merge main && git push origin staging\"}'; fi || true"
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(git commit *)",
+            "shell": "bash",
+            "command": "behind=$(git log staging..main --oneline 2>/dev/null); if [ -n \"$behind\" ]; then printf '{\"systemMessage\":\"WARNING: staging is behind main - run: git checkout staging && git merge main && git push origin staging\"}'; fi || true"
+          }
+        ]
+      }
+    ]
+  }
+}

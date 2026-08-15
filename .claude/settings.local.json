@@ -6,7 +6,8 @@
       "WebSearch",
       "WebFetch(domain:www.pexels.com)",
       "WebFetch(domain:noumatch.com)",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Othniel\\\\Documents\\\\noumatch\\\\api\" -Recurse -File -Name)"
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Othniel\\\\Documents\\\\noumatch\\\\api\" -Recurse -File -Name)",
+      "Bash(powershell -Command \"\\(Get-Content 'C:\\\\Users\\\\Othniel\\\\Documents\\\\noumatch\\\\api\\\\admin_dashboard\\\\views.py'\\).Count\")"
     ]
   }
 }
