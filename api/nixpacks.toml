@@ -1,4 +1,4 @@
 ﻿providers = ["python"]
 
 [start]
-cmd = "python manage.py migrate --noinput && python -m daphne -b 0.0.0.0 -p $PORT api.asgi:application"
+cmd = "python manage.py migrate --noinput && python -m daphne -b 0.0.0.0 -p 8000 api.asgi:application"
