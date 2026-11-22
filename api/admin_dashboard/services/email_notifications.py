@@ -1,13 +1,11 @@
 from datetime import timedelta
-from email.utils import formataddr
 import logging
 
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
 from django.db import connection, OperationalError, ProgrammingError, transaction
 from django.utils import timezone
-import requests
 
+from api.resend_client import send_email
 from admin_dashboard.models import NotificationEmailTemplate, NotificationEmailLog
 
 logger = logging.getLogger(__name__)
@@ -177,46 +175,20 @@ def _sender_email_address():
     return settings.DEFAULT_FROM_EMAIL.split("<")[-1].replace(">", "").strip()
 
 
-def _send_via_brevo(subject, html_body, text_body, recipient_email, recipient_name, from_name, reply_to):
-    api_key = getattr(settings, "BREVO_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("BREVO_API_KEY is not configured")
-
-    payload = {
-        "sender": {"name": from_name or "NouMatch", "email": _sender_email_address()},
-        "to": [{"email": recipient_email, "name": recipient_name or recipient_email.split("@")[0]}],
-        "subject": subject,
-        "htmlContent": html_body,
-        "textContent": text_body,
-    }
-    if reply_to:
-        payload["replyTo"] = {"email": reply_to[0]}
-
-    headers = {
-        "accept": "application/json",
-        "api-key": api_key,
-        "content-type": "application/json",
-    }
-    response = requests.post(
-        "https://api.brevo.com/v3/smtp/email",
-        json=payload,
-        headers=headers,
-        timeout=15,
+def _send_via_resend(subject, html_body, text_body, recipient_email, recipient_name, from_name, reply_to):
+    response = send_email(
+        to=[recipient_email],
+        subject=subject,
+        html=html_body,
+        text=text_body,
+        from_email=_sender_email_address(),
+        from_name=from_name or "NouMatch",
+        reply_to=reply_to,
     )
-    response_payload = {}
-    try:
-        response_payload = response.json()
-    except Exception:
-        response_payload = {"raw": response.text[:500]}
-
-    if response.status_code != 201:
-        message = response_payload.get("message") or response.text or f"Brevo send failed with status {response.status_code}"
-        raise RuntimeError(message)
-
     return {
-        "provider": "brevo_api",
-        "message_id": response_payload.get("messageId") or response_payload.get("message_id") or "",
-        "response": response_payload,
+        "provider": "resend_api",
+        "message_id": response.get("id", ""),
+        "response": response,
     }
 
 
@@ -313,34 +285,18 @@ def _send_notification_email_with_template(template, event_type, recipient=None,
         related_object=related_object,
     )
 
-    from_email = formataddr((template.from_name or "NouMatch", _sender_email_address()))
-    reply_to = [template.reply_to] if template.reply_to else None
     recipient_name = context.get("recipient_name") or resolved_email.split("@")[0]
 
     try:
-        provider_info = None
-        if getattr(settings, "BREVO_API_KEY", ""):
-            provider_info = _send_via_brevo(
-                subject,
-                html_body,
-                text_body,
-                resolved_email,
-                recipient_name,
-                template.from_name,
-                reply_to,
-            )
-        else:
-            message = EmailMultiAlternatives(
-                subject=subject,
-                body=text_body,
-                from_email=from_email,
-                to=[resolved_email],
-                reply_to=reply_to,
-            )
-            if html_body:
-                message.attach_alternative(html_body, "text/html")
-            message.send(fail_silently=False)
-            provider_info = {"provider": "django_smtp", "message_id": "", "response": {}}
+        provider_info = _send_via_resend(
+            subject,
+            html_body,
+            text_body,
+            resolved_email,
+            recipient_name,
+            template.from_name,
+            reply_to,
+        )
 
         log.status = "sent"
         log.sent_at = timezone.now()

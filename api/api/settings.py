@@ -453,34 +453,25 @@ else:
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
     logging.info("✅ Cloud Storage: Using local storage")
 
-# ========== EMAIL SETTINGS ==========
+# ========== EMAIL SETTINGS (RESEND) ==========
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    DEFAULT_FROM_EMAIL = 'NouMatch <no-reply@noumatch.com>'
-    logging.info("📧 Email: DEVELOPMENT mode - Console backend")
+    logging.info("📧 Email: DEVELOPMENT mode - Console backend (Resend not called)")
 else:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = config('EMAIL_HOST', default='smtp-relay.brevo.com')
-    EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-    EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-    if ENVIRONMENT == "staging":
-        EMAIL_HOST_USER = config('STAGING_EMAIL_HOST_USER', default=config('EMAIL_HOST_USER', default=''))
-        EMAIL_HOST_PASSWORD = config('STAGING_EMAIL_HOST_PASSWORD', default=config('EMAIL_HOST_PASSWORD', default=''))
-    else:
-        EMAIL_HOST_USER = config('EMAIL_HOST_USER')
-        EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
-    DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='NouMatch <no-reply@noumatch.com>')
-    logging.info(f"📧 Email: {ENVIRONMENT.upper()} mode - SMTP configured")
+    EMAIL_BACKEND = 'api.resend_backend.ResendEmailBackend'
+    logging.info(f"📧 Email: {ENVIRONMENT.upper()} mode - Resend backend")
 
-# ========== BREVO API ==========
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='NouMatch <no-reply@noumatch.com>')
+
+# ========== RESEND API ==========
 if ENVIRONMENT == "staging":
-    BREVO_API_KEY = config('STAGING_BREVO_API_KEY', default='')
+    RESEND_API_KEY = config('STAGING_RESEND_API_KEY', default='')
 else:
-    BREVO_API_KEY = config('BREVO_API_KEY', default='')
-if BREVO_API_KEY:
-    logging.info(f"✅ Brevo API: {ENVIRONMENT.upper()} mode - Key configured")
+    RESEND_API_KEY = config('RESEND_API_KEY', default='')
+if RESEND_API_KEY:
+    logging.info(f"✅ Resend API: {ENVIRONMENT.upper()} mode - Key configured")
 else:
-    logging.info(f"⚠️  Brevo API: {ENVIRONMENT.upper()} mode - No key found")
+    logging.info(f"⚠️  Resend API: {ENVIRONMENT.upper()} mode - No key found")
 
 # ========== WEB PUSH (VAPID) ==========
 VAPID_PUBLIC_KEY = config('VAPID_PUBLIC_KEY', default='')

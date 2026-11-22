@@ -29,7 +29,7 @@ NouMatch currently includes two major surfaces:
 - Frontend: React 18, Vite, React Router, Bootstrap, Chart.js, Axios.
 - Backend: Django 6, Django REST Framework, SimpleJWT, Channels, Daphne, Redis support, PostgreSQL-ready database config.
 - Realtime: WebSocket notification/chat support through Django Channels.
-- Email: Brevo API support for OTP, password reset, and event-driven notification emails.
+- Email: Resend API for OTP, password reset, waitlist, and event-driven notification emails.
 - Storage/media: Django media/static handling with S3-ready dependencies.
 - Auth: JWT access and refresh tokens, HttpOnly auth cookies, separated main-user and admin sessions.
 

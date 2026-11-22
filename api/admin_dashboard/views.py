@@ -23,7 +23,6 @@ from django.db import DatabaseError, IntegrityError, OperationalError, Programmi
 from django.db.models.deletion import ProtectedError
 from django.conf import settings
 import logging
-import requests
 
 from users.models import FeedVisibilityBoost, OTP, User, UserEngagementScore, UserPhoto, UserStats
 from users.scoring import refresh_user_score
@@ -50,6 +49,7 @@ from admin_dashboard.services.email_notifications import (
     notification_email_tables_ready,
     send_test_notification_email,
 )
+from api.resend_client import send_email
 from admin_dashboard.services.ranking import compute_ranking_score
 from users.throttles import AdminLoginThrottle
 from users.auth_cookies import set_auth_cookies, clear_auth_cookies, get_refresh_token_from_request
@@ -618,31 +618,14 @@ def _paginate_queryset(request, queryset, serializer_class):
     }
 
 
-def _send_waitlist_invite_via_brevo(entry, subject, body):
-    api_key = getattr(settings, "BREVO_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("BREVO_API_KEY is not configured")
-
-    payload = {
-        "sender": {"name": "NouMatch", "email": "no-reply@noumatch.com"},
-        "to": [{"email": entry.email, "name": f"{entry.first_name} {entry.last_name}".strip()}],
-        "subject": subject,
-        "textContent": body,
-        "htmlContent": body.replace("\n", "<br/>"),
-    }
-    headers = {
-        "accept": "application/json",
-        "api-key": api_key,
-        "content-type": "application/json",
-    }
-    response = requests.post(
-        "https://api.brevo.com/v3/smtp/email",
-        json=payload,
-        headers=headers,
-        timeout=15,
+def _send_waitlist_invite_via_resend(entry, subject, body):
+    send_email(
+        to=[entry.email],
+        subject=subject,
+        text=body,
+        html=body.replace("\n", "<br/>"),
+        from_name="NouMatch",
     )
-    if response.status_code != 201:
-        raise RuntimeError(f"Brevo send failed ({response.status_code})")
 
 
 def _product_users_queryset():
@@ -3965,7 +3948,7 @@ class AdminWaitlistCampaignSendInvitesView(APIView):
                 subject_template=subject_template,
                 body_template=body_template,
             )
-            _send_waitlist_invite_via_brevo(target, subject, body)
+            _send_waitlist_invite_via_resend(target, subject, body)
 
             if isinstance(target, WaitlistEntry):
                 with transaction.atomic():
@@ -4006,7 +3989,7 @@ class AdminWaitlistCampaignSendInvitesView(APIView):
                 body_template=body_template,
             )
             try:
-                _send_waitlist_invite_via_brevo(entry, subject, body)
+                _send_waitlist_invite_via_resend(entry, subject, body)
                 with transaction.atomic():
                     ContactedArchive.objects.create(
                         first_name=entry.first_name,
