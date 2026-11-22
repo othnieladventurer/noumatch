@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "dev:staging": "vite --mode staging",
-    "build": "vite build && node scripts/generate-spa-route-files.mjs",
-    "build:staging": "vite build --mode staging && node scripts/generate-spa-route-files.mjs",
+    "build": "vite build && node scripts/generate-spa-route-files.mjs && npm run build:prerender && node scripts/prerender.mjs",
+    "build:staging": "vite build --mode staging && node scripts/generate-spa-route-files.mjs && npm run build:prerender && node scripts/prerender.mjs",
+    "build:prerender": "vite build --config vite.config.prerender.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "preview:staging": "vite preview --mode staging"
