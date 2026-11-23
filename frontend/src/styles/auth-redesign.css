@@ -229,7 +229,10 @@ select.auth-input {
 
 /* ── 4. Buttons ─────────────────────────────────────────── */
 
-.nm-btn-primary {
+/* Scoped to the auth screens so they never override the marketing buttons,
+   which share the .nm-btn-primary class name. */
+.auth-page .nm-btn-primary,
+.auth-shell .nm-btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -250,19 +253,22 @@ select.auth-input {
   line-height: 1;
 }
 
-.nm-btn-primary:hover:not(:disabled) {
+.auth-page .nm-btn-primary:hover:not(:disabled),
+.auth-shell .nm-btn-primary:hover:not(:disabled) {
   background: #b91c1c;
   transform: translateY(-1px);
   box-shadow: 0 8px 24px rgba(220, 38, 38, 0.28);
   color: #fff;
 }
 
-.nm-btn-primary:disabled {
+.auth-page .nm-btn-primary:disabled,
+.auth-shell .nm-btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.nm-btn-ghost {
+.auth-page .nm-btn-ghost,
+.auth-shell .nm-btn-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -282,13 +288,15 @@ select.auth-input {
   line-height: 1;
 }
 
-.nm-btn-ghost:hover:not(:disabled) {
+.auth-page .nm-btn-ghost:hover:not(:disabled),
+.auth-shell .nm-btn-ghost:hover:not(:disabled) {
   border-color: #dc2626;
   color: #dc2626;
   background: #fef2f2;
 }
 
-.nm-btn-ghost:disabled {
+.auth-page .nm-btn-ghost:disabled,
+.auth-shell .nm-btn-ghost:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

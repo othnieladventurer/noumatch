@@ -28,12 +28,12 @@ export default function Footer() {
         <div className="container">
           <div className="nm-footer-cta">
             <div>
-              <h4>Pret a matcher avec les bonnes personnes ?</h4>
-              <p>Inscription rapide, verification simple, experience premium.</p>
+              <h4>L'application mobile Noumatch arrive bientôt</h4>
+              <p>Téléchargez-la dès sa sortie sur iOS et Android.</p>
             </div>
             <div className="nm-footer-cta-actions">
-              <Link to="/register" className="btn btn-danger">Creer mon compte</Link>
-              <Link to="/login" className="btn btn-outline-light">Se connecter</Link>
+              <Link to="/application-mobile" className="btn btn-danger">Télécharger l'application</Link>
+              <Link to="/waitlist" className="btn btn-outline-light">Liste d'attente</Link>
             </div>
           </div>
 
@@ -49,6 +49,7 @@ export default function Footer() {
             <div className="col-lg-4">
               <h6>Navigation</h6>
               <ul className="nm-footer-list">
+                <li><Link to="/application-mobile">L'application mobile</Link></li>
                 <li><Link to="/guides">Guides de rencontres</Link></li>
                 <li><Link to="/rencontres-port-au-prince">Rencontrer a Port-au-Prince</Link></li>
                 <li><Link to="/securite-rencontres-en-ligne">Securite en ligne</Link></li>

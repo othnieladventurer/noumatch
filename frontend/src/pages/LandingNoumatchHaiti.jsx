@@ -142,7 +142,7 @@ export default function LandingNoumatchHaiti() {
 
   const handlePrimaryCta = () => {
     trackLandingCTA();
-    navigate("/register");
+    navigate("/application-mobile");
   };
 
   return (
@@ -167,9 +167,9 @@ export default function LandingNoumatchHaiti() {
               </p>
 
               <p className="nm-campaign-supporting">
-                Créez votre profil gratuitement, découvrez des profils près de
-                vous et commencez à faire des rencontres dans une expérience
-                simple et sécurisée.
+                L'application mobile arrive bientôt : préparez votre profil,
+                découvrez des profils près de vous et commencez à faire des
+                rencontres dans une expérience simple et sécurisée.
               </p>
 
               <div className="nm-campaign-hero__actions">
@@ -178,7 +178,7 @@ export default function LandingNoumatchHaiti() {
                   className="nm-campaign-btn nm-campaign-btn--primary"
                   onClick={handlePrimaryCta}
                 >
-                  Commencer gratuitement
+                  Télécharger l'application
                 </button>
 
                 <a
@@ -373,11 +373,11 @@ export default function LandingNoumatchHaiti() {
                 Prêt(e) à rejoindre Noumatch ?
               </span>
 
-              <h2>Commencez gratuitement aujourd’hui</h2>
+              <h2>L'application mobile arrive bientôt</h2>
 
               <p>
-                Créez votre profil, découvrez de nouvelles personnes et
-                commencez à matcher sur Noumatch.
+                Préparez-vous : Noumatch arrive sur iOS et Android. Découvrez
+                l'aperçu de l'application et soyez prévenu dès sa sortie.
               </p>
 
               <button
@@ -385,7 +385,7 @@ export default function LandingNoumatchHaiti() {
                 className="nm-campaign-btn nm-campaign-btn--primary"
                 onClick={handlePrimaryCta}
               >
-                Créer mon profil gratuitement
+                Télécharger l'application
                 <FaArrowRight />
               </button>
             </div>

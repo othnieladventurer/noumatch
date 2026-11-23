@@ -34,14 +34,25 @@
 
 .nm-footer-cta-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 
+.nm-footer-cta-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 9rem;
+  line-height: 1.2;
+  border: 1px solid transparent;
+}
+
 .nm-footer-cta-actions .btn-danger {
   background: #dc2626 !important;
-  border: none !important;
+  border: 1px solid transparent !important;
   border-radius: 999px !important;
   padding: 0.5rem 1.25rem !important;
   font-weight: 700 !important;
@@ -167,10 +178,15 @@
 
   .nm-footer-cta-actions {
     width: 100%;
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .nm-footer-cta-actions .btn {
-    flex: 1;
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
     text-align: center;
+    justify-content: center;
   }
 }

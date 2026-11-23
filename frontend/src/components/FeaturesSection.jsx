@@ -1,25 +1,25 @@
 import React, { useEffect } from "react";
 import AOS from "aos";
 import "aos/dist/aos.css";
-import profileImg from "../assets/profile.png";
-import chattingImg from "../assets/chatting.png";
-import filteringImg from "../assets/filtering.png";
+import conversationsImg from "../assets/marketing/spirit-conversations.jpg";
+import profilesImg from "../assets/marketing/spirit-profiles.jpg";
+import authenticityImg from "../assets/marketing/spirit-authenticity.jpg";
 
 const FEATURES = [
   {
-    img: chattingImg,
+    img: conversationsImg,
     alt: "Conversations naturelles",
     title: "Des échanges simples",
     desc: "Des conversations qui commencent naturellement, sans phrases toutes faites ni attentes irréalistes.",
   },
   {
-    img: "https://img.freepik.com/free-vector/dating-app-concept-with-man-woman-match_23-2148531130.jpg?semt=ais_hybrid&w=740&q=80",
+    img: profilesImg,
     alt: "Profils qui te parlent",
     title: "Des profils qui te parlent",
     desc: "Prenez le temps de découvrir des personnes qui partagent vos valeurs et votre énergie.",
   },
   {
-    img: filteringImg,
+    img: authenticityImg,
     alt: "Authenticité",
     title: "Sois simplement toi",
     desc: "Pas besoin d'en faire trop. Ici, l'authenticité compte plus que la perfection. Les vraies connexions commencent quand on reste soi-même.",

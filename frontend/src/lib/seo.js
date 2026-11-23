@@ -190,6 +190,12 @@ const routeConfigs = [
     robots: "noindex, follow",
   },
   {
+    test: (pathname) => pathname === "/application-mobile",
+    title: "Application mobile Noumatch : bientôt disponible | NouMatch",
+    description:
+      "L'application mobile Noumatch arrive bientôt sur iOS et Android. Découvrez l'aperçu, rejoignez la liste d'attente et soyez prévenu du lancement.",
+  },
+  {
     test: (pathname) => pathname === "/guides",
     title: "Guides de rencontres en Haïti | NouMatch",
     description:

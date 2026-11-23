@@ -35,6 +35,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import VerifyOtp from "./pages/VerifyOtp";
 import Terms from "./pages/Terms";
 import LandingNoumatchHaiti from "./pages/LandingNoumatchHaiti.jsx";
+import ApplicationMobile from "./pages/ApplicationMobile.jsx";
 import Guides from "./pages/Guides.jsx";
 import GuidePortAuPrince from "./pages/GuidePortAuPrince.jsx";
 import GuideSecurite from "./pages/GuideSecurite.jsx";
@@ -133,6 +134,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/rencontre-haiti" element={<LandingNoumatchHaiti />} />
             <Route path="/landing/noumatch-haiti" element={<LandingNoumatchHaiti />} />
+            <Route path="/application-mobile" element={<ApplicationMobile />} />
             <Route path="/guides" element={<Guides />} />
             <Route path="/rencontres-port-au-prince" element={<GuidePortAuPrince />} />
             <Route path="/securite-rencontres-en-ligne" element={<GuideSecurite />} />

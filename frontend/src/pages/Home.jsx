@@ -66,9 +66,13 @@ export default function Home() {
                 et faire naître des liens naturels autour de vraies conversations.
               </p>
               <div className="nm-hero-actions">
-                <Link to="/register" className="nm-btn nm-btn-primary">Créer mon compte</Link>
-                <Link to="/login" className="nm-btn nm-btn-secondary">Se connecter</Link>
+                <Link to="/application-mobile" className="nm-btn nm-btn-primary">Télécharger l'application</Link>
+                <a href="#features" className="nm-btn nm-btn-secondary">Comment ça marche</a>
               </div>
+
+              <p className="nm-hero-app-note">
+                📱 Noumatch passe sur mobile : l'application arrive bientôt sur iOS et Android.
+              </p>
             </div>
             <div className="col-lg-6 d-none d-lg-flex align-items-stretch" data-aos="fade-left">
               <div className="nm-hero-media w-100">
@@ -106,7 +110,7 @@ export default function Home() {
               <p style={{ color: "#475569", lineHeight: "1.75", marginBottom: "2rem" }}>
                 Notre mission : rendre les rencontres en ligne authentiques, humaines et enrichissantes.
               </p>
-              <Link to="/register" className="nm-btn nm-btn-primary">Rejoindre la communauté</Link>
+              <Link to="/application-mobile" className="nm-btn nm-btn-primary">Découvrir l'application mobile</Link>
             </div>
           </div>
         </div>
@@ -158,7 +162,7 @@ export default function Home() {
                 Rencontrez des personnes qui partagent vos valeurs et vos centres d'intérêt.
                 Discutez, apprenez à vous connaître et laissez l'échange se construire naturellement.
               </p>
-              <Link to="/register" className="nm-btn nm-btn-primary">Engage la conversation</Link>
+              <Link to="/application-mobile" className="nm-btn nm-btn-primary">Télécharger l'application</Link>
             </div>
           </div>
         </div>
@@ -169,12 +173,12 @@ export default function Home() {
         <div className="nm-dark-cta-overlay" />
         <div className="container">
           <div className="nm-dark-cta-inner" data-aos="fade-up">
-            <h2>Bienvenue sur NouMatch</h2>
+            <h2>L'application mobile arrive bientôt</h2>
             <p>
-              Connectez-vous pour continuer votre parcours vers des connexions authentiques et significatives.
-              Accédez à votre profil et découvrez vos matchs dès maintenant.
+              Noumatch prépare une expérience mobile plus rapide et plus fluide.
+              Rejoignez la liste d'attente pour être prévenu dès la sortie de l'application.
             </p>
-            <Link to="/login" className="nm-btn nm-btn-light">Se connecter</Link>
+            <Link to="/application-mobile" className="nm-btn nm-btn-light">Découvrir l'application</Link>
           </div>
         </div>
       </section>

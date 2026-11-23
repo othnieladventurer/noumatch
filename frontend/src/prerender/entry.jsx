@@ -10,6 +10,7 @@ import { I18nProvider } from "../context/I18nContext.jsx";
 
 import Home from "../pages/Home.jsx";
 import LandingNoumatchHaiti from "../pages/LandingNoumatchHaiti.jsx";
+import ApplicationMobile from "../pages/ApplicationMobile.jsx";
 import Guides from "../pages/Guides.jsx";
 import GuidePortAuPrince from "../pages/GuidePortAuPrince.jsx";
 import GuideSecurite from "../pages/GuideSecurite.jsx";
@@ -29,6 +30,7 @@ export const PUBLIC_ROUTES = [
   { path: "/", element: <Home />, withLayout: true },
   { path: "/rencontre-haiti", element: <LandingNoumatchHaiti />, withLayout: true },
   { path: "/landing/noumatch-haiti", element: <LandingNoumatchHaiti />, withLayout: true },
+  { path: "/application-mobile", element: <ApplicationMobile />, withLayout: true },
   { path: "/guides", element: <Guides />, withLayout: true },
   { path: "/rencontres-port-au-prince", element: <GuidePortAuPrince />, withLayout: true },
   { path: "/securite-rencontres-en-ligne", element: <GuideSecurite />, withLayout: true },

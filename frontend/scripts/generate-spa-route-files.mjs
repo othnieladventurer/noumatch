@@ -9,6 +9,7 @@ const staticRoutes = [
   '/',
   '/rencontre-haiti',
   '/landing/noumatch-haiti',
+  '/application-mobile',
   '/guides',
   '/rencontres-port-au-prince',
   '/securite-rencontres-en-ligne',

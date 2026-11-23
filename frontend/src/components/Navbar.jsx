@@ -1,7 +1,7 @@
 // src/components/Navbar.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { FaTachometerAlt, FaSignOutAlt } from "react-icons/fa";
+import { FaTachometerAlt, FaSignOutAlt, FaDownload } from "react-icons/fa";
 import BrandLogo from "./BrandLogo";
 import "./Navbar.css";
 
@@ -104,13 +104,12 @@ export default function Navbar() {
             {!userLoggedIn ? (
               <>
                 <li className="nav-item mt-2 mt-lg-0">
-                  <Link className="btn btn-secondary w-100 w-lg-auto" to="/login">
-                    Connexion
-                  </Link>
-                </li>
-                <li className="nav-item mt-2 mt-lg-0">
-                  <Link className="btn btn-danger w-100 w-lg-auto" to="/register">
-                    S'inscrire
+                  <Link
+                    className="btn btn-danger d-flex justify-content-center align-items-center gap-2"
+                    to="/application-mobile"
+                  >
+                    <FaDownload size={13} />
+                    Télécharger l'app
                   </Link>
                 </li>
               </>
