@@ -9,6 +9,10 @@ const staticRoutes = [
   '/',
   '/rencontre-haiti',
   '/landing/noumatch-haiti',
+  '/guides',
+  '/rencontres-port-au-prince',
+  '/securite-rencontres-en-ligne',
+  '/application-rencontre-haiti',
   '/login',
   '/register',
   '/waitlist',
@@ -59,7 +63,7 @@ const withSeo = (html, route) => {
   const { title, description, canonical, ogImage, robots, jsonLd, hreflangs } = getSeoConfig(route);
   const safeTitle = htmlEscape(title);
   const safeDescription = htmlEscape(description);
-  const safeCanonical = htmlEscape(canonical);
+  const safeCanonical = canonical ? htmlEscape(canonical) : '';
   const safeOgImage = htmlEscape(ogImage);
   const safeRobots = htmlEscape(robots);
   const schemaItems = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
@@ -79,11 +83,13 @@ const withSeo = (html, route) => {
     /<meta name="robots" content="[^"]*"\s*\/?>/,
     `<meta name="robots" content="${safeRobots}" />`
   );
-  nextHtml = upsertTag(
-    nextHtml,
-    /<link rel="canonical" href="[^"]*"\s*\/?>/,
-    `<link rel="canonical" href="${safeCanonical}" />`
-  );
+  nextHtml = canonical
+    ? upsertTag(
+        nextHtml,
+        /<link rel="canonical" href="[^"]*"\s*\/?>/,
+        `<link rel="canonical" href="${safeCanonical}" />`
+      )
+    : nextHtml.replace(/\s*<link rel="canonical" href="[^"]*"\s*\/?>/g, '');
   nextHtml = nextHtml.replace(/\s*<link rel="alternate" hreflang="[^"]*" href="[^"]*"\s*\/?>/g, '');
   if (hreflangs.length > 0) {
     const hreflangMarkup = hreflangs
@@ -101,11 +107,13 @@ const withSeo = (html, route) => {
     /<meta\s+property="og:description"[\s\S]*?\/>/,
     `<meta property="og:description" content="${safeDescription}" />`
   );
-  nextHtml = upsertTag(
-    nextHtml,
-    /<meta property="og:url" content="[^"]*"\s*\/?>/,
-    `<meta property="og:url" content="${safeCanonical}" />`
-  );
+  nextHtml = canonical
+    ? upsertTag(
+        nextHtml,
+        /<meta property="og:url" content="[^"]*"\s*\/?>/,
+        `<meta property="og:url" content="${safeCanonical}" />`
+      )
+    : nextHtml.replace(/\s*<meta property="og:url" content="[^"]*"\s*\/?>/g, '');
   nextHtml = upsertTag(
     nextHtml,
     /<meta property="og:image" content="[^"]*"\s*\/?>/,
@@ -142,7 +150,6 @@ if (!fs.existsSync(indexPath)) {
 const indexHtml = fs.readFileSync(indexPath, 'utf8');
 const rootHtml = withSeo(indexHtml, '/');
 fs.writeFileSync(indexPath, rootHtml, 'utf8');
-const fallbackFiles = ['200.html', '404.html'];
 
 for (const route of staticRoutes) {
   if (route === '/') {
@@ -155,6 +162,6 @@ for (const route of staticRoutes) {
   fs.writeFileSync(routeIndexPath, withSeo(indexHtml, route), 'utf8');
 }
 
-for (const fallbackFile of fallbackFiles) {
-  fs.writeFileSync(path.join(distDir, fallbackFile), rootHtml, 'utf8');
-}
+// A real 404 document: hosts serve it with a 404 status for unknown URLs
+// instead of returning the homepage with a 200. prerender.mjs injects its body.
+fs.writeFileSync(path.join(distDir, '404.html'), withSeo(indexHtml, '/404'), 'utf8');

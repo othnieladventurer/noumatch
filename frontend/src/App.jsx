@@ -35,6 +35,11 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import VerifyOtp from "./pages/VerifyOtp";
 import Terms from "./pages/Terms";
 import LandingNoumatchHaiti from "./pages/LandingNoumatchHaiti.jsx";
+import Guides from "./pages/Guides.jsx";
+import GuidePortAuPrince from "./pages/GuidePortAuPrince.jsx";
+import GuideSecurite from "./pages/GuideSecurite.jsx";
+import GuideApplicationHaiti from "./pages/GuideApplicationHaiti.jsx";
+import NotFound from "./pages/NotFound.jsx";
 import { captureAttributionFromLocation } from "./lib/attribution";
 import { trackGooglePageView } from "./lib/googleAnalytics";
 import { trackPageView } from "./lib/metaPixel";
@@ -128,6 +133,10 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/rencontre-haiti" element={<LandingNoumatchHaiti />} />
             <Route path="/landing/noumatch-haiti" element={<LandingNoumatchHaiti />} />
+            <Route path="/guides" element={<Guides />} />
+            <Route path="/rencontres-port-au-prince" element={<GuidePortAuPrince />} />
+            <Route path="/securite-rencontres-en-ligne" element={<GuideSecurite />} />
+            <Route path="/application-rencontre-haiti" element={<GuideApplicationHaiti />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/waitlist" element={<Waitlist />} />
@@ -180,6 +189,9 @@ export default function App() {
             <Route path="/admin/analytics/impressions" element={<AdminAnalyticsImpressions />} />
             <Route path="/admin/analytics/ranking" element={<AdminAnalyticsRanking />} />
             <Route path="/admin/analytics/performance" element={<AdminAnalyticsPerformance />} />
+
+            {/* Catch-all: unknown URLs render a real not-found page */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
 

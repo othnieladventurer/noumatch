@@ -49,6 +49,9 @@ export default function Footer() {
             <div className="col-lg-4">
               <h6>Navigation</h6>
               <ul className="nm-footer-list">
+                <li><Link to="/guides">Guides de rencontres</Link></li>
+                <li><Link to="/rencontres-port-au-prince">Rencontrer a Port-au-Prince</Link></li>
+                <li><Link to="/securite-rencontres-en-ligne">Securite en ligne</Link></li>
                 <li><Link to="/privacy">Politique de confidentialite</Link></li>
                 <li><Link to="/terms">Conditions d'utilisation</Link></li>
                 <li><a href="#contact">Contact</a></li>

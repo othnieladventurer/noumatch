@@ -125,7 +125,7 @@ for (const [name, value] of Object.entries({
 }
 
 // ── Prerender ────────────────────────────────────────────────────────────
-const { PUBLIC_ROUTES, renderRoute } = await import(pathToFileURL(ssrEntry).href);
+const { PUBLIC_ROUTES, renderRoute, renderNotFound } = await import(pathToFileURL(ssrEntry).href);
 
 const routeFile = (routePath) =>
   routePath === '/'
@@ -170,6 +170,22 @@ for (const route of PUBLIC_ROUTES) {
 
   fs.writeFileSync(filePath, html.replace(/<div id="root">\s*<\/div>/, `<div id="root">${markup}</div>`), 'utf8');
   prerendered += 1;
+}
+
+// dist/404.html is written by generate-spa-route-files.mjs with the 404 page's
+// own head tags; inject the not-found markup so hosts serve a real 404 body.
+const notFoundPath = path.join(distDir, '404.html');
+if (fs.existsSync(notFoundPath)) {
+  const markup = remapAssets(renderNotFound());
+  const html = fs.readFileSync(notFoundPath, 'utf8');
+
+  if (!/<div id="root">\s*<\/div>/.test(html)) {
+    throw new Error(`Could not find an empty #root container in ${notFoundPath}`);
+  }
+
+  fs.writeFileSync(notFoundPath, html.replace(/<div id="root">\s*<\/div>/, `<div id="root">${markup}</div>`), 'utf8');
+} else {
+  throw new Error(`Missing built 404 page: ${notFoundPath}`);
 }
 
 const rootHtml = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8');
