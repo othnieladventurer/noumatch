@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Noumatch",
+    "slug": "noumatch",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "noumatch",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFF9F5",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.noumatch.app"
+    },
+    "android": {
+      "package": "com.noumatch.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFF9F5"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-logo.png",
+          "imageWidth": 280,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFF9F5"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Noumatch utilise votre photo pour votre profil.",
+          "cameraPermission": "Noumatch utilise la caméra pour votre photo de profil."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

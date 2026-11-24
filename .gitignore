@@ -25,3 +25,6 @@ api/.env.*
 api/*.sqlite3
 api/media/
 api/staticfiles/
+
+# local preview build logs
+.preview/
