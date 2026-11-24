@@ -647,7 +647,6 @@ body {
 
   .nm-hero-actions .nm-btn {
     width: 100%;
-    max-width: 21rem;
     justify-content: center;
     text-align: center;
   }
