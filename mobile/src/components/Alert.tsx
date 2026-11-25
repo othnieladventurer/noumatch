@@ -1,12 +1,13 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { colors, radius } from "../theme";
+import { colors, radius, useThemedStyles } from "../theme";
 
 type Tone = "error" | "warning" | "success";
 
 /** Mirrors `.auth-alert` from the web auth stylesheet. */
 export function Alert({ tone = "error", children }: { tone?: Tone; children: React.ReactNode }) {
+  const styles = useThemedStyles(baseStyles);
   return (
     <View style={[styles.box, tone === "error" && styles.error, tone === "warning" && styles.warning, tone === "success" && styles.success]}>
       <Text
@@ -23,7 +24,7 @@ export function Alert({ tone = "error", children }: { tone?: Tone; children: Rea
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   box: {
     borderRadius: radius.md,
     borderWidth: 1,
@@ -32,8 +33,8 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   text: {
-    fontSize: 13.5,
-    lineHeight: 20,
+    fontSize: 12.5,
+    lineHeight: 17.5,
   },
   error: {
     backgroundColor: "#fdecec",

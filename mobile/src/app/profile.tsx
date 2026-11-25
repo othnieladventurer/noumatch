@@ -33,6 +33,7 @@ import {
 import { apiErrorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { AppChrome } from "../components/AppChrome";
+import { useTheme, useThemedStyles } from "../theme";
 
 const { height: WINDOW_HEIGHT, width: WINDOW_WIDTH } = Dimensions.get("window");
 const GALLERY_HEIGHT = Math.round(WINDOW_HEIGHT * 0.5);
@@ -104,6 +105,8 @@ const chipsOf = (value?: string) =>
 export default function MyProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
+  const styles = useThemedStyles(baseStyles);
+  const { colors } = useTheme();
   const meId = (user as { id?: number } | null)?.id;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -326,7 +329,7 @@ export default function MyProfileScreen() {
     return (
       <AppChrome active="me">
         <View style={styles.centered}>
-          <ActivityIndicator color="#ff4d6d" />
+          <ActivityIndicator color={colors.red} />
         </View>
       </AppChrome>
     );
@@ -446,7 +449,7 @@ export default function MyProfileScreen() {
             {editing ? (
               <View style={styles.banner}>
                 <View style={styles.bannerIcon}>
-                  <Text style={{ fontSize: 20, color: "#ffccd5" }}>✨</Text>
+                  <Text style={{ fontSize: 18, color: "#ffccd5" }}>✨</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.bannerTitle}>Make your profile feel complete</Text>
@@ -522,7 +525,7 @@ export default function MyProfileScreen() {
                       onChangeText={(value) => setField("bio", value)}
                       multiline
                       placeholder="Tell others about yourself..."
-                      placeholderTextColor="#adb5bd"
+                      placeholderTextColor={colors.placeholder}
                       style={[styles.input, styles.inputArea]}
                     />
                   </View>
@@ -545,7 +548,7 @@ export default function MyProfileScreen() {
                         value={form.birth_date}
                         onChangeText={(v) => setField("birth_date", v)}
                         placeholder="YYYY-MM-DD"
-                        placeholderTextColor="#adb5bd"
+                        placeholderTextColor={colors.placeholder}
                         style={styles.input}
                       />
                     </View>
@@ -556,7 +559,7 @@ export default function MyProfileScreen() {
                         onChangeText={(v) => setField("height", v.replace(/[^0-9]/g, ""))}
                         keyboardType="number-pad"
                         placeholder="e.g. 175"
-                        placeholderTextColor="#adb5bd"
+                        placeholderTextColor={colors.placeholder}
                         style={styles.input}
                       />
                     </View>
@@ -589,7 +592,7 @@ export default function MyProfileScreen() {
                       value={form.location}
                       onChangeText={(v) => setField("location", v)}
                       placeholder="City, Country"
-                      placeholderTextColor="#adb5bd"
+                      placeholderTextColor={colors.placeholder}
                       style={styles.input}
                     />
                   </View>
@@ -604,7 +607,7 @@ export default function MyProfileScreen() {
 
                 {uploading ? (
                   <View style={{ alignItems: "center", paddingVertical: 12 }}>
-                    <ActivityIndicator color="#dc3545" />
+                    <ActivityIndicator color={colors.red} />
                     <Text style={{ marginTop: 8, color: "#6c757d" }}>Uploading photos...</Text>
                   </View>
                 ) : null}
@@ -630,7 +633,7 @@ export default function MyProfileScreen() {
 
                   {photos.length < 10 ? (
                     <Pressable style={styles.uploadPlaceholder} onPress={() => void uploadPhotos()}>
-                      <Text style={{ fontSize: 20, color: "#6c757d" }}>⤴</Text>
+                      <Text style={{ fontSize: 18, color: "#6c757d" }}>⤴</Text>
                       <Text style={styles.uploadLabel}>Upload</Text>
                       <Text style={styles.uploadLeft}>{10 - photos.length} left</Text>
                     </Pressable>
@@ -666,7 +669,7 @@ export default function MyProfileScreen() {
                         value={form.career}
                         onChangeText={(v) => setField("career", v)}
                         placeholder="e.g. Software Engineer"
-                        placeholderTextColor="#adb5bd"
+                        placeholderTextColor={colors.placeholder}
                         style={styles.input}
                       />
                     </View>
@@ -676,7 +679,7 @@ export default function MyProfileScreen() {
                         value={form.education}
                         onChangeText={(v) => setField("education", v)}
                         placeholder="e.g. University of Example"
-                        placeholderTextColor="#adb5bd"
+                        placeholderTextColor={colors.placeholder}
                         style={styles.input}
                       />
                     </View>
@@ -770,14 +773,14 @@ export default function MyProfileScreen() {
                       multiline
                       maxLength={200}
                       placeholder="Ta réponse..."
-                      placeholderTextColor="#adb5bd"
+                      placeholderTextColor={colors.placeholder}
                       style={styles.promptInput}
                     />
                     <Pressable
                       style={styles.promptRemove}
                       onPress={() => setPrompts((prev) => prev.filter((entry) => entry.question !== item.question))}
                     >
-                      <Text style={{ fontSize: 16, color: "#999" }}>×</Text>
+                      <Text style={{ fontSize: 14, color: "#999" }}>×</Text>
                     </Pressable>
                   </View>
                 ))}
@@ -817,8 +820,8 @@ export default function MyProfileScreen() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: "#d63354" }]}>🛡 Account Control</Text>
               <View style={styles.accountBox}>
-                <Text style={{ fontWeight: "700", fontSize: 16, color: "#212529" }}>Delete account</Text>
-                <Text style={{ color: "#6c757d", lineHeight: 22, marginTop: 4 }}>
+                <Text style={{ fontWeight: "700", fontSize: 14, color: "#212529" }}>Delete account</Text>
+                <Text style={{ color: "#6c757d", lineHeight: 19.5, marginTop: 4 }}>
                   Remove your account and its related data if you no longer want to use NouMatch.
                 </Text>
                 <Pressable style={styles.deleteAccountBtn} onPress={() => setDeleteAccountOpen(true)}>
@@ -890,7 +893,7 @@ export default function MyProfileScreen() {
               ))}
             </ScrollView>
             <Pressable style={[styles.viewerClose, { top: insets.top + 16 }]} onPress={() => setPhotoModalOpen(false)}>
-              <Text style={{ fontSize: 20 }}>✕</Text>
+              <Text style={{ fontSize: 18 }}>✕</Text>
             </Pressable>
             {gallery.length > 1 ? (
               <>
@@ -920,7 +923,7 @@ export default function MyProfileScreen() {
               </View>
             ) : null}
             <View style={styles.viewerCounter}>
-              <Text style={{ color: "#fff", fontSize: 16 }}>
+              <Text style={{ color: "#fff", fontSize: 14 }}>
                 {modalIndex + 1} / {gallery.length}
               </Text>
             </View>
@@ -932,7 +935,7 @@ export default function MyProfileScreen() {
           <Pressable style={styles.dialogScrim} onPress={() => setPhotoToDelete(null)}>
             <Pressable style={styles.dialog} onPress={() => undefined}>
               <View style={styles.dialogIcon}>
-                <Text style={{ fontSize: 28, color: "#ff4d6d" }}>🗑</Text>
+                <Text style={{ fontSize: 24, color: "#ff4d6d" }}>🗑</Text>
               </View>
               <Text style={styles.dialogTitle}>Delete this photo?</Text>
               <Text style={styles.dialogText}>This will remove the photo from your profile gallery.</Text>
@@ -994,6 +997,8 @@ function EditableInterests({
   onChange: (value: string) => void;
   tagStyle: object;
 }) {
+  const styles = useThemedStyles(baseStyles);
+  const { colors } = useTheme();
   const chips = chipsOf(value);
   return (
     <View>
@@ -1002,7 +1007,7 @@ function EditableInterests({
         value={value}
         onChangeText={onChange}
         placeholder="Separate with commas"
-        placeholderTextColor="#adb5bd"
+        placeholderTextColor={colors.placeholder}
         style={styles.input}
       />
       {chips.length > 0 ? (
@@ -1020,7 +1025,7 @@ function EditableInterests({
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#f5f7fb" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#f5f7fb" },
 
@@ -1050,7 +1055,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  backGlyph: { color: "#ff4d6d", fontSize: 19 },
+  backGlyph: { color: "#ff4d6d", fontSize: 16 },
   editBtn: {
     position: "absolute",
     top: 20,
@@ -1067,7 +1072,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  editGlyph: { color: "#ff4d6d", fontSize: 17 },
+  editGlyph: { color: "#ff4d6d", fontSize: 15 },
   saveBtn: {
     position: "absolute",
     top: 20,
@@ -1084,7 +1089,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 12.5 },
 
   photoCount: {
     position: "absolute",
@@ -1095,7 +1100,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 30,
   },
-  photoCountText: { color: "#fff", fontSize: 14.4, fontWeight: "500" },
+  photoCountText: { color: "#fff", fontSize: 12.5, fontWeight: "500" },
 
   photoNavBtn: {
     position: "absolute",
@@ -1109,7 +1114,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     opacity: 0.95,
   },
-  photoNavGlyph: { color: "#fff", fontSize: 22 },
+  photoNavGlyph: { color: "#fff", fontSize: 19 },
 
   indicators: {
     position: "absolute",
@@ -1148,9 +1153,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     backgroundColor: "rgba(0,0,0,0.35)",
   },
-  galleryName: { fontSize: 32, fontWeight: "700", color: "#fff", letterSpacing: -0.5 },
-  galleryAge: { fontSize: 21.6, fontWeight: "400", opacity: 0.9 },
-  galleryLocation: { fontSize: 14.4, color: "#fff", opacity: 0.9, marginTop: 4 },
+  galleryName: { fontSize: 26, fontWeight: "700", color: "#fff", letterSpacing: -0.5 },
+  galleryAge: { fontSize: 18, fontWeight: "400", opacity: 0.9 },
+  galleryLocation: { fontSize: 12.5, color: "#fff", opacity: 0.9, marginTop: 4 },
   miniUpload: {
     marginTop: 16,
     alignSelf: "flex-start",
@@ -1159,11 +1164,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999,
   },
-  miniUploadText: { color: "#ff3355", fontWeight: "800", fontSize: 13 },
+  miniUploadText: { color: "#ff3355", fontWeight: "800", fontSize: 12 },
 
   content: { backgroundColor: "#fff", borderTopLeftRadius: 30, borderTopRightRadius: 30, marginTop: -30 },
   section: { padding: 18, borderBottomWidth: 1, borderBottomColor: "#f0f0f0" },
-  sectionTitle: { fontSize: 19.2, fontWeight: "800", color: "#201b1d", marginBottom: 16, letterSpacing: -0.4 },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#201b1d", marginBottom: 16, letterSpacing: -0.4 },
 
   banner: {
     flexDirection: "row",
@@ -1183,16 +1188,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bannerTitle: { color: "#fff", fontSize: 19.8, fontWeight: "800", letterSpacing: -0.4, marginBottom: 4 },
-  bannerText: { color: "rgba(255,255,255,0.76)", fontSize: 14.4 },
+  bannerTitle: { color: "#fff", fontSize: 16, fontWeight: "800", letterSpacing: -0.4, marginBottom: 4 },
+  bannerText: { color: "rgba(255,255,255,0.76)", fontSize: 12.5 },
 
   verification: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 30 },
   verifiedBadge: { backgroundColor: "#d4edda" },
   unverifiedBadge: { backgroundColor: "#f8d7da" },
-  verificationText: { fontSize: 12.8, fontWeight: "600" },
+  verificationText: { fontSize: 12, fontWeight: "600" },
 
   aboutText: { backgroundColor: "#f8f9fa", padding: 20, borderRadius: 16 },
-  aboutBody: { fontSize: 15.2, lineHeight: 24.3, color: "#4a4a4a" },
+  aboutBody: { fontSize: 13.5, lineHeight: 21.5, color: "#4a4a4a" },
   infoChips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
   infoChip: {
     backgroundColor: "#f8f9fa",
@@ -1205,12 +1210,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  infoChipIcon: { color: "#ff4d6d", fontSize: 12 },
-  infoChipText: { color: "#2d2d2d", fontSize: 14.4 },
+  infoChipIcon: { color: "#ff4d6d", fontSize: 11 },
+  infoChipText: { color: "#2d2d2d", fontSize: 12.5 },
 
   labelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  label: { fontSize: 13.6, fontWeight: "800", marginBottom: 6, color: "#31272b" },
-  clearBio: { color: "#dc3545", fontWeight: "600", fontSize: 13 },
+  label: { fontSize: 12.5, fontWeight: "800", marginBottom: 6, color: "#31272b" },
+  clearBio: { color: "#dc3545", fontWeight: "600", fontSize: 12 },
   input: {
     width: "100%",
     paddingHorizontal: 14,
@@ -1218,7 +1223,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f0cfd7",
     borderRadius: 16,
-    fontSize: 15.2,
+    fontSize: 13.5,
     color: "#212529",
     backgroundColor: "#fff",
   },
@@ -1226,7 +1231,7 @@ const styles = StyleSheet.create({
   twoCols: { flexDirection: "row", gap: 12 },
   genderChip: { flex: 1, paddingVertical: 11, borderRadius: 16, borderWidth: 1, borderColor: "#f0cfd7", alignItems: "center" },
   genderChipActive: { backgroundColor: "#ff4d6d", borderColor: "#ff4d6d" },
-  genderText: { fontSize: 14, color: "#31272b" },
+  genderText: { fontSize: 12.5, color: "#31272b" },
 
   photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   galleryItem: { width: "30%", aspectRatio: 1, borderRadius: 20, overflow: "hidden", backgroundColor: "#f8f9fa" },
@@ -1247,32 +1252,32 @@ const styles = StyleSheet.create({
     gap: 2,
     backgroundColor: "#fff5f7",
   },
-  uploadLabel: { fontSize: 12.5, color: "#6c757d" },
-  uploadLeft: { fontSize: 11, color: "#adb5bd" },
+  uploadLabel: { fontSize: 12, color: "#6c757d" },
+  uploadLeft: { fontSize: 10.5, color: "#adb5bd" },
 
   professionalCard: { backgroundColor: "#f8f9fa", padding: 16, borderRadius: 16, borderWidth: 1, borderColor: "#e9ecef" },
-  professionalLabel: { fontSize: 12, color: "#6c757d", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
-  professionalValue: { fontSize: 16, fontWeight: "500", color: "#2d2d2d" },
+  professionalLabel: { fontSize: 11, color: "#6c757d", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 },
+  professionalValue: { fontSize: 14, fontWeight: "500", color: "#2d2d2d" },
 
-  interestHeading: { fontSize: 14.4, fontWeight: "600", color: "#4a4a4a", marginBottom: 8 },
+  interestHeading: { fontSize: 12.5, fontWeight: "600", color: "#4a4a4a", marginBottom: 8 },
   interestTags: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   interestTag: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 30, borderWidth: 1, borderColor: "#e9ecef", backgroundColor: "#f8f9fa" },
   passionTag: { borderColor: "#ffd8df", backgroundColor: "#fff6f8" },
   hobbyTag: { borderColor: "#d7ecff", backgroundColor: "#f5fbff" },
   musicTag: { borderColor: "#efe2ff", backgroundColor: "#faf7ff" },
-  interestText: { fontSize: 14.4, color: "#2d2d2d", fontWeight: "500" },
+  interestText: { fontSize: 12.5, color: "#2d2d2d", fontWeight: "500" },
   previewBox: { marginTop: 10, padding: 10, borderRadius: 12, borderWidth: 1, borderStyle: "dashed", borderColor: "#e5e7eb", backgroundColor: "#fafafa" },
 
-  promptHelp: { fontSize: 13, color: "#999", marginBottom: 16 },
+  promptHelp: { fontSize: 12, color: "#999", marginBottom: 16 },
   promptCard: { backgroundColor: "#FAF8F4", borderWidth: 1, borderColor: "#E8E5DF", borderRadius: 12, padding: 14 },
-  promptQuestion: { fontSize: 12, color: "#999", marginBottom: 6 },
-  promptInput: { fontSize: 14, color: "#1A1A2E", minHeight: 40, textAlignVertical: "top", padding: 0 },
+  promptQuestion: { fontSize: 11, color: "#999", marginBottom: 6 },
+  promptInput: { fontSize: 12.5, color: "#1A1A2E", minHeight: 40, textAlignVertical: "top", padding: 0 },
   promptRemove: { position: "absolute", top: 10, right: 12 },
-  promptPickerLabel: { fontSize: 12, color: "#999", marginBottom: 8 },
+  promptPickerLabel: { fontSize: 11, color: "#999", marginBottom: 8 },
   promptOption: { borderWidth: 1, borderColor: "#E8E5DF", borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#fff" },
-  promptOptionText: { fontSize: 13, color: "#1A1A2E" },
+  promptOptionText: { fontSize: 12, color: "#1A1A2E" },
   promptSave: { marginTop: 16, alignSelf: "flex-start", backgroundColor: "#FF2D55", borderRadius: 999, paddingHorizontal: 24, paddingVertical: 10 },
-  promptSaveText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  promptSaveText: { color: "#fff", fontSize: 12.5, fontWeight: "600" },
 
   accountBox: {
     borderWidth: 1,
@@ -1298,14 +1303,14 @@ const styles = StyleSheet.create({
   actionButtons: { flexDirection: "row", justifyContent: "center", gap: 12, padding: 24, flexWrap: "wrap" },
   actionBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 40, minWidth: 130, alignItems: "center" },
   actionPrimary: { backgroundColor: "#ff3355" },
-  actionPrimaryText: { color: "#fff", fontWeight: "600", fontSize: 15.2 },
+  actionPrimaryText: { color: "#fff", fontWeight: "600", fontSize: 13.5 },
   actionSecondary: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#2d2d2d" },
-  actionSecondaryText: { color: "#2d2d2d", fontWeight: "600", fontSize: 15.2 },
+  actionSecondaryText: { color: "#2d2d2d", fontWeight: "600", fontSize: 13.5 },
 
-  memberSince: { textAlign: "center", color: "#6c757d", fontSize: 12.8, paddingBottom: 24 },
-  error: { color: "#dc3545", fontSize: 13, paddingHorizontal: 18, paddingTop: 12 },
+  memberSince: { textAlign: "center", color: "#6c757d", fontSize: 12, paddingBottom: 24 },
+  error: { color: "#dc3545", fontSize: 12, paddingHorizontal: 18, paddingTop: 12 },
   successBanner: { backgroundColor: "#d4edda", marginHorizontal: 18, marginTop: 12, padding: 12, borderRadius: 12 },
-  successText: { color: "#155724", fontSize: 13.5, fontWeight: "600" },
+  successText: { color: "#155724", fontSize: 12.5, fontWeight: "600" },
 
   viewer: { flex: 1, backgroundColor: "#000" },
   viewerPage: { width: WINDOW_WIDTH, height: "100%", alignItems: "center", justifyContent: "center" },
@@ -1331,7 +1336,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  viewerArrowGlyph: { color: "#fff", fontSize: 24 },
+  viewerArrowGlyph: { color: "#fff", fontSize: 22 },
   viewerCounter: { position: "absolute", bottom: 40, backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20 },
   viewerThumbs: {
     position: "absolute",
@@ -1357,8 +1362,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 14,
   },
-  dialogTitle: { fontSize: 18, fontWeight: "700", textAlign: "center", marginBottom: 8, color: "#212529" },
-  dialogText: { color: "#6c757d", textAlign: "center", lineHeight: 22 },
+  dialogTitle: { fontSize: 16, fontWeight: "700", textAlign: "center", marginBottom: 8, color: "#212529" },
+  dialogText: { color: "#6c757d", textAlign: "center", lineHeight: 19.5 },
   dialogActions: { flexDirection: "row", gap: 12, marginTop: 22 },
   dialogBtn: { flex: 1, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   dialogCancel: { borderWidth: 1, borderColor: "#dee2e6", backgroundColor: "#fff" },

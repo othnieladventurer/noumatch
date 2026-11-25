@@ -10,6 +10,7 @@ export type Me = {
   last_name?: string;
   gender?: string;
   profile_photo?: string | null;
+  account_type?: string;
   [key: string]: unknown;
 };
 

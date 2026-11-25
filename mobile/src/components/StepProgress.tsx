@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { colors } from "../theme";
+import { colors, useThemedStyles } from "../theme";
 
 type Props = {
   step: number; // 1-based
@@ -10,6 +10,7 @@ type Props = {
 
 /** Mirrors `.auth-steps` from the web auth stylesheet: 34dp circles, 2dp connectors. */
 export function StepProgress({ step, labels }: Props) {
+  const styles = useThemedStyles(baseStyles);
   return (
     <View style={styles.row}>
       {labels.map((label, index) => {
@@ -51,7 +52,7 @@ export function StepProgress({ step, labels }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success,
   },
   circleText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     color: colors.muted,
   },
@@ -86,7 +87,7 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   label: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: "600",
     letterSpacing: 0.2,
     color: colors.placeholder,

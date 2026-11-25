@@ -7,7 +7,7 @@ import { apiErrorMessage } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../components/Button";
 import { Screen } from "../components/Screen";
-import { colors, radius, spacing, type } from "../theme";
+import { colors, radius, spacing, useTheme, useThemedStyles, useTypography } from "../theme";
 
 const CODE_LENGTH = 4;
 
@@ -15,6 +15,9 @@ export default function VerifyScreen() {
   const params = useLocalSearchParams<{ userId?: string; email?: string }>();
   const userId = params.userId ? Number(params.userId) : NaN;
   const { reload } = useAuth();
+  const styles = useThemedStyles(baseStyles);
+  const type = useTypography();
+  const { colors: theme } = useTheme();
 
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -106,7 +109,7 @@ export default function VerifyScreen() {
         maxLength={CODE_LENGTH}
         autoFocus
         placeholder="••••"
-        placeholderTextColor={colors.placeholder}
+        placeholderTextColor={theme.placeholder}
         style={[styles.codeInput, Boolean(error) && styles.codeInputError]}
         editable={!loading}
         textContentType="oneTimeCode"
@@ -127,7 +130,7 @@ export default function VerifyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   kicker: {
     marginBottom: spacing.xs,
   },
@@ -147,8 +150,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.redDark,
-    fontSize: 13.5,
-    lineHeight: 19,
+    fontSize: 12.5,
+    lineHeight: 16.5,
   },
   noticeBox: {
     backgroundColor: "#f0f7f1",
@@ -160,8 +163,8 @@ const styles = StyleSheet.create({
   },
   noticeText: {
     color: colors.success,
-    fontSize: 13.5,
-    lineHeight: 19,
+    fontSize: 12.5,
+    lineHeight: 16.5,
   },
   codeInput: {
     backgroundColor: colors.white,
@@ -170,7 +173,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     minHeight: 76,
     textAlign: "center",
-    fontSize: 34,
+    fontSize: 26,
     fontWeight: "800",
     letterSpacing: 14,
     paddingLeft: 14,
@@ -187,7 +190,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   resendText: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontWeight: "700",
     color: colors.red,
   },
@@ -200,7 +203,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   changeEmailText: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: colors.muted,
   },
 });

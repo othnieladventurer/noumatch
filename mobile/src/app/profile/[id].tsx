@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -29,7 +30,6 @@ import {
   reportUser,
   unblockProfile,
   unmatchProfile,
-  unlikeProfile,
   type ProfilePhoto,
   type Relationship,
   type UserProfile,
@@ -37,6 +37,8 @@ import {
 import { apiErrorMessage } from "../../api/client";
 import { useAuth } from "../../auth/AuthProvider";
 import { AppChrome } from "../../components/AppChrome";
+import { isGodMode } from "../../utils/accountAccess";
+import { useTheme, useThemedStyles } from "../../theme";
 
 const { height: WINDOW_HEIGHT, width: WINDOW_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = Math.round(WINDOW_HEIGHT * 0.55);
@@ -53,6 +55,76 @@ const REPORT_REASONS = [
   { value: "other", label: "Autre" },
 ];
 
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+type CircleActionProps = {
+  icon: IoniconName;
+  iconSize: number;
+  accessibilityLabel: string;
+  onPress: () => void;
+  variant: "pass" | "like" | "coeur";
+  size?: "sm" | "lg";
+  disabled?: boolean;
+  active?: boolean;
+  badge?: number;
+};
+
+/** Circular action: X · large heart · star, with the accent on the like. */
+function CircleAction({
+  icon,
+  iconSize,
+  accessibilityLabel,
+  onPress,
+  variant,
+  size = "sm",
+  disabled = false,
+  active = false,
+  badge,
+}: CircleActionProps) {
+  const styles = useThemedStyles(baseStyles);
+  const { colors: theme } = useTheme();
+  const variantStyle =
+    variant === "like"
+      ? active
+        ? styles.circleLikeActive
+        : styles.circleLike
+      : variant === "coeur"
+        ? styles.circleCoeur
+        : styles.circlePass;
+  const iconColor = disabled
+    ? theme.placeholder
+    : variant === "like"
+      ? "#FFFFFF"
+      : variant === "coeur"
+        ? theme.purple
+        : theme.inkSoft;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled, selected: variant === "like" ? active : undefined }}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => [
+        styles.circle,
+        size === "lg" ? styles.circleLg : styles.circleSm,
+        variantStyle,
+        disabled && styles.circleDisabled,
+        pressed && !disabled && styles.circlePressed,
+      ]}
+    >
+      <Ionicons name={icon} size={iconSize} color={iconColor} />
+      {typeof badge === "number" ? (
+        <View style={styles.circleBadge}>
+          <Text style={styles.circleBadgeText}>{badge}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 /**
  * Port of frontend/src/pages/ProfileDetail.jsx — every colour, size and section
  * comes from its `pd-*` rules (hero 55vh, card -16px, action bar, dots sheet).
@@ -62,6 +134,8 @@ export default function ProfileDetailScreen() {
   const profileId = Number(id);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const styles = useThemedStyles(baseStyles);
+  const { colors: theme } = useTheme();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [photos, setPhotos] = useState<ProfilePhoto[]>([]);
@@ -75,7 +149,13 @@ export default function ProfileDetailScreen() {
     matchId: null,
     conversationId: null,
   });
-  const [coeur, setCoeur] = useState({ can_use: true, remaining: 3, daily_limit: 3 });
+  const [coeur, setCoeur] = useState<{
+    can_use: boolean;
+    remaining: number;
+    daily_limit: number;
+    is_unlimited?: boolean;
+  }>({ can_use: true, remaining: 3, daily_limit: 3 });
+  const coeurUnlimited = isGodMode(user) || Boolean(coeur.is_unlimited);
 
   const [activePhoto, setActivePhoto] = useState(0);
   const [photoSize, setPhotoSize] = useState<{ width: number; height: number } | null>(null);
@@ -178,7 +258,7 @@ export default function ProfileDetailScreen() {
   };
 
   const handleLike = async () => {
-    if (!profile) return;
+    if (!profile || relationship.isLiked) return;
     try {
       await likeWithType(profile.id);
       setRelationship((prev) => ({ ...prev, isLiked: true }));
@@ -197,15 +277,17 @@ export default function ProfileDetailScreen() {
   };
 
   const handleCoupDeCoeur = async () => {
-    if (!profile || !coeur.can_use) return;
+    if (!profile || (!coeurUnlimited && !coeur.can_use)) return;
     try {
       await likeWithType(profile.id, "coup_de_coeur");
       setRelationship((prev) => ({ ...prev, isLiked: true }));
-      setCoeur((prev) => ({
-        ...prev,
-        remaining: Math.max(0, prev.remaining - 1),
-        can_use: prev.remaining > 1,
-      }));
+      if (!coeurUnlimited) {
+        setCoeur((prev) => ({
+          ...prev,
+          remaining: Math.max(0, prev.remaining - 1),
+          can_use: prev.remaining > 1,
+        }));
+      }
       await checkMatch();
     } catch (coeurError) {
       setError(apiErrorMessage(coeurError, "Limite de Coups de Cœur atteinte."));
@@ -267,8 +349,8 @@ export default function ProfileDetailScreen() {
     return (
       <AppChrome active="discover">
         <View style={styles.centered}>
-          <ActivityIndicator color="#ff4d6d" />
-          <Text style={styles.loadingText}>Recherche d'un match…</Text>
+          <ActivityIndicator color={theme.red} />
+          <Text style={styles.loadingText}>Recherche d’un match…</Text>
         </View>
       </AppChrome>
     );
@@ -319,13 +401,14 @@ export default function ProfileDetailScreen() {
               source={require("../../../assets/brand/hero-fade.png")}
               style={styles.heroGradient}
               resizeMode="stretch"
+              pointerEvents="none"
             />
 
             {/* No full-height tap zones here: they used to swallow the tap that
                 opens the full-screen viewer. Dots page the hero, the viewer pages
                 through every photo (arrows, swipe and thumbnails). */}
             {gallery.length > 1 ? (
-              <View style={styles.dots}>
+              <View style={styles.dots} pointerEvents="box-none">
                 {gallery.map((_, index) => (
                   <Pressable
                     key={index}
@@ -341,13 +424,13 @@ export default function ProfileDetailScreen() {
               </View>
             ) : null}
 
-            <View style={styles.topbar}>
+            <View style={styles.topbar} pointerEvents="box-none">
               <Pressable style={styles.topbarBtn} onPress={() => router.back()} accessibilityLabel="Retour">
                 <Text style={styles.topbarGlyph}>←</Text>
               </Pressable>
-              <View style={styles.topbarRight}>
+              <View style={styles.topbarRight} pointerEvents="box-none">
                 {profile.is_verified ? (
-                  <View style={styles.verifiedPill}>
+                  <View style={styles.verifiedPill} pointerEvents="none">
                     <Text style={styles.verifiedPillText}>✓ Vérifié</Text>
                   </View>
                 ) : null}
@@ -357,7 +440,7 @@ export default function ProfileDetailScreen() {
               </View>
             </View>
 
-            <View style={styles.heroInfo}>
+            <View style={styles.heroInfo} pointerEvents="none">
               <Text style={styles.heroName}>
                 {displayName(profile)}
                 {age ? `, ${age}` : ""}
@@ -440,7 +523,7 @@ export default function ProfileDetailScreen() {
               <>
                 <View style={styles.divider} />
                 <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>★ CENTRES D'INTÉRÊT</Text>
+                  <Text style={styles.sectionLabel}>★ CENTRES D’INTÉRÊT</Text>
                   <View style={styles.tagWrap}>
                     {(profile.passions ?? "")
                       .split(",")
@@ -513,7 +596,7 @@ export default function ProfileDetailScreen() {
         {error ? <Text style={styles.toastError}>{error}</Text> : null}
 
         {/* Fixed action bar (pd-action-bar) — sits above the bottom nav */}
-        <View style={[styles.actionBar, { paddingBottom: 12 }]}>
+        <View style={[styles.actionBar, { paddingBottom: 14 }]}>
           {relationship.isBlocked ? (
             <Pressable style={[styles.btn, styles.btnGreen]} onPress={() => void handleUnblock()}>
               <Text style={styles.btnText}>✓ Débloquer</Text>
@@ -541,25 +624,37 @@ export default function ProfileDetailScreen() {
               </View>
             </>
           ) : (
-            <>
-              <View style={styles.btnRow}>
-                <Pressable style={[styles.btn, styles.btnGhost]} onPress={() => void handlePass()}>
-                  <Text style={[styles.btnText, { color: "#FF2D55" }]}>Passer</Text>
-                </Pressable>
-                <Pressable style={[styles.btn, styles.btnPink]} onPress={() => void handleLike()}>
-                  <Text style={styles.btnText}>{relationship.isLiked ? "❤️ Aimé" : "J'aime ❤️"}</Text>
-                </Pressable>
-              </View>
-              <Pressable
-                style={[styles.btn, styles.btnPurple, !coeur.can_use && styles.btnDisabled]}
+            <View style={styles.actionsRow}>
+              <CircleAction
+                variant="pass"
+                icon="close"
+                iconSize={26}
+                accessibilityLabel="Passer"
+                onPress={() => void handlePass()}
+              />
+              <CircleAction
+                variant="like"
+                icon="heart"
+                iconSize={34}
+                size="lg"
+                accessibilityLabel={relationship.isLiked ? "Aimé" : "J'aime"}
+                active={relationship.isLiked}
+                onPress={() => void handleLike()}
+              />
+              <CircleAction
+                variant="coeur"
+                icon="star"
+                iconSize={26}
+                accessibilityLabel={
+                  coeurUnlimited
+                    ? "Coup de cœur, illimité"
+                    : `Coup de cœur, ${coeur.remaining} restant${coeur.remaining > 1 ? "s" : ""}`
+                }
                 onPress={() => void handleCoupDeCoeur()}
-                disabled={!coeur.can_use}
-              >
-                <Text style={styles.btnText}>
-                  💜 Coup de Coeur {coeur.can_use ? `(${coeur.remaining})` : "(0)"}
-                </Text>
-              </Pressable>
-            </>
+                disabled={!coeurUnlimited && !coeur.can_use}
+                badge={coeurUnlimited ? undefined : coeur.remaining}
+              />
+            </View>
           )}
         </View>
 
@@ -700,7 +795,7 @@ export default function ProfileDetailScreen() {
                 onChangeText={setReportDetails}
                 multiline
                 placeholder="Fournissez toute information complémentaire..."
-                placeholderTextColor="#adb5bd"
+                placeholderTextColor={theme.placeholder}
                 style={styles.reportInput}
               />
 
@@ -726,13 +821,13 @@ export default function ProfileDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#FAF8F4" },
   scroll: { paddingBottom: 190 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 },
-  loadingText: { color: "#6c757d", fontSize: 14 },
+  loadingText: { color: "#6c757d", fontSize: 12.5 },
   errorBox: { backgroundColor: "#f8d7da", padding: 16, borderRadius: 12, borderWidth: 1, borderColor: "#f5c2c7" },
-  errorText: { color: "#842029", fontSize: 14, textAlign: "center" },
+  errorText: { color: "#842029", fontSize: 12.5, textAlign: "center" },
   backOutline: { borderWidth: 1, borderColor: "#dc3545", borderRadius: 30, paddingHorizontal: 28, paddingVertical: 10 },
   backOutlineText: { color: "#dc3545", fontWeight: "600" },
 
@@ -741,14 +836,12 @@ const styles = StyleSheet.create({
     height: HERO_HEIGHT,
     backgroundColor: "#1A1A2E",
     overflow: "hidden",
-    // Keeps the photo off the white navbar instead of reading as if it slid under it.
-    marginTop: 8,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
   },
   heroImage: { width: "100%", height: "100%" },
   heroEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
-  heroEmptyIcon: { fontSize: 48, color: "#FF2D55" },
+  heroEmptyIcon: { fontSize: 38, color: "#FF2D55" },
   heroGradient: { position: "absolute", left: 0, right: 0, bottom: 0, height: "40%", width: "100%" },
   viewerThumbs: {
     position: "absolute",
@@ -790,8 +883,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  topbarGlyph: { color: "#1A1A2E", fontSize: 17 },
-  dotsGlyph: { color: "#1A1A2E", fontSize: 15, fontWeight: "700", letterSpacing: 1 },
+  topbarGlyph: { color: "#1A1A2E", fontSize: 15 },
+  dotsGlyph: { color: "#1A1A2E", fontSize: 13.5, fontWeight: "700", letterSpacing: 1 },
   verifiedPill: {
     backgroundColor: "rgba(0,0,0,0.55)",
     borderRadius: 20,
@@ -802,30 +895,30 @@ const styles = StyleSheet.create({
 
   heroInfo: { position: "absolute", bottom: 16, left: 16, right: 64 },
   heroName: {
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: "700",
     color: "#fff",
-    lineHeight: 26,
+    lineHeight: 23,
     marginBottom: 4,
     textShadowColor: "rgba(0,0,0,0.4)",
     textShadowRadius: 4,
   },
   heroCityRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  pin: { fontSize: 11, color: "#FF2D55" },
-  heroCity: { fontSize: 14, color: "#fff", opacity: 0.92 },
+  pin: { fontSize: 10.5, color: "#FF2D55" },
+  heroCity: { fontSize: 12.5, color: "#fff", opacity: 0.92 },
 
   card: { backgroundColor: "#fff", borderTopLeftRadius: 20, borderTopRightRadius: 20, marginTop: -16, minHeight: WINDOW_HEIGHT * 0.5 },
   section: { paddingHorizontal: 20, paddingTop: 20 },
   divider: { height: 1, backgroundColor: "#F0EEE8", marginTop: 16, marginHorizontal: 20 },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: "700",
     color: "#FF2D55",
     letterSpacing: 1.5,
     marginBottom: 12,
     textTransform: "uppercase",
   },
-  bio: { fontSize: 15.2, lineHeight: 24.3, color: "#4a4a4a" },
+  bio: { fontSize: 13.5, lineHeight: 21.5, color: "#4a4a4a" },
 
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
@@ -840,12 +933,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chipVerified: { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" },
-  chipIcon: { fontSize: 12, color: "#FF2D55" },
-  chipText: { fontSize: 13.3, color: "#2d2d2d" },
+  chipIcon: { fontSize: 11, color: "#FF2D55" },
+  chipText: { fontSize: 12, color: "#2d2d2d" },
 
   lineRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
-  lineIcon: { color: "#FF2D55", fontSize: 13.5 },
-  lineText: { fontSize: 14.4, color: "#2d2d2d", flex: 1 },
+  lineIcon: { color: "#FF2D55", fontSize: 12.5 },
+  lineText: { fontSize: 12.5, color: "#2d2d2d", flex: 1 },
 
   tagWrap: { flexDirection: "row", flexWrap: "wrap" },
   tag: {
@@ -861,10 +954,10 @@ const styles = StyleSheet.create({
   tagPassion: { borderColor: "#ffd8df", backgroundColor: "#fff6f8" },
   tagHobby: { borderColor: "#d7ecff", backgroundColor: "#f5fbff" },
   tagMusic: { borderColor: "#efe2ff", backgroundColor: "#faf7ff" },
-  tagText: { fontSize: 13.3, fontWeight: "500", color: "#2d2d2d" },
+  tagText: { fontSize: 12, fontWeight: "500", color: "#2d2d2d" },
 
   musicHeading: { width: "100%", marginTop: 10, marginBottom: 6 },
-  musicHeadingText: { fontSize: 11, fontWeight: "700", color: "#FF2D55", letterSpacing: 1.2 },
+  musicHeadingText: { fontSize: 10.5, fontWeight: "700", color: "#FF2D55", letterSpacing: 1.2 },
 
   promptCard: {
     backgroundColor: "#FAF8F4",
@@ -875,8 +968,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 10,
   },
-  promptQ: { fontSize: 11, color: "#999", marginBottom: 6 },
-  promptA: { fontSize: 14.4, color: "#1A1A2E", lineHeight: 21.6 },
+  promptQ: { fontSize: 10.5, color: "#999", marginBottom: 6 },
+  promptA: { fontSize: 12.5, color: "#1A1A2E", lineHeight: 19 },
   promptComment: {
     marginTop: 10,
     alignSelf: "flex-start",
@@ -886,7 +979,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
   },
-  promptCommentText: { fontSize: 12, color: "#FF2D55", fontWeight: "500" },
+  promptCommentText: { fontSize: 11, color: "#FF2D55", fontWeight: "500" },
 
   cardBottom: { height: 24 },
 
@@ -895,27 +988,69 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "#fff",
+    backgroundColor: "#FFFDFC",
     borderTopWidth: 1,
-    borderTopColor: "#F0EEE8",
+    borderTopColor: "#F2ECE8",
     paddingHorizontal: 16,
-    paddingTop: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.07,
-    shadowRadius: 20,
+    paddingTop: 14,
+    shadowColor: "#1F1A24",
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
     shadowOffset: { width: 0, height: -4 },
-    elevation: 8,
+    elevation: 10,
   },
   btnRow: { flexDirection: "row", gap: 10, marginBottom: 8 },
   btn: { paddingVertical: 13, paddingHorizontal: 16, borderRadius: 999, alignItems: "center", justifyContent: "center", flex: 1 },
-  btnGhost: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: "#FF2D55" },
   btnPink: { backgroundColor: "#FF2D55" },
-  btnPurple: { backgroundColor: "#8B30C9", width: "100%", flex: 0, marginTop: 0 },
   btnGreen: { backgroundColor: "#22c55e", width: "100%", flex: 0 },
-  btnDisabled: { backgroundColor: "#d1d5db", opacity: 0.6 },
-  btnText: { color: "#fff", fontWeight: "600", fontSize: 14.7 },
-  unmatch: { color: "#8e8e93", fontSize: 12.8, textDecorationLine: "underline" },
-  toastError: { position: "absolute", bottom: 150, left: 20, right: 20, color: "#dc3545", fontSize: 12.5, textAlign: "center" },
+  btnText: { color: "#fff", fontWeight: "600", fontSize: 13.5 },
+  actionsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18 },
+  circle: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    shadowColor: "#1F1A24",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  circleSm: { width: 58, height: 58, borderRadius: 29 },
+  circleLg: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 5,
+    borderColor: "#FFE0E8",
+    shadowColor: "#D41455",
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  circlePass: { backgroundColor: "#FFFFFF", borderColor: "#EDE7E3" },
+  circleLike: { backgroundColor: "#FF2D55" },
+  circleLikeActive: { backgroundColor: "#D41455" },
+  circleCoeur: { backgroundColor: "#FFFFFF", borderColor: "#EADCF4" },
+  circleDisabled: { opacity: 0.45 },
+  circlePressed: { transform: [{ scale: 0.92 }] },
+  circleBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#852A91",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  circleBadgeText: { fontSize: 10, fontWeight: "700", color: "#FFFFFF" },
+  unmatch: { color: "#8e8e93", fontSize: 12, textDecorationLine: "underline" },
+  toastError: { position: "absolute", bottom: 150, left: 20, right: 20, color: "#dc3545", fontSize: 12, textAlign: "center" },
 
   menu: {
     position: "absolute",
@@ -935,7 +1070,7 @@ const styles = StyleSheet.create({
   },
   menuRow: { paddingHorizontal: 16, paddingVertical: 13 },
   menuRowBorder: { borderTopWidth: 1, borderTopColor: "#F0EEE8" },
-  menuRowText: { fontSize: 14.4, color: "#1A1A2E" },
+  menuRowText: { fontSize: 12.5, color: "#1A1A2E" },
 
   viewer: { flex: 1, backgroundColor: "#000" },
   viewerPage: { width: WINDOW_WIDTH, height: "100%", alignItems: "center", justifyContent: "center" },
@@ -950,7 +1085,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  viewerCloseGlyph: { fontSize: 20, color: "#1A1A2E" },
+  viewerCloseGlyph: { fontSize: 18, color: "#1A1A2E" },
   viewerArrow: {
     position: "absolute",
     top: "50%",
@@ -962,7 +1097,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  viewerArrowGlyph: { color: "#fff", fontSize: 24 },
+  viewerArrowGlyph: { color: "#fff", fontSize: 22 },
   viewerCounter: {
     position: "absolute",
     bottom: 40,
@@ -971,19 +1106,19 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
   },
-  viewerCounterText: { color: "#fff", fontSize: 16 },
+  viewerCounterText: { color: "#fff", fontSize: 14 },
 
   reportScrim: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 20 },
   reportCard: { width: "100%", maxWidth: 500, backgroundColor: "#fff", borderRadius: 24, padding: 24, maxHeight: "88%" },
   reportHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  reportTitle: { fontSize: 18, fontWeight: "700", color: "#212529" },
-  reportClose: { fontSize: 18, color: "#6c757d" },
-  reportError: { backgroundColor: "#f8d7da", color: "#842029", padding: 10, borderRadius: 8, marginBottom: 10, fontSize: 13 },
-  reportLabel: { fontSize: 13.5, fontWeight: "600", color: "#212529", marginBottom: 6, marginTop: 8 },
+  reportTitle: { fontSize: 16, fontWeight: "700", color: "#212529" },
+  reportClose: { fontSize: 16, color: "#6c757d" },
+  reportError: { backgroundColor: "#f8d7da", color: "#842029", padding: 10, borderRadius: 8, marginBottom: 10, fontSize: 12 },
+  reportLabel: { fontSize: 12.5, fontWeight: "600", color: "#212529", marginBottom: 6, marginTop: 8 },
   reasonList: { maxHeight: 200 },
   reasonRow: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
   reasonRowActive: { backgroundColor: "#fff0f3" },
-  reasonText: { fontSize: 13.5, color: "#212529" },
+  reasonText: { fontSize: 12.5, color: "#212529" },
   reasonTextActive: { color: "#FF2D55", fontWeight: "600" },
   reportInput: {
     borderWidth: 1,
@@ -991,7 +1126,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     minHeight: 90,
-    fontSize: 14,
+    fontSize: 12.5,
     color: "#212529",
     textAlignVertical: "top",
   },
@@ -1000,5 +1135,5 @@ const styles = StyleSheet.create({
   reportCancel: { borderWidth: 1, borderColor: "#6c757d" },
   reportCancelText: { color: "#6c757d", fontWeight: "600" },
   reportSend: { backgroundColor: "#dc3545" },
-  reportSendText: { color: "#fff", fontWeight: "600", fontSize: 13.5 },
+  reportSendText: { color: "#fff", fontWeight: "600", fontSize: 12.5 },
 });

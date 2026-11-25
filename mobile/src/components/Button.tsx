@@ -1,7 +1,7 @@
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
-import { colors, radius, spacing } from "../theme";
+import { colors, radius, spacing, useTheme, useThemedStyles } from "../theme";
 
 type Variant = "primary" | "ghost" | "quiet";
 
@@ -16,6 +16,8 @@ type Props = {
 
 export function Button({ title, onPress, variant = "primary", loading = false, disabled = false, style }: Props) {
   const isDisabled = disabled || loading;
+  const styles = useThemedStyles(baseStyles);
+  const { colors: theme } = useTheme();
 
   return (
     <Pressable
@@ -34,7 +36,7 @@ export function Button({ title, onPress, variant = "primary", loading = false, d
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === "primary" ? "#fff" : colors.ink} />
+        <ActivityIndicator color={variant === "primary" ? "#fff" : theme.ink} />
       ) : (
         <Text
           style={[
@@ -52,10 +54,11 @@ export function Button({ title, onPress, variant = "primary", loading = false, d
 }
 
 export function ButtonRow({ children }: { children: React.ReactNode }) {
+  const styles = useThemedStyles(baseStyles);
   return <View style={styles.row}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   base: {
     width: "100%",
     minHeight: 52,
@@ -88,7 +91,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   label: {
-    fontSize: 15,
+    fontSize: 13.5,
     fontWeight: "700",
     color: colors.ink,
     textAlign: "center",

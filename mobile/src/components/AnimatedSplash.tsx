@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, useWindowDimensions } from "react-native";
 
-import { colors } from "../theme";
+import { useTheme } from "../theme";
 
 // Native size of assets/splash-logo.png (stacked mark + wordmark).
 const LOGO_ASPECT = 1000 / 467;
@@ -15,6 +15,7 @@ const LOGO_ASPECT = 1000 / 467;
  */
 export function AnimatedSplash({ ready }: { ready: boolean }) {
   const { width } = useWindowDimensions();
+  const { colors, isDark } = useTheme();
   const logoWidth = Math.min(Math.max(width * 0.58, 210), 320);
 
   const rise = useRef(new Animated.Value(0)).current;
@@ -68,6 +69,7 @@ export function AnimatedSplash({ ready }: { ready: boolean }) {
       pointerEvents="none"
       style={[
         styles.root,
+        { backgroundColor: colors.cream },
         { opacity: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) },
       ]}
     >
@@ -81,6 +83,7 @@ export function AnimatedSplash({ ready }: { ready: boolean }) {
             width: logoWidth,
             height: logoWidth / LOGO_ASPECT,
             opacity: rise,
+            tintColor: isDark ? "#F4F6FB" : undefined,
             transform: [
               { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) },
               { scale: rise.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
@@ -99,7 +102,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.cream,
+    backgroundColor: "#FFF9F5",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1000,

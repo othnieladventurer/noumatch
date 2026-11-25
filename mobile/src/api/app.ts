@@ -39,6 +39,14 @@ export type MatchRecord = {
   user2: UserProfile;
 };
 
+export type ReceivedLike = {
+  id: number;
+  type?: "like" | "coup_de_coeur";
+  created_at?: string;
+  is_mutual?: boolean;
+  from_user?: UserProfile | null;
+};
+
 export type Conversation = {
   id: number;
   other_user?: UserProfile | null;
@@ -111,6 +119,12 @@ export type ChatMessage = {
   message_type?: string;
   attachment_url?: string;
 };
+
+/** GET /interactions/likes/received/ — the Premium "Qui m'a liké" list. */
+export async function fetchReceivedLikes(): Promise<ReceivedLike[]> {
+  const data = await request<ReceivedLike[]>("/interactions/likes/received/");
+  return Array.isArray(data) ? data : [];
+}
 
 /** GET /users/profiles/{id}/ */
 export async function fetchProfileById(id: number | string): Promise<UserProfile> {
@@ -300,11 +314,12 @@ export async function fetchCoeurLimits(): Promise<{
   can_use: boolean;
   remaining: number;
   daily_limit: number;
+  is_unlimited?: boolean;
 }> {
   try {
     return await request("/interactions/coeur/limits/");
   } catch {
-    return { can_use: true, remaining: 3, daily_limit: 3 };
+    return { can_use: true, remaining: 3, daily_limit: 3, is_unlimited: false };
   }
 }
 

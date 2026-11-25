@@ -2,7 +2,7 @@ import React from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { colors } from "../theme";
+import { useTheme } from "../theme";
 
 type Props = {
   children: React.ReactNode;
@@ -11,8 +11,9 @@ type Props = {
 };
 
 export function Screen({ children, scroll = true, style }: Props) {
+  const { colors } = useTheme();
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.cream }]} edges={["top", "bottom", "left", "right"]}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -38,7 +39,7 @@ export function Screen({ children, scroll = true, style }: Props) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: "#FFF9F5",
   },
   flex: {
     flex: 1,

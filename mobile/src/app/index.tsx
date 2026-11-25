@@ -5,7 +5,7 @@ import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from "r
 import { useAuth } from "../auth/AuthProvider";
 import { Button } from "../components/Button";
 import { Screen } from "../components/Screen";
-import { colors, radius, spacing, type } from "../theme";
+import { colors, radius, spacing, useTheme, useThemedStyles, useTypography } from "../theme";
 
 // Native aspect ratio of the cropped wordmark, so `contain` never letterboxes
 // and the logo's first pixel sits exactly on the content margin.
@@ -24,13 +24,16 @@ const WORDMARK_ASPECT = 1405 / 189;
 export default function WelcomeScreen() {
   const { status } = useAuth();
   const { width, height } = useWindowDimensions();
+  const styles = useThemedStyles(baseStyles);
+  const type = useTypography();
+  const { isDark } = useTheme();
   const [photoFailed, setPhotoFailed] = useState(false);
 
   if (status === "loading") return null;
   if (status === "signedIn") return <Redirect href="/home" />;
 
   // Phone-scale type, clamped so wide devices stay restrained and small ones don't wrap badly.
-  const headingSize = Math.min(27, Math.max(22, width * 0.07));
+  const headingSize = Math.min(24, Math.max(20, width * 0.062));
   const logoHeight = Math.min(26, Math.max(20, width * 0.065));
   // Never wider than the space left beside the settings control.
   const logoWidth = Math.min(logoHeight * WORDMARK_ASPECT, width - 44 - 60);
@@ -43,7 +46,7 @@ export default function WelcomeScreen() {
       <View style={styles.header}>
         <Image
           source={require("../../assets/brand/logo-wordmark.png")}
-          style={{ height: logoHeight, width: logoWidth }}
+          style={[{ height: logoHeight, width: logoWidth }, isDark && styles.logoDark]}
           resizeMode="contain"
           accessibilityRole="image"
           accessibilityLabel="NouMatch"
@@ -102,7 +105,7 @@ export default function WelcomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     paddingTop: spacing.md,
   },
@@ -129,6 +132,7 @@ const styles = StyleSheet.create({
     width: 19,
     height: 19,
   },
+  logoDark: { tintColor: "#F4F6FB" },
   intro: {
     marginTop: spacing.xl,
   },
@@ -141,8 +145,8 @@ const styles = StyleSheet.create({
   support: {
     marginTop: spacing.sm + 2,
     maxWidth: 330,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 13.5,
+    lineHeight: 19.5,
     color: colors.muted,
   },
   photoFrame: {

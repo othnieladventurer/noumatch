@@ -26,11 +26,14 @@ import {
 } from "../api/app";
 import { apiErrorMessage } from "../api/client";
 import { AppChrome } from "../components/AppChrome";
+import { useTheme, useThemedStyles } from "../theme";
 
 /** Port of frontend/src/pages/Messages.jsx — list rows, thread header, bubbles, composer. */
 export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ conversation?: string }>();
+  const styles = useThemedStyles(baseStyles);
+  const { colors } = useTheme();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
@@ -104,7 +107,7 @@ export default function MessagesScreen() {
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#dc3545" />
+        <ActivityIndicator color={colors.red} />
       </View>
     );
   }
@@ -147,8 +150,8 @@ export default function MessagesScreen() {
         </View>
 
         {threadLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color="#dc3545" />
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.red} />
           </View>
         ) : (
           <FlatList
@@ -208,7 +211,7 @@ export default function MessagesScreen() {
             value={text}
             onChangeText={setText}
             placeholder="Écrivez un message…"
-            placeholderTextColor="#9aa1ac"
+            placeholderTextColor={colors.placeholder}
             style={styles.input}
             multiline
             onSubmitEditing={() => void handleSend()}
@@ -302,13 +305,13 @@ function dayLabel(value?: string): string {
   return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#fff" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
 
   listHeader: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
-  back: { fontSize: 20, color: "#ff4d6d" },
-  listTitle: { fontSize: 20, fontWeight: "700", color: "#212529" },
+  back: { fontSize: 18, color: "#ff4d6d" },
+  listTitle: { fontSize: 18, fontWeight: "700", color: "#212529" },
   listBody: { padding: 12, gap: 8 },
 
   row: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#f8f9fa", borderRadius: 16, padding: 8 },
@@ -316,14 +319,14 @@ const styles = StyleSheet.create({
   avatar44: { width: 44, height: 44, borderRadius: 22 },
   avatar42: { width: 42, height: 42, borderRadius: 21 },
   avatarFallback: { backgroundColor: "#e9ecef", alignItems: "center", justifyContent: "center" },
-  avatarInitial: { fontSize: 16, fontWeight: "700", color: "#6c757d" },
+  avatarInitial: { fontSize: 14, fontWeight: "700", color: "#6c757d" },
   rowBody: { flex: 1, minWidth: 0 },
   rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  rowName: { flex: 1, fontSize: 15, fontWeight: "600", color: "#212529" },
-  rowTime: { fontSize: 11.5, color: "#6c757d" },
-  rowText: { fontSize: 12.8, color: "#6c757d", marginTop: 2 },
+  rowName: { flex: 1, fontSize: 13.5, fontWeight: "600", color: "#212529" },
+  rowTime: { fontSize: 11, color: "#6c757d" },
+  rowText: { fontSize: 12, color: "#6c757d", marginTop: 2 },
   badge: { backgroundColor: "#dc3545", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
-  badgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  badgeText: { color: "#fff", fontSize: 10.5, fontWeight: "700" },
 
   threadHeader: {
     flexDirection: "row",
@@ -336,14 +339,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   threadPerson: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  threadName: { fontSize: 16, fontWeight: "700", color: "#1A1A2E" },
+  threadName: { fontSize: 14, fontWeight: "700", color: "#1A1A2E" },
   threadStatusRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 },
   statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#4ade80" },
   statusDotOff: { backgroundColor: "#CED4DA" },
-  threadStatus: { fontSize: 11.5, color: "#6c757d" },
+  threadStatus: { fontSize: 11, color: "#6c757d" },
   dayRow: { alignItems: "center", marginVertical: 10 },
   dayText: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: "#8a8f98",
     backgroundColor: "#fff",
     paddingHorizontal: 12,
@@ -352,8 +355,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   threadEmpty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 4 },
-  emptyEmoji: { fontSize: 30, marginBottom: 4 },
-  emptyHint: { fontSize: 12.5, color: "#9aa1ac", textAlign: "center" },
+  emptyEmoji: { fontSize: 24, marginBottom: 4 },
+  emptyHint: { fontSize: 12, color: "#9aa1ac", textAlign: "center" },
   threadBody: { padding: 12, gap: 8, backgroundColor: "#FAF8F4", flexGrow: 1 },
 
   bubbleRow: { flexDirection: "row" },
@@ -363,7 +366,7 @@ const styles = StyleSheet.create({
   bubbleMine: { backgroundColor: "#ff4d6d" },
   bubbleTheirs: { backgroundColor: "#fff", borderWidth: 1, borderColor: "#dee2e6" },
   bubbleGradient: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
-  bubbleText: { fontSize: 13.5, lineHeight: 19 },
+  bubbleText: { fontSize: 12.5, lineHeight: 16.5 },
   bubbleTextMine: { color: "#fff" },
   bubbleTextTheirs: { color: "#212529" },
   bubbleMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
@@ -393,14 +396,14 @@ const styles = StyleSheet.create({
     borderColor: "#dee2e6",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: 12.5,
     color: "#212529",
     backgroundColor: "#fff",
   },
   send: { backgroundColor: "#dc3545", borderRadius: 999, paddingHorizontal: 18, paddingVertical: 11 },
   sendDisabled: { opacity: 0.5 },
-  sendText: { color: "#fff", fontWeight: "600", fontSize: 13.5 },
+  sendText: { color: "#fff", fontWeight: "600", fontSize: 12.5 },
 
-  error: { color: "#dc3545", fontSize: 12.5, paddingHorizontal: 16, paddingVertical: 6 },
-  emptyText: { color: "#6c757d", fontSize: 14, textAlign: "center" },
+  error: { color: "#dc3545", fontSize: 12, paddingHorizontal: 16, paddingVertical: 6 },
+  emptyText: { color: "#6c757d", fontSize: 12.5, textAlign: "center" },
 });

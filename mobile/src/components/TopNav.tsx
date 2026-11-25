@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -16,13 +16,13 @@ import {
   type Conversation,
   type UserProfile,
 } from "../api/app";
-import { colors, radius } from "../theme";
-import { AccountMenu } from "./AccountMenu";
+import { colors, radius, useThemedStyles } from "../theme";
+import { AccountMenu, type AccountAnchor } from "./AccountMenu";
 
 // Bell and inbox share one glyph size; the logo mark is wider than it is tall,
 // so it gets a larger box to read at the same optical weight.
-const GLYPH = 24;
-const LOGO = 38;
+const GLYPH = 22;
+const LOGO = 32;
 const BAR_HEIGHT = 56;
 const PANEL_WIDTH = Math.min(360, Dimensions.get("window").width - 32);
 
@@ -36,6 +36,7 @@ type Props = {
   onNotifications?: () => void;
   onProfile?: () => void;
   onSettings?: () => void;
+  onLikes?: () => void;
   onSignOut?: () => void;
 };
 
@@ -69,10 +70,14 @@ export function TopNav({
   onNotifications,
   onProfile,
   onSettings,
+  onLikes,
   onSignOut,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(baseStyles);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<AccountAnchor | null>(null);
+  const avatarRef = useRef<React.ComponentRef<typeof View>>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -101,8 +106,30 @@ export function TopNav({
 
   const togglePanel = (target: Exclude<Panel, null>) => {
     const next = panel === target ? null : target;
+    if (next) setMenuOpen(false);
     setPanel(next);
     if (next) void loadPanel(next);
+  };
+
+  /** Anchor the account dropdown to the avatar so it opens right beneath it. */
+  const toggleAccountMenu = () => {
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+    setPanel(null);
+    const node = avatarRef.current;
+    if (!node) {
+      setMenuOpen(true);
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      setMenuAnchor({
+        top: y + height + 6,
+        right: Math.max(12, Dimensions.get("window").width - (x + width)),
+      });
+      setMenuOpen(true);
+    });
   };
 
   const openNotification = async (item: AppNotification) => {
@@ -205,13 +232,13 @@ export function TopNav({
           </Pressable>
 
           <Pressable
-            onPress={() => setMenuOpen(true)}
+            onPress={toggleAccountMenu}
             accessibilityRole="button"
             accessibilityLabel={`Menu du compte de ${displayName(user)}`}
             hitSlop={6}
             style={({ pressed }) => pressed && styles.pressed}
           >
-            <View style={styles.avatarWrap}>
+            <View ref={avatarRef} collapsable={false} style={styles.avatarWrap}>
               {photo ? (
                 <Image source={{ uri: photo }} style={styles.avatar} />
               ) : (
@@ -273,7 +300,7 @@ export function TopNav({
                   style={[styles.notifRow, !item.is_read && styles.notifRowUnread]}
                 >
                   <View style={[styles.notifIcon, !item.is_read ? styles.notifIconUnread : styles.notifIconRead]}>
-                    <Text style={{ fontSize: 16 }}>{notificationIcon(item.type)}</Text>
+                    <Text style={{ fontSize: 14 }}>{notificationIcon(item.type)}</Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={styles.notifTop}>
@@ -346,7 +373,7 @@ export function TopNav({
                 <Text style={styles.panelEmptyIcon}>✉️</Text>
                 <Text style={styles.panelEmptyText}>Pas encore de messages</Text>
                 <Text style={styles.panelEmptyHint}>
-                  Quand vous matchez avec quelqu'un, vous pourrez discuter ici
+                  Quand vous matchez avec quelqu’un, vous pourrez discuter ici
                 </Text>
               </View>
             ) : (
@@ -437,16 +464,18 @@ export function TopNav({
       <AccountMenu
         visible={menuOpen}
         user={user}
+        anchor={menuAnchor}
         onClose={() => setMenuOpen(false)}
         onProfile={() => onProfile?.()}
         onSettings={onSettings}
+        onLikes={onLikes}
         onSignOut={() => onSignOut?.()}
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   root: { position: "relative", zIndex: 20 },
   bar: {
     backgroundColor: colors.white,
@@ -463,8 +492,8 @@ const styles = StyleSheet.create({
   },
   // Logo sits in the same 42dp slot as the bell/inbox buttons, glyph centred.
   slot: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     alignItems: "center",
     justifyContent: "center",
     alignSelf: "center",
@@ -472,6 +501,7 @@ const styles = StyleSheet.create({
   mark: {
     width: LOGO,
     height: LOGO,
+    borderRadius: 8,
   },
   actions: {
     flexDirection: "row",
@@ -479,8 +509,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconButton: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: radius.md,
     backgroundColor: "#f8f9fa",
     alignItems: "center",
@@ -502,9 +532,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -2,
     right: -2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: colors.red,
     alignItems: "center",
     justifyContent: "center",
@@ -518,24 +548,24 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   avatarWrap: {
-    width: 38,
-    height: 38,
+    width: 34,
+    height: 34,
   },
   avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
   },
   avatarFallback: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: colors.creamDeep,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarInitials: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
     color: colors.red,
   },
@@ -543,9 +573,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     right: -1,
     bottom: -1,
-    width: 11,
-    height: 11,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: "#4ade80",
     borderWidth: 2,
     borderColor: colors.white,
@@ -576,21 +606,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
   },
-  panelTitle: { fontSize: 14, fontWeight: "700", color: "#212529" },
-  panelSubtitle: { fontSize: 12, fontWeight: "400", color: "#6c757d" },
-  markAll: { fontSize: 12.5, color: "#dc3545" },
+  panelTitle: { fontSize: 12.5, fontWeight: "700", color: "#212529" },
+  panelSubtitle: { fontSize: 11, fontWeight: "400", color: "#6c757d" },
+  markAll: { fontSize: 12, color: "#dc3545" },
   panelEmpty: { alignItems: "center", paddingVertical: 28, paddingHorizontal: 20 },
-  panelEmptyIcon: { fontSize: 26, opacity: 0.5, marginBottom: 6 },
-  panelEmptyText: { fontSize: 12.5, color: "#6c757d", textAlign: "center" },
-  panelEmptyHint: { fontSize: 11.5, color: "#8a8f98", textAlign: "center", marginTop: 4 },
+  panelEmptyIcon: { fontSize: 22, opacity: 0.5, marginBottom: 6 },
+  panelEmptyText: { fontSize: 12, color: "#6c757d", textAlign: "center" },
+  panelEmptyHint: { fontSize: 11, color: "#8a8f98", textAlign: "center", marginTop: 4 },
   panelFooter: {
     alignItems: "center",
     paddingVertical: 11,
     borderTopWidth: 1,
     borderTopColor: "#F0F0F0",
   },
-  panelFooterDanger: { fontSize: 12.5, color: "#dc3545" },
-  panelFooterPrimary: { fontSize: 12.5, color: "#0d6efd" },
+  panelFooterDanger: { fontSize: 12, color: "#dc3545" },
+  panelFooterPrimary: { fontSize: 12, color: "#0d6efd" },
 
   notifRow: {
     flexDirection: "row",
@@ -610,23 +640,23 @@ const styles = StyleSheet.create({
   notifIconUnread: { backgroundColor: "rgba(255,77,109,0.13)" },
   notifIconRead: { backgroundColor: "#f8f9fa" },
   notifTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 8 },
-  notifTitle: { flex: 1, fontSize: 13, fontWeight: "600", color: "#212529" },
-  notifTime: { fontSize: 10.4, color: "#6c757d" },
-  notifMessage: { fontSize: 12, color: "#6c757d", marginTop: 2 },
+  notifTitle: { flex: 1, fontSize: 12, fontWeight: "600", color: "#212529" },
+  notifTime: { fontSize: 10, color: "#6c757d" },
+  notifMessage: { fontSize: 11, color: "#6c757d", marginTop: 2 },
   badgeRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5 },
   newBadge: { backgroundColor: "#dc3545", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
-  newBadgeText: { color: "#fff", fontSize: 9.6, fontWeight: "700" },
+  newBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
   countBadge: { backgroundColor: "#6c757d", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
-  countBadgeText: { color: "#fff", fontSize: 9.6, fontWeight: "700" },
+  countBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
   readBadge: { backgroundColor: "#f8f9fa", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
-  readBadgeText: { color: "#212529", fontSize: 9.6 },
+  readBadgeText: { color: "#212529", fontSize: 10 },
 
   messageRow: { flexDirection: "row", alignItems: "center", paddingRight: 12 },
   messageRowUnread: { backgroundColor: "#f8f9fa" },
   messageMain: { flex: 1, flexDirection: "row", alignItems: "flex-start", gap: 10, paddingHorizontal: 16, paddingVertical: 10 },
   avatarStack: { width: 32, height: 32 },
   messageAvatar: { width: 32, height: 32, borderRadius: 16 },
-  messageAvatarInitial: { fontSize: 12, fontWeight: "700", color: colors.red },
+  messageAvatarInitial: { fontSize: 11, fontWeight: "700", color: colors.red },
   messageOnline: {
     position: "absolute",
     right: -1,
@@ -638,13 +668,13 @@ const styles = StyleSheet.create({
     borderColor: "#fff",
   },
   messageTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  messageName: { flex: 1, fontSize: 13.5, fontWeight: "600", color: "#212529" },
-  messageTime: { fontSize: 11, color: "#6c757d" },
+  messageName: { flex: 1, fontSize: 12.5, fontWeight: "600", color: "#212529" },
+  messageTime: { fontSize: 10.5, color: "#6c757d" },
   messagePreviewRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 1 },
-  messagePreview: { flex: 1, fontSize: 12.5, color: "#6c757d" },
-  messageStatus: { fontSize: 10.4, marginTop: 2 },
+  messagePreview: { flex: 1, fontSize: 12, color: "#6c757d" },
+  messageStatus: { fontSize: 10, marginTop: 2 },
   unreadPill: { minWidth: 16, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 999, backgroundColor: "#dc3545", alignItems: "center" },
-  unreadPillText: { color: "#fff", fontSize: 9.6, fontWeight: "700" },
+  unreadPillText: { color: "#fff", fontSize: 10, fontWeight: "700" },
   markReadBtn: {
     width: 26,
     height: 26,
@@ -655,7 +685,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffd0da",
   },
-  markReadText: { color: "#ff4d6d", fontSize: 12, fontWeight: "700" },
+  markReadText: { color: "#ff4d6d", fontSize: 11, fontWeight: "700" },
 
   badgePill: { backgroundColor: "#dc3545", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   badgePillText: { color: "#fff", fontSize: 10.5, fontWeight: "700" },

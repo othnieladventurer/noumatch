@@ -6,11 +6,12 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AuthProvider, useAuth } from "../auth/AuthProvider";
 import { AnimatedSplash } from "../components/AnimatedSplash";
-import { colors } from "../theme";
+import { ThemeProvider, useTheme } from "../theme";
 
 /** Splash stays until the session is resolved, and at least long enough to see it. */
 function RootStack() {
   const { status } = useAuth();
+  const { colors, isDark } = useTheme();
   const [minimumElapsed, setMinimumElapsed] = useState(false);
 
   useEffect(() => {
@@ -20,7 +21,7 @@ function RootStack() {
 
   return (
     <View style={{ flex: 1 }}>
-      <StatusBar style="dark" />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -35,9 +36,11 @@ function RootStack() {
         <Stack.Screen name="verify" options={{ animation: "fade" }} />
         <Stack.Screen name="home" options={{ animation: "fade" }} />
         <Stack.Screen name="notifications" />
+        <Stack.Screen name="likes" />
         <Stack.Screen name="messages" options={{ animation: "slide_from_right" }} />
         <Stack.Screen name="profile" />
         <Stack.Screen name="profile/[id]" />
+        <Stack.Screen name="ad/[id]" />
       </Stack>
       <AnimatedSplash ready={status !== "loading" && minimumElapsed} />
     </View>
@@ -47,9 +50,11 @@ function RootStack() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <RootStack />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RootStack />
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

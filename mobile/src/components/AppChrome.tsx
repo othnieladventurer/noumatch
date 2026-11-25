@@ -6,6 +6,7 @@ import { fetchConversations, fetchNotifications, fetchUnreadCount, type UserProf
 import { useAuth } from "../auth/AuthProvider";
 import { BottomNav, type NavTab } from "./BottomNav";
 import { TopNav } from "./TopNav";
+import { useTheme } from "../theme";
 
 type Props = {
   active: NavTab;
@@ -18,6 +19,7 @@ type Props = {
  */
 export function AppChrome({ active, children }: Props) {
   const { user, signOut } = useAuth();
+  const { colors } = useTheme();
   const me = user as unknown as UserProfile | undefined;
 
   const [unread, setUnread] = useState(0);
@@ -42,8 +44,8 @@ export function AppChrome({ active, children }: Props) {
   };
 
   return (
-    <View style={styles.root}>
-      <View style={styles.nav}>
+    <View style={[styles.root, { backgroundColor: colors.canvas }]}>
+      <View style={[styles.nav, { backgroundColor: colors.white }]}>
         <TopNav
           user={me}
           unread={unread}

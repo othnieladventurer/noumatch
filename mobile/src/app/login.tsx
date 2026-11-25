@@ -8,7 +8,7 @@ import { Alert } from "../components/Alert";
 import { Button } from "../components/Button";
 import { Field } from "../components/Field";
 import { Screen } from "../components/Screen";
-import { colors, spacing, type } from "../theme";
+import { colors, spacing, useTheme, useThemedStyles, useTypography } from "../theme";
 
 const WORDMARK_ASPECT = 1405 / 189;
 const WEB_BASE = "https://noumatch.com";
@@ -20,6 +20,9 @@ const WEB_BASE = "https://noumatch.com";
  */
 export default function LoginScreen() {
   const { signIn } = useAuth();
+  const styles = useThemedStyles(baseStyles);
+  const type = useTypography();
+  const { isDark } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -49,7 +52,7 @@ export default function LoginScreen() {
     <Screen style={styles.screen}>
       <Image
         source={require("../../assets/brand/logo-wordmark.png")}
-        style={styles.logo}
+        style={[styles.logo, isDark && styles.logoDark]}
         resizeMode="contain"
         accessibilityRole="image"
         accessibilityLabel="NouMatch"
@@ -108,7 +111,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   screen: {
     // Centres the form block in the viewport while still allowing a scroll
     // if the keyboard or a large font size pushes the content taller than the screen.
@@ -119,17 +122,18 @@ const styles = StyleSheet.create({
     height: 30,
     marginBottom: spacing.xl,
   },
+  logoDark: { tintColor: "#F4F6FB" },
   title: {
     marginBottom: 6,
   },
   subtitle: {
-    fontSize: 15.5,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 21,
     color: colors.muted,
     marginBottom: spacing.xl,
   },
   labelLink: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: "600",
     color: colors.red,
   },
@@ -143,11 +147,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   footerText: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     color: colors.muted,
   },
   footerLink: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontWeight: "600",
     color: colors.red,
   },

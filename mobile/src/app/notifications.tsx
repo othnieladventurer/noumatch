@@ -12,7 +12,7 @@ import {
 } from "../api/app";
 import { useAuth } from "../auth/AuthProvider";
 import { AppChrome } from "../components/AppChrome";
-import { colors } from "../theme";
+import { colors, useTheme, useThemedStyles } from "../theme";
 
 const ICONS: Record<string, string> = {
   welcome: "⭐",
@@ -29,6 +29,8 @@ type Filter = "all" | "unread" | "read";
 /** Port of frontend/src/pages/Notifications.jsx. */
 export default function NotificationsScreen() {
   const { status } = useAuth();
+  const styles = useThemedStyles(baseStyles);
+  const { colors: theme } = useTheme();
 
   const [items, setItems] = useState<AppNotification[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
@@ -111,7 +113,7 @@ export default function NotificationsScreen() {
     <AppChrome active="discover">
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#dc3545" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.red} />}
         showsVerticalScrollIndicator={false}
       >
         {/* header */}
@@ -172,7 +174,7 @@ export default function NotificationsScreen() {
 
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color="#dc3545" />
+            <ActivityIndicator color={theme.red} />
           </View>
         ) : filtered.length === 0 ? (
           <View style={styles.center}>
@@ -255,14 +257,14 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.white },
   scroll: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32 },
   header: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
-  back: { fontSize: 20, color: "#ff4d6d" },
-  title: { flex: 1, fontSize: 24, fontWeight: "700", color: "#212529" },
+  back: { fontSize: 18, color: "#ff4d6d" },
+  title: { flex: 1, fontSize: 19, fontWeight: "700", color: "#212529" },
   liveBadge: { backgroundColor: "#d1e7dd", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
-  liveText: { fontSize: 12, fontWeight: "700", color: "#0f5132" },
+  liveText: { fontSize: 11, fontWeight: "700", color: "#0f5132" },
 
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
   statCard: {
@@ -274,8 +276,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eef0f3",
   },
-  statValue: { fontSize: 26, fontWeight: "700", color: "#ff4d6d" },
-  statLabel: { fontSize: 12.5, color: "#6c757d" },
+  statValue: { fontSize: 18, fontWeight: "700", color: "#ff4d6d" },
+  statLabel: { fontSize: 12, color: "#6c757d" },
 
   filters: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
   pill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1 },
@@ -283,13 +285,13 @@ const styles = StyleSheet.create({
   pillIdle: { backgroundColor: "transparent", borderColor: "#dc3545" },
   pillSecondary: { backgroundColor: "transparent", borderColor: "#6c757d" },
   pillRight: { marginLeft: "auto" },
-  pillText: { fontSize: 13.6, fontWeight: "600" },
+  pillText: { fontSize: 12.5, fontWeight: "600" },
   pillTextActive: { color: "#fff" },
   pillTextIdle: { color: "#dc3545" },
-  pillSecondaryText: { fontSize: 13.6, fontWeight: "600", color: "#6c757d" },
+  pillSecondaryText: { fontSize: 12.5, fontWeight: "600", color: "#6c757d" },
 
   group: { marginBottom: 16 },
-  groupDate: { fontSize: 12.5, fontWeight: "600", color: "#6c757d", marginBottom: 8, paddingHorizontal: 2 },
+  groupDate: { fontSize: 12, fontWeight: "600", color: "#6c757d", marginBottom: 8, paddingHorizontal: 2 },
 
   card: {
     flexDirection: "row",
@@ -314,22 +316,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   iconCircleUnread: { backgroundColor: "rgba(220,53,69,0.1)" },
-  icon: { fontSize: 20 },
+  icon: { fontSize: 18 },
   cardBody: { flex: 1 },
   cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 4 },
   titleWrap: { flex: 1, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
-  cardTitle: { fontSize: 15, fontWeight: "600", color: "#212529" },
+  cardTitle: { fontSize: 13.5, fontWeight: "600", color: "#212529" },
   cardTitleUnread: { color: "#dc3545" },
   newBadge: { backgroundColor: "#dc3545", borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
-  newBadgeText: { color: "#fff", fontSize: 9.6, fontWeight: "700" },
-  time: { fontSize: 11.2, color: "#6c757d" },
-  message: { fontSize: 13.5, color: "#6c757d", lineHeight: 19, marginBottom: 8 },
+  newBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  time: { fontSize: 10.5, color: "#6c757d" },
+  message: { fontSize: 12.5, color: "#6c757d", lineHeight: 16.5, marginBottom: 8 },
   cardActions: { flexDirection: "row", gap: 8, marginTop: 6 },
   smallPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1 },
   smallPillDanger: { borderColor: "#dc3545" },
-  smallPillDangerText: { fontSize: 12, fontWeight: "600", color: "#dc3545" },
+  smallPillDangerText: { fontSize: 11, fontWeight: "600", color: "#dc3545" },
   smallPillSecondary: { borderColor: "#6c757d" },
-  smallPillSecondaryText: { fontSize: 12, fontWeight: "600", color: "#6c757d" },
+  smallPillSecondaryText: { fontSize: 11, fontWeight: "600", color: "#6c757d" },
 
   center: { alignItems: "center", paddingVertical: 48, gap: 8 },
   emptyCircle: {
@@ -341,7 +343,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 12,
   },
-  emptyIcon: { fontSize: 30, opacity: 0.5 },
-  emptyTitle: { fontSize: 17, fontWeight: "700", color: "#212529" },
-  emptyCopy: { fontSize: 13.5, color: "#6c757d", textAlign: "center", maxWidth: 280, lineHeight: 20 },
+  emptyIcon: { fontSize: 26, opacity: 0.5 },
+  emptyTitle: { fontSize: 15, fontWeight: "700", color: "#212529" },
+  emptyCopy: { fontSize: 12.5, color: "#6c757d", textAlign: "center", maxWidth: 280, lineHeight: 17.5 },
 });

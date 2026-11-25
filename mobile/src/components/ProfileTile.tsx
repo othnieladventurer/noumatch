@@ -3,6 +3,7 @@ import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { profilePhoto, type UserProfile } from "../api/app";
+import { useThemedStyles } from "../theme";
 
 type Props = { profile: UserProfile; onPress?: () => void };
 
@@ -12,6 +13,7 @@ type Props = { profile: UserProfile; onPress?: () => void };
  * verified chip top-right, name + ", age" at 0.92rem/700 and city at 0.72rem/0.82.
  */
 export function ProfileTile({ profile, onPress }: Props) {
+  const styles = useThemedStyles(baseStyles);
   const uri = profilePhoto(profile);
   const city = profile.location?.trim() || profile.city?.trim() || "";
   const initial = (profile.first_name || "?").charAt(0).toUpperCase();
@@ -54,7 +56,7 @@ export function ProfileTile({ profile, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   tile: {
     flex: 1,
     aspectRatio: 3 / 4,
@@ -75,7 +77,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#1A1A2E",
   },
-  initial: { fontSize: 40, fontWeight: "700", color: "#FF2D55", letterSpacing: -1 },
+  initial: { fontSize: 32, fontWeight: "700", color: "#FF2D55", letterSpacing: -1 },
   // gradient overlay: bottom 55%, rgba(0,0,0,0.88) -> transparent
   fade: { position: "absolute", left: 0, right: 0, bottom: 0, width: "100%", height: "55%" },
   verified: {
@@ -89,6 +91,6 @@ const styles = StyleSheet.create({
   },
   verifiedText: { fontSize: 10, fontWeight: "700", color: "#4ade80" },
   info: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 12, paddingVertical: 10 },
-  name: { color: "#fff", fontWeight: "700", fontSize: 14.7, lineHeight: 18 },
-  city: { color: "#fff", opacity: 0.82, fontSize: 11.5, marginTop: 2 },
+  name: { color: "#fff", fontWeight: "700", fontSize: 13.5, lineHeight: 16 },
+  city: { color: "#fff", opacity: 0.82, fontSize: 11, marginTop: 2 },
 });

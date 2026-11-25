@@ -1,5 +1,6 @@
 import { Redirect, router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   FlatList,
@@ -29,11 +30,16 @@ import { useAuth } from "../auth/AuthProvider";
 import { Alert } from "../components/Alert";
 import { BottomNav, type NavTab } from "../components/BottomNav";
 import { Button } from "../components/Button";
+import { LikesPanel } from "../components/LikesPanel";
 import { ProfileTile } from "../components/ProfileTile";
 import { TopNav } from "../components/TopNav";
-import { colors, radius, spacing, type } from "../theme";
+import { AdTile } from "../components/AdTile";
+import { buildDiscoveryFeed } from "../ads/campaigns";
+import { colors, radius, spacing, useTheme, useThemedStyles, useTypography } from "../theme";
+import { canSeeWhoLiked, planFor } from "../utils/accountAccess";
 
-function Avatar({ profile, size = 46 }: { profile?: UserProfile | null; size?: number }) {
+function Avatar({ profile, size = 42 }: { profile?: UserProfile | null; size?: number }) {
+  const styles = useThemedStyles(baseStyles);
   const uri = profilePhoto(profile);
   const initials = `${profile?.first_name?.[0] ?? ""}${profile?.last_name?.[0] ?? ""}`.toUpperCase();
 
@@ -55,7 +61,12 @@ function Avatar({ profile, size = 46 }: { profile?: UserProfile | null; size?: n
  */
 export default function HomeScreen() {
   const { user, status, signOut } = useAuth();
+  const styles = useThemedStyles(baseStyles);
+  const type = useTypography();
+  const { colors: theme } = useTheme();
   const me = user as unknown as UserProfile | undefined;
+  const plan = planFor(me);
+  const likesUnlocked = canSeeWhoLiked(me);
 
   const [tab, setTab] = useState<NavTab>("discover");
   // Detail screens keep the bottom nav and send the user back to a specific tab.
@@ -71,6 +82,8 @@ export default function HomeScreen() {
   const [unread, setUnread] = useState(0);
   const [notificationUnread, setNotificationUnread] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [columns, setColumns] = useState<1 | 2>(2);
+  const [feedSeed, setFeedSeed] = useState(() => Math.floor(Math.random() * 2147483647));
 
   const loadFeed = useCallback(async () => {
     setLoadingFeed(true);
@@ -143,7 +156,8 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (tabParam === "discover" || tabParam === "conversations" || tabParam === "me") setTab(tabParam);
-  }, [tabParam]);
+    else if (tabParam === "likes" && likesUnlocked) setTab("likes");
+  }, [tabParam, likesUnlocked]);
 
   useFocusEffect(
     useCallback(() => {
@@ -155,13 +169,53 @@ export default function HomeScreen() {
 
   const refreshAll = async () => {
     setRefreshing(true);
+    setFeedSeed(Math.floor(Math.random() * 2147483647));
     await Promise.all([loadFeed(), loadConversations(), loadMatches(), loadNotifications()]);
     setRefreshing(false);
   };
 
+  // Premium/God Mode get the tab; free accounts get the locked upsell screen.
+  const openLikes = () => {
+    if (likesUnlocked) setTab("likes");
+    else router.push("/likes");
+  };
+
+  const feed = useMemo(() => buildDiscoveryFeed(profiles, feedSeed), [profiles, feedSeed]);
+
   if (status === "signedOut") return <Redirect href="/" />;
 
   const empty = !loadingFeed && profiles.length === 0;
+  const discoveryHeader = (
+    <View style={styles.discoverHeader}>
+      <View style={styles.discoverHeading}>
+        <Text style={[type.h1, styles.discoverTitle]}>Découvrir</Text>
+        <Text style={styles.discoverSub}>
+          {profiles.length} profil{profiles.length > 1 ? "s" : ""} près de vous
+        </Text>
+      </View>
+
+      <View style={styles.viewSwitch} accessibilityLabel="Disposition des profils">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Afficher un profil à la fois"
+          accessibilityState={{ selected: columns === 1 }}
+          onPress={() => setColumns(1)}
+          style={[styles.viewButton, columns === 1 && styles.viewButtonActive]}
+        >
+          <Ionicons name="square-outline" size={17} color={columns === 1 ? theme.redText : theme.muted} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Afficher la grille de profils"
+          accessibilityState={{ selected: columns === 2 }}
+          onPress={() => setColumns(2)}
+          style={[styles.viewButton, columns === 2 && styles.viewButtonActive]}
+        >
+          <Ionicons name="grid" size={16} color={columns === 2 ? theme.redText : theme.muted} />
+        </Pressable>
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.root}>
@@ -173,6 +227,7 @@ export default function HomeScreen() {
         onNotifications={() => router.push("/notifications")}
         onProfile={() => setTab("me")}
         onSettings={() => router.push("/settings")}
+        onLikes={openLikes}
         onSignOut={() => void signOut()}
       />
 
@@ -180,12 +235,12 @@ export default function HomeScreen() {
         {tab === "discover" ? (
           loadingFeed && profiles.length === 0 ? (
             <View style={styles.feedLoading}>
-              <ActivityIndicator color={colors.red} />
+              <ActivityIndicator color={theme.red} />
             </View>
           ) : empty ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyEmoji}>💜</Text>
-              <Text style={styles.emptyTitle}>Tu as découvert tout le monde pour l'instant</Text>
+              <Text style={styles.emptyTitle}>Tu as découvert tout le monde pour l’instant</Text>
               <Text style={styles.emptyCopy}>
                 NouMatch grandit chaque jour en Haïti. De nouveaux profils arrivent régulièrement.
               </Text>
@@ -194,7 +249,7 @@ export default function HomeScreen() {
                 <Button
                   title="Rafraîchir"
                   variant="ghost"
-                  onPress={() => void loadFeed()}
+                  onPress={() => void refreshAll()}
                   style={styles.emptyButton}
                 />
               </View>
@@ -202,17 +257,29 @@ export default function HomeScreen() {
             </View>
           ) : (
             <FlatList
-              data={profiles}
-              keyExtractor={(item) => String(item.id)}
-              numColumns={2}
-              columnWrapperStyle={styles.column}
+              key={`discovery-${columns}`}
+              data={feed}
+              keyExtractor={(item) => item.key}
+              numColumns={columns}
+              columnWrapperStyle={columns > 1 ? styles.column : undefined}
               contentContainerStyle={styles.grid}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={colors.red} />}
-              ListHeaderComponent={apiError ? <Alert>{apiError}</Alert> : undefined}
-              renderItem={({ item }) => <ProfileTile profile={item} />}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={theme.red} />}
+              ListHeaderComponent={
+                <>
+                  {discoveryHeader}
+                  {apiError ? <Alert>{apiError}</Alert> : null}
+                </>
+              }
+              renderItem={({ item }) =>
+                item.kind === "ad" ? (
+                  <AdTile campaign={item.ad} single={columns === 1} />
+                ) : (
+                  <ProfileTile profile={item.profile} />
+                )
+              }
               ListFooterComponent={
                 <View style={styles.footer}>
-                  {loadingMore ? <ActivityIndicator color={colors.red} /> : null}
+                  {loadingMore ? <ActivityIndicator color={theme.red} /> : null}
                   {!loadingMore && hasNext ? (
                     <Pressable onPress={() => void loadMore()} style={styles.moreButton} accessibilityRole="button">
                       <Text style={styles.moreText}>Voir plus</Text>
@@ -224,12 +291,14 @@ export default function HomeScreen() {
           )
         ) : null}
 
+        {tab === "likes" ? <LikesPanel heading inset /> : null}
+
         {tab === "conversations" ? (
           <FlatList
             data={conversations}
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={[styles.flatList, conversations.length === 0 && styles.flatListEmpty]}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={colors.red} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} tintColor={theme.red} />}
             ListHeaderComponent={
               <View style={styles.listHeader}>
                 <Text style={[type.h1, styles.listTitle]}>Conversations</Text>
@@ -241,7 +310,7 @@ export default function HomeScreen() {
             ListEmptyComponent={
               <View style={styles.center}>
                 <Text style={styles.emptyTitle}>Pas encore de conversations</Text>
-                <Text style={styles.muted}>Quand vous matchez avec quelqu'un, la discussion apparaît ici.</Text>
+                <Text style={styles.muted}>Quand vous matchez avec quelqu’un, la discussion apparaît ici.</Text>
               </View>
             }
             renderItem={({ item }) => (
@@ -271,7 +340,7 @@ export default function HomeScreen() {
         {tab === "me" ? (
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
             <View style={styles.profileHeader}>
-              <Avatar profile={me} size={116} />
+              <Avatar profile={me} size={96} />
               <Text style={[type.h1, styles.profileName]} numberOfLines={1}>
                 {displayName(me)}
               </Text>
@@ -290,7 +359,32 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <Pressable onPress={() => router.push("/profile")} style={styles.linkRow} accessibilityRole="button">
+            <Pressable
+              onPress={() => router.push("/settings")}
+              style={styles.planRow}
+              accessibilityRole="button"
+              accessibilityLabel={`Mon abonnement : ${plan.name}`}
+            >
+              <View style={[styles.planBadge, { backgroundColor: plan.background }]}>
+                <Text style={[styles.planBadgeText, { color: plan.color }]}>{plan.badge}</Text>
+              </View>
+              <Text style={styles.planHint} numberOfLines={1}>
+                {plan.tier === "free" ? "Découvrir Premium" : plan.tagline}
+              </Text>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={openLikes}
+              style={[styles.linkRow, styles.linkRowSpaced]}
+              accessibilityRole="button"
+              accessibilityLabel={likesUnlocked ? "Qui m'a liké" : "Qui m'a liké, réservé à Premium"}
+            >
+              <Text style={styles.linkLabel}>Qui m’a liké</Text>
+              <Text style={styles.linkIcon}>{likesUnlocked ? "❤️" : "🔒"}</Text>
+            </Pressable>
+
+            <Pressable onPress={() => router.push("/profile")} style={[styles.linkRow, styles.linkRowSpaced]} accessibilityRole="button">
               <Text style={styles.linkLabel}>Modifier mon profil</Text>
               <Text style={styles.chevron}>›</Text>
             </Pressable>
@@ -321,7 +415,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#f5f7fb" },
   body: { flex: 1, backgroundColor: "#f5f7fb" },
 
@@ -329,6 +423,36 @@ const styles = StyleSheet.create({
   feedLoading: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 240, backgroundColor: "#f5f7fb" },
   grid: { padding: 12, gap: 12, backgroundColor: "#f5f7fb" },
   column: { gap: 12 },
+  discoverHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    paddingHorizontal: 4,
+    paddingTop: 4,
+    paddingBottom: spacing.sm,
+  },
+  discoverHeading: { flex: 1 },
+  discoverTitle: { fontSize: 22 },
+  discoverSub: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  viewSwitch: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    padding: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  viewButton: {
+    width: 34,
+    height: 32,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewButtonActive: { backgroundColor: "#fff0f3" },
   footer: { paddingVertical: 20, alignItems: "center", gap: 12 },
   moreButton: {
     borderWidth: 1,
@@ -337,7 +461,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 36,
     paddingVertical: 9,
   },
-  moreText: { color: colors.red, fontWeight: "600", fontSize: 14 },
+  moreText: { color: colors.red, fontWeight: "600", fontSize: 12.5 },
 
   // Empty state: background #FFF0F3, 3.5rem heart, 300px copy column
   emptyState: {
@@ -348,18 +472,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 48,
   },
-  emptyEmoji: { fontSize: 56, marginBottom: 16 },
+  emptyEmoji: { fontSize: 40, marginBottom: 14 },
   emptyTitle: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "700",
-    lineHeight: 25,
+    lineHeight: 22,
     color: "#1a1a2e",
     textAlign: "center",
     marginBottom: 12,
   },
   emptyCopy: {
-    fontSize: 14.4,
-    lineHeight: 24,
+    fontSize: 12.5,
+    lineHeight: 21,
     opacity: 0.75,
     color: "#1a1a2e",
     textAlign: "center",
@@ -368,12 +492,12 @@ const styles = StyleSheet.create({
   },
   emptyActions: { marginTop: 22, width: "100%", maxWidth: 280, gap: 12 },
   emptyButton: { alignSelf: "stretch" },
-  errorText: { marginTop: 12, fontSize: 12.5, color: colors.red, textAlign: "center" },
+  errorText: { marginTop: 12, fontSize: 12, color: colors.red, textAlign: "center" },
 
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: spacing.xl },
-  muted: { fontSize: 14, color: colors.muted, textAlign: "center", lineHeight: 21 },
+  muted: { fontSize: 12.5, color: colors.muted, textAlign: "center", lineHeight: 18.5 },
   avatarFallback: { backgroundColor: colors.creamDeep, alignItems: "center", justifyContent: "center" },
-  avatarInitials: { fontWeight: "800", color: colors.red, fontSize: 16 },
+  avatarInitials: { fontWeight: "800", color: colors.red, fontSize: 14 },
   scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: spacing.md, paddingBottom: spacing.lg },
   flatList: { paddingHorizontal: 20, paddingTop: spacing.md, paddingBottom: spacing.lg },
   flatListEmpty: { flexGrow: 1 },
@@ -392,9 +516,9 @@ const styles = StyleSheet.create({
   },
   rowBody: { flex: 1, gap: 2 },
   rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  rowName: { flex: 1, fontSize: 15, fontWeight: "700", color: colors.ink },
-  rowTime: { fontSize: 11.5, color: colors.placeholder },
-  rowText: { fontSize: 13.5, color: colors.muted },
+  rowName: { flex: 1, fontSize: 13.5, fontWeight: "700", color: colors.ink },
+  rowTime: { fontSize: 11, color: colors.placeholder },
+  rowText: { fontSize: 12.5, color: colors.muted },
   badge: {
     minWidth: 22,
     height: 22,
@@ -404,7 +528,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 6,
   },
-  badgeText: { color: colors.white, fontSize: 11.5, fontWeight: "700" },
+  badgeText: { color: colors.white, fontSize: 11, fontWeight: "700" },
   profileHeader: { alignItems: "center", gap: 6, marginTop: spacing.lg, marginBottom: spacing.lg },
   profileName: { textAlign: "center" },
   statCard: {
@@ -417,8 +541,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   stat: { flex: 1, alignItems: "center", gap: 2 },
-  statValue: { fontSize: 20, fontWeight: "800", color: colors.ink },
-  statLabel: { fontSize: 12, color: colors.muted },
+  statValue: { fontSize: 18, fontWeight: "800", color: colors.ink },
+  statLabel: { fontSize: 11, color: colors.muted },
   statDivider: { width: 1, backgroundColor: colors.border },
   linkRow: {
     flexDirection: "row",
@@ -431,7 +555,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     minHeight: 54,
   },
-  linkLabel: { fontSize: 15, color: colors.ink },
-  chevron: { fontSize: 20, color: colors.muted },
+  linkRowSpaced: { marginTop: 10 },
+  linkLabel: { fontSize: 13.5, color: colors.ink },
+  linkIcon: { fontSize: 12.5 },
+  chevron: { fontSize: 18, color: colors.muted },
+  planRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    minHeight: 54,
+  },
+  planBadge: {
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  planBadgeText: { fontSize: 11, fontWeight: "700" },
+  planHint: { flex: 1, fontSize: 12, color: colors.muted, textAlign: "right" },
   meActions: { marginTop: spacing.lg },
 });

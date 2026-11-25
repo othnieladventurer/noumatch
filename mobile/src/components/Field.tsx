@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
 
-import { colors, radius, spacing } from "../theme";
+import { colors, radius, spacing, useTheme, useThemedStyles } from "../theme";
 
 export type HintTone = "error" | "success" | "muted";
 
@@ -21,6 +21,8 @@ type Props = TextInputProps & {
  */
 export function Field({ label, accessory, error, hint, hintTone = "muted", onFocus, onBlur, style, ...inputProps }: Props) {
   const [focused, setFocused] = useState(false);
+  const styles = useThemedStyles(baseStyles);
+  const { colors: theme } = useTheme();
 
   const showSuccess = Boolean(hint) && !error && hintTone === "success";
 
@@ -32,7 +34,7 @@ export function Field({ label, accessory, error, hint, hintTone = "muted", onFoc
       </View>
 
       <TextInput
-        placeholderTextColor={colors.placeholder}
+        placeholderTextColor={theme.placeholder}
         {...inputProps}
         onFocus={(event) => {
           setFocused(true);
@@ -68,7 +70,7 @@ export function Field({ label, accessory, error, hint, hintTone = "muted", onFoc
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   wrapper: {
     marginBottom: 18,
   },
@@ -80,7 +82,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.6,
     textTransform: "uppercase",
@@ -93,7 +95,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: radius.md,
     paddingHorizontal: 14,
-    fontSize: 15.5,
+    fontSize: 14,
     color: colors.ink,
   },
   inputFocused: {
@@ -107,8 +109,8 @@ const styles = StyleSheet.create({
   },
   hint: {
     marginTop: 6,
-    fontSize: 12,
-    lineHeight: 16.5,
+    fontSize: 11,
+    lineHeight: 14.5,
   },
   hintError: {
     color: colors.red,

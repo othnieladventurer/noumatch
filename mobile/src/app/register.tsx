@@ -10,7 +10,7 @@ import { Button } from "../components/Button";
 import { Field } from "../components/Field";
 import { Screen } from "../components/Screen";
 import { StepProgress } from "../components/StepProgress";
-import { colors, radius, spacing, type } from "../theme";
+import { colors, radius, spacing, useTheme, useThemedStyles, useTypography } from "../theme";
 
 type Photo = { uri: string; name: string; type: string };
 type EmailState = { status: "idle" | "checking" | "ok" | "error"; message?: string };
@@ -40,6 +40,9 @@ function ageFromBirthDate(value: string): number | null {
  * The API calls are unchanged from the previous mobile implementation.
  */
 export default function RegisterScreen() {
+  const styles = useThemedStyles(baseStyles);
+  const type = useTypography();
+  const { isDark } = useTheme();
   const [step, setStep] = useState(1);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -189,7 +192,7 @@ export default function RegisterScreen() {
     <Screen>
       <Image
         source={require("../../assets/brand/logo-wordmark.png")}
-        style={styles.logo}
+        style={[styles.logo, isDark && styles.logoDark]}
         resizeMode="contain"
         accessibilityRole="image"
         accessibilityLabel="NouMatch"
@@ -350,24 +353,25 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   logo: {
     width: 30 * WORDMARK_ASPECT,
     height: 30,
     marginTop: spacing.md,
     marginBottom: spacing.lg,
   },
+  logoDark: { tintColor: "#F4F6FB" },
   title: {
     marginBottom: 6,
   },
   subtitle: {
-    fontSize: 15.5,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 21,
     color: colors.muted,
     marginBottom: spacing.lg,
   },
   groupLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.6,
     textTransform: "uppercase",
@@ -393,7 +397,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fdecec",
   },
   genderLabel: {
-    fontSize: 15,
+    fontSize: 13.5,
     fontWeight: "600",
     color: colors.inkSoft,
   },
@@ -424,7 +428,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   photoPlus: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "700",
     color: colors.red,
   },
@@ -432,18 +436,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   photoTitle: {
-    fontSize: 14.5,
+    fontSize: 13.5,
     fontWeight: "700",
     color: colors.ink,
     marginBottom: 3,
   },
   photoHint: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: colors.muted,
   },
   photoSelected: {
     marginTop: 8,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.success,
   },
   navRow: {
@@ -461,11 +465,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   footerText: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     color: colors.muted,
   },
   footerLink: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontWeight: "600",
     color: colors.red,
   },
